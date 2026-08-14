@@ -1,252 +1,240 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import Link from "next/link";
+import { motion } from "framer-motion";
 import {
   ShieldCheck,
   ClipboardList,
   PlayCircle,
   CalendarDays,
   Clock,
-  TrendingUp,
-  Award,
-  LogOut,
   ChevronRight,
+  Lock,
+  CheckCircle2,
 } from "lucide-react";
+import { StudentTestResult, QuizTest } from "@/lib/types";
+import { getStoredResults, getTestByCode } from "@/lib/storage";
+import { ProfileDropdown } from "@/components/ProfileDropdown";
 
-const recentResults = [
-  {
-    id: 1,
-    subject: "Data Structures & Algorithms",
-    code: "CS-201",
-    score: 88,
-    adjustedScore: 83,
-    date: "Jul 28, 2026",
-    duration: "58 min",
-    grade: "A",
-  },
-  {
-    id: 2,
-    subject: "Operating Systems",
-    code: "CS-301",
-    score: 74,
-    adjustedScore: 69,
-    date: "Jul 22, 2026",
-    duration: "62 min",
-    grade: "B",
-  },
-  {
-    id: 3,
-    subject: "Computer Networks",
-    code: "CS-401",
-    score: 91,
-    adjustedScore: 90,
-    date: "Jul 15, 2026",
-    duration: "55 min",
-    grade: "A+",
-  },
-  {
-    id: 4,
-    subject: "Database Management Systems",
-    code: "CS-302",
-    score: 66,
-    adjustedScore: 61,
-    date: "Jul 8, 2026",
-    duration: "70 min",
-    grade: "C+",
-  },
-];
-
-function gradeColor(grade: string) {
-  if (grade.startsWith("A")) return "text-emerald-600 bg-emerald-50";
-  if (grade.startsWith("B")) return "text-blue-600 bg-blue-50";
-  if (grade.startsWith("C")) return "text-amber-600 bg-amber-50";
-  return "text-red-600 bg-red-50";
+function gradeBadgeClass(grade: string) {
+  if (grade.startsWith("A")) return "bg-emerald-50 text-emerald-700 border-emerald-100";
+  if (grade.startsWith("B")) return "bg-blue-50 text-blue-705 border-blue-100";
+  if (grade.startsWith("C")) return "bg-amber-50 text-amber-700 border-amber-200";
+  return "bg-rose-50 text-rose-700 border-rose-200";
 }
 
 export default function StudentDashboard() {
-  // TODO: BACKEND INTEGRATION - Auth guard: on mount, call GET /api/auth/validate.
-  // If no valid token or role != 'student', redirect to /login.
+  const [results, setResults] = useState<StudentTestResult[]>([]);
+  const [testsMap, setTestsMap] = useState<Record<string, QuizTest>>({});
 
-  // TODO: BACKEND INTEGRATION - Fetch student's past results.
-  // GET /api/students/{studentId}/results  with Authorization: Bearer {token}
-  // Expected response: Array<{ id, subject, code, rawScore, adjustedScore, date, duration, grade }>
-  // Replace the hardcoded `recentResults` array with this response.
-  const avgAdjusted = Math.round(
-    recentResults.reduce((s, r) => s + r.adjustedScore, 0) /
-      recentResults.length,
-  );
+  useEffect(() => {
+    const loadedResults = getStoredResults();
+    const map: Record<string, QuizTest> = {};
+    loadedResults.forEach((r) => {
+      const t = getTestByCode(r.testCode);
+      if (t) map[r.testCode] = t;
+    });
+    setTimeout(() => {
+      setResults(loadedResults);
+      setTestsMap(map);
+    }, 0);
+  }, []);
 
   return (
-    <div className="min-h-screen bg-[#f3eefc] font-sans">
+    <div className="min-h-screen bg-slate-50 font-sans text-slate-850 selection:bg-blue-100 selection:text-blue-900">
       {/* Top Nav */}
-      <nav className="sticky top-0 z-10 flex items-center justify-between border-b border-purple-100/60 bg-white/80 px-6 py-4 backdrop-blur-md">
-        <div className="flex items-center gap-2">
-          <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-blue-600 text-white">
-            <ShieldCheck className="h-5 w-5" />
+      <nav className="sticky top-0 z-20 flex items-center justify-between bg-white border-b border-slate-200 px-6 py-4 shadow-xs">
+        <div className="flex items-center gap-2.5">
+          <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-blue-600 text-white font-bold text-xs shadow-xs">
+            <ShieldCheck className="h-4 w-4" />
           </div>
-          <span className="text-base font-bold tracking-tight text-slate-900">
+          <span className="text-sm font-bold tracking-tight text-slate-900">
             DynoQuizz
           </span>
         </div>
-        <div className="flex items-center gap-3">
-          <div className="flex h-9 w-9 items-center justify-center rounded-full bg-blue-100 text-sm font-bold text-blue-700">
-            S
-          </div>
-          <button
-            type="button"
-            onClick={() => {
-              // TODO: BACKEND INTEGRATION - Sign out: call POST /api/auth/logout
-              // with Authorization: Bearer {token}, then:
-              // localStorage.removeItem("dynoquizz_token"); router.push('/login');
-            }}
-            className="flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-medium text-slate-500 transition-colors hover:bg-slate-100"
-          >
-            <LogOut className="h-4 w-4" />
-            Sign out
-          </button>
-        </div>
+        <ProfileDropdown />
       </nav>
 
-      <main className="mx-auto max-w-3xl px-4 py-10 space-y-8">
+      <main className="mx-auto max-w-3xl px-4 py-6 space-y-5">
         {/* Welcome Header */}
         <section>
-          <p className="text-sm font-medium text-blue-600">Student Portal</p>
-          <h1 className="mt-1 text-3xl font-bold tracking-tight text-slate-900">
-            Welcome back, Student 👋
+          <span className="text-xs font-bold uppercase tracking-widest text-slate-400">
+            Student Portal
+          </span>
+          <h1 className="mt-0.5 text-2xl font-bold tracking-tight text-slate-950">
+            Welcome Back 👋
           </h1>
-          <p className="mt-2 text-slate-500">
-            Ready to prove what you know? Join a live assessment or review your
-            past results.
+          <p className="mt-0.5 text-xs text-slate-500 font-medium">
+            Join an active assessment or review your submitted tests.
           </p>
         </section>
 
-        {/* Stats Row */}
-        <section className="grid grid-cols-3 gap-4">
-          {[
-            {
-              icon: <ClipboardList className="h-5 w-5 text-blue-600" />,
-              label: "Tests Taken",
-              value: recentResults.length,
-              bg: "bg-blue-50",
-            },
-            {
-              icon: <TrendingUp className="h-5 w-5 text-emerald-600" />,
-              label: "Avg. Adjusted Score",
-              value: `${avgAdjusted}%`,
-              bg: "bg-emerald-50",
-            },
-            {
-              icon: <Award className="h-5 w-5 text-purple-600" />,
-              label: "Best Grade",
-              value: "A+",
-              bg: "bg-purple-50",
-            },
-          ].map((stat) => (
-            <div
-              key={stat.label}
-              className="rounded-2xl bg-white p-5 shadow-sm border border-white/80"
-            >
-              <div className={`mb-3 inline-flex rounded-xl p-2 ${stat.bg}`}>
-                {stat.icon}
-              </div>
-              <p className="text-2xl font-bold text-slate-900">{stat.value}</p>
-              <p className="mt-0.5 text-xs text-slate-500">{stat.label}</p>
-            </div>
-          ))}
-        </section>
-
         {/* Primary CTA — Join Assessment */}
-        <section className="rounded-[2.5rem] bg-gradient-to-br from-blue-600 to-violet-600 p-8 shadow-2xl shadow-blue-200/50 text-white">
+        <motion.section
+          initial={{ opacity: 0, y: 8 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.25, ease: "easeOut" }}
+          whileHover={{ y: -1 }}
+          className="rounded-2xl bg-blue-600 border border-blue-700 p-6 text-white shadow-xs"
+        >
           <div className="flex items-start justify-between">
             <div>
-              <p className="text-xs font-semibold uppercase tracking-widest text-blue-200">
-                Primary Action
-              </p>
-              <h2 className="mt-2 text-2xl font-bold">Join an Assessment</h2>
-              <p className="mt-2 max-w-xs text-sm text-blue-100">
-                Enter your session code to start a live, AI-proctored exam. Make
-                sure your camera is ready.
+              <span className="text-xs font-bold uppercase tracking-wider text-blue-200">
+                Active Exam Access
+              </span>
+              <h2 className="mt-0.5 text-xl font-bold text-white">Join an Assessment</h2>
+              <p className="mt-1 max-w-sm text-xs text-blue-50 leading-relaxed font-medium">
+                Enter your 6-character session code to start the offline package download and identity verification.
               </p>
               <Link
                 href="/join"
-                className="mt-6 inline-flex items-center gap-2 rounded-full bg-white px-6 py-3 text-sm font-semibold text-blue-700 shadow-lg transition-all hover:scale-[1.03] hover:shadow-blue-300/60 active:scale-[0.98]"
+                className="mt-4 inline-flex items-center gap-1.5 rounded-lg bg-white px-5 py-2.5 text-xs font-bold text-blue-605 hover:bg-slate-50 active:scale-95 transition-all shadow-xs"
               >
-                <PlayCircle className="h-4 w-4" />
+                <PlayCircle className="h-4 w-4 text-blue-600" />
                 Join Assessment
-                <ChevronRight className="h-4 w-4" />
+                <ChevronRight className="h-4 w-4 text-blue-650" />
               </Link>
             </div>
-            <div className="hidden sm:flex h-20 w-20 items-center justify-center rounded-2xl bg-white/10 backdrop-blur">
-              <ShieldCheck className="h-10 w-10 text-white/80" />
+            <div className="hidden sm:flex h-12 w-12 items-center justify-center rounded-xl bg-white/10 text-white border border-white/10">
+              <ShieldCheck className="h-6 w-6" />
+            </div>
+          </div>
+        </motion.section>
+
+        {/* Stats Strip */}
+        <section className="grid grid-cols-2 gap-4">
+          <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-xs flex items-center gap-3">
+            <div className="rounded-lg p-2 bg-slate-50 text-slate-700 border border-slate-200">
+              <ClipboardList className="h-4 w-4" />
+            </div>
+            <div>
+              <p className="text-xl font-bold text-slate-900">{results.length}</p>
+              <p className="text-[10px] text-slate-500 font-bold uppercase">Tests Submitted</p>
+            </div>
+          </div>
+
+          <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-xs flex items-center gap-3">
+            <div className="rounded-lg p-2 bg-emerald-50 text-emerald-700 border border-emerald-100">
+              <CheckCircle2 className="h-4 w-4" />
+            </div>
+            <div>
+              <p className="text-xl font-bold text-slate-900">
+                {results.filter((r) => testsMap[r.testCode]?.settings?.publishScoresImmediately).length} Released
+              </p>
+              <p className="text-[10px] text-slate-500 font-bold uppercase">Released Grades</p>
             </div>
           </div>
         </section>
 
         {/* Recent Results */}
         <section>
-          <div className="mb-4 flex items-center justify-between">
-            <h2 className="text-lg font-bold text-slate-900">Recent Results</h2>
-            <button
-              type="button"
-              className="text-xs font-medium text-blue-600 hover:underline"
-            >
-              View all
-            </button>
+          <div className="mb-3 flex items-center justify-between">
+            <h2 className="text-xs font-bold text-slate-900">Recent Assessments ({results.length})</h2>
           </div>
 
-          <div className="rounded-[2.5rem] bg-white shadow-2xl overflow-hidden border border-white/80">
+          <div className="rounded-2xl bg-white border border-slate-200 overflow-hidden shadow-xs">
             <ul className="divide-y divide-slate-100">
-              {recentResults.map((result) => (
-                <li key={result.id}>
-                  <Link
-                    href={`/dashboard/student/result/${result.code}`}
-                    className="flex items-center justify-between gap-4 px-6 py-5 transition-colors hover:bg-slate-50"
-                  >
-                    <div className="flex min-w-0 flex-col gap-1">
-                      <span className="truncate text-sm font-semibold text-slate-900">
-                        {result.subject}
-                      </span>
-                      <div className="flex items-center gap-3 text-xs text-slate-400">
-                        <span className="flex items-center gap-1">
-                          <CalendarDays className="h-3.5 w-3.5" />
-                          {result.date}
-                        </span>
-                        <span className="flex items-center gap-1">
-                          <Clock className="h-3.5 w-3.5" />
-                          {result.duration}
-                        </span>
-                        <span className="font-mono text-slate-400">
-                          {result.code}
-                        </span>
-                      </div>
-                    </div>
+              {results.map((result, idx) => {
+                const targetTest = testsMap[result.testCode];
+                const isPublished = targetTest?.settings?.publishScoresImmediately ?? false;
 
-                    <div className="flex shrink-0 items-center gap-4">
-                      {/* Raw vs Adjusted */}
-                      <div className="hidden sm:flex flex-col items-end text-xs">
-                        <span className="font-semibold text-slate-700">
-                          {result.adjustedScore}%
-                        </span>
-                        <span className="text-slate-400 line-through">
-                          {result.score}%
-                        </span>
-                        <span className="text-[10px] text-slate-400 mt-0.5">
-                          adjusted
+                if (isPublished) {
+                  return (
+                    <motion.li
+                      key={idx}
+                      initial={{ opacity: 0, y: 4 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      transition={{ delay: idx * 0.04, duration: 0.2, ease: "easeOut" }}
+                    >
+                      <Link
+                        href={`/dashboard/student/result/${result.testCode}`}
+                        className="flex items-center justify-between gap-4 px-4 py-3.5 transition-colors hover:bg-slate-50/50 group"
+                      >
+                        <div className="flex min-w-0 flex-col gap-0.5">
+                          <span className="truncate text-xs font-bold text-slate-900 group-hover:text-blue-600 transition-colors">
+                            {result.quizName}
+                          </span>
+                          <div className="flex items-center gap-3 text-[10px] text-slate-400 font-medium">
+                            <span className="flex items-center gap-1">
+                              <CalendarDays className="h-3 w-3" />
+                              {result.submittedAt}
+                            </span>
+                            <span className="flex items-center gap-1">
+                              <Clock className="h-3 w-3" />
+                              {result.totalQuestions} Qs
+                            </span>
+                            <span className="font-mono font-bold">
+                              {result.testCode}
+                            </span>
+                          </div>
+                        </div>
+
+                        <div className="flex shrink-0 items-center gap-2">
+                          <div className="flex flex-col items-end text-[10px]">
+                            <span className="font-bold text-emerald-800">
+                              Released: {result.adjustedScore}%
+                            </span>
+                            <span className="text-slate-400 font-bold uppercase text-[8px]">
+                              Grade {result.grade}
+                            </span>
+                          </div>
+                          <span
+                            className={`inline-flex min-w-[1.8rem] items-center justify-center rounded-full border px-2 py-0.5 text-[10px] font-bold ${gradeBadgeClass(
+                              result.grade,
+                            )}`}
+                          >
+                            {result.grade}
+                          </span>
+                          <ChevronRight className="h-3.5 w-3.5 text-slate-300" />
+                        </div>
+                      </Link>
+                    </motion.li>
+                  );
+                }
+
+                return (
+                  <motion.li
+                    key={idx}
+                    initial={{ opacity: 0, y: 4 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ delay: idx * 0.04, duration: 0.2, ease: "easeOut" }}
+                  >
+                    <div className="flex items-center justify-between gap-4 px-4 py-3.5 cursor-not-allowed bg-slate-50/30">
+                      <div className="flex min-w-0 flex-col gap-0.5">
+                        <div className="flex items-center gap-1.5">
+                          <span className="truncate text-xs font-bold text-slate-400">
+                            {result.quizName}
+                          </span>
+                          <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[8px] font-bold text-slate-500 border border-slate-200">
+                            Locked
+                          </span>
+                        </div>
+                        <div className="flex items-center gap-3 text-[10px] text-slate-400 font-medium">
+                          <span className="flex items-center gap-1">
+                            <CalendarDays className="h-3 w-3" />
+                            {result.submittedAt}
+                          </span>
+                          <span className="flex items-center gap-1">
+                            <Clock className="h-3 w-3" />
+                            {result.totalQuestions} Qs
+                          </span>
+                          <span className="font-mono font-bold">
+                            {result.testCode}
+                          </span>
+                        </div>
+                      </div>
+
+                      <div className="flex shrink-0 items-center gap-1.5">
+                        <span className="inline-flex items-center gap-1 rounded-full border border-amber-200 bg-amber-50 px-2.5 py-0.5 text-[9px] font-bold text-amber-705">
+                          <Lock className="h-3 w-3 text-amber-600" />
+                          Pending Review
                         </span>
                       </div>
-                      {/* Grade Badge */}
-                      <span
-                        className={`inline-flex min-w-[2.5rem] items-center justify-center rounded-full px-2.5 py-1 text-xs font-bold ${gradeColor(
-                          result.grade,
-                        )}`}
-                      >
-                        {result.grade}
-                      </span>
-                      <ChevronRight className="h-4 w-4 text-slate-300" />
                     </div>
-                  </Link>
-                </li>
-              ))}
+                  </motion.li>
+                );
+              })}
             </ul>
           </div>
         </section>

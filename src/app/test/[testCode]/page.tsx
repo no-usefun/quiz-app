@@ -1,247 +1,478 @@
 "use client";
+
 import { useProctoring } from "@/hooks/useProctoring";
-import { useState, useEffect } from "react";
+import { use, useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
+import { motion, AnimatePresence } from "framer-motion";
 import {
   Clock,
   ShieldAlert,
   AlertTriangle,
-  CheckCircle2,
   ChevronRight,
   Video,
+  CheckCircle2,
+  Lock,
+  ShieldCheck,
+  Wifi,
+  WifiOff,
+  Hourglass,
 } from "lucide-react";
+import { QuizTest, StudentAnswer, StudentTestResult } from "@/lib/types";
+import { getTestByCode, saveResult } from "@/lib/storage";
 
-// TODO: BACKEND INTEGRATION - Replace mockQuestions with a real API call.
-// On page load: GET /api/assessments/{testCode}/questions  with Authorization: Bearer {token}
-// Expected response: Array<{
-//   id: number,
-//   type: 'MCQ' | 'FITB',
-//   text: string,
-//   timeLimitSeconds: number,
-//   options?: string[]   // only for MCQ
-// }>
-// Note: correctAnswer / correctOptionIndex must NOT be returned to the client.
-const mockQuestions = [
-  {
-    id: 1,
-    text: "Which data structure operates on a Last In, First Out (LIFO) principle?",
-    options: ["Queue", "Stack", "Linked List", "Binary Tree"],
-    timeLimit: 30,
+const DEFAULT_FALLBACK_TEST: QuizTest = {
+  testCode: "DEMO-101",
+  quizName: "Data Structures & Algorithms Midterm",
+  targetClass: "CS-201",
+  totalTimeLimitMinutes: 30,
+  settings: {
+    negativeMarking: true,
+    automatedAiPenalty: true,
+    publishScoresImmediately: false,
+    revealSolutions: false,
+    showIntegrityFlagsToStudent: false,
   },
-  {
-    id: 2,
-    text: "What is the time complexity of searching for an element in a balanced Binary Search Tree?",
-    options: ["O(1)", "O(n)", "O(log n)", "O(n log n)"],
-    timeLimit: 45,
-  },
-];
+  createdAt: "Aug 14, 2026",
+  status: "LIVE",
+  questions: [
+    {
+      id: 1,
+      text: "Which data structure operates on a Last In, First Out (LIFO) principle?",
+      options: ["Queue", "Stack", "Linked List", "Binary Tree"],
+      correctOption: "Stack",
+    },
+    {
+      id: 2,
+      text: "What is the worst-case time complexity of searching in a balanced Binary Search Tree?",
+      options: ["O(1)", "O(n)", "O(log n)", "O(n log n)"],
+      correctOption: "O(log n)",
+    },
+    {
+      id: 3,
+      text: "Which property in SQL guarantees that a database transaction is completely committed or aborted?",
+      options: ["Atomicity", "Consistency", "Isolation", "Durability"],
+      correctOption: "Atomicity",
+    },
+  ],
+};
+
+function calculateGrade(score: number): string {
+  if (score >= 90) return "A+";
+  if (score >= 80) return "A";
+  if (score >= 70) return "B";
+  if (score >= 60) return "C";
+  return "F";
+}
 
 export default function TestArenaPage({
   params,
 }: {
-  params: { testCode: string };
+  params: Promise<{ testCode: string }>;
 }) {
-  const { warnings, violationCount, requestFullscreen } = useProctoring();
+  const { testCode } = use(params);
+  const { violationCount, flags } = useProctoring();
   const router = useRouter();
+
+  // Test state loaded from localStorage
+  const [activeTest, setActiveTest] = useState<QuizTest>(DEFAULT_FALLBACK_TEST);
   const [currentIndex, setCurrentIndex] = useState(0);
   const [selectedOption, setSelectedOption] = useState<string | null>(null);
+  const [studentAnswers, setStudentAnswers] = useState<StudentAnswer[]>([]);
+  const [timeLeft, setTimeLeft] = useState(30); // fixed 30s per question
+  const [isAnswerLocked, setIsAnswerLocked] = useState(false);
+  const [isSubmitted, setIsSubmitted] = useState(false);
+  const [isOnline, setIsOnline] = useState(true);
 
-  // Timer State
-  const [timeLeft, setTimeLeft] = useState(mockQuestions[0].timeLimit);
-  const [isTestComplete, setIsTestComplete] = useState(false);
-
-  const currentQuestion = mockQuestions[currentIndex];
-  const progressPercentage = ((currentIndex + 1) / mockQuestions.length) * 100;
-  const timePercentage = (timeLeft / currentQuestion.timeLimit) * 100;
-
-  // Timer Countdown Logic
   useEffect(() => {
-    if (isTestComplete) return;
+    if (typeof window !== "undefined") {
+      const handleOnline = () => setIsOnline(true);
+      const handleOffline = () => setIsOnline(false);
 
-    const timer = setInterval(() => {
-      setTimeLeft((prev) => {
-        if (prev <= 1) {
-          handleNextQuestion(true); // Auto-submit when time runs out
-          return 0;
+      window.addEventListener("online", handleOnline);
+      window.addEventListener("offline", handleOffline);
+
+      // Async update to avoid cascading synchronous render in effect
+      setTimeout(() => setIsOnline(navigator.onLine), 0);
+
+      return () => {
+        window.removeEventListener("online", handleOnline);
+        window.removeEventListener("offline", handleOffline);
+      };
+    }
+  }, []);
+
+  useEffect(() => {
+    const loaded = getTestByCode(testCode);
+    if (loaded && loaded.questions.length > 0) {
+      // Async update to avoid cascading synchronous render in effect
+      setTimeout(() => setActiveTest(loaded), 0);
+    }
+  }, [testCode]);
+
+  const questions = activeTest.questions;
+  const currentQuestion = questions[currentIndex] || questions[0];
+  const progressPercentage = ((currentIndex + 1) / questions.length) * 100;
+
+  const handleLockAnswer = () => {
+    if (!selectedOption || isAnswerLocked) return;
+
+    const currentAnswer: StudentAnswer = {
+      questionId: currentQuestion.id,
+      selectedOption: selectedOption,
+      timeTakenSeconds: 30 - timeLeft,
+    };
+
+    setStudentAnswers((prev) => [...prev, currentAnswer]);
+    setIsAnswerLocked(true);
+  };
+
+  const finishAssessment = (finalAnswers: StudentAnswer[]) => {
+    let correctCount = 0;
+    let incorrectCount = 0;
+    finalAnswers.forEach((ans) => {
+      const q = questions.find((item) => item.id === ans.questionId);
+      if (q) {
+        if (q.correctOption === ans.selectedOption) {
+          correctCount++;
+        } else {
+          incorrectCount++;
         }
-        return prev - 1;
-      });
-    }, 1000);
+      }
+    });
 
-    return () => clearInterval(timer);
-  }, [currentIndex, isTestComplete]);
+    let rawScorePoints = correctCount;
+    if (activeTest.settings?.negativeMarking) {
+      rawScorePoints -= incorrectCount * 0.5;
+    }
+    const rawPercentage = Math.max(0, Math.round((rawScorePoints / questions.length) * 100));
+    const penaltyDeduction = Math.min(violationCount * 5, 25);
+    const adjustedPercentage = Math.max(0, rawPercentage - penaltyDeduction);
+    const grade = calculateGrade(adjustedPercentage);
 
-  const handleNextQuestion = (timeOut = false) => {
-    // TODO: BACKEND INTEGRATION - Submit the student's answer for this question.
-    // POST /api/assessments/{testCode}/answers  with Authorization: Bearer {token}
-    // Request body: { questionId: number, selectedOption: string | null, timeTakenSeconds: number, timedOut: boolean }
-    // Expected response: { acknowledged: true }  (grading happens server-side)
-    // Also report current proctoring violations:
-    // POST /api/assessments/{testCode}/flags  with body: { flags: warnings[] }
-    console.log("Submitted:", selectedOption, "Time Left:", timeLeft);
+    const finalResult: StudentTestResult = {
+      testCode: testCode.toUpperCase(),
+      quizName: activeTest.quizName,
+      targetClass: activeTest.targetClass,
+      studentName: "Suryanshu Saini",
+      submittedAt: new Date().toLocaleDateString("en-IN", { month: "short", day: "numeric", year: "numeric" }),
+      rawScore: rawPercentage,
+      adjustedScore: adjustedPercentage,
+      totalQuestions: questions.length,
+      correctCount: correctCount,
+      grade: grade,
+      timeTakenTotalSeconds: finalAnswers.reduce((acc, a) => acc + a.timeTakenSeconds, 0),
+      answers: finalAnswers,
+      flags: [
+        { type: "tab_switch" as const, label: "Tab switched", count: flags.tab_switch },
+        { type: "fullscreen_exit" as const, label: "Fullscreen exited", count: flags.fullscreen_exit },
+        { type: "right_click" as const, label: "Right-click attempted", count: flags.right_click },
+        { type: "copy_attempt" as const, label: "Copy/Paste attempted", count: flags.copy_attempt },
+      ].filter((f) => f.count > 0),
+    };
 
-    if (currentIndex < mockQuestions.length - 1) {
-      setCurrentIndex((prev) => prev + 1);
-      setSelectedOption(null);
-      setTimeLeft(mockQuestions[currentIndex + 1].timeLimit);
+    saveResult(finalResult);
+
+    if (activeTest.settings?.publishScoresImmediately) {
+      router.push(`/dashboard/student/result/${testCode}`);
     } else {
-      // TODO: BACKEND INTEGRATION - All questions answered. Submit final proctoring report.
-      // POST /api/assessments/{testCode}/submit  with Authorization: Bearer {token}
-      // Body: { totalViolations: violationCount, flagSummary: warnings }
-      // Expected response: { submitted: true, resultAvailableAt: ISO8601 }
-      setIsTestComplete(true);
+      setIsSubmitted(true);
     }
   };
 
-  if (isTestComplete) {
+  const handleTimerExpired = () => {
+    let latestAnswers = [...studentAnswers];
+    const hasCurrent = latestAnswers.some((a) => a.questionId === currentQuestion.id);
+
+    if (!hasCurrent) {
+      const autoAnswer: StudentAnswer = {
+        questionId: currentQuestion.id,
+        selectedOption: selectedOption,
+        timeTakenSeconds: 30,
+      };
+      latestAnswers = [...latestAnswers, autoAnswer];
+      setStudentAnswers(latestAnswers);
+    }
+
+    if (currentIndex < questions.length - 1) {
+      setCurrentIndex((prev) => prev + 1);
+      setSelectedOption(null);
+      setIsAnswerLocked(false);
+      setTimeLeft(30);
+    } else {
+      finishAssessment(latestAnswers);
+    }
+  };
+
+  // Countdown timer for current question
+  useEffect(() => {
+    if (isSubmitted || questions.length === 0) return;
+
+    const timer = setTimeout(() => {
+      if (timeLeft <= 1) {
+        handleTimerExpired();
+      } else {
+        setTimeLeft((prev) => prev - 1);
+      }
+    }, 1000);
+
+    return () => clearTimeout(timer);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [timeLeft, isSubmitted, questions.length]);
+
+  if (isSubmitted) {
     return (
-      <main className="flex min-h-screen items-center justify-center bg-[#f3eefc] p-4 font-sans">
-        <div className="w-full max-w-md rounded-[2.5rem] bg-white p-10 text-center shadow-2xl">
-          <div className="mx-auto mb-6 flex h-20 w-20 items-center justify-center rounded-full bg-emerald-100 text-emerald-600">
-            <CheckCircle2 className="h-10 w-10" />
+      <main className="flex min-h-screen items-center justify-center bg-slate-50 text-slate-850 p-4 font-sans selection:bg-blue-105 selection:text-blue-900">
+        <motion.div
+          initial={{ opacity: 0, y: 8 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.2, ease: "easeOut" }}
+          className="w-full max-w-md rounded-2xl bg-white p-6 md:p-8 text-center border border-slate-205 shadow-xs space-y-4"
+        >
+          <div className="mx-auto flex h-10 w-10 items-center justify-center rounded-xl bg-slate-100 border border-slate-200 text-slate-600 shadow-xs">
+            <CheckCircle2 className="h-6 w-6 text-emerald-600" />
           </div>
-          <h2 className="mb-2 text-3xl font-extrabold text-slate-900">
-            Assessment Complete!
-          </h2>
-          <p className="mb-8 text-slate-500">
-            Your answers and time data have been securely submitted to the
-            teacher's dashboard.
-          </p>
-          <button
-            onClick={() => router.push("/dashboard/student")}
-            className="w-full rounded-full bg-black px-6 py-4 font-bold text-white transition-transform hover:scale-105 active:scale-95"
+          <div>
+            <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
+              Response Recorded
+            </span>
+            <h1 className="mt-0.5 text-xl font-bold text-slate-900">
+              Assessment Submitted
+            </h1>
+            <p className="mt-1 text-xs text-slate-505 leading-relaxed font-medium">
+              Your exam payload and telemetry log have been securely saved. Results will be available once evaluated and published by your instructor.
+            </p>
+          </div>
+          <div className="rounded-xl border border-slate-200 bg-slate-50 p-3.5 text-xs font-semibold text-slate-705 text-left space-y-1.5">
+            <p className="flex items-center gap-1.5">
+              <CheckCircle2 className="h-3.5 w-3.5 text-emerald-600 shrink-0" />
+              Answers Submitted &amp; Encrypted
+            </p>
+            <p className="flex items-center gap-1.5">
+              <CheckCircle2 className="h-3.5 w-3.5 text-emerald-600 shrink-0" />
+              Proctoring Telemetry Logged
+            </p>
+            <p className="flex items-center gap-1.5">
+              <Lock className="h-3.5 w-3.5 text-slate-550 shrink-0" />
+              Results Pending Instructor Release
+            </p>
+          </div>
+          <Link
+            href="/dashboard/student"
+            className="flex w-full items-center justify-center gap-1.5 rounded-lg bg-blue-650 hover:bg-blue-700 py-2.5 text-xs font-bold text-white active:scale-95 transition-all shadow-xs"
           >
-            Return to Dashboard
-          </button>
-        </div>
+            Return to Dashboard <ChevronRight className="h-4 w-4" />
+          </Link>
+        </motion.div>
       </main>
     );
   }
 
   return (
-    <main className="flex min-h-screen bg-[#f3eefc] p-4 md:p-6 lg:p-8 font-sans">
-      {/* LEFT COLUMN: Main Quiz UI */}
-      <div className="flex flex-1 flex-col rounded-[2.5rem] bg-white shadow-2xl border border-white/50 relative overflow-hidden">
+    <div className="flex min-h-screen bg-slate-50 text-slate-850 p-4 md:p-6 font-sans selection:bg-blue-105 selection:text-blue-900">
+      <motion.div
+        initial={{ opacity: 0, y: 8 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.2, ease: "easeOut" }}
+        className="flex flex-1 flex-col rounded-2xl bg-white overflow-hidden border border-slate-200 shadow-xs"
+      >
         {/* Header */}
-        <header className="flex items-center justify-between border-b border-slate-100 px-8 py-6">
-          <div className="flex items-center gap-4">
-            <span className="rounded-full bg-slate-100 px-4 py-1.5 text-sm font-bold text-slate-600">
-              {params.testCode}
+        <header className="flex flex-wrap items-center justify-between bg-slate-50 px-6 py-4 gap-3 border-b border-slate-200">
+          <div className="flex items-center gap-3.5">
+            <span className="rounded-full bg-blue-600 px-3 py-0.5 text-xs font-bold text-white font-mono shadow-xs border border-blue-700">
+              {testCode.toUpperCase()}
             </span>
-            <span className="text-sm font-medium text-slate-400">
-              Question {currentIndex + 1} of {mockQuestions.length}
+            <span className="text-xs font-bold text-slate-500">
+              Question {currentIndex + 1} of {questions.length}
+            </span>
+
+            {/* Extension Locked Security Badge */}
+            <span className="hidden md:flex items-center gap-1.5 rounded-full bg-white border border-slate-200 px-2.5 py-0.5 text-xs font-bold text-slate-700">
+              <ShieldCheck className="h-3.5 w-3.5 text-blue-600" /> Extension Locked: Secure Mode Active
             </span>
           </div>
 
-          {/* Dynamic Timer */}
-          <div
-            className={`flex items-center gap-2 rounded-full px-4 py-2 font-bold transition-colors ${
-              timeLeft <= 10
-                ? "bg-red-100 text-red-600 animate-pulse"
-                : "bg-slate-100 text-slate-700"
-            }`}
-          >
-            <Clock className="h-5 w-5" />
-            00:{timeLeft.toString().padStart(2, "0")}
+          <div className="flex items-center gap-3.5">
+            {/* Dynamic Network Status Indicator */}
+            {isOnline ? (
+              <span className="flex items-center gap-1.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-250/60 px-2.5 py-0.5 text-xs font-bold">
+                <span className="relative flex h-2 w-2">
+                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75" />
+                  <span className="relative inline-flex h-2 w-2 rounded-full bg-emerald-500" />
+                </span>
+                <Wifi className="h-3.5 w-3.5" /> Connected &amp; Syncing
+              </span>
+            ) : (
+              <span className="flex items-center gap-1.5 rounded-full bg-amber-50 text-amber-700 border border-amber-250/60 px-2.5 py-0.5 text-xs font-bold">
+                <WifiOff className="h-3.5 w-3.5" /> Offline - Saving Locally
+              </span>
+            )}
+
+            {/* Per-Question Timer */}
+            <div
+              className={`flex items-center gap-1.5 rounded-full px-3 py-1 font-bold text-xs transition-colors border ${
+                timeLeft <= 10
+                  ? "bg-rose-50 text-rose-700 border-rose-250/60"
+                  : "bg-white text-slate-700 border-slate-200"
+              }`}
+            >
+              <Clock className="h-3.5 w-3.5" />
+              00:{timeLeft.toString().padStart(2, "0")}
+            </div>
           </div>
         </header>
 
         {/* Progress Bar */}
-        <div className="h-1 w-full bg-slate-100">
+        <div className="h-1.5 w-full bg-slate-100 border-b border-slate-200/50">
           <div
-            className="h-full bg-blue-600 transition-all duration-500 ease-out"
+            className="h-full bg-blue-600 transition-all duration-300 ease-out"
             style={{ width: `${progressPercentage}%` }}
-          ></div>
+          />
         </div>
 
         {/* Question Area */}
-        <div className="flex-1 overflow-y-auto px-8 py-10 md:px-16 md:py-12">
-          <h2 className="mb-10 text-3xl font-extrabold leading-tight text-slate-900 md:text-4xl">
-            {currentQuestion.text}
-          </h2>
-
-          <div className="space-y-4">
-            {currentQuestion.options.map((option, idx) => (
-              <button
-                key={idx}
-                onClick={() => setSelectedOption(option)}
-                className={`w-full rounded-2xl border-2 p-6 text-left text-lg font-medium transition-all ${
-                  selectedOption === option
-                    ? "border-blue-600 bg-blue-50 text-blue-900 shadow-md"
-                    : "border-slate-200 bg-white text-slate-700 hover:border-blue-300 hover:bg-slate-50"
-                }`}
+        <div className="flex-1 overflow-y-auto px-6 py-6 md:px-10 md:py-8 bg-white">
+          <AnimatePresence mode="wait">
+            {!isAnswerLocked ? (
+              <motion.div
+                key={`q-${currentIndex}`}
+                initial={{ opacity: 0, y: 8 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -8 }}
+                transition={{ duration: 0.2, ease: "easeOut" }}
               >
-                <div className="flex items-center gap-4">
-                  <span
-                    className={`flex h-8 w-8 items-center justify-center rounded-full text-sm font-bold ${
-                      selectedOption === option
-                        ? "bg-blue-600 text-white"
-                        : "bg-slate-100 text-slate-500"
-                    }`}
-                  >
-                    {String.fromCharCode(65 + idx)}
-                  </span>
-                  {option}
+                <h2 className="mb-5 text-lg font-bold leading-snug text-slate-900 md:text-xl">
+                  {currentQuestion.text}
+                </h2>
+
+                <div className="space-y-2.5">
+                  {currentQuestion.options.map((option, idx) => (
+                    <button
+                      key={idx}
+                      onClick={() => setSelectedOption(option)}
+                      className={`w-full rounded-xl border p-3.5 text-left text-xs font-bold transition-all ${
+                        selectedOption === option
+                          ? "border-blue-650 bg-blue-50/70 text-blue-900 ring-1 ring-blue-600"
+                          : "border-slate-200 bg-slate-50 text-slate-700 hover:border-slate-300 hover:bg-white"
+                      }`}
+                    >
+                      <div className="flex items-center gap-2.5">
+                        <span
+                          className={`flex h-7 w-7 items-center justify-center rounded-lg text-xs font-bold border ${
+                            selectedOption === option
+                              ? "bg-blue-600 border-blue-600 text-white"
+                              : "bg-white text-slate-500 border-slate-205"
+                          }`}
+                        >
+                          {String.fromCharCode(65 + idx)}
+                        </span>
+                        {option}
+                      </div>
+                    </button>
+                  ))}
                 </div>
-              </button>
-            ))}
-          </div>
+              </motion.div>
+            ) : (
+              /* Synchronized Locked Waiting View */
+              <motion.div
+                key="waiting-lock"
+                initial={{ opacity: 0, y: 8 }}
+                animate={{ opacity: 1, y: 0 }}
+                className="flex flex-col items-center justify-center text-center py-8 space-y-3.5 max-w-md mx-auto"
+              >
+                <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-blue-650 text-white shadow-xs border border-blue-700">
+                  <Lock className="h-5 w-5" />
+                </div>
+
+                <div>
+                  <span className="text-[10px] font-bold uppercase tracking-widest text-slate-400">
+                    Synchronized Pacing Active
+                  </span>
+                  <h2 className="mt-0.5 text-lg font-bold text-slate-905">
+                    Answer Locked &amp; Saved
+                  </h2>
+                  <p className="mt-1 text-xs text-slate-505 leading-relaxed font-medium">
+                    Your choice for Question {currentIndex + 1} has been recorded locally. Waiting for the synchronized timer to expire before unlocking Question {currentIndex + 2}...
+                  </p>
+                </div>
+
+                <div className="rounded-xl border border-slate-200 bg-slate-50 p-3.5 w-full text-center space-y-1">
+                  <p className="text-xs font-bold text-slate-900 flex items-center justify-center gap-1">
+                    <Hourglass className="h-3.5 w-3.5 text-slate-800 animate-spin" />
+                    Next question unlocks in 00:{timeLeft.toString().padStart(2, "0")}s
+                  </p>
+                  <p className="text-[10px] text-slate-500 font-medium">
+                    Selected Choice: <strong className="font-bold text-slate-900">{selectedOption}</strong>
+                  </p>
+                </div>
+              </motion.div>
+            )}
+          </AnimatePresence>
         </div>
 
         {/* Footer */}
-        <footer className="border-t border-slate-100 bg-slate-50 px-8 py-6 flex justify-end">
+        <footer className="border-t border-slate-200 bg-slate-50 px-6 py-3 flex justify-between items-center">
+          <span className="text-[10px] font-medium text-slate-400">
+            Synchronized Question Flow · Back &amp; Skip Disabled
+          </span>
+
           <button
-            onClick={() => handleNextQuestion(false)}
-            disabled={!selectedOption}
-            className="flex items-center gap-2 rounded-full bg-black px-8 py-4 text-sm font-bold text-white transition-all hover:scale-105 active:scale-95 disabled:opacity-50 disabled:hover:scale-100 shadow-lg shadow-black/10"
+            onClick={handleLockAnswer}
+            disabled={!selectedOption || isAnswerLocked}
+            className="flex items-center gap-1 rounded-lg bg-blue-600 px-4 py-2 text-xs font-bold text-white hover:bg-blue-700 active:scale-95 transition-all shadow-xs disabled:opacity-40"
           >
-            {currentIndex === mockQuestions.length - 1
-              ? "Submit Assessment"
-              : "Save & Next"}
-            <ChevronRight className="h-5 w-5" />
+            {isAnswerLocked ? (
+              <><Lock className="h-3.5 w-3.5" /> Answer Locked</>
+            ) : currentIndex === questions.length - 1 ? (
+              <><Lock className="h-3.5 w-3.5" /> Lock &amp; Submit</>
+            ) : (
+              <><Lock className="h-3.5 w-3.5" /> Lock Answer</>
+            )}
           </button>
         </footer>
-      </div>
+      </motion.div>
 
       {/* RIGHT COLUMN: AI Proctoring Sidebar */}
-      <aside className="hidden w-80 flex-col gap-6 pl-6 lg:flex">
-        {/* Webcam Placeholder (We will inject TensorFlow here later) */}
-        <div className="overflow-hidden rounded-3xl bg-slate-900 shadow-xl border border-slate-800">
-          <div className="aspect-video w-full bg-slate-800 flex items-center justify-center relative">
-            <Video className="h-8 w-8 text-slate-600" />
-            <div className="absolute top-3 right-3 flex items-center gap-2 rounded-full bg-black/50 px-2 py-1 text-xs font-semibold text-white backdrop-blur-sm">
-              <div className="h-2 w-2 rounded-full bg-red-500 animate-pulse"></div>{" "}
-              Live
+      <aside className="hidden w-72 flex-col gap-4 pl-6 lg:flex">
+        {/* Webcam Container */}
+        <div className="overflow-hidden rounded-2xl bg-white border border-slate-200 shadow-xs">
+          <div className="aspect-video w-full bg-slate-900 border-b border-slate-200 flex items-center justify-center relative">
+            <Video className="h-6 w-6 text-slate-405" />
+            <div className="absolute top-2 right-2 flex items-center gap-1 rounded-full bg-black/60 px-2 py-0.5 text-[9px] font-bold text-emerald-400 border border-emerald-500/20">
+              <span className="relative flex h-1.5 w-1.5">
+                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75" />
+                <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-emerald-500" />
+              </span>
+              LIVE
             </div>
           </div>
-          <div className="p-4">
-            <h3 className="flex items-center gap-2 font-bold text-white text-sm">
-              <ShieldAlert className="h-4 w-4 text-blue-500" /> AI Proctor
-              Active
+          <div className="p-3.5">
+            <h3 className="flex items-center gap-1 font-bold text-slate-900 text-xs">
+              <ShieldAlert className="h-3.5 w-3.5 text-slate-550" /> Edge-AI Proctor Active
             </h3>
-            <p className="mt-1 text-xs text-slate-400">
-              Your webcam and browser activity are being monitored.
+            <p className="mt-0.5 text-[10px] text-slate-500 font-medium">
+              Webcam feed, tab switches, and clipboard events are monitored.
             </p>
           </div>
         </div>
 
         {/* System Warnings Panel */}
-        <div className="rounded-3xl border border-amber-200 bg-amber-50 p-6 shadow-sm">
-          <h3 className="flex items-center gap-2 font-bold text-amber-900 mb-4 text-sm">
-            <AlertTriangle className="h-4 w-4 text-amber-600" /> System Warnings
+        <div className="rounded-2xl border border-amber-200 bg-amber-50/50 p-4 shadow-xs">
+          <h3 className="flex items-center gap-1 font-bold text-amber-900 mb-1.5 text-xs">
+            <AlertTriangle className="h-3.5 w-3.5 text-amber-600" /> Proctoring Rules
           </h3>
-          <ul className="space-y-3 text-xs font-medium text-amber-800">
-            <li className="flex items-start gap-2">
-              <div className="mt-0.5 h-1.5 w-1.5 rounded-full bg-amber-500 shrink-0"></div>
-              Do not exit fullscreen mode.
+          <ul className="space-y-1 text-[10px] font-medium text-amber-800">
+            <li className="flex items-start gap-1">
+              <div className="mt-1 h-1 w-1 rounded-full bg-amber-600 shrink-0" />
+              Do not switch tabs or minimize the window.
             </li>
-            <li className="flex items-start gap-2">
-              <div className="mt-0.5 h-1.5 w-1.5 rounded-full bg-amber-500 shrink-0"></div>
-              Ensure your face remains clearly visible in the frame.
+            <li className="flex items-start gap-1">
+              <div className="mt-1 h-1 w-1 rounded-full bg-amber-600 shrink-0" />
+              Questions advance automatically when timer hits zero.
             </li>
           </ul>
         </div>
       </aside>
-    </main>
+    </div>
   );
 }
