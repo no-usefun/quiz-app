@@ -1,177 +1,167 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import Link from "next/link";
+import { motion } from "framer-motion";
 import {
   ShieldCheck,
   Plus,
   Users,
   BarChart3,
-  LogOut,
   Settings,
   Copy,
+  CheckCircle2,
+  FileQuestion,
 } from "lucide-react";
+import { QuizTest } from "@/lib/types";
+import { getStoredTests } from "@/lib/storage";
+import { ProfileDropdown } from "@/components/ProfileDropdown";
 
 export default function TeacherDashboard() {
-  // TODO: BACKEND INTEGRATION - Auth guard: on mount, call GET /api/auth/validate.
-  // If no valid token or role != 'teacher', redirect to /login.
-  // Token is stored in localStorage under key "dynoquizz_token".
+  const [tests, setTests] = useState<QuizTest[]>([]);
+  const [copiedCode, setCopiedCode] = useState<string | null>(null);
 
-  // TODO: BACKEND INTEGRATION - Fetch teacher's assessment list.
-  // GET /api/assessments?teacherId={id}&Authorization=Bearer {token}
-  // Expected response: Array<{ id, title, subjectCode, status: 'LIVE'|'ENDED', participantCount, createdAt }>
-  // Replace the hardcoded CS-101, CS-302, CS-401 cards with this data.
+  useEffect(() => {
+    const loaded = getStoredTests();
+    setTimeout(() => setTests(loaded), 0);
+  }, []);
+
+  const copyCode = (code: string) => {
+    navigator.clipboard.writeText(code);
+    setCopiedCode(code);
+    setTimeout(() => setCopiedCode(null), 2000);
+  };
+
   return (
-    <main className="min-h-screen bg-[#f3eefc] p-4 md:p-6 lg:p-8 font-sans">
-      <div className="mx-auto flex min-h-[90vh] max-w-[1400px] flex-col rounded-[2.5rem] bg-white shadow-2xl relative overflow-hidden border border-white/50">
-        <header className="flex w-full items-center justify-between border-b border-slate-100 px-8 py-6">
-          <div className="flex items-center gap-3">
-            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-blue-600 text-white shadow-sm">
-              <ShieldCheck className="h-6 w-6" />
-            </div>
-            <span className="text-xl font-bold tracking-tight text-slate-900">
-              DynoQuizz
-            </span>
+    <div className="min-h-screen bg-slate-50 font-sans text-slate-850 selection:bg-blue-105 selection:text-blue-900">
+      {/* Top Nav */}
+      <header className="sticky top-0 z-20 flex items-center justify-between bg-white border-b border-slate-200 px-6 py-4 shadow-xs">
+        <div className="flex items-center gap-2.5">
+          <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-blue-600 text-white font-bold text-xs shadow-xs">
+            <ShieldCheck className="h-4 w-4" />
           </div>
-          <Link
-            href="/"
-            onClick={() => {
-              // TODO: BACKEND INTEGRATION - Sign out: call POST /api/auth/logout
-              // with Authorization: Bearer {token}, then remove token:
-              // localStorage.removeItem("dynoquizz_token")
-            }}
-            className="flex items-center gap-2 text-sm font-medium text-slate-500 hover:text-red-600 transition-colors"
-          >
-            <LogOut className="h-4 w-4" /> Sign Out
-          </Link>
-        </header>
+          <span className="text-sm font-bold tracking-tight text-slate-905">
+            DynoQuizz
+          </span>
+        </div>
+        <ProfileDropdown initial="T" roleName="Instructor Account" />
+      </header>
 
-        <div className="flex flex-1 flex-col p-8 md:p-12 lg:flex-row gap-12">
-          <div className="flex-1 lg:max-w-xs">
-            <h1 className="text-4xl font-extrabold tracking-tight text-slate-900 mb-2">
-              Dashboard
-            </h1>
-            <p className="text-slate-500 mb-10">
-              Manage assessments and monitor live telemetry.
-            </p>
+      <main className="mx-auto max-w-6xl px-4 py-6">
+        <div className="flex flex-col p-1 lg:flex-row gap-6">
+          <div className="flex-1 lg:max-w-xs space-y-3">
+            <div>
+              <span className="text-xs font-bold uppercase tracking-widest text-slate-400">
+                Educator Control Center
+              </span>
+              <h1 className="text-2xl font-bold tracking-tight text-slate-950 mt-0.5 mb-1">
+                Teacher Dashboard
+              </h1>
+              <p className="text-xs text-slate-500 font-medium">
+                Manage your assessments and monitor live student telemetry.
+              </p>
+            </div>
 
             <Link
               href="/dashboard/teacher/create"
-              className="group flex w-full items-center gap-3 rounded-full bg-black px-6 py-4 text-sm font-bold text-white transition-transform hover:scale-[1.02] active:scale-[0.98] shadow-lg shadow-black/10 mb-4"
+              className="flex w-full items-center justify-center gap-1.5 rounded-lg bg-blue-600 px-4 py-2.5 text-xs font-bold text-white hover:bg-blue-700 active:scale-95 transition-all shadow-xs"
             >
-              <div className="flex h-8 w-8 items-center justify-center rounded-full bg-white/20">
-                <Plus className="h-5 w-5" />
-              </div>
+              <Plus className="h-4 w-4" />
               Create Assessment
             </Link>
 
             <Link
               href="/settings"
-              className="flex w-full items-center gap-3 rounded-full border border-slate-200 bg-white px-6 py-4 text-sm font-bold text-slate-700 transition-all hover:bg-slate-50"
+              className="flex w-full items-center justify-center gap-1.5 rounded-lg border border-slate-200 bg-white px-4 py-2.5 text-xs font-bold text-slate-700 hover:bg-slate-55 hover:border-slate-350 transition-all shadow-xs"
             >
-              <Settings className="h-5 w-5 text-slate-400" />
+              <Settings className="h-4 w-4" />
               Global Settings
             </Link>
           </div>
 
-          <div className="flex-1">
-            <div className="mb-6 flex items-center justify-between">
-              <h3 className="text-xl font-bold text-slate-900">
-                Active & Past Assessments
+          <div className="flex-1 space-y-3">
+            <div className="flex items-center justify-between">
+              <h3 className="text-sm font-bold text-slate-900">
+                Created Assessments ({tests.length})
               </h3>
-              <div className="flex gap-2">
-                <select className="rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-700 outline-none">
-                  <option>All Time</option>
-                  <option>This Week</option>
-                  <option>This Month</option>
-                </select>
-              </div>
+              <span className="text-xs font-medium text-slate-400">
+                Sorted by most recent
+              </span>
             </div>
 
-            <div className="grid gap-4">
-              <div className="flex flex-col rounded-2xl border border-slate-100 bg-slate-50 p-6 transition-all hover:border-slate-200 hover:shadow-sm sm:flex-row sm:items-center sm:justify-between">
-                <div className="mb-4 sm:mb-0">
-                  <div className="flex items-center gap-3 mb-2">
-                    <span className="rounded-full bg-blue-100 px-3 py-1 text-xs font-bold tracking-wider text-blue-700">
-                      LIVE
-                    </span>
-                    <h4 className="font-bold text-slate-900 text-lg">
-                      CS-101 Midterm
-                    </h4>
-                  </div>
-                  <div className="flex items-center gap-4 text-sm text-slate-500 font-medium">
-                    <span className="flex items-center gap-1">
-                      <Users className="h-4 w-4" /> 42/50 Joined
-                    </span>
-                    <span className="flex items-center gap-1 cursor-pointer hover:text-slate-900">
-                      <Copy className="h-4 w-4" /> Code: CS-101
-                    </span>
-                  </div>
+            <div className="grid gap-3">
+              {tests.length === 0 ? (
+                <div className="rounded-2xl bg-white border border-slate-200 p-8 text-center shadow-xs">
+                  <FileQuestion className="mx-auto h-8 w-8 text-slate-300 mb-2" />
+                  <p className="font-bold text-slate-900 text-sm">No assessments created yet.</p>
+                  <p className="text-xs text-slate-500 mt-0.5 font-medium">
+                    Click &ldquo;Create Assessment&rdquo; to build your first proctored test.
+                  </p>
                 </div>
-                <div className="flex items-center gap-3">
-                  <Link
-                    href="/dashboard/teacher/live/CS-101"
-                    className="flex items-center justify-center gap-2 rounded-xl bg-blue-600 px-5 py-2.5 text-sm font-bold text-white transition-transform hover:scale-[1.02] shadow-md shadow-blue-200"
+              ) : (
+                tests.map((test, idx) => (
+                  <motion.div
+                    key={test.testCode}
+                    initial={{ opacity: 0, y: 4 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ delay: idx * 0.04, duration: 0.2, ease: "easeOut" }}
+                    whileHover={{ y: -1 }}
+                    className="flex flex-col rounded-2xl bg-white border border-slate-200 p-4 shadow-xs hover:shadow-sm sm:flex-row sm:items-center sm:justify-between transition-all"
                   >
-                    <BarChart3 className="h-4 w-4" /> Leaderboard
-                  </Link>
-                </div>
-              </div>
+                    <div className="mb-2 sm:mb-0">
+                      <div className="flex items-center gap-2 mb-1">
+                        <span
+                          className={`rounded-full px-2.5 py-0.5 text-[9px] font-bold border ${
+                            test.status === "LIVE"
+                              ? "bg-emerald-50 text-emerald-700 border-emerald-100"
+                              : "bg-slate-100 border-slate-200 text-slate-650"
+                          }`}
+                        >
+                          {test.status}
+                        </span>
+                        <h4 className="font-bold text-slate-950 text-xs">{test.quizName}</h4>
+                      </div>
+                      <div className="flex flex-wrap items-center gap-2.5 text-[10px] text-slate-500 font-medium">
+                        <span className="flex items-center gap-1">
+                          <Users className="h-3 w-3" /> {test.targetClass}
+                        </span>
+                        <span>{test.questions.length} Questions</span>
+                        <span>{test.totalTimeLimitMinutes} mins</span>
+                        <button
+                          type="button"
+                          onClick={() => copyCode(test.testCode)}
+                          className="flex items-center gap-1 font-mono text-blue-600 hover:underline font-bold"
+                        >
+                          {copiedCode === test.testCode ? (
+                            <><CheckCircle2 className="h-3 w-3 text-emerald-600" /> Copied</>
+                          ) : (
+                            <><Copy className="h-3 w-3" /> Code: {test.testCode}</>
+                          )}
+                        </button>
+                      </div>
+                    </div>
 
-              <div className="flex flex-col rounded-2xl border border-slate-100 bg-white p-6 sm:flex-row sm:items-center sm:justify-between">
-                <div className="mb-4 sm:mb-0">
-                  <div className="flex items-center gap-3 mb-2">
-                    <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-bold tracking-wider text-slate-600">
-                      ENDED
-                    </span>
-                    <h4 className="font-bold text-slate-900 text-lg">
-                      Database Systems Quiz
-                    </h4>
-                  </div>
-                  <div className="flex items-center gap-4 text-sm text-slate-500 font-medium">
-                    <span className="flex items-center gap-1">
-                      <Users className="h-4 w-4" /> 120 Completed
-                    </span>
-                  </div>
-                </div>
-                <div className="flex items-center gap-3">
-                  <Link
-                    href="/dashboard/teacher/assessment/CS-302"
-                    className="flex items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-5 py-2.5 text-sm font-bold text-slate-700 transition-all hover:bg-slate-50"
-                  >
-                    View Results
-                  </Link>
-                </div>
-              </div>
-
-              <div className="flex flex-col rounded-2xl border border-slate-100 bg-white p-6 sm:flex-row sm:items-center sm:justify-between">
-                <div className="mb-4 sm:mb-0">
-                  <div className="flex items-center gap-3 mb-2">
-                    <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-bold tracking-wider text-slate-600">
-                      ENDED
-                    </span>
-                    <h4 className="font-bold text-slate-900 text-lg">
-                      Algorithms Mock Test
-                    </h4>
-                  </div>
-                  <div className="flex items-center gap-4 text-sm text-slate-500 font-medium">
-                    <span className="flex items-center gap-1">
-                      <Users className="h-4 w-4" /> 85 Completed
-                    </span>
-                  </div>
-                </div>
-                <div className="flex items-center gap-3">
-                  <Link
-                    href="/dashboard/teacher/assessment/CS-401"
-                    className="flex items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-5 py-2.5 text-sm font-bold text-slate-700 transition-all hover:bg-slate-50"
-                  >
-                    View Results
-                  </Link>
-                </div>
-              </div>
+                    <div className="flex items-center gap-1.5">
+                      <Link
+                        href={`/dashboard/teacher/live/${test.testCode}`}
+                        className="flex items-center gap-1 rounded-lg bg-blue-600 px-3 py-1.5 text-xs font-bold text-white hover:bg-blue-700 active:scale-95 transition-all shadow-xs"
+                      >
+                        <BarChart3 className="h-3 w-3" /> Monitor
+                      </Link>
+                      <Link
+                        href={`/dashboard/teacher/assessment/${test.testCode}`}
+                        className="flex items-center gap-1 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-bold text-slate-700 hover:bg-slate-50 transition-all shadow-xs"
+                      >
+                        Results
+                      </Link>
+                    </div>
+                  </motion.div>
+                ))
+              )}
             </div>
           </div>
         </div>
-      </div>
-    </main>
+      </main>
+    </div>
   );
 }
