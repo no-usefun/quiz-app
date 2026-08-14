@@ -1,4 +1,53 @@
 @import "tailwindcss";
-@tailwind base;
-@tailwind components;
-@tailwind utilities;
+
+/* Dark mode class variant for next-themes compatibility */
+@variant dark (&:where(.dark, .dark *));
+
+/* Global Anti-Cheating Baseline: Disable text selection globally */
+* {
+  -webkit-user-select: none;
+  -moz-user-select: none;
+  -ms-user-select: none;
+  user-select: none;
+}
+
+/* Allow text selection inside form inputs and textareas */
+input,
+textarea {
+  -webkit-user-select: auto;
+  -moz-user-select: auto;
+  -ms-user-select: auto;
+  user-select: auto;
+}
+
+/* Design system root defaults */
+:root {
+  --color-bg: #f8fafc; /* slate-50 */
+  --color-primary: #2563eb; /* blue-600 */
+}
+
+/* App background default */
+html {
+  background-color: var(--color-bg);
+}
+
+/* Clean custom scrollbar */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: rgba(100, 116, 139, 0.2);
+  border-radius: 9999px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(100, 116, 139, 0.4);
+}
+
+/* Smooth details/summary open/close animation */
+details summary::-webkit-details-marker {
+  display: none;
+}
