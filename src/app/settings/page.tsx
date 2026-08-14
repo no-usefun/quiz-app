@@ -1,12 +1,10 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import Link from "next/link";
 import { motion, AnimatePresence } from "framer-motion";
 import { useTheme } from "next-themes";
 import {
-  ShieldCheck,
-  ArrowLeft,
   User,
   Bell,
   Shield,
@@ -22,7 +20,11 @@ import {
   ChevronRight,
   Moon,
   Monitor,
+  LayoutDashboard,
+  Settings as SettingsIcon,
 } from "lucide-react";
+import { useSession } from "@/hooks/useSession";
+import { Logo } from "@/components/Logo";
 
 // ─── Tab definitions ───────────────────────────────────────────────────────────
 
@@ -47,10 +49,10 @@ function Field({
   children: React.ReactNode;
 }) {
   return (
-    <div className="space-y-1">
-      <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-500">{label}</label>
+    <div className="space-y-1 text-left">
+      <label className="block text-[10px] font-bold uppercase tracking-wider text-[#78716b]">{label}</label>
       {children}
-      {hint && <p className="text-[11px] text-slate-400 font-medium">{hint}</p>}
+      {hint && <p className="text-[10px] text-[#78716b]/80 font-medium">{hint}</p>}
     </div>
   );
 }
@@ -59,7 +61,6 @@ function TextInput({
   type = "text",
   placeholder,
   value,
-  defaultValue,
   onChange,
   icon,
   rightSlot,
@@ -67,7 +68,6 @@ function TextInput({
   type?: string;
   placeholder?: string;
   value?: string;
-  defaultValue?: string;
   onChange?: (e: React.ChangeEvent<HTMLInputElement>) => void;
   icon?: React.ReactNode;
   rightSlot?: React.ReactNode;
@@ -75,7 +75,7 @@ function TextInput({
   return (
     <div className="relative">
       {icon && (
-        <div className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3 text-slate-400">
+        <div className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3 text-[#78716b]">
           {icon}
         </div>
       )}
@@ -83,9 +83,8 @@ function TextInput({
         type={type}
         placeholder={placeholder}
         value={value}
-        defaultValue={defaultValue}
         onChange={onChange}
-        className={`w-full rounded-lg border border-slate-200 bg-slate-50 py-2.5 text-xs text-slate-900 outline-none transition-colors placeholder:text-slate-400 focus:border-blue-500 focus:bg-white font-medium ${icon ? "pl-9" : "pl-3"} ${rightSlot ? "pr-9" : "pr-3"}`}
+        className={`w-full rounded-[8.8px] border border-[#d1dee8] bg-[#e6e3e2]/40 py-2.5 text-xs text-[#111111] outline-none transition-all placeholder:text-[#78716b]/60 focus:border-[#165dfb] focus:bg-white font-medium ${icon ? "pl-9" : "pl-3"} ${rightSlot ? "pr-9" : "pr-3"}`}
       />
       {rightSlot && (
         <div className="absolute inset-y-0 right-0 flex items-center pr-3">
@@ -107,11 +106,11 @@ function Toggle({
 }) {
   const [on, setOn] = useState(defaultChecked);
   return (
-    <div className="flex items-start justify-between gap-4 rounded-xl border border-slate-200 bg-slate-50 px-4 py-3.5 transition-colors">
-      <div className="flex-1 min-w-0">
-        <p className="text-xs font-bold text-slate-800">{label}</p>
+    <div className="flex items-start justify-between gap-4 rounded-[8.8px] border border-[#d1dee8] bg-[#e6e3e2]/40 px-4 py-3.5 transition-colors">
+      <div className="flex-1 min-w-0 text-left">
+        <p className="text-xs font-bold text-[#111111]">{label}</p>
         {description && (
-          <p className="mt-0.5 text-[10px] text-slate-550 font-medium">{description}</p>
+          <p className="mt-0.5 text-[10px] text-[#78716b] font-medium">{description}</p>
         )}
       </div>
       <button
@@ -119,10 +118,10 @@ function Toggle({
         role="switch"
         aria-checked={on}
         onClick={() => setOn((v) => !v)}
-        className={`relative mt-0.5 inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-150 focus:outline-none ${on ? "bg-blue-600" : "bg-slate-200"}`}
+        className={`relative mt-0.5 inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-150 focus:outline-none ${on ? "bg-[#165dfb]" : "bg-[#d1dee8]"}`}
       >
         <span
-          className={`inline-block h-4 w-4 transform rounded-full bg-white shadow-xs transition-transform duration-150 ${on ? "translate-x-4" : "translate-x-0"}`}
+          className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform duration-150 ${on ? "translate-x-4" : "translate-x-0"}`}
         />
       </button>
     </div>
@@ -131,36 +130,45 @@ function Toggle({
 
 // ─── Tab panels ───────────────────────────────────────────────────────────────
 
-function ProfilePanel({ onSave }: { onSave: () => void }) {
-  const [fullName, setFullName] = useState("Suryanshu Saini");
-  const [email, setEmail] = useState("suryanshu.saini@university.edu");
+function ProfilePanel({ onSave, user }: { onSave: () => void; user: any }) {
+  const [fullName, setFullName] = useState("");
+  const [email, setEmail] = useState("");
   const [institution, setInstitution] = useState("VIT AP");
   const [program, setProgram] = useState("B.Tech Computer Science");
+
+  useEffect(() => {
+    if (user) {
+      setFullName(user.name || "");
+      setEmail(user.email || "");
+    }
+  }, [user]);
+
+  const initial = fullName ? fullName.charAt(0).toUpperCase() : "U";
 
   return (
     <div className="space-y-5">
       {/* Avatar */}
-      <div className="flex items-center gap-3.5">
+      <div className="flex items-center gap-3.5 text-left">
         <div className="relative">
-          <div className="flex h-14 w-14 items-center justify-center rounded-full bg-blue-600 text-lg font-bold text-white shadow-xs">
-            S
+          <div className="flex h-14 w-14 items-center justify-center rounded-full bg-[#165dfb] text-lg font-bold text-white shadow-none">
+            {initial}
           </div>
-          <button className="absolute -bottom-0.5 -right-0.5 flex h-5 w-5 items-center justify-center rounded-full bg-white border border-slate-200 text-slate-600 shadow-xs">
-            <User className="h-3 w-3" />
+          <button className="absolute -bottom-0.5 -right-0.5 flex h-5 w-5 items-center justify-center rounded-full bg-[#f5f5f4] border border-[#d1dee8] text-[#78716b] shadow-none cursor-pointer">
+            <User className="h-3 w-3 text-[#78716b]" />
           </button>
         </div>
         <div>
-          <p className="text-xs font-bold text-slate-805">Profile Photo</p>
-          <p className="mt-0.5 text-[10px] text-slate-400 font-medium">
+          <p className="text-xs font-bold text-[#111111]">Profile Photo</p>
+          <p className="mt-0.5 text-[10px] text-[#78716b] font-medium">
             JPG, PNG or GIF · Max 2 MB
           </p>
-          <button className="mt-0.5 text-[10px] font-bold text-blue-600 hover:underline">
+          <button className="mt-0.5 text-[10px] font-bold text-[#165dfb] hover:underline cursor-pointer bg-transparent border-0">
             Upload new photo
           </button>
         </div>
       </div>
 
-      <div className="h-px bg-slate-100" />
+      <div className="h-px bg-[#d1dee8]/30" />
 
       {/* Fields */}
       <div className="grid gap-4 sm:grid-cols-2">
@@ -200,7 +208,7 @@ function ProfilePanel({ onSave }: { onSave: () => void }) {
       <div className="flex justify-end pt-2">
         <button
           onClick={onSave}
-          className="flex items-center gap-1.5 rounded-lg bg-blue-600 px-5 py-2 text-xs font-bold text-white hover:bg-blue-700 active:scale-95 transition-all shadow-xs"
+          className="flex items-center gap-1.5 rounded-[8.8px] bg-[#165dfb] px-4 py-2 text-xs font-bold text-white hover:bg-[#165dfb]/90 transition-all cursor-pointer border-0"
         >
           <Save className="h-3.5 w-3.5" />
           Save Changes
@@ -215,9 +223,8 @@ function PreferencesPanel({ onSave }: { onSave: () => void }) {
 
   return (
     <div className="space-y-5">
-      {/* Notification toggles */}
       <div>
-        <h3 className="mb-2.5 text-[10px] font-bold uppercase tracking-wider text-slate-500">
+        <h3 className="mb-2.5 text-[10px] font-bold uppercase tracking-wider text-[#78716b] text-left">
           Notifications
         </h3>
         <div className="space-y-2">
@@ -244,14 +251,14 @@ function PreferencesPanel({ onSave }: { onSave: () => void }) {
         </div>
       </div>
 
-      <div className="h-px bg-slate-100" />
+      <div className="h-px bg-[#d1dee8]/30" />
 
       {/* Theme */}
       <div>
-        <h3 className="mb-2.5 text-[10px] font-bold uppercase tracking-wider text-slate-500">
+        <h3 className="mb-2.5 text-[10px] font-bold uppercase tracking-wider text-[#78716b] text-left">
           Appearance
         </h3>
-        <div className="grid grid-cols-3 gap-3.5">
+        <div className="grid grid-cols-3 gap-3">
           {(
             [
               { id: "system", label: "System",    icon: <Monitor className="h-4 w-4" /> },
@@ -265,10 +272,10 @@ function PreferencesPanel({ onSave }: { onSave: () => void }) {
                 key={t.id}
                 type="button"
                 onClick={() => setTheme(t.id)}
-                className={`flex flex-col items-center gap-1.5 rounded-xl border py-3 text-xs font-bold transition-all ${
+                className={`flex flex-col items-center gap-1.5 rounded-[8.8px] border py-3 text-xs font-bold transition-all duration-150 cursor-pointer ${
                   isActive
-                    ? "border-blue-600 bg-blue-50/50 text-blue-700"
-                    : "border-slate-205 bg-white text-slate-500 hover:border-slate-300 hover:text-slate-700"
+                    ? "border-[#165dfb] bg-[#e6e3e2]/40 text-[#165dfb]"
+                    : "border-[#d1dee8] bg-white text-[#78716b] hover:border-[#d1dee8]/70 hover:text-[#111111]"
                 }`}
               >
                 {t.icon}
@@ -282,7 +289,7 @@ function PreferencesPanel({ onSave }: { onSave: () => void }) {
       <div className="flex justify-end pt-2">
         <button
           onClick={onSave}
-          className="flex items-center gap-1.5 rounded-lg bg-blue-600 px-5 py-2 text-xs font-bold text-white hover:bg-blue-700 active:scale-95 transition-all shadow-xs"
+          className="flex items-center gap-1.5 rounded-[8.8px] bg-[#165dfb] px-4 py-2 text-xs font-bold text-white hover:bg-[#165dfb]/90 transition-all cursor-pointer border-0"
         >
           <Save className="h-3.5 w-3.5" />
           Save Preferences
@@ -299,9 +306,8 @@ function SecurityPanel({ onSave }: { onSave: () => void }) {
 
   return (
     <div className="space-y-5">
-      {/* Change password */}
       <div>
-        <h3 className="mb-2.5 text-[10px] font-bold uppercase tracking-wider text-slate-500">
+        <h3 className="mb-2.5 text-[10px] font-bold uppercase tracking-wider text-[#78716b] text-left">
           Change Password
         </h3>
         <div className="space-y-3">
@@ -314,7 +320,7 @@ function SecurityPanel({ onSave }: { onSave: () => void }) {
                 <button
                   type="button"
                   onClick={() => setShowCurrent((v) => !v)}
-                  className="text-slate-400 hover:text-slate-600"
+                  className="text-[#78716b] hover:text-[#111111] cursor-pointer border-0 bg-transparent"
                 >
                   {showCurrent ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                 </button>
@@ -330,7 +336,7 @@ function SecurityPanel({ onSave }: { onSave: () => void }) {
                 <button
                   type="button"
                   onClick={() => setShowNew((v) => !v)}
-                  className="text-slate-400 hover:text-slate-600"
+                  className="text-[#78716b] hover:text-[#111111] cursor-pointer border-0 bg-transparent"
                 >
                   {showNew ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                 </button>
@@ -346,7 +352,7 @@ function SecurityPanel({ onSave }: { onSave: () => void }) {
                 <button
                   type="button"
                   onClick={() => setShowConfirm((v) => !v)}
-                  className="text-slate-400 hover:text-slate-600"
+                  className="text-[#78716b] hover:text-[#111111] cursor-pointer border-0 bg-transparent"
                 >
                   {showConfirm ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                 </button>
@@ -356,22 +362,22 @@ function SecurityPanel({ onSave }: { onSave: () => void }) {
         </div>
       </div>
 
-      <div className="h-px bg-slate-100" />
+      <div className="h-px bg-[#d1dee8]/30" />
 
       {/* 2FA */}
       <div>
-        <h3 className="mb-2.5 text-[10px] font-bold uppercase tracking-wider text-slate-500">
+        <h3 className="mb-2.5 text-[10px] font-bold uppercase tracking-wider text-[#78716b] text-left">
           Two-Factor Authentication
         </h3>
-        <div className="flex items-center justify-between rounded-xl border border-slate-200 bg-slate-50 p-3.5">
+        <div className="flex items-center justify-between rounded-[8.8px] border border-[#d1dee8] bg-[#e6e3e2]/40 p-3.5 text-left">
           <div>
-            <p className="text-xs font-bold text-slate-800">Authenticator App</p>
-            <p className="mt-0.5 text-[10px] text-slate-500 font-medium">
+            <p className="text-xs font-bold text-[#111111]">Authenticator App</p>
+            <p className="mt-0.5 text-[10px] text-[#78716b] font-medium">
               Use Google Authenticator or Authy to generate one-time codes.
             </p>
           </div>
-          <button className="flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-bold text-slate-700 hover:bg-slate-50 transition-all shadow-xs">
-            Set up <ChevronRight className="h-3 w-3" />
+          <button className="flex items-center gap-1.5 rounded-[8.8px] border border-[#d1dee8] bg-white px-3.5 py-1.5 text-xs font-bold text-[#111111] hover:bg-[#e6e3e2] active:scale-[0.98] transition-all cursor-pointer">
+            Set up <ChevronRight className="h-3 w-3 text-[#78716b]" />
           </button>
         </div>
       </div>
@@ -379,7 +385,7 @@ function SecurityPanel({ onSave }: { onSave: () => void }) {
       <div className="flex justify-end pt-2">
         <button
           onClick={onSave}
-          className="flex items-center gap-1.5 rounded-lg bg-blue-600 px-5 py-2 text-xs font-bold text-white hover:bg-blue-700 active:scale-95 transition-all shadow-xs"
+          className="flex items-center gap-1.5 rounded-[8.8px] bg-[#165dfb] px-4 py-2 text-xs font-bold text-white hover:bg-[#165dfb]/90 transition-all cursor-pointer border-0"
         >
           <Save className="h-3.5 w-3.5" />
           Update Password
@@ -390,6 +396,7 @@ function SecurityPanel({ onSave }: { onSave: () => void }) {
 }
 
 function DangerPanel() {
+  const { logout } = useSession();
   const [confirmText, setConfirmText] = useState("");
   const CONFIRM_PHRASE = "delete my account";
   const ready = confirmText === CONFIRM_PHRASE;
@@ -397,41 +404,44 @@ function DangerPanel() {
   return (
     <div className="space-y-4">
       {/* Sign out all devices */}
-      <div className="flex items-start justify-between gap-4 rounded-xl border border-amber-200 bg-amber-50 p-4">
+      <div className="flex items-start justify-between gap-4 rounded-[8.8px] border border-[#73561a]/20 bg-[#f6efe1] p-4 text-left">
         <div className="flex gap-2.5">
-          <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-amber-100 text-amber-700">
+          <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-[8.8px] bg-white text-[#73561a] border border-[#d1dee8]/30">
             <LogOut className="h-4 w-4" />
           </div>
           <div>
-            <p className="font-bold text-amber-900 text-xs">Sign out of all devices</p>
-            <p className="mt-0.5 text-[10px] text-amber-700 font-medium">
+            <p className="font-bold text-[#73561a] text-xs">Sign out of all devices</p>
+            <p className="mt-0.5 text-[10px] text-[#73561a]/90 font-medium leading-normal">
               This will immediately invalidate all active sessions across every browser and device.
             </p>
           </div>
         </div>
-        <button className="shrink-0 rounded-lg border border-amber-300 bg-white px-3 py-1 text-[10px] font-bold text-amber-700 hover:bg-amber-50 transition-colors">
+        <button
+          onClick={logout}
+          className="shrink-0 rounded-[8.8px] border border-[#73561a]/30 bg-white px-3 py-1 text-[10px] font-bold text-[#73561a] hover:bg-[#f6efe1]/30 transition-colors cursor-pointer"
+        >
           Sign out all
         </button>
       </div>
 
       {/* Delete account */}
-      <div className="rounded-xl border border-rose-200 bg-rose-50 p-4">
+      <div className="rounded-[8.8px] border border-[#8c381c]/20 bg-[#fbeee8] p-4 text-left">
         <div className="mb-3 flex gap-2.5">
-          <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-rose-100 text-rose-700">
+          <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-[8.8px] bg-white text-[#8c381c] border border-[#d1dee8]/30">
             <Trash2 className="h-4 w-4" />
           </div>
           <div>
-            <p className="font-bold text-rose-900 text-xs">Delete Account</p>
-            <p className="mt-0.5 text-[10px] text-rose-700 font-medium">
+            <p className="font-bold text-[#8c381c] text-xs">Delete Account</p>
+            <p className="mt-0.5 text-[10px] text-[#8c381c]/90 font-medium leading-normal">
               Permanently remove your account, all assessments, results, and proctoring data. <strong>This action cannot be undone.</strong>
             </p>
           </div>
         </div>
 
         <div className="space-y-2">
-          <label className="block text-[10px] font-bold text-rose-800">
+          <label className="block text-[10px] font-bold text-[#8c381c]">
             Type{" "}
-            <span className="rounded bg-rose-105 px-1 py-0.5 font-mono text-rose-900">
+            <span className="rounded bg-white px-1 py-0.5 font-mono text-[#8c381c]">
               {CONFIRM_PHRASE}
             </span>{" "}
             to confirm:
@@ -441,17 +451,17 @@ function DangerPanel() {
             value={confirmText}
             onChange={(e) => setConfirmText(e.target.value)}
             placeholder={CONFIRM_PHRASE}
-            className="w-full rounded-lg border border-rose-200 bg-white px-3 py-2 text-xs text-slate-900 outline-none transition-colors placeholder:text-rose-300 focus:border-rose-500 font-medium"
+            className="w-full rounded-[8.8px] border border-[#8c381c]/30 bg-white px-3 py-2 text-xs text-[#8c381c] outline-none transition-colors placeholder:text-[#8c381c]/40 focus:border-[#8c381c]/75 font-medium"
           />
           <button
             disabled={!ready}
-            className={`flex w-full items-center justify-center gap-1.5 rounded-lg px-4 py-2 text-xs font-bold transition-all ${
+            className={`flex w-full items-center justify-center gap-1.5 rounded-[8.8px] px-4 py-2 text-xs font-bold transition-all duration-200 cursor-pointer border-0 ${
               ready
-                ? "bg-rose-600 text-white hover:bg-rose-700 active:scale-95"
-                : "cursor-not-allowed bg-rose-100 text-rose-300"
+                ? "bg-[#fbeee8] text-[#8c381c] hover:bg-[#fbeee8]/90 hover:text-white"
+                : "cursor-not-allowed bg-[#fbeee8]/50 text-[#8c381c]/50"
             }`}
           >
-            <AlertTriangle className="h-4 w-4" />
+            <AlertTriangle className="h-4 w-4 animate-pulse" />
             Permanently Delete My Account
           </button>
         </div>
@@ -463,6 +473,7 @@ function DangerPanel() {
 // ─── Main component ───────────────────────────────────────────────────────────
 
 export default function SettingsPage() {
+  const { user, logout } = useSession();
   const [activeTab, setActiveTab] = useState<TabId>("profile");
   const [saved, setSaved] = useState(false);
 
@@ -471,67 +482,101 @@ export default function SettingsPage() {
     setTimeout(() => setSaved(false), 2500);
   }
 
+  const dashboardHref = user
+    ? user.role === "teacher"
+      ? "/dashboard/teacher"
+      : "/dashboard/student"
+    : "/";
+
   return (
-    <div className="min-h-screen bg-slate-50 font-sans text-slate-850 selection:bg-blue-105 selection:text-blue-900">
-      {/* Top Nav */}
-      <nav className="sticky top-0 z-20 flex items-center justify-between bg-white border-b border-slate-200 px-6 py-4 shadow-xs">
-        <div className="flex items-center gap-3">
+    <div className="min-h-screen bg-[#f5f5f4] font-sans text-[#111111] flex overflow-hidden">
+      {/* Left Sidebar Navigation */}
+      <aside className="w-64 bg-[#f5f5f4] border-r border-[#d1dee8] flex flex-col shrink-0">
+        {/* Header Logo */}
+        <div className="p-6 border-b border-[#d1dee8]/50">
+          <Logo />
+        </div>
+
+        {/* Navigation Links */}
+        <nav className="flex-1 p-4 space-y-1 text-left">
           <Link
-            href="/dashboard/teacher"
-            className="flex items-center gap-2 text-xs font-bold text-slate-500 hover:text-slate-900 transition-colors"
+            href={dashboardHref}
+            className="flex items-center gap-2.5 rounded-[8.8px] px-3.5 py-2.5 text-xs font-bold text-[#78716b] hover:bg-[#e6e3e2] hover:text-[#111111] transition-all"
           >
-            <ArrowLeft className="h-3.5 w-3.5" />
+            <LayoutDashboard className="h-4 w-4 text-[#78716b]" />
             Dashboard
           </Link>
-          <span className="text-slate-200">|</span>
-          <div className="flex items-center gap-2">
-            <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-blue-600 text-white font-bold text-xs">
-              <ShieldCheck className="h-4 w-4" />
-            </div>
-            <span className="text-sm font-bold tracking-tight text-slate-900">
-              DynoQuizz
-            </span>
-          </div>
-        </div>
-
-        {/* Save toast */}
-        {saved && (
-          <span className="flex items-center gap-1 rounded-full bg-emerald-50 border border-emerald-200 px-2.5 py-0.5 text-xs font-bold text-emerald-700">
-            <CheckCircle2 className="h-3.5 w-3.5" /> Saved!
-          </span>
-        )}
-      </nav>
-
-      <main className="mx-auto max-w-4xl space-y-5 px-4 py-6">
-        {/* Page title */}
-        <div>
-          <span className="text-xs font-bold uppercase tracking-widest text-slate-400">
-            Account Center
-          </span>
-          <h1 className="mt-0.5 text-2xl font-bold tracking-tight text-slate-900">
+          <Link
+            href="/settings"
+            className="flex items-center gap-2.5 rounded-[8.8px] px-3.5 py-2.5 text-xs font-bold bg-[#165dfb] text-white transition-all border-0"
+          >
+            <SettingsIcon className="h-4 w-4 text-white" />
             Settings
-          </h1>
-          <p className="mt-0.5 text-xs text-slate-500 font-medium">
-            Manage your profile, preferences, and account security.
-          </p>
-        </div>
+          </Link>
+        </nav>
 
-        {/* ── Tab layout ── */}
-        <div className="flex flex-col gap-5 lg:flex-row">
+        {/* User Card & Sign Out bottom */}
+        <div className="p-4 border-t border-[#d1dee8]/50 text-left space-y-3">
+          <div className="flex items-center gap-2.5 px-2.5 py-1">
+            <div className="flex h-8 w-8 items-center justify-center rounded-full bg-[#e6e3e2] border border-[#d1dee8] text-xs font-bold text-[#111111]">
+              {user?.name ? user.name.charAt(0).toUpperCase() : "U"}
+            </div>
+            <div className="min-w-0">
+              <p className="text-xs font-bold text-[#111111] truncate">{user?.name || "User"}</p>
+              <p className="text-[9px] text-[#78716b] font-medium uppercase">{user?.role || "Account"}</p>
+            </div>
+          </div>
+          <button
+            type="button"
+            onClick={logout}
+            className="w-full flex items-center justify-center gap-2 rounded-[8.8px] border border-[#d1dee8] bg-white py-2 text-xs font-bold text-[#8c381c] hover:bg-[#fbeee8] transition-all cursor-pointer"
+          >
+            <LogOut className="h-3.5 w-3.5 text-[#8c381c]" />
+            Sign Out
+          </button>
+        </div>
+      </aside>
+
+      {/* Main Content Area */}
+      <main className="flex-1 overflow-y-auto p-6 md:p-8 space-y-6 text-left">
+        {/* Page title */}
+        <section className="border-b border-[#d1dee8]/50 pb-4 flex items-center justify-between">
+          <div>
+            <span className="text-xs font-bold uppercase tracking-widest text-[#78716b]">
+              Account Center
+            </span>
+            <h1 className="mt-0.5 text-2xl font-extrabold tracking-tight text-[#111111] -tracking-wide">
+              Settings
+            </h1>
+            <p className="mt-0.5 text-xs text-[#78716b] font-medium">
+              Manage your profile, preferences, and account security.
+            </p>
+          </div>
+
+          {/* Save toast */}
+          {saved && (
+            <span className="flex items-center gap-1 rounded-[8.8px] bg-[#e2ede8] px-2.5 py-1 text-xs font-bold text-[#1d5237] border border-[#d1dee8] shadow-none animate-bounce">
+              <CheckCircle2 className="h-3.5 w-3.5 text-[#1d5237]" /> Saved!
+            </span>
+          )}
+        </section>
+
+        {/* Tab layout */}
+        <div className="flex flex-col gap-5 lg:flex-row items-start">
           {/* Sidebar tabs */}
-          <nav className="flex shrink-0 gap-1 overflow-x-auto rounded-xl bg-white p-1.5 border border-slate-200 lg:w-44 lg:flex-col lg:overflow-x-visible">
+          <nav className="flex shrink-0 gap-1 overflow-x-auto rounded-[8.8px] bg-[#e6e3e2]/40 p-1.5 border border-[#d1dee8] lg:w-44 lg:flex-col lg:overflow-x-visible">
             {TABS.map(({ id, label, icon: Icon }) => (
               <button
                 key={id}
                 onClick={() => setActiveTab(id)}
-                className={`flex min-w-max items-center gap-2 rounded-lg px-3 py-2 text-xs font-bold transition-all lg:w-full ${
+                className={`flex min-w-max items-center gap-2 rounded-[8.8px] px-3 py-2 text-xs font-bold transition-all duration-150 lg:w-full cursor-pointer border-0 ${
                   activeTab === id
                     ? id === "danger"
-                      ? "bg-rose-600 text-white shadow-xs"
-                      : "bg-blue-600 text-white shadow-xs"
+                      ? "bg-[#fbeee8] text-[#8c381c]"
+                      : "bg-[#165dfb] text-white"
                     : id === "danger"
-                    ? "text-rose-600 hover:bg-rose-50"
-                    : "text-slate-505 hover:bg-slate-100 hover:text-slate-900"
+                    ? "text-[#8c381c] hover:bg-[#fbeee8]/40 bg-transparent"
+                    : "text-[#78716b] hover:bg-[#e6e3e2] hover:text-[#111111] bg-transparent"
                 }`}
               >
                 <Icon className="h-3.5 w-3.5 shrink-0" />
@@ -541,7 +586,7 @@ export default function SettingsPage() {
           </nav>
 
           {/* Panel */}
-          <div className="flex-1 rounded-2xl bg-white p-5 border border-slate-200 shadow-xs">
+          <div className="flex-1 w-full rounded-[8.8px] bg-white p-5 border border-[#d1dee8]">
             <AnimatePresence mode="wait">
               <motion.div
                 key={activeTab}
@@ -550,7 +595,7 @@ export default function SettingsPage() {
                 exit={{ opacity: 0, y: -4 }}
                 transition={{ duration: 0.15 }}
               >
-                {activeTab === "profile"     && <ProfilePanel     onSave={handleSave} />}
+                {activeTab === "profile"     && <ProfilePanel     onSave={handleSave} user={user} />}
                 {activeTab === "preferences" && <PreferencesPanel onSave={handleSave} />}
                 {activeTab === "security"    && <SecurityPanel    onSave={handleSave} />}
                 {activeTab === "danger"      && <DangerPanel />}
