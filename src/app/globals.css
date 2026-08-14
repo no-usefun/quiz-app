@@ -9,6 +9,7 @@
   -moz-user-select: none;
   -ms-user-select: none;
   user-select: none;
+  box-shadow: none !important; /* STRICTLY NO SHADOWS on any elements globally */
 }
 
 /* Allow text selection inside form inputs and textareas */
@@ -20,34 +21,184 @@ textarea {
   user-select: auto;
 }
 
-/* Design system root defaults */
+/* Pastel design system root defaults */
 :root {
-  --color-bg: #f8fafc; /* slate-50 */
-  --color-primary: #2563eb; /* blue-600 */
+  --color-paper-stone: #f5f5f4;      /* Page canvas background */
+  --color-chalk: #e6e3e2;            /* Alternate section bands, input backgrounds, etc. */
+  --color-ink-black: #111111;        /* Primary headings and body copy */
+  --color-fog-gray: #78716b;         /* Secondary helper text and labels */
+  --color-ice-line: #d1dee8;         /* Hairline borders and dividers */
+  --color-cobalt-stamp: #165dfb;     /* Primary accent - CTA buttons, active state, links */
+  
+  /* Interactive Pastel Colors */
+  --color-soft-blue: #e8f0ff;
+  --color-soft-lavender: #eee9ff;
+  --color-soft-mint: #e7f7ef;
+  --color-soft-peach: #fff0e8;
+  --color-soft-yellow: #fff8d9;
+  --color-soft-rose: #fdebec;
+
+  /* Map status colors to fit within the neutral design */
+  --pastel-mint: #e2ede8; --pastel-mint-text: #1d5237;
+  --pastel-yellow: #f6efe1; --pastel-yellow-text: #73561a;
+  --pastel-pink: #fbeee8; --pastel-pink-text: #8c381c;
+  --pastel-lavender: #ece9f3; --pastel-lavender-text: #4c3d73;
+
+  /* Enforce exactly 8.8px border radius for all components */
+  --radius-cards: 8.8px;
+  --radius-inputs: 8.8px;
+  --radius-buttons: 8.8px;
+  --radius-pills: 8.8px;
+}
+
+.dark {
+  /* Pastel theme uses consistent light paper-stone canvas. Dark mode adjusts contrast slightly */
+  --color-paper-stone: #f5f5f4;
+  --color-chalk: #e6e3e2;
+  --color-ink-black: #111111;
+  --color-fog-gray: #78716b;
+  --color-ice-line: #d1dee8;
+  --color-cobalt-stamp: #165dfb;
+  --color-soft-blue: #eef4ff;
+  --color-soft-lavender: #f1efff;
+  --color-soft-mint: #eef8f3;
+  --color-soft-peach: #fff1eb;
+}
+
+@theme {
+  --color-signal-green: var(--color-cobalt-stamp);
+  --color-midnight-navy: var(--color-ink-black);
+  --color-slate-navy: var(--color-ink-black);
+  --color-steel-blue-gray: var(--color-fog-gray);
+  --color-mist-blue: var(--color-ice-line);
+  --color-carbon: var(--color-ink-black);
+  --color-paper-white: var(--color-paper-stone);
+  --color-frost-surface: var(--color-chalk);
+  --color-halo-blue-gray: var(--color-ice-line);
+  --color-link-blue: var(--color-cobalt-stamp);
+  --color-smoke-gray: var(--color-fog-gray);
+
+  --color-soft-blue: var(--color-soft-blue);
+  --color-soft-lavender: var(--color-soft-lavender);
+  --color-soft-mint: var(--color-soft-mint);
+  --color-soft-peach: var(--color-soft-peach);
+
+  /* Overrides for standard tailwind styles to automatically align legacy components */
+  --color-paper: var(--color-paper-stone);
+  --color-cloud: var(--color-chalk);
+  --color-ink: var(--color-ink-black);
+  --color-carbon-text: var(--color-ink-black);
+  --color-graphite: var(--color-fog-gray);
+  --color-pencil-gray: var(--color-ice-line);
+
+  --color-slate-950: var(--color-ink-black);
+  --color-slate-900: var(--color-ink-black);
+  --color-slate-800: var(--color-ink-black);
+  --color-slate-700: var(--color-ink-black);
+  --color-slate-600: var(--color-fog-gray);
+  --color-slate-500: var(--color-fog-gray);
+  --color-slate-400: var(--color-ice-line);
+  --color-slate-300: var(--color-ice-line);
+  --color-slate-200: var(--color-ice-line);
+  --color-slate-100: var(--color-chalk);
+  --color-slate-50: var(--color-paper-stone);
+
+  --color-blue-600: var(--color-cobalt-stamp);
+  --color-blue-700: var(--color-cobalt-stamp);
+  --color-blue-50: var(--color-chalk);
+
+  /* Set exact 8.8px corners across all tailwind rounded definitions */
+  --radius-cards: 8.8px;
+  --radius-inputs: 8.8px;
+  --radius-buttons: 8.8px;
+  --radius-pill: 8.8px;
+  --radius-nav: 8.8px;
+
+  --color-pastel-mint: var(--pastel-mint);
+  --color-pastel-mint-text: var(--pastel-mint-text);
+  --color-pastel-yellow: var(--pastel-yellow);
+  --color-pastel-yellow-text: var(--pastel-yellow-text);
+  --color-pastel-pink: var(--pastel-pink);
+  --color-pastel-pink-text: var(--pastel-pink-text);
+  --color-pastel-lavender: var(--pastel-lavender);
+  --color-pastel-lavender-text: var(--pastel-lavender-text);
+
+  /* Remove shadows globally from tailwind styles */
+  --shadow-card: none;
+  --shadow-btn: none;
+  --shadow-xl: none;
+  --shadow-lg: none;
+  --shadow-md: none;
+  --shadow-sm: none;
+
+  --font-sans: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
 }
 
 /* App background default */
 html {
-  background-color: var(--color-bg);
+  background-color: var(--color-paper-stone);
+  color: var(--color-ink-black);
 }
 
 /* Clean custom scrollbar */
 ::-webkit-scrollbar {
-  width: 6px;
-  height: 6px;
+  width: 5px;
+  height: 5px;
 }
 ::-webkit-scrollbar-track {
   background: transparent;
 }
 ::-webkit-scrollbar-thumb {
-  background: rgba(100, 116, 139, 0.2);
-  border-radius: 9999px;
-}
-::-webkit-scrollbar-thumb:hover {
-  background: rgba(100, 116, 139, 0.4);
+  background: var(--color-ice-line);
+  border-radius: 8.8px;
 }
 
-/* Smooth details/summary open/close animation */
-details summary::-webkit-details-marker {
-  display: none;
+/* Scroll reveal overrides */
+.reveal-on-scroll {
+  opacity: 1 !important;
+  transform: none !important;
+}
+
+/* Infinite horizontal marquee for category strip */
+@keyframes marquee {
+  from { transform: translateX(0); }
+  to   { transform: translateX(-50%); }
+}
+.animate-marquee {
+  display: flex;
+  animation: marquee 28s linear infinite;
+  width: max-content;
+}
+.animate-marquee:hover {
+  animation-play-state: paused;
+}
+
+/* Scanning line for AI proctoring simulator */
+@keyframes scan {
+  0%   { top: 0%; opacity: 0.6; }
+  48%  { opacity: 0.6; }
+  50%  { top: 100%; opacity: 0; }
+  52%  { top: 0%; opacity: 0; }
+  100% { top: 0%; opacity: 0.6; }
+}
+.animate-scan {
+  animation: scan 2.5s ease-in-out infinite;
+}
+
+/* Subtle dot blink for live indicators */
+@keyframes blink {
+  0%, 100% { opacity: 1; }
+  50%       { opacity: 0.2; }
+}
+.animate-blink {
+  animation: blink 1.4s ease-in-out infinite;
+}
+
+/* Float drift for ambient background accents */
+@keyframes float {
+  0%, 100% { transform: translateY(0px); }
+  50%       { transform: translateY(-10px); }
+}
+.animate-float {
+  animation: float 5s ease-in-out infinite;
 }
