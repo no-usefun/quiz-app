@@ -3,7 +3,6 @@
 import { use, useState, useMemo, useEffect } from "react";
 import Link from "next/link";
 import {
-  ShieldCheck,
   ArrowLeft,
   Users,
   TrendingUp,
@@ -25,6 +24,7 @@ import {
   Lock,
 } from "lucide-react";
 import { getTestByCode, updateTestSettings } from "@/lib/storage";
+import { Logo } from "@/components/Logo";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -94,18 +94,18 @@ const DEFAULT_CODE = "CS-302";
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
 function gradeStyle(grade: string) {
-  if (grade.startsWith("A")) return "bg-emerald-50 text-emerald-700 border-emerald-100";
-  if (grade.startsWith("B")) return "bg-blue-50 text-blue-700 border-blue-100";
-  if (grade.startsWith("C")) return "bg-amber-50 text-amber-700 border-amber-200";
-  return "bg-rose-50 text-rose-700 border-rose-100";
+  if (grade.startsWith("A")) return "bg-pastel-mint text-pastel-mint-text";
+  if (grade.startsWith("B")) return "bg-pastel-lavender text-pastel-lavender-text";
+  if (grade.startsWith("C")) return "bg-pastel-yellow text-pastel-yellow-text";
+  return "bg-pastel-pink text-pastel-pink-text";
 }
 
 function avatarStyle(grade: string, flagCount: number) {
-  if (flagCount >= 4) return "bg-rose-50 text-rose-705";
-  if (flagCount >= 2) return "bg-amber-50 text-amber-705";
-  if (grade.startsWith("A")) return "bg-emerald-50 text-emerald-705";
-  if (grade.startsWith("B")) return "bg-blue-50 text-blue-705";
-  return "bg-slate-100 text-slate-600";
+  if (flagCount >= 4) return "bg-pastel-pink text-pastel-pink-text";
+  if (flagCount >= 2) return "bg-pastel-yellow text-pastel-yellow-text";
+  if (grade.startsWith("A")) return "bg-pastel-mint text-pastel-mint-text";
+  if (grade.startsWith("B")) return "bg-pastel-lavender text-pastel-lavender-text";
+  return "bg-frost-surface text-midnight-navy";
 }
 
 function flagIcon(type: FlagType) {
@@ -118,8 +118,8 @@ function flagIcon(type: FlagType) {
 
 function flagChipStyle(type: FlagType) {
   if (type === "tab_switch" || type === "fullscreen_exit")
-    return "bg-rose-50 text-rose-700 border border-rose-200";
-  return "bg-amber-50 text-amber-705 border border-amber-200";
+    return "bg-pastel-pink text-pastel-pink-text";
+  return "bg-pastel-yellow text-pastel-yellow-text";
 }
 
 function totalFlags(s: StudentRecord) {
@@ -127,9 +127,9 @@ function totalFlags(s: StudentRecord) {
 }
 
 function podiumRingColor(pos: number) {
-  if (pos === 0) return { bg: "bg-amber-50/50", border: "border-amber-200", text: "text-amber-700", icon: "🥇" };
-  if (pos === 1) return { bg: "bg-slate-50",  border: "border-slate-200", text: "text-slate-605", icon: "🥈" };
-  return            { bg: "bg-orange-50/50", border: "border-orange-200", text: "text-orange-700", icon: "🥉" };
+  if (pos === 0) return { bg: "bg-pastel-yellow/30", border: "border-mist-blue/20", text: "text-pastel-yellow-text", icon: "🥇" };
+  if (pos === 1) return { bg: "bg-frost-surface/30",  border: "border-mist-blue/20", text: "text-signal-green", icon: "🥈" };
+  return            { bg: "bg-pastel-pink/20", border: "border-mist-blue/20", text: "text-pastel-pink-text", icon: "🥉" };
 }
 
 // ─── CSV export ───────────────────────────────────────────────────────────────
@@ -167,10 +167,10 @@ function exportCSV(testCode: string, data: StudentRecord[], title: string) {
 // ─── Sort chevron ─────────────────────────────────────────────────────────────
 
 function SortIcon({ col, active, dir }: { col: SortKey; active: SortKey; dir: SortDir }) {
-  if (col !== active) return <ChevronsUpDown className="h-3.5 w-3.5 text-slate-300" />;
+  if (col !== active) return <ChevronsUpDown className="h-3.5 w-3.5 text-steel-blue-gray" />;
   return dir === "asc"
-    ? <ChevronUp   className="h-3.5 w-3.5 text-blue-600" />
-    : <ChevronDown className="h-3.5 w-3.5 text-blue-600" />;
+    ? <ChevronUp   className="h-3.5 w-3.5 text-signal-green" />
+    : <ChevronDown className="h-3.5 w-3.5 text-signal-green" />;
 }
 
 function Th({
@@ -191,7 +191,7 @@ function Th({
   return (
     <button
       onClick={() => onSort(col)}
-      className={`flex items-center gap-1 text-xs font-semibold uppercase tracking-wider text-slate-400 hover:text-slate-700 transition-colors cursor-pointer ${className}`}
+      className={`flex items-center gap-1 text-[9px] font-bold uppercase tracking-wider text-steel-blue-gray hover:text-midnight-navy transition-colors cursor-pointer bg-transparent border-0 ${className}`}
     >
       {label}
       <SortIcon col={col} active={sortKey} dir={sortDir} />
@@ -199,16 +199,14 @@ function Th({
   );
 }
 
-// ─── Main component ───────────────────────────────────────────────────────────
-
 export default function TeacherAssessmentPage({
   params,
 }: {
   params: Promise<{ testCode: string }>;
 }) {
   const { testCode } = use(params);
+  const [mounted, setMounted] = useState(false);
 
-  // TODO: BACKEND INTEGRATION - Fetch assessment analytics and student performance table.
   const assessment  = ASSESSMENTS[testCode] ?? ASSESSMENTS[DEFAULT_CODE];
   const allStudents = assessment.students;
 
@@ -226,15 +224,14 @@ export default function TeacherAssessmentPage({
   });
 
   useEffect(() => {
+    setMounted(true);
     const t = getTestByCode(testCode);
     if (t && t.settings) {
-      setTimeout(() => {
-        setTestSettings({
-          publishScoresImmediately: !!t.settings.publishScoresImmediately,
-          revealSolutions: !!t.settings.revealSolutions,
-          showIntegrityFlagsToStudent: !!t.settings.showIntegrityFlagsToStudent,
-        });
-      }, 0);
+      setTestSettings({
+        publishScoresImmediately: !!t.settings.publishScoresImmediately,
+        revealSolutions: !!t.settings.revealSolutions,
+        showIntegrityFlagsToStudent: !!t.settings.showIntegrityFlagsToStudent,
+      });
     }
   }, [testCode]);
 
@@ -252,8 +249,8 @@ export default function TeacherAssessmentPage({
 
   // ── Derived stats ────────────────────────────────────────────────────────────
   const submitted    = allStudents.filter((s) => s.submitted);
-  const classAvg     = Math.round(submitted.reduce((a, s) => a + s.adjustedScore, 0) / submitted.length);
-  const highScore    = Math.max(...submitted.map((s) => s.adjustedScore));
+  const classAvg     = Math.round(submitted.reduce((a, s) => a + s.adjustedScore, 0) / Math.max(1, submitted.length));
+  const highScore    = Math.max(...(submitted.map((s) => s.adjustedScore).length > 0 ? submitted.map((s) => s.adjustedScore) : [0]));
   const flaggedCount = allStudents.filter((s) => totalFlags(s) > 0).length;
   const topThree     = [...submitted].sort((a, b) => b.adjustedScore - a.adjustedScore).slice(0, 3);
 
@@ -291,69 +288,62 @@ export default function TeacherAssessmentPage({
     setTimeout(() => setExported(false), 2500);
   }
 
-
-
   return (
-    <main className="min-h-screen bg-slate-50 text-slate-800 p-4 md:p-6 lg:p-8 font-sans selection:bg-blue-105">
-      <div className="mx-auto flex min-h-[90vh] max-w-[1400px] flex-col rounded-2xl bg-white shadow-xs border border-slate-200 overflow-hidden">
+    <main className="min-h-screen bg-frost-surface text-midnight-navy p-4 md:p-6 lg:p-8 font-sans selection:bg-frost-surface selection:text-signal-green">
+      <div className="mx-auto flex min-h-[90vh] max-w-[1400px] flex-col rounded-cards bg-paper-white shadow-xl border border-mist-blue overflow-hidden text-left">
         
         {/* Header */}
-        <header className="flex w-full items-center justify-between border-b border-slate-200 px-6 py-4 bg-slate-50/50">
+        <header className="flex w-full items-center justify-between border-b border-mist-blue/30 px-6 py-4 bg-paper-white">
           <div className="flex items-center gap-3">
             <Link
               href="/dashboard/teacher"
-              className="flex items-center gap-2 text-xs font-bold text-slate-500 hover:text-slate-905 transition-colors"
+              className="flex items-center gap-2 text-xs font-bold text-steel-blue-gray hover:text-midnight-navy transition-colors"
             >
               <ArrowLeft className="h-3.5 w-3.5" />
               Dashboard
             </Link>
-            <span className="text-slate-200">|</span>
-            <div className="flex items-center gap-2.5">
-              <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-blue-600 text-white shadow-xs">
-                <ShieldCheck className="h-4 w-4" />
-              </div>
-              <span className="text-sm font-bold tracking-tight text-slate-900">DynoQuizz</span>
-            </div>
+            <span className="text-mist-blue/30">|</span>
+            <Logo />
           </div>
 
           <button
             onClick={handleExport}
-            className={`flex items-center gap-2 rounded-lg px-4 py-2 text-xs font-bold transition-all active:scale-95 shadow-xs border ${
+            className={`flex items-center gap-2 rounded-buttons px-4 py-2 text-xs font-bold transition-all duration-200 active:scale-[0.98] border-0 shadow-sm cursor-pointer ${
               exported
-                ? "bg-emerald-600 border-emerald-600 text-white"
-                : "bg-blue-600 border-blue-600 text-white hover:bg-blue-700"
+                ? "bg-pastel-mint text-pastel-mint-text"
+                : "bg-signal-green text-white hover:bg-signal-green/90"
             }`}
           >
             {exported ? (
-              <><CheckCircle2 className="h-3.5 w-3.5" /> Exported</>
+              <><CheckCircle2 className="h-3.5 w-3.5 text-pastel-mint-text" /> Exported</>
             ) : (
-              <><Download className="h-3.5 w-3.5" /> Export to CSV</>
+              <><Download className="h-3.5 w-3.5 text-white" /> Export to CSV</>
             )}
           </button>
         </header>
 
-        <div className="flex flex-1 flex-col gap-5 p-5 md:p-6">
+        <div className="flex flex-1 flex-col gap-5 p-5 md:p-6 bg-paper-white">
 
           {/* Title Area */}
           <div className="flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">
-            <div>
-              <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400">
+            <div className="text-left">
+              <p className="text-[10px] font-bold uppercase tracking-widest text-steel-blue-gray">
                 Past Assessment · Review
               </p>
-              <h1 className="text-xl font-bold text-slate-950 mt-0.5">
+              <h1 className="text-xl font-bold text-midnight-navy mt-0.5">
                 {assessment.title}
               </h1>
-              <div className="mt-2 flex flex-wrap items-center gap-3 text-xs text-slate-500 font-medium">
+              <div className="mt-2 flex flex-wrap items-center gap-3 text-xs text-steel-blue-gray font-medium">
                 <span className="flex items-center gap-1">
-                  <CalendarDays className="h-3.5 w-3.5 text-slate-400" /> {assessment.date}
+                  <CalendarDays className="h-3.5 w-3.5 text-steel-blue-gray" /> {assessment.date}
                 </span>
                 <span className="flex items-center gap-1">
-                  <Clock className="h-3.5 w-3.5 text-slate-400" /> {assessment.duration}
+                  <Clock className="h-3.5 w-3.5 text-steel-blue-gray" /> {assessment.duration}
                 </span>
                 <span className="flex items-center gap-1">
-                  <CheckCircle2 className="h-3.5 w-3.5 text-slate-400" /> {assessment.totalQuestions} questions
+                  <CheckCircle2 className="h-3.5 w-3.5 text-steel-blue-gray" /> {assessment.totalQuestions} questions
                 </span>
-                <span className="rounded-full bg-slate-100 px-2 py-0.5 font-mono text-[9px] font-bold text-slate-600 border border-slate-200">
+                <span className="rounded-pills bg-frost-surface px-2.5 py-0.5 font-mono text-[9px] font-bold text-signal-green border border-mist-blue/30">
                   {testCode}
                 </span>
               </div>
@@ -361,9 +351,9 @@ export default function TeacherAssessmentPage({
           </div>
 
           {/* Teacher Governance Control Panel */}
-          <section className="rounded-xl border border-slate-200 bg-slate-50 p-4 space-y-3">
-            <h3 className="text-xs font-bold uppercase tracking-wider text-slate-705 flex items-center gap-1.5">
-              <Lock className="h-3.5 w-3.5 text-slate-500" /> Teacher Control Panel (Dynamic Settings)
+          <section className="rounded-cards border border-mist-blue bg-paper-white p-4 space-y-3 shadow-sm">
+            <h3 className="text-xs font-bold uppercase tracking-wider text-midnight-navy flex items-center gap-1.5 border-b border-mist-blue/30 pb-2">
+              <Lock className="h-3.5 w-3.5 text-signal-green" /> Teacher Control Panel (Dynamic Settings)
             </h3>
 
             <div className="grid grid-cols-1 md:grid-cols-3 gap-2.5">
@@ -390,19 +380,19 @@ export default function TeacherAssessmentPage({
                     key={item.key}
                     type="button"
                     onClick={() => handleToggleSetting(item.key as keyof typeof testSettings)}
-                    className={`flex items-start justify-between gap-3 rounded-lg border p-3 text-left transition-all active:scale-[0.98] bg-white ${
+                    className={`flex items-start justify-between gap-3 rounded-inputs border p-3 text-left transition-all duration-150 active:scale-[0.98] cursor-pointer ${
                       active
-                        ? "border-blue-600 ring-1 ring-blue-650"
-                        : "border-slate-200 hover:border-slate-300"
+                        ? "border-signal-green bg-frost-surface text-midnight-navy ring-2 ring-signal-green/20"
+                        : "border-mist-blue bg-paper-white text-steel-blue-gray hover:border-mist-blue/80"
                     }`}
                   >
-                    <div>
-                      <span className="block text-xs font-bold text-slate-900">{item.label}</span>
-                      <span className="block text-[10px] text-slate-500 mt-0.5 font-medium">{item.hint}</span>
+                    <div className="text-left">
+                      <span className="block text-xs font-bold text-midnight-navy">{item.label}</span>
+                      <span className="block text-[10px] text-steel-blue-gray mt-0.5 font-medium">{item.hint}</span>
                     </div>
                     <div
                       className={`relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-150 ${
-                        active ? "bg-blue-600" : "bg-slate-200"
+                        active ? "bg-signal-green" : "bg-mist-blue"
                       }`}
                     >
                       <span
@@ -420,31 +410,31 @@ export default function TeacherAssessmentPage({
           {/* Stats Cards */}
           <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
             {[
-              { icon: <Users className="h-4 w-4 text-blue-600" />,        label: "Submitted", value: `${submitted.length}/${allStudents.length}`, bg: "bg-white" },
-              { icon: <TrendingUp className="h-4 w-4 text-emerald-600" />, label: "Class Avg", value: `${classAvg}%`, bg: "bg-white" },
-              { icon: <Award className="h-4 w-4 text-blue-600" />,        label: "High Score", value: `${highScore}%`, bg: "bg-white" },
-              { icon: <AlertTriangle className="h-4 w-4 text-rose-600" />,  label: "Flagged", value: flaggedCount, bg: "bg-rose-50/10" },
+              { icon: <Users className="h-4 w-4 text-signal-green" />,        label: "Submitted", value: `${submitted.length}/${allStudents.length}` },
+              { icon: <TrendingUp className="h-4 w-4 text-pastel-mint-text" />, label: "Class Avg", value: `${classAvg}%` },
+              { icon: <Award className="h-4 w-4 text-signal-green" />,        label: "High Score", value: `${highScore}%` },
+              { icon: <AlertTriangle className="h-4 w-4 text-pastel-pink-text" />,  label: "Flagged", value: flaggedCount },
             ].map((stat) => (
               <div
                 key={stat.label}
-                className={`flex items-center gap-3 rounded-xl border border-slate-200 ${stat.bg} p-4 shadow-xs`}
+                className="flex items-center gap-3 rounded-cards border border-mist-blue bg-paper-white p-4 shadow-sm"
               >
-                <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-slate-50 border border-slate-200 shadow-xs">
+                <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-inputs bg-frost-surface text-signal-green border border-mist-blue/20">
                   {stat.icon}
                 </div>
-                <div>
-                  <p className="text-lg font-bold text-slate-900">{stat.value}</p>
-                  <p className="text-[9px] text-slate-400 font-bold uppercase tracking-wider">{stat.label}</p>
+                <div className="text-left">
+                  <p className="text-lg font-bold text-midnight-navy">{stat.value}</p>
+                  <p className="text-[9px] text-steel-blue-gray font-bold uppercase tracking-wider">{stat.label}</p>
                 </div>
               </div>
             ))}
           </div>
 
           {/* Podium */}
-          <section>
+          <section className="text-left">
             <div className="mb-2.5 flex items-center gap-2">
-              <Trophy className="h-4 w-4 text-amber-500" />
-              <h2 className="text-xs font-bold text-slate-900 font-bold uppercase">Top Performers</h2>
+              <Trophy className="h-4 w-4 text-pastel-yellow-text" />
+              <h2 className="text-xs font-bold text-midnight-navy uppercase tracking-wider">Top Performers</h2>
             </div>
             <div className="grid gap-3 sm:grid-cols-3">
               {topThree.map((s, pos) => {
@@ -453,33 +443,33 @@ export default function TeacherAssessmentPage({
                 return (
                   <div
                     key={s.id}
-                    className={`relative overflow-hidden rounded-xl border border-slate-200 bg-white p-4 shadow-xs`}
+                    className="relative overflow-hidden rounded-cards border border-mist-blue bg-paper-white p-4 shadow-sm"
                   >
                     <span className="absolute right-3.5 top-3.5 text-lg">{c.icon}</span>
 
                     <div className={`mb-2.5 flex h-9 w-9 items-center justify-center rounded-full ${avatarStyle(s.grade, flags)} text-[10px] font-bold`}>
                       {s.avatar}
                     </div>
-                    <p className="font-bold text-slate-900 truncate pr-6 text-xs">{s.name}</p>
-                    <p className="text-[10px] text-slate-400 font-medium">
+                    <p className="font-bold text-midnight-navy truncate pr-6 text-xs text-left">{s.name}</p>
+                    <p className="text-[10px] text-steel-blue-gray font-medium text-left">
                       Rank #{pos + 1} · {s.timeTaken}
                     </p>
 
-                    <div className="mt-3 flex items-end gap-2">
+                    <div className="mt-3 flex items-end gap-2 text-left">
                       <div>
-                        <p className="text-xl font-bold text-slate-900">{s.adjustedScore}%</p>
-                        <p className="text-[8px] text-slate-400 font-bold uppercase">Adjusted</p>
+                        <p className="text-xl font-bold text-midnight-navy">{s.adjustedScore}%</p>
+                        <p className="text-[8px] text-steel-blue-gray font-bold uppercase">Adjusted</p>
                       </div>
                       {s.rawScore !== s.adjustedScore && (
-                        <p className="mb-0.5 text-[10px] text-slate-300 line-through font-medium">{s.rawScore}%</p>
+                        <p className="mb-0.5 text-[10px] text-steel-blue-gray line-through font-medium">{s.rawScore}%</p>
                       )}
-                      <span className={`ml-auto inline-flex items-center rounded-full border px-2 py-0.5 text-[9px] font-bold ${gradeStyle(s.grade)}`}>
+                      <span className={`ml-auto inline-flex items-center rounded-pills px-2.5 py-0.5 text-[9px] font-bold ${gradeStyle(s.grade)}`}>
                         {s.grade}
                       </span>
                     </div>
 
                     {flags > 0 && (
-                      <p className="mt-1.5 text-[9px] text-rose-600 font-bold">
+                      <p className="mt-1.5 text-[9px] text-pastel-pink-text font-bold text-left">
                         ⚠ {flags} proctoring flag{flags > 1 ? "s" : ""}
                       </p>
                     )}
@@ -492,53 +482,53 @@ export default function TeacherAssessmentPage({
           {/* Full Results Table */}
           <section className="flex flex-1 flex-col">
             <div className="mb-3 flex flex-col gap-2.5 sm:flex-row sm:items-center sm:justify-between">
-              <h2 className="text-xs font-bold text-slate-900 uppercase">
+              <h2 className="text-xs font-bold text-midnight-navy uppercase tracking-wider text-left">
                 All Students
-                <span className="ml-1 text-[10px] font-medium text-slate-405 lowercase">
+                <span className="ml-1 text-[10px] font-medium text-steel-blue-gray lowercase">
                   ({displayList.length} of {allStudents.length})
                 </span>
               </h2>
               <div className="relative">
-                <Search className="pointer-events-none absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-slate-400" />
+                <Search className="pointer-events-none absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-steel-blue-gray" />
                 <input
                   type="text"
                   placeholder="Search by name or grade…"
                   value={query}
                   onChange={(e) => setQuery(e.target.value)}
-                  className="w-full rounded-lg border border-slate-200 bg-slate-50 py-2 pl-9 pr-4 text-xs text-slate-900 outline-none transition-all placeholder:text-slate-400 focus:border-blue-500 focus:bg-white sm:w-64"
+                  className="w-full rounded-pills border border-mist-blue bg-paper-white py-2 pl-9 pr-4 text-xs text-midnight-navy outline-none transition-all placeholder:text-steel-blue-gray/60 focus:border-signal-green focus:ring-2 focus:ring-signal-green/20 sm:w-64"
                 />
               </div>
             </div>
 
-            <div className="flex-1 rounded-xl border border-slate-200 overflow-hidden bg-white shadow-xs">
+            <div className="flex-1 rounded-cards border border-mist-blue overflow-hidden bg-paper-white shadow-xl text-left">
               {/* Column headers */}
-              <div className="grid grid-cols-[2.5rem_1fr_6rem_7rem_5rem_6rem_4rem_12rem] items-center gap-3 border-b border-slate-200 bg-slate-50 px-5 py-2">
+              <div className="grid grid-cols-[2.5rem_1fr_6rem_7rem_5rem_6rem_4rem_12rem] items-center gap-3 border-b border-mist-blue/30 bg-paper-white px-5 py-2">
                 <Th label="#"        col="rank"          sortKey={sortKey} sortDir={sortDir} onSort={toggleSort} />
                 <Th label="Student"  col="name"          sortKey={sortKey} sortDir={sortDir} onSort={toggleSort} />
                 <Th label="Raw"      col="rawScore"      sortKey={sortKey} sortDir={sortDir} onSort={toggleSort} className="justify-center" />
                 <Th label="Adjusted" col="adjustedScore" sortKey={sortKey} sortDir={sortDir} onSort={toggleSort} className="justify-center" />
-                <span className="text-center text-[9px] font-semibold uppercase tracking-wider text-slate-450">Grade</span>
+                <span className="text-center text-[9px] font-bold uppercase tracking-wider text-steel-blue-gray">Grade</span>
                 <Th label="Duration" col="timeTaken"     sortKey={sortKey} sortDir={sortDir} onSort={toggleSort} className="justify-center" />
                 <Th label="Flags"    col="flagCount"     sortKey={sortKey} sortDir={sortDir} onSort={toggleSort} className="justify-center" />
-                <span className="text-xs font-semibold uppercase tracking-wider text-slate-450">Suspicion Flags</span>
+                <span className="text-left text-[9px] font-bold uppercase tracking-wider text-steel-blue-gray">Suspicion Flags</span>
               </div>
 
               {displayList.length === 0 ? (
-                <div className="flex flex-col items-center justify-center gap-1 py-10 text-slate-400">
-                  <Search className="h-6 w-6" />
+                <div className="flex flex-col items-center justify-center gap-1 py-10 text-steel-blue-gray">
+                  <Search className="h-6 w-6 text-mist-blue" />
                   <p className="text-xs">No students match your search.</p>
                 </div>
               ) : (
-                <ul className="divide-y divide-slate-100 bg-white">
+                <ul className="divide-y divide-mist-blue/30 bg-paper-white">
                   {displayList.map((student) => {
                     const flags     = totalFlags(student);
                     const isHigh    = flags >= 4;
                     const isMed     = flags >= 2 && flags < 4;
                     const rowBg     = isHigh
-                      ? "bg-rose-50/40 hover:bg-rose-50/60"
+                      ? "bg-pastel-pink/10 hover:bg-pastel-pink/20"
                       : isMed
-                      ? "bg-amber-50/30 hover:bg-amber-50/50"
-                      : "hover:bg-slate-50/30";
+                      ? "bg-pastel-yellow/10 hover:bg-pastel-yellow/20"
+                      : "hover:bg-frost-surface/30";
 
                     return (
                       <li
@@ -546,7 +536,7 @@ export default function TeacherAssessmentPage({
                         className={`grid grid-cols-[2.5rem_1fr_6rem_7rem_5rem_6rem_4rem_12rem] items-center gap-3 px-5 py-2.5 transition-colors ${rowBg}`}
                       >
                         {/* Rank */}
-                        <span className="text-xs font-bold font-mono text-slate-350">
+                        <span className="text-xs font-bold font-mono text-steel-blue-gray">
                           {student.rank}
                         </span>
 
@@ -555,28 +545,28 @@ export default function TeacherAssessmentPage({
                           <div className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-[10px] font-bold ${avatarStyle(student.grade, flags)}`}>
                             {student.avatar}
                           </div>
-                          <div className="min-w-0">
-                            <p className="truncate text-xs font-bold text-slate-900">{student.name}</p>
+                          <div className="min-w-0 text-left">
+                            <p className="truncate text-xs font-bold text-midnight-navy">{student.name}</p>
                             {!student.submitted && (
-                              <span className="text-[9px] font-bold text-rose-600">No submission</span>
+                              <span className="text-[9px] font-bold text-pastel-pink-text">No submission</span>
                             )}
                           </div>
                         </div>
 
                         {/* Raw score */}
                         <div className="flex justify-center text-xs font-medium">
-                          <span className={`tabular-nums ${student.rawScore !== student.adjustedScore ? "text-slate-300 line-through" : "text-slate-700"}`}>
+                          <span className={`tabular-nums ${student.rawScore !== student.adjustedScore ? "text-steel-blue-gray line-through" : "text-midnight-navy"}`}>
                             {student.rawScore}%
                           </span>
                         </div>
 
                         {/* Adjusted score */}
                         <div className="flex justify-center">
-                          <span className={`inline-flex min-w-[3rem] items-center justify-center rounded-full px-2 py-0.5 text-xs font-bold tabular-nums ${
-                            student.adjustedScore >= 80 ? "bg-emerald-50 text-emerald-700 border border-emerald-100"
-                            : student.adjustedScore >= 60 ? "bg-blue-50 text-blue-700 border border-blue-100"
-                            : student.adjustedScore >= 40 ? "bg-amber-50 text-amber-705 border border-amber-200"
-                            : "bg-rose-50 text-rose-700 border border-rose-100"
+                          <span className={`inline-flex min-w-[3rem] items-center justify-center rounded-pills px-2.5 py-0.5 text-xs font-bold tabular-nums ${
+                            student.adjustedScore >= 80 ? "bg-pastel-mint text-pastel-mint-text"
+                            : student.adjustedScore >= 60 ? "bg-pastel-lavender text-pastel-lavender-text"
+                            : student.adjustedScore >= 40 ? "bg-pastel-yellow text-pastel-yellow-text"
+                            : "bg-pastel-pink text-pastel-pink-text"
                           }`}>
                             {student.adjustedScore}%
                           </span>
@@ -584,23 +574,23 @@ export default function TeacherAssessmentPage({
 
                         {/* Grade */}
                         <div className="flex justify-center">
-                          <span className={`inline-flex min-w-[2rem] items-center justify-center rounded-full border px-2 py-0.5 text-[9px] font-bold ${gradeStyle(student.grade)}`}>
+                          <span className={`inline-flex min-w-[2rem] items-center justify-center rounded-pills px-2.5 py-0.5 text-[9px] font-bold ${gradeStyle(student.grade)}`}>
                             {student.grade}
                           </span>
                         </div>
 
                         {/* Time taken */}
                         <div className="flex justify-center">
-                          <span className="font-mono text-[10px] font-semibold text-slate-500">{student.timeTaken}</span>
+                          <span className="font-mono text-[10px] font-semibold text-steel-blue-gray">{student.timeTaken}</span>
                         </div>
 
                         {/* Flag count badge */}
                         <div className="flex justify-center">
                           {flags === 0 ? (
-                            <span className="text-xs text-slate-300">—</span>
+                            <span className="text-xs text-steel-blue-gray">—</span>
                           ) : (
-                            <span className={`inline-flex items-center gap-0.5 rounded-full px-2 py-0.5 text-[9px] font-bold ${
-                              isHigh ? "bg-rose-50 text-rose-705 border border-rose-100" : isMed ? "bg-amber-50 text-amber-705 border border-amber-200" : "bg-slate-50 text-slate-600 border border-slate-200"
+                            <span className={`inline-flex items-center gap-0.5 rounded-pills px-2 py-0.5 text-[9px] font-bold ${
+                              isHigh ? "bg-pastel-pink text-pastel-pink-text" : isMed ? "bg-pastel-yellow text-pastel-yellow-text" : "bg-frost-surface text-signal-green"
                             }`}>
                               <AlertTriangle className="h-2.5 w-2.5" />
                               {flags}
@@ -609,14 +599,14 @@ export default function TeacherAssessmentPage({
                         </div>
 
                         {/* Flag pills */}
-                        <div className="flex flex-wrap gap-1">
+                        <div className="flex flex-wrap gap-1 text-left">
                           {student.flags.length === 0 ? (
-                            <span className="text-[10px] text-slate-350 font-medium">Clean</span>
+                            <span className="text-[10px] text-steel-blue-gray font-medium">Clean</span>
                           ) : (
                             student.flags.map((f, fi) => (
                               <span
                                 key={fi}
-                                className={`flex items-center gap-1 rounded-full px-2 py-0.5 text-[9px] font-bold ${flagChipStyle(f.type)}`}
+                                className={`flex items-center gap-1 rounded-pills px-2 py-0.5 text-[9px] font-bold ${flagChipStyle(f.type)}`}
                               >
                                 {flagIcon(f.type)}
                                 {f.label}
@@ -634,13 +624,13 @@ export default function TeacherAssessmentPage({
           </section>
 
           {/* Footer Info */}
-          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 text-center sm:text-left mt-2 border-t border-slate-100 pt-4">
-            <p className="text-[10px] text-slate-400 font-medium">
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 text-center sm:text-left mt-2 border-t border-mist-blue/30 pt-4">
+            <p className="text-[10px] text-steel-blue-gray font-medium">
               Proctoring flags are sourced from the{" "}
-              <code className="rounded bg-slate-105 px-1 py-0.5 font-mono text-slate-500">useProctoring</code>{" "}
+              <code className="rounded bg-frost-surface px-1 py-0.5 font-mono text-signal-green border border-mist-blue/35">useProctoring</code>{" "}
               hook · Score adjustment applied by the grading engine
             </p>
-            <p className="text-[10px] text-slate-400 font-medium">
+            <p className="text-[10px] text-steel-blue-gray font-medium">
               DynoQuizz Assessment Governance System
             </p>
           </div>

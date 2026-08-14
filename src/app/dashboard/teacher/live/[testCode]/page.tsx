@@ -18,6 +18,8 @@ import {
   RefreshCw,
 } from "lucide-react";
 import { getTestByCode } from "@/lib/storage";
+import { ProfileDropdown } from "@/components/ProfileDropdown";
+import { Logo } from "@/components/Logo";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -79,7 +81,7 @@ function seedStudents(): StudentRow[] {
 }
 
 function FlagIcon({ type }: { type: SuspicionFlag["type"] }) {
-  const cls = "h-3.5 w-3.5";
+  const cls = "h-3 w-3";
   if (type === "tab_switch")      return <Monitor className={cls} />;
   if (type === "fullscreen_exit") return <Eye className={cls} />;
   if (type === "copy_attempt")    return <Copy className={cls} />;
@@ -98,11 +100,13 @@ export default function LiveLeaderboard({
   const [elapsed,  setElapsed]    = useState(0);
   const [isLive,   setIsLive]     = useState(true);
   const [lastSync, setLastSync]   = useState(nowTime());
+  const [mounted, setMounted]     = useState(false);
 
   useEffect(() => {
+    setMounted(true);
     const loaded = getTestByCode(testCode);
     if (loaded) {
-      setTimeout(() => setTestTitle(loaded.quizName), 0);
+      setTestTitle(loaded.quizName);
     }
   }, [testCode]);
 
@@ -165,78 +169,71 @@ export default function LiveLeaderboard({
   const elapsedLabel = `${String(Math.floor(elapsed / 60)).padStart(2, "0")}:${String(elapsed % 60).padStart(2, "0")}`;
 
   return (
-    <div className="min-h-screen bg-slate-50 font-sans text-slate-800 selection:bg-blue-105 selection:text-blue-905">
+    <div className="min-h-screen bg-frost-surface font-sans text-midnight-navy selection:bg-frost-surface selection:text-signal-green">
       {/* Header */}
-      <header className="sticky top-0 z-20 flex items-center justify-between bg-white border-b border-slate-200 px-6 py-3.5 shadow-xs">
+      <header className="sticky top-0 z-20 flex items-center justify-between bg-paper-white border-b border-mist-blue px-6 py-3.5 shadow-none">
         <div className="flex items-center gap-3">
           <Link
             href="/dashboard/teacher"
-            className="flex items-center gap-2 text-xs font-bold text-slate-500 hover:text-slate-900 transition-colors"
+            className="flex items-center gap-2 text-xs font-bold text-steel-blue-gray hover:text-midnight-navy transition-colors"
           >
             <ArrowLeft className="h-3.5 w-3.5" />
             Dashboard
           </Link>
-          <span className="text-slate-250">|</span>
-          <div className="flex items-center gap-2">
-            <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-blue-600 text-white font-bold text-xs shadow-xs">
-              <ShieldCheck className="h-4 w-4" />
-            </div>
-            <span className="text-sm font-bold tracking-tight text-slate-900">
-              DynoQuizz
-            </span>
-          </div>
+          <span className="text-mist-blue/30">|</span>
+          <Logo />
         </div>
 
         <div className="flex items-center gap-2.5">
           {isLive && (
-            <span className="flex items-center gap-1.5 rounded-lg bg-emerald-50 border border-emerald-200 px-3 py-1 text-xs font-bold text-emerald-700">
+            <span className="flex items-center gap-1.5 rounded-pills bg-pastel-mint px-3 py-1 text-xs font-bold text-pastel-mint-text">
               <span className="relative flex h-2 w-2">
-                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75" />
-                <span className="relative inline-flex h-2 w-2 rounded-full bg-emerald-500" />
+                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-pastel-mint-text opacity-75" />
+                <span className="relative inline-flex h-2 w-2 rounded-full bg-pastel-mint-text" />
               </span>
               LIVE STREAM
             </span>
           )}
           <button
             onClick={() => setIsLive((v) => !v)}
-            className={`flex items-center gap-2 rounded-lg px-3.5 py-1.5 text-xs font-bold transition-all border ${
+            className={`flex items-center gap-2 rounded-buttons px-3.5 py-1.5 text-xs font-bold transition-all duration-200 border cursor-pointer ${
               isLive
-                ? "bg-rose-50 border-rose-200 text-rose-700 hover:bg-rose-100"
-                : "bg-emerald-50 border-emerald-200 text-emerald-700 hover:bg-emerald-100"
+                ? "bg-pastel-pink border-transparent text-pastel-pink-text hover:bg-pastel-pink/90"
+                : "bg-pastel-mint border-transparent text-pastel-mint-text hover:bg-pastel-mint/90"
             }`}
           >
             {isLive ? (
               <><StopCircle className="h-3.5 w-3.5" /> Pause Stream</>
             ) : (
-              <><RefreshCw className="h-3.5 w-3.5" /> Resume Stream</>
+              <><RefreshCw className="h-3.5 w-3.5 animate-spin" /> Resume Stream</>
             )}
           </button>
         </div>
       </header>
 
-      <main className="mx-auto max-w-7xl space-y-5 px-4 py-6">
+      <main className="mx-auto max-w-7xl space-y-5 px-4 py-6 text-left">
         {/* Title row */}
         <div className="flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">
           <div>
-            <span className="text-xs font-bold uppercase tracking-widest text-blue-600">
+            <span className="text-xs font-bold uppercase tracking-widest text-signal-green">
               Real-time Proctoring Telemetry
             </span>
-            <h1 className="mt-0.5 text-2xl font-bold tracking-tight text-slate-900">
+            <h1 className="mt-0.5 text-2xl font-bold tracking-tight text-midnight-navy">
               {testCode}
             </h1>
-            <p className="mt-0.5 text-xs text-slate-500 font-medium">
+            <p className="mt-0.5 text-xs text-steel-blue-gray font-medium">
               {testTitle}
             </p>
           </div>
-          <div className="flex items-center gap-3.5 text-xs text-slate-500 font-medium bg-white border border-slate-200 px-3.5 py-1.5 rounded-lg shadow-xs mt-2 sm:mt-0">
+          <div className="flex items-center gap-3.5 text-xs text-steel-blue-gray font-medium bg-paper-white border border-mist-blue px-3.5 py-1.5 rounded-pills shadow-sm mt-2 sm:mt-0">
             <span className="flex items-center gap-1">
-              <Activity className="h-3.5 w-3.5 text-blue-605" />
-              Last sync: <strong className="text-slate-900 font-bold">{lastSync}</strong>
+              <Activity className="h-3.5 w-3.5 text-signal-green" />
+              Last sync: <strong className="text-midnight-navy font-bold">{lastSync}</strong>
             </span>
-            <span className="text-slate-200">·</span>
+            <span className="text-mist-blue/30">·</span>
             <span className="flex items-center gap-1">
-              <Clock className="h-3.5 w-3.5 text-blue-605" />
-              Duration: <strong className="text-slate-900 font-bold">{elapsedLabel}</strong>
+              <Clock className="h-3.5 w-3.5 text-signal-green" />
+              Duration: <strong className="text-midnight-navy font-bold">{elapsedLabel}</strong>
             </span>
           </div>
         </div>
@@ -244,31 +241,31 @@ export default function LiveLeaderboard({
         {/* Stats strip */}
         <div className="grid grid-cols-2 gap-3.5 lg:grid-cols-4">
           {[
-            { icon: <Users className="h-4 w-4 text-blue-600" />, label: "Active Candidates", value: activeCount },
-            { icon: <ShieldCheck className="h-4 w-4 text-emerald-605" />, label: "Submitted", value: submittedCount },
-            { icon: <AlertTriangle className="h-4 w-4 text-rose-600" />, label: "Flagged Students", value: flaggedCount },
-            { icon: <TrendingUp className="h-4 w-4 text-blue-600" />, label: "Class Avg Score", value: `${avgScore}%` },
+            { icon: <Users className="h-4 w-4 text-signal-green" />, label: "Active Candidates", value: activeCount },
+            { icon: <ShieldCheck className="h-4 w-4 text-pastel-mint-text" />, label: "Submitted", value: submittedCount },
+            { icon: <AlertTriangle className="h-4 w-4 text-pastel-pink-text" />, label: "Flagged Students", value: flaggedCount },
+            { icon: <TrendingUp className="h-4 w-4 text-signal-green" />, label: "Class Avg Score", value: `${avgScore}%` },
           ].map((stat) => (
             <motion.div
               key={stat.label}
-              initial={{ opacity: 0, y: 8 }}
-              animate={{ opacity: 1, y: 0 }}
-              className="rounded-xl bg-white p-4 flex items-center gap-3 border border-slate-200 shadow-xs"
+              initial={mounted ? { opacity: 0, y: 8 } : false}
+              animate={mounted ? { opacity: 1, y: 0 } : false}
+              className="rounded-cards bg-paper-white p-4 flex items-center gap-3 border border-mist-blue shadow-xl text-left"
             >
-              <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-slate-50 border border-slate-200">
+              <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-inputs bg-frost-surface text-signal-green border border-mist-blue/20">
                 {stat.icon}
               </div>
               <div>
-                <p className="text-lg font-bold text-slate-900">{stat.value}</p>
-                <p className="text-[10px] text-slate-500 font-bold uppercase tracking-wider">{stat.label}</p>
+                <p className="text-lg font-bold text-midnight-navy">{stat.value}</p>
+                <p className="text-[10px] text-steel-blue-gray font-bold uppercase tracking-wider">{stat.label}</p>
               </div>
             </motion.div>
           ))}
         </div>
 
         {/* Leaderboard table */}
-        <div className="rounded-2xl bg-white border border-slate-200 overflow-hidden shadow-xs">
-          <div className="grid grid-cols-[2rem_1fr_8rem_7rem_8rem_12rem] items-center gap-4 bg-slate-50 px-6 py-2.5 text-xs font-bold uppercase tracking-wider text-slate-500 border-b border-slate-200">
+        <div className="rounded-cards bg-paper-white border border-mist-blue overflow-hidden shadow-xl text-left">
+          <div className="grid grid-cols-[2rem_1fr_8rem_7rem_8rem_12rem] items-center gap-4 bg-paper-white px-6 py-2.5 text-xs font-bold uppercase tracking-wider text-steel-blue-gray border-b border-mist-blue/30">
             <span>#</span>
             <span>Student</span>
             <span className="text-center">Progress</span>
@@ -277,15 +274,15 @@ export default function LiveLeaderboard({
             <span className="text-center">Suspicion Flags</span>
           </div>
 
-          <ul className="divide-y divide-slate-100 bg-white">
+          <ul className="divide-y divide-mist-blue/30 bg-paper-white">
             {sorted.map((student, idx) => {
               const risk = riskLevel(student.flags);
               const rowBg =
                 risk === "danger"
-                  ? "bg-rose-50/40 hover:bg-rose-50/60"
+                  ? "bg-pastel-pink/10 hover:bg-pastel-pink/20"
                   : risk === "warn"
-                  ? "bg-amber-50/30 hover:bg-amber-50/50"
-                  : "hover:bg-slate-50/40";
+                  ? "bg-pastel-yellow/10 hover:bg-pastel-yellow/20"
+                  : "hover:bg-frost-surface/30";
 
               return (
                 <motion.li
@@ -293,41 +290,41 @@ export default function LiveLeaderboard({
                   layout
                   className={`grid grid-cols-[2rem_1fr_8rem_7rem_8rem_12rem] items-center gap-4 px-6 py-2.5 transition-colors ${rowBg}`}
                 >
-                  <span className="text-xs font-bold font-mono text-slate-400">
+                  <span className="text-xs font-bold font-mono text-steel-blue-gray">
                     {idx + 1}
                   </span>
 
                   <div className="flex items-center gap-2 min-w-0">
-                    <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-slate-100 border border-slate-202 text-slate-700 font-bold text-[10px]">
+                    <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-frost-surface border border-mist-blue/30 text-midnight-navy font-bold text-[10px]">
                       {student.avatar}
                     </div>
-                    <span className="truncate text-xs font-bold text-slate-900">
+                    <span className="truncate text-xs font-bold text-midnight-navy">
                       {student.name}
                     </span>
                   </div>
 
                   <div className="flex flex-col items-center gap-0.5">
-                    <div className="h-1.5 w-full rounded-full bg-slate-100 border border-slate-200/50 overflow-hidden">
+                    <div className="h-1.5 w-full rounded-pills bg-frost-surface border border-mist-blue/20 overflow-hidden">
                       <div
-                        className="h-full rounded-full bg-blue-600 transition-all duration-500"
+                        className="h-full bg-signal-green transition-all duration-500"
                         style={{ width: `${(student.answered / student.total) * 100}%` }}
                       />
                     </div>
-                    <span className="text-[10px] text-slate-500 font-medium">
+                    <span className="text-[10px] text-steel-blue-gray font-medium">
                       {student.answered}/{student.total} Q
                     </span>
                   </div>
 
                   <div className="flex items-center justify-center">
                     <span
-                      className={`inline-flex items-center justify-center rounded-full border px-2.5 py-0.5 text-xs font-bold min-w-[3rem] ${
+                      className={`inline-flex items-center justify-center rounded-pills px-2.5 py-0.5 text-xs font-bold min-w-[3rem] ${
                         student.score >= 80
-                          ? "bg-emerald-50 text-emerald-700 border-emerald-200"
+                          ? "bg-pastel-mint text-pastel-mint-text"
                           : student.score >= 60
-                          ? "bg-blue-50 text-blue-700 border-blue-200"
+                          ? "bg-pastel-lavender text-pastel-lavender-text"
                           : student.score >= 40
-                          ? "bg-amber-50 text-amber-700 border-amber-200"
-                          : "bg-rose-50 text-rose-700 border-rose-200"
+                          ? "bg-pastel-yellow text-pastel-yellow-text"
+                          : "bg-pastel-pink text-pastel-pink-text"
                       }`}
                     >
                       {student.score}%
@@ -336,40 +333,40 @@ export default function LiveLeaderboard({
 
                   <div className="flex items-center justify-center">
                     {student.status === "active" && (
-                      <span className="flex items-center gap-1 rounded-full bg-emerald-50 border border-emerald-200 px-2.5 py-0.5 text-[10px] font-bold text-emerald-700">
+                      <span className="flex items-center gap-1 rounded-pills bg-pastel-mint px-2.5 py-0.5 text-[10px] font-bold text-pastel-mint-text">
                         <span className="relative flex h-1.5 w-1.5">
-                          <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75" />
-                          <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-emerald-500" />
+                          <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-pastel-mint-text opacity-75" />
+                          <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-pastel-mint-text" />
                         </span>
                         Active
                       </span>
                     )}
                     {student.status === "submitted" && (
-                      <span className="flex items-center gap-1 rounded-full bg-slate-100 border border-slate-200 px-2.5 py-0.5 text-[10px] font-bold text-slate-700">
-                        <ShieldCheck className="h-3 w-3 text-emerald-600" />
+                      <span className="flex items-center gap-1 rounded-pills bg-pastel-lavender px-2.5 py-0.5 text-[10px] font-bold text-pastel-lavender-text">
+                        <ShieldCheck className="h-3 w-3 text-pastel-lavender-text" />
                         Submitted
                       </span>
                     )}
                     {student.status === "disconnected" && (
-                      <span className="flex items-center gap-1 rounded-full bg-rose-50 border border-rose-200 px-2.5 py-0.5 text-[10px] font-bold text-rose-700">
-                        <span className="h-1.5 w-1.5 rounded-full bg-rose-500" />
+                      <span className="flex items-center gap-1 rounded-pills bg-pastel-pink px-2.5 py-0.5 text-[10px] font-bold text-pastel-pink-text">
+                        <span className="h-1.5 w-1.5 rounded-full bg-pastel-pink-text" />
                         Offline
                       </span>
                     )}
                   </div>
 
-                  <div className="flex flex-col items-center gap-1">
+                  <div className="flex flex-col items-center gap-1 w-full">
                     {student.flags.length === 0 ? (
-                      <span className="text-[10px] text-slate-350 font-medium">—</span>
+                      <span className="text-[10px] text-steel-blue-gray font-medium">—</span>
                     ) : (
-                      <div className="flex flex-col gap-1 w-full">
+                      <div className="flex flex-col gap-1 w-full text-left">
                         {student.flags.slice(-3).map((flag, fi) => (
                           <div
                             key={fi}
-                            className={`flex items-center gap-1 rounded-full px-2 py-0.5 text-[9px] font-bold border ${
+                            className={`flex items-center gap-1 rounded-pills px-2 py-0.5 text-[9px] font-bold ${
                               flag.type === "tab_switch" || flag.type === "fullscreen_exit"
-                                ? "bg-rose-50 border-rose-100 text-rose-700"
-                                : "bg-amber-50 border-amber-100 text-amber-700"
+                                ? "bg-pastel-pink text-pastel-pink-text"
+                                : "bg-pastel-yellow text-pastel-yellow-text"
                             }`}
                           >
                             <FlagIcon type={flag.type} />
@@ -378,7 +375,7 @@ export default function LiveLeaderboard({
                           </div>
                         ))}
                         {student.flags.length > 3 && (
-                          <span className="text-[9px] text-slate-400 text-center font-bold">
+                          <span className="text-[9px] text-steel-blue-gray text-center font-bold">
                             +{student.flags.length - 3} more
                           </span>
                         )}
@@ -391,12 +388,12 @@ export default function LiveLeaderboard({
           </ul>
         </div>
 
-        <p className="text-center text-[10px] text-slate-400 font-medium">
+        <p className="text-center text-[10px] text-steel-blue-gray font-medium">
           Flags are detected client-side by the{" "}
-          <code className="font-mono bg-slate-100 text-slate-600 px-1 py-0.5 rounded border border-slate-200">
+          <code className="font-mono bg-frost-surface text-signal-green px-1 py-0.5 rounded border border-mist-blue/30">
             useProctoring
           </code>{" "}
-          hook and reported to the backend in real time · Live stream polling every 2s
+          hook and reported to the backend in real time · Live stream updates every 2s
         </p>
       </main>
     </div>
