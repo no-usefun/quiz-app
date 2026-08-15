@@ -1,18 +1,17 @@
 package com.quiz_app.backend.service;
 
+import java.util.Optional;
+
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
-import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.when;
-
-import java.util.Optional;
-
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import static org.mockito.ArgumentMatchers.any;
 import org.mockito.Mock;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.security.authentication.BadCredentialsException;
 import org.springframework.security.crypto.password.PasswordEncoder;
@@ -24,7 +23,7 @@ import com.quiz_app.backend.dto.auth.UserSummaryResponse;
 import com.quiz_app.backend.entity.Role;
 import com.quiz_app.backend.entity.User;
 import com.quiz_app.backend.exception.BadRequestException;
-import com.quiz_app.backend.exception.UserAlreadyExistsException;
+import com.quiz_app.backend.exception.ConflictException;
 import com.quiz_app.backend.repository.RoleRepository;
 import com.quiz_app.backend.repository.UserRepository;
 import com.quiz_app.backend.security.JwtUtils;
@@ -85,7 +84,7 @@ class AuthServiceTest {
 
         when(userRepository.existsByEmail("alex@university.edu")).thenReturn(true);
 
-        assertThrows(UserAlreadyExistsException.class, () -> authService.register(request));
+        assertThrows(ConflictException.class, () -> authService.register(request));
     }
 
     @Test
