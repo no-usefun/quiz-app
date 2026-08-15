@@ -8,6 +8,7 @@ import com.quiz_app.backend.entity.QuizStatus;
 
 public record QuizResponse(
         Long quizId,
+        String quizCode,
         Long teacherId,
 
         String title,

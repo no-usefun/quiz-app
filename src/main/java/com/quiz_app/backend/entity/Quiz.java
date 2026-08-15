@@ -105,6 +105,9 @@ public class Quiz {
     @Column(name = "updated_at", nullable = false)
     private LocalDateTime updatedAt;
 
+    @Column(name = "quiz_code", nullable = false, unique = true, length = 6)
+    private String quizCode;
+
     public Quiz() {
     }
 
@@ -310,5 +313,13 @@ public class Quiz {
 
     public void setUpdatedAt(LocalDateTime updatedAt) {
         this.updatedAt = updatedAt;
+    }
+
+    public String getQuizCode() {
+        return quizCode;
+    }
+
+    public void setQuizCode(String quizCode) {
+        this.quizCode = quizCode;
     }
 }
