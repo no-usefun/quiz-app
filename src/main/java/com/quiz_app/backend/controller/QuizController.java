@@ -41,4 +41,11 @@ public class QuizController {
 
         return ResponseEntity.ok(response);
     }
+
+    @GetMapping("/quizzes/code/{quizCode}/package")
+    public ResponseEntity<QuizPackageResponse> getQuizPackageByCode(
+            @PathVariable String quizCode) {
+        return ResponseEntity.ok(
+                quizService.getQuizPackageByCode(quizCode));
+    }
 }
