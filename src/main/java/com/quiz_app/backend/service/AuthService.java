@@ -15,7 +15,7 @@ import com.quiz_app.backend.entity.Role;
 import com.quiz_app.backend.entity.User;
 import com.quiz_app.backend.exception.BadRequestException;
 import com.quiz_app.backend.exception.ResourceNotFoundException;
-import com.quiz_app.backend.exception.UserAlreadyExistsException;
+import com.quiz_app.backend.exception.ConflictException;
 import com.quiz_app.backend.repository.RoleRepository;
 import com.quiz_app.backend.repository.UserRepository;
 import com.quiz_app.backend.security.JwtUtils;
@@ -45,14 +45,14 @@ public class AuthService {
 
         // 1. Check duplicate email
         if (userRepository.existsByEmail(normalizedEmail)) {
-            throw new UserAlreadyExistsException("An account with email " + normalizedEmail + " already exists");
+            throw new ConflictException("An account with email " + normalizedEmail + " already exists");
         }
 
         // 2. Check duplicate registration number if provided
         if (request.registrationNo() != null && !request.registrationNo().isBlank()) {
             String regNo = request.registrationNo().trim();
             if (userRepository.existsByRegistrationNo(regNo)) {
-                throw new UserAlreadyExistsException(
+                throw new ConflictException(
                         "Registration number " + regNo + " is already associated with an account");
             }
         }
