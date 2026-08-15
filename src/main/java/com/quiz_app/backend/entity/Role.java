@@ -34,11 +34,11 @@ public class Role {
         return id;
     }
 
-    public void setRoleName(String name) {
+    public void setName(String name) {
         this.name = name;
     }
 
-    public String getRoleName() {
+    public String getName() {
         return name;
     }
 

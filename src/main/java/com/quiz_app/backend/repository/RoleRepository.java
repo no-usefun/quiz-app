@@ -8,5 +8,5 @@ import com.quiz_app.backend.entity.Role;
 
 public interface RoleRepository extends JpaRepository<Role, Long> {
 
-    Optional<Role> findByRoleName(String roleName);
+    Optional<Role> findByName(String name);
 }

@@ -46,7 +46,7 @@ public class AttemptService {
                                 .orElseThrow(() -> new ResourceNotFoundException("Student not found"));
 
                 // 2. Verify student role
-                if (!"STUDENT".equals(student.getRole().getRoleName())) {
+                if (!"STUDENT".equals(student.getRole().getName())) {
                         throw new BadRequestException(
                                         "Only a student can start a quiz");
                 }

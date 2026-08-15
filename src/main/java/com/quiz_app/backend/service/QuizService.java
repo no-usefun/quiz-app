@@ -52,7 +52,7 @@ public class QuizService {
                                 .orElseThrow(() -> new ResourceNotFoundException("Teacher not found"));
 
                 // 2. Validate teacher role
-                if (!"TEACHER".equals(teacher.getRole().getRoleName())) {
+                if (!"TEACHER".equals(teacher.getRole().getName())) {
                         throw new BadRequestException(
                                         "Only a teacher can create a quiz");
                 }

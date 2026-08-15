@@ -60,7 +60,7 @@ public class UserService {
                 }
 
                 Role teacherRole = roleRepository
-                                .findByRoleName("TEACHER")
+                                .findByName("TEACHER")
                                 .orElseThrow(() -> new ResourceNotFoundException(
                                                 "TEACHER role not found"));
 
@@ -120,7 +120,7 @@ public class UserService {
                 }
 
                 Role studentRole = roleRepository
-                                .findByRoleName("STUDENT")
+                                .findByName("STUDENT")
                                 .orElseThrow(() -> new ResourceNotFoundException(
                                                 "STUDENT role not found"));
 
@@ -184,6 +184,6 @@ public class UserService {
                                 user.getLastName(),
                                 user.getEmail(),
                                 user.getRegistrationNo(),
-                                user.getRole().getRoleName());
+                                user.getRole().getName());
         }
 }
