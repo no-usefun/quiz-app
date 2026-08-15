@@ -16,6 +16,8 @@ import com.quiz_app.backend.entity.Option;
 import com.quiz_app.backend.entity.Question;
 import com.quiz_app.backend.entity.Quiz;
 import com.quiz_app.backend.entity.User;
+import com.quiz_app.backend.exception.BadRequestException;
+import com.quiz_app.backend.exception.ResourceNotFoundException;
 import com.quiz_app.backend.repository.OptionRepository;
 import com.quiz_app.backend.repository.QuestionRepository;
 import com.quiz_app.backend.repository.QuizRepository;
@@ -45,13 +47,13 @@ public class QuizService {
         @Transactional
         public QuizResponse createQuiz(CreateQuizRequest request) {
 
-                // 1. Validate teacher
+                // 1. Find teacher
                 User teacher = userRepository.findById(request.teacherId())
-                                .orElseThrow(() -> new IllegalArgumentException("Teacher not found"));
+                                .orElseThrow(() -> new ResourceNotFoundException("Teacher not found"));
 
                 // 2. Validate teacher role
                 if (!"TEACHER".equals(teacher.getRole().getRoleName())) {
-                        throw new IllegalArgumentException(
+                        throw new BadRequestException(
                                         "Only a teacher can create a quiz");
                 }
 
@@ -197,46 +199,47 @@ public class QuizService {
         private void validateQuiz(CreateQuizRequest request) {
 
                 if (request.teacherId() == null) {
-                        throw new IllegalArgumentException(
+                        throw new BadRequestException(
                                         "Teacher ID is required");
                 }
 
                 if (request.title() == null || request.title().isBlank()) {
-                        throw new IllegalArgumentException(
+                        throw new BadRequestException(
                                         "Quiz title is required");
                 }
 
                 if (request.subject() == null || request.subject().isBlank()) {
-                        throw new IllegalArgumentException(
+                        throw new BadRequestException(
                                         "Subject is required");
                 }
 
                 if (request.subjectCode() == null ||
                                 request.subjectCode().isBlank()) {
 
-                        throw new IllegalArgumentException(
+                        throw new BadRequestException(
                                         "Subject code is required");
                 }
 
                 if (request.totalStudents() == null ||
                                 request.totalStudents() < 0) {
 
-                        throw new IllegalArgumentException(
+                        throw new BadRequestException(
                                         "Total students cannot be negative");
                 }
 
                 if (request.questions() == null ||
                                 request.questions().isEmpty()) {
 
-                        throw new IllegalArgumentException(
+                        throw new BadRequestException(
                                         "Quiz must contain at least one question");
                 }
 
                 if (request.negativeMarking()
                                 && request.negativeMarks() != null
-                                && request.negativeMarks().compareTo(BigDecimal.ZERO) < 0) {
+                                && request.negativeMarks()
+                                                .compareTo(BigDecimal.ZERO) < 0) {
 
-                        throw new IllegalArgumentException(
+                        throw new BadRequestException(
                                         "Negative marks cannot be negative");
                 }
         }
@@ -248,26 +251,26 @@ public class QuizService {
                                 && (request.imageUrl() == null ||
                                                 request.imageUrl().isBlank())) {
 
-                        throw new IllegalArgumentException(
+                        throw new BadRequestException(
                                         "Question must contain text or an image");
                 }
 
                 if (request.questionType() == null) {
-                        throw new IllegalArgumentException(
+                        throw new BadRequestException(
                                         "Question type is required");
                 }
 
                 if (request.marks() == null ||
                                 request.marks().compareTo(BigDecimal.ZERO) <= 0) {
 
-                        throw new IllegalArgumentException(
+                        throw new BadRequestException(
                                         "Question marks must be greater than zero");
                 }
 
                 if (request.options() == null ||
                                 request.options().isEmpty()) {
 
-                        throw new IllegalArgumentException(
+                        throw new BadRequestException(
                                         "Question must contain options");
                 }
 
@@ -280,26 +283,27 @@ public class QuizService {
 
                         case MCQ -> {
                                 if (correctOptions != 1) {
-                                        throw new IllegalArgumentException(
+                                        throw new BadRequestException(
                                                         "MCQ must have exactly one correct option");
                                 }
                         }
 
                         case MSQ -> {
                                 if (correctOptions < 1) {
-                                        throw new IllegalArgumentException(
+                                        throw new BadRequestException(
                                                         "MSQ must have at least one correct option");
                                 }
                         }
 
                         case TRUE_FALSE -> {
+
                                 if (request.options().size() != 2) {
-                                        throw new IllegalArgumentException(
+                                        throw new BadRequestException(
                                                         "TRUE_FALSE must have exactly two options");
                                 }
 
                                 if (correctOptions != 1) {
-                                        throw new IllegalArgumentException(
+                                        throw new BadRequestException(
                                                         "TRUE_FALSE must have exactly one correct option");
                                 }
                         }
@@ -317,14 +321,14 @@ public class QuizService {
                                 && (request.optionImage() == null ||
                                                 request.optionImage().isBlank())) {
 
-                        throw new IllegalArgumentException(
+                        throw new BadRequestException(
                                         "Option must contain text or an image");
                 }
 
                 if (request.optionOrder() == null ||
                                 request.optionOrder() <= 0) {
 
-                        throw new IllegalArgumentException(
+                        throw new BadRequestException(
                                         "Option order must be greater than zero");
                 }
         }
@@ -341,7 +345,7 @@ public class QuizService {
         public QuizPackageResponse getQuizPackageByCode(String quizCode) {
 
                 Quiz quiz = quizRepository.findByQuizCode(quizCode)
-                                .orElseThrow(() -> new IllegalArgumentException("Quiz not found"));
+                                .orElseThrow(() -> new ResourceNotFoundException("Quiz not found"));
 
                 return getQuizPackage(quiz.getId());
         }
@@ -349,7 +353,7 @@ public class QuizService {
         public QuizPackageResponse getQuizPackage(Long quizId) {
 
                 Quiz quiz = quizRepository.findById(quizId)
-                                .orElseThrow(() -> new IllegalArgumentException("Quiz not found"));
+                                .orElseThrow(() -> new ResourceNotFoundException("Quiz not found"));
 
                 var questions = questionRepository
                                 .findByQuizIdOrderByDisplayOrder(quizId);
