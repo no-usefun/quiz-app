@@ -74,6 +74,10 @@ public class SecurityConfig {
                         // Public Auth Endpoints
                         .requestMatchers("/api/v1/auth/**").permitAll()
 
+                        // Public Quiz metadata & package endpoints for shared test links
+                        .requestMatchers(HttpMethod.GET, "/api/v1/quizzes/**").permitAll()
+                        .requestMatchers("/api/v1/quizzes/code/**").permitAll()
+
                         // Swagger / OpenAPI
                         .requestMatchers(
                                 "/v3/api-docs/**",
@@ -81,7 +85,7 @@ public class SecurityConfig {
                                 "/swagger-ui.html")
                         .permitAll()
 
-                        // Other public endpoints
+                        // Health and diagnostics
                         .requestMatchers("/api/v1/health").permitAll()
                         .requestMatchers("/error").permitAll()
                         .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
