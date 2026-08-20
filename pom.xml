@@ -30,57 +30,60 @@
 	<properties>
 		<java.version>21</java.version>
 	</properties>
-	<dependencies>
 
-		<!-- REST API -->
+	<dependencies>
+		<!-- Web / REST API -->
 		<dependency>
 			<groupId>org.springframework.boot</groupId>
 			<artifactId>spring-boot-starter-webmvc</artifactId>
 		</dependency>
-		<!-- Jackson -->
+
+		<!-- JSON Processing -->
 		<dependency>
 			<groupId>com.fasterxml.jackson.core</groupId>
 			<artifactId>jackson-databind</artifactId>
 		</dependency>
 
-		<!-- JPA / Hibernate -->
+		<!-- Database / JPA -->
 		<dependency>
 			<groupId>org.springframework.boot</groupId>
 			<artifactId>spring-boot-starter-data-jpa</artifactId>
 		</dependency>
 
-		<!-- PostgreSQL -->
+		<!-- PostgreSQL Database Driver -->
 		<dependency>
 			<groupId>org.postgresql</groupId>
 			<artifactId>postgresql</artifactId>
 			<scope>runtime</scope>
 		</dependency>
 
-		<!-- Request validation -->
+		<!-- Bean Validation -->
 		<dependency>
 			<groupId>org.springframework.boot</groupId>
 			<artifactId>spring-boot-starter-validation</artifactId>
 		</dependency>
 
-		<!-- Security -->
+		<!-- Authentication & Authorization -->
 		<dependency>
 			<groupId>org.springframework.boot</groupId>
 			<artifactId>spring-boot-starter-security</artifactId>
 		</dependency>
 
-		<!-- Tests -->
+		<!-- Testing -->
 		<dependency>
 			<groupId>org.springframework.boot</groupId>
 			<artifactId>spring-boot-starter-test</artifactId>
 			<scope>test</scope>
 		</dependency>
+
+		<!-- Spring Security Testing -->
 		<dependency>
 			<groupId>org.springframework.security</groupId>
 			<artifactId>spring-security-test</artifactId>
 			<scope>test</scope>
 		</dependency>
 
-		<!--env-->
+		<!-- Environment Variables -->
 		<dependency>
 			<groupId>me.paulschwarz</groupId>
 			<artifactId>springboot4-dotenv</artifactId>
@@ -88,23 +91,34 @@
 			<optional>true</optional>
 		</dependency>
 
-		<!-- JWT (JJWT) -->
+		<!-- JWT Authentication -->
 		<dependency>
 			<groupId>io.jsonwebtoken</groupId>
 			<artifactId>jjwt-api</artifactId>
 			<version>0.12.6</version>
 		</dependency>
+
+		<!-- JWT Runtime Implementation -->
 		<dependency>
 			<groupId>io.jsonwebtoken</groupId>
 			<artifactId>jjwt-impl</artifactId>
 			<version>0.12.6</version>
 			<scope>runtime</scope>
 		</dependency>
+
+		<!-- JWT JSON Serialization -->
 		<dependency>
 			<groupId>io.jsonwebtoken</groupId>
 			<artifactId>jjwt-jackson</artifactId>
 			<version>0.12.6</version>
 			<scope>runtime</scope>
+		</dependency>
+
+		<!-- OpenAPI / Swagger Documentation -->
+		<dependency>
+			<groupId>org.springdoc</groupId>
+			<artifactId>springdoc-openapi-starter-webmvc-ui</artifactId>
+			<version>3.0.3</version>
 		</dependency>
 
 	</dependencies>

@@ -1,4 +1,4 @@
-package com.quiz_app.backend.security;
+package com.quiz_app.backend.config;
 
 import java.util.Arrays;
 import java.util.List;
@@ -19,6 +19,9 @@ import org.springframework.security.web.authentication.UsernamePasswordAuthentic
 import org.springframework.web.cors.CorsConfiguration;
 import org.springframework.web.cors.CorsConfigurationSource;
 import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
+
+import com.quiz_app.backend.security.AuthEntryPointJwt;
+import com.quiz_app.backend.security.JwtAuthenticationFilter;
 
 @Configuration
 @EnableWebSecurity
@@ -67,18 +70,31 @@ public class SecurityConfig {
                 .exceptionHandling(exception -> exception.authenticationEntryPoint(authEntryPointJwt))
                 .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .authorizeHttpRequests(auth -> auth
+
                         // Public Auth Endpoints
                         .requestMatchers("/api/v1/auth/**").permitAll()
+
+                        // Swagger / OpenAPI
+                        .requestMatchers(
+                                "/v3/api-docs/**",
+                                "/swagger-ui/**",
+                                "/swagger-ui.html")
+                        .permitAll()
+
+                        // Other public endpoints
                         .requestMatchers("/error").permitAll()
                         .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
 
                         // Teacher-specific endpoints
-                        .requestMatchers("/api/v1/teacher/**").hasRole("TEACHER")
+                        .requestMatchers("/api/v1/teacher/**")
+                        .hasRole("TEACHER")
 
-                        // Other endpoints require authentication
+                        // Everything else requires authentication
                         .anyRequest().authenticated());
 
-        http.addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class);
+        http.addFilterBefore(
+                jwtAuthenticationFilter,
+                UsernamePasswordAuthenticationFilter.class);
 
         return http.build();
     }

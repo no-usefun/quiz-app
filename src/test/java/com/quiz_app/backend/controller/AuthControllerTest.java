@@ -2,9 +2,12 @@ package com.quiz_app.backend.controller;
 
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
 import static org.mockito.ArgumentMatchers.any;
+import org.mockito.Mock;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
+import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.http.MediaType;
 import org.springframework.security.authentication.BadCredentialsException;
 import org.springframework.security.core.userdetails.UserDetails;
@@ -22,16 +25,20 @@ import com.quiz_app.backend.dto.auth.UserSummaryResponse;
 import com.quiz_app.backend.exception.GlobalExceptionHandler;
 import com.quiz_app.backend.service.AuthService;
 
+@ExtendWith(MockitoExtension.class)
 class AuthControllerTest {
-
         private MockMvc mockMvc;
+
+        @Mock
         private AuthService authService;
+
         private AuthController authController;
 
         private final ObjectMapper objectMapper = new ObjectMapper();
 
         @BeforeEach
         void setUp() {
+                authController = new AuthController(authService);
                 mockMvc = MockMvcBuilders
                                 .standaloneSetup(authController)
                                 .setControllerAdvice(new GlobalExceptionHandler())
