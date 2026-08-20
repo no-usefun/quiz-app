@@ -82,6 +82,7 @@ public class SecurityConfig {
                         .permitAll()
 
                         // Other public endpoints
+                        .requestMatchers("/api/v1/health").permitAll()
                         .requestMatchers("/error").permitAll()
                         .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
 
