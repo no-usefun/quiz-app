@@ -23,96 +23,64 @@ import {
   Trophy,
   Lock,
 } from "lucide-react";
-import { getTestByCode, updateTestSettings } from "@/lib/storage";
 import { Logo } from "@/components/Logo";
+import { getStoredResults, getStoredTests } from "@/lib/storage";
 
-// ─── Types ────────────────────────────────────────────────────────────────────
+const API_BASE = (
+  process.env.NEXT_PUBLIC_API_URL || "http://localhost:8080"
+).replace(/\/+$/, "");
 
-type FlagType = "tab_switch" | "fullscreen_exit" | "right_click" | "copy_attempt";
-type SortKey = "rank" | "name" | "rawScore" | "adjustedScore" | "timeTaken" | "flagCount";
+type FlagType =
+  | "tab_switch"
+  | "fullscreen_exit"
+  | "right_click"
+  | "copy_attempt";
+type SortKey =
+  | "rank"
+  | "name"
+  | "rawScore"
+  | "adjustedScore"
+  | "timeTaken"
+  | "flagCount";
 type SortDir = "asc" | "desc";
 
 interface StudentRecord {
   id: number;
   name: string;
-  avatar: string;       // initials
-  rawScore: number;     // 0-100
+  avatar: string;
+  rawScore: number;
   adjustedScore: number;
+  accuracyPercentage?: number;
+  speedBonus?: number;
   grade: string;
-  timeTaken: string;    // "HH:MM:SS"
+  timeTaken: string;
+  timeTakenSeconds?: number;
   submitted: boolean;
   flags: { type: FlagType; label: string; count: number }[];
 }
 
-// ─── Mock data keyed by testCode ──────────────────────────────────────────────
-
-const ASSESSMENTS: Record<
-  string,
-  {
-    title: string;
-    date: string;
-    duration: string;
-    totalQuestions: number;
-    students: StudentRecord[];
-  }
-> = {
-  "CS-302": {
-    title: "Database Management Systems",
-    date: "Jul 22, 2026",
-    duration: "70 min",
-    totalQuestions: 20,
-    students: [
-      { id: 1,  name: "Divya Nair",          avatar: "DN", rawScore: 98, adjustedScore: 98, grade: "A+", timeTaken: "01:02:14", submitted: true,  flags: [] },
-      { id: 2,  name: "Priya Mehta",         avatar: "PM", rawScore: 94, adjustedScore: 91, grade: "A+", timeTaken: "01:05:33", submitted: true,  flags: [{ type: "tab_switch",     label: "Tab switched",      count: 1 }, { type: "right_click", label: "Right-click", count: 2 }] },
-      { id: 3,  name: "Aarav Sharma",        avatar: "AS", rawScore: 88, adjustedScore: 85, grade: "A",  timeTaken: "01:08:41", submitted: true,  flags: [{ type: "tab_switch",     label: "Tab switched",      count: 2 }] },
-      { id: 4,  name: "Meera Krishnan",      avatar: "MK", rawScore: 82, adjustedScore: 82, grade: "A",  timeTaken: "00:58:10", submitted: true,  flags: [] },
-      { id: 5,  name: "Karan Patel",         avatar: "KP", rawScore: 76, adjustedScore: 74, grade: "B+", timeTaken: "01:09:55", submitted: true,  flags: [{ type: "right_click",    label: "Right-click",       count: 1 }] },
-      { id: 6,  name: "Sneha Iyer",          avatar: "SI", rawScore: 74, adjustedScore: 70, grade: "B",  timeTaken: "01:07:22", submitted: true,  flags: [{ type: "fullscreen_exit",label: "Fullscreen exit",   count: 1 }, { type: "tab_switch", label: "Tab switched", count: 1 }] },
-      { id: 7,  name: "Rahul Joshi",         avatar: "RJ", rawScore: 68, adjustedScore: 63, grade: "B",  timeTaken: "01:10:00", submitted: true,  flags: [{ type: "copy_attempt",   label: "Copy attempt",      count: 2 }, { type: "tab_switch", label: "Tab switched", count: 1 }] },
-      { id: 8,  name: "Ananya Reddy",        avatar: "AR", rawScore: 66, adjustedScore: 64, grade: "B-", timeTaken: "00:52:18", submitted: true,  flags: [{ type: "right_click",    label: "Right-click",       count: 3 }] },
-      { id: 9,  name: "Vikram Nair",         avatar: "VN", rawScore: 60, adjustedScore: 58, grade: "C+", timeTaken: "01:04:09", submitted: true,  flags: [{ type: "tab_switch",     label: "Tab switched",      count: 1 }] },
-      { id: 10, name: "Pooja Sharma",        avatar: "PS", rawScore: 54, adjustedScore: 50, grade: "C",  timeTaken: "01:09:47", submitted: true,  flags: [{ type: "fullscreen_exit",label: "Fullscreen exit",   count: 2 }, { type: "copy_attempt", label: "Copy attempt", count: 1 }] },
-      { id: 11, name: "Deepak Menon",        avatar: "DM", rawScore: 48, adjustedScore: 44, grade: "C-", timeTaken: "00:48:33", submitted: true,  flags: [{ type: "tab_switch",     label: "Tab switched",      count: 3 }, { type: "fullscreen_exit", label: "Fullscreen exit", count: 1 }] },
-      { id: 12, name: "Arjun Singh",         avatar: "AS", rawScore: 22, adjustedScore: 18, grade: "F",  timeTaken: "00:21:05", submitted: false, flags: [{ type: "tab_switch",     label: "Tab switched",      count: 4 }, { type: "fullscreen_exit", label: "Fullscreen exit", count: 3 }, { type: "copy_attempt", label: "Copy attempt", count: 2 }] },
-    ],
-  },
-  "CS-401": {
-    title: "Algorithms Mock Test",
-    date: "Jul 15, 2026",
-    duration: "60 min",
-    totalQuestions: 15,
-    students: [
-      { id: 1, name: "Rohit Verma",    avatar: "RV", rawScore: 95, adjustedScore: 90, grade: "A+", timeTaken: "00:55:21", submitted: true,  flags: [{ type: "tab_switch", label: "Tab switched", count: 1 }] },
-      { id: 2, name: "Neha Singh",     avatar: "NS", rawScore: 88, adjustedScore: 88, grade: "A",  timeTaken: "00:48:10", submitted: true,  flags: [] },
-      { id: 3, name: "Aarav Sharma",   avatar: "AS", rawScore: 75, adjustedScore: 73, grade: "B+", timeTaken: "00:57:40", submitted: true,  flags: [{ type: "right_click", label: "Right-click", count: 1 }] },
-    ],
-  },
-};
-
-const DEFAULT_CODE = "CS-302";
-
-// ─── Helpers ──────────────────────────────────────────────────────────────────
-
 function gradeStyle(grade: string) {
-  if (grade.startsWith("A")) return "bg-pastel-mint text-pastel-mint-text";
-  if (grade.startsWith("B")) return "bg-pastel-lavender text-pastel-lavender-text";
-  if (grade.startsWith("C")) return "bg-pastel-yellow text-pastel-yellow-text";
+  if (!grade) return "bg-pastel-mint text-pastel-mint-text";
+  const upper = grade.toUpperCase();
+  if (upper.startsWith("A")) return "bg-pastel-mint text-pastel-mint-text";
+  if (upper.startsWith("B"))
+    return "bg-pastel-lavender text-pastel-lavender-text";
+  if (upper.startsWith("C")) return "bg-pastel-yellow text-pastel-yellow-text";
   return "bg-pastel-pink text-pastel-pink-text";
 }
 
 function avatarStyle(grade: string, flagCount: number) {
   if (flagCount >= 4) return "bg-pastel-pink text-pastel-pink-text";
   if (flagCount >= 2) return "bg-pastel-yellow text-pastel-yellow-text";
-  if (grade.startsWith("A")) return "bg-pastel-mint text-pastel-mint-text";
-  if (grade.startsWith("B")) return "bg-pastel-lavender text-pastel-lavender-text";
+  if (grade?.startsWith("A")) return "bg-pastel-mint text-pastel-mint-text";
   return "bg-frost-surface text-midnight-navy";
 }
 
 function flagIcon(type: FlagType) {
   const cls = "h-3 w-3 shrink-0";
-  if (type === "tab_switch")      return <Monitor className={cls} />;
+  if (type === "tab_switch") return <Monitor className={cls} />;
   if (type === "fullscreen_exit") return <Eye className={cls} />;
-  if (type === "copy_attempt")    return <Copy className={cls} />;
+  if (type === "copy_attempt") return <Copy className={cls} />;
   return <MousePointerClick className={cls} />;
 }
 
@@ -123,54 +91,92 @@ function flagChipStyle(type: FlagType) {
 }
 
 function totalFlags(s: StudentRecord) {
-  return s.flags.reduce((sum, f) => sum + f.count, 0);
+  return (s.flags || []).reduce((sum, f) => sum + f.count, 0);
 }
 
 function podiumRingColor(pos: number) {
-  if (pos === 0) return { bg: "bg-pastel-yellow/30", border: "border-mist-blue/20", text: "text-pastel-yellow-text", icon: "🥇" };
-  if (pos === 1) return { bg: "bg-frost-surface/30",  border: "border-mist-blue/20", text: "text-signal-green", icon: "🥈" };
-  return            { bg: "bg-pastel-pink/20", border: "border-mist-blue/20", text: "text-pastel-pink-text", icon: "🥉" };
+  if (pos === 0)
+    return {
+      bg: "bg-pastel-yellow/30",
+      border: "border-mist-blue/20",
+      text: "text-pastel-yellow-text",
+      icon: "🥇",
+    };
+  if (pos === 1)
+    return {
+      bg: "bg-frost-surface/30",
+      border: "border-mist-blue/20",
+      text: "text-signal-green",
+      icon: "🥈",
+    };
+  return {
+    bg: "bg-pastel-pink/20",
+    border: "border-mist-blue/20",
+    text: "text-pastel-pink-text",
+    icon: "🥉",
+  };
 }
 
-// ─── CSV export ───────────────────────────────────────────────────────────────
-
 function exportCSV(testCode: string, data: StudentRecord[], title: string) {
-  const headers = ["Rank", "Name", "Raw Score (%)", "Adjusted Score (%)", "Grade", "Time Taken", "Submitted", "Total Flags", "Flag Details"];
+  const headers = [
+    "Rank",
+    "Candidate Name",
+    "Accuracy (%)",
+    "Final Score (Speed-Weighted)",
+    "Base Score",
+    "Speed Bonus",
+    "Grade",
+    "Time Taken",
+    "Submitted",
+    "Total Flags",
+    "Flag Details",
+  ];
   const rows = data.map((s, idx) => [
     idx + 1,
     s.name,
-    s.rawScore,
+    s.accuracyPercentage ?? `${s.rawScore}%`,
     s.adjustedScore,
+    s.rawScore,
+    s.speedBonus ?? 0,
     s.grade,
     s.timeTaken,
     s.submitted ? "Yes" : "No",
     totalFlags(s),
-    s.flags.map((f) => `${f.label}×${f.count}`).join(" | ") || "None",
+    (s.flags || []).map((f) => `${f.label}×${f.count}`).join(" | ") || "None",
   ]);
 
   const csvContent = [
-    `# DynoQuizz Export — ${title} (${testCode})`,
+    `# Quizly Leaderboard Export — ${title} (${testCode})`,
     "",
     headers.join(","),
     ...rows.map((r) => r.map((v) => `"${v}"`).join(",")),
   ].join("\n");
 
   const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
-  const url  = URL.createObjectURL(blob);
+  const url = URL.createObjectURL(blob);
   const link = document.createElement("a");
-  link.href     = url;
-  link.download = `DynoQuizz_${testCode}_Results.csv`;
+  link.href = url;
+  link.download = `Quizly_${testCode}_Leaderboard.csv`;
   link.click();
   URL.revokeObjectURL(url);
 }
 
-// ─── Sort chevron ─────────────────────────────────────────────────────────────
-
-function SortIcon({ col, active, dir }: { col: SortKey; active: SortKey; dir: SortDir }) {
-  if (col !== active) return <ChevronsUpDown className="h-3.5 w-3.5 text-steel-blue-gray" />;
-  return dir === "asc"
-    ? <ChevronUp   className="h-3.5 w-3.5 text-signal-green" />
-    : <ChevronDown className="h-3.5 w-3.5 text-signal-green" />;
+function SortIcon({
+  col,
+  active,
+  dir,
+}: {
+  col: SortKey;
+  active: SortKey;
+  dir: SortDir;
+}) {
+  if (col !== active)
+    return <ChevronsUpDown className="h-3.5 w-3.5 text-steel-blue-gray" />;
+  return dir === "asc" ? (
+    <ChevronUp className="h-3.5 w-3.5 text-signal-green" />
+  ) : (
+    <ChevronDown className="h-3.5 w-3.5 text-signal-green" />
+  );
 }
 
 function Th({
@@ -205,73 +211,161 @@ export default function TeacherAssessmentPage({
   params: Promise<{ testCode: string }>;
 }) {
   const { testCode } = use(params);
-  const [mounted, setMounted] = useState(false);
+  const [assessmentData, setAssessmentData] = useState<any>(null);
+  const [loading, setLoading] = useState(true);
 
-  const assessment  = ASSESSMENTS[testCode] ?? ASSESSMENTS[DEFAULT_CODE];
-  const allStudents = assessment.students;
+  const [query, setQuery] = useState("");
+  const [sortKey, setSortKey] = useState<SortKey>("rank");
+  const [sortDir, setSortDir] = useState<SortDir>("asc");
+  const [exported, setExported] = useState(false);
 
-  // ── Local UI state ──────────────────────────────────────────────────────────
-  const [query,     setQuery]     = useState("");
-  const [sortKey,   setSortKey]   = useState<SortKey>("rank");
-  const [sortDir,   setSortDir]   = useState<SortDir>("asc");
-  const [exported,  setExported]  = useState(false);
-
-  // Test Settings from localStorage
   const [testSettings, setTestSettings] = useState({
-    publishScoresImmediately: false,
-    revealSolutions: false,
+    publishScoresImmediately: true,
+    revealSolutions: true,
     showIntegrityFlagsToStudent: false,
   });
 
   useEffect(() => {
-    setMounted(true);
-    const t = getTestByCode(testCode);
-    if (t && t.settings) {
-      setTestSettings({
-        publishScoresImmediately: !!t.settings.publishScoresImmediately,
-        revealSolutions: !!t.settings.revealSolutions,
-        showIntegrityFlagsToStudent: !!t.settings.showIntegrityFlagsToStudent,
+    const fetchAssessmentDetails = async () => {
+      const cleanCode = (testCode || "").toUpperCase();
+
+      // Check stored test details
+      const localTest = getStoredTests().find((t) => t.testCode.toUpperCase() === cleanCode);
+
+      // Check local actual submissions
+      const localStudents: StudentRecord[] = getStoredResults()
+        .filter((r) => r.testCode.toUpperCase() === cleanCode)
+        .map((r, idx) => ({
+          id: idx + 1,
+          name: r.studentName || "Candidate",
+          avatar: (r.studentName || "C").slice(0, 2).toUpperCase(),
+          rawScore: r.rawScore || 0,
+          adjustedScore: r.adjustedScore || r.rawScore || 0,
+          accuracyPercentage: r.accuracyPercentage ?? (r.totalQuestions > 0 ? Math.round((r.correctCount / r.totalQuestions) * 100) : 0),
+          speedBonus: r.speedBonusTotal ?? 0,
+          grade: r.grade || "A",
+          timeTaken: `${Math.floor((r.timeTakenTotalSeconds || 0) / 60)}m ${(r.timeTakenTotalSeconds || 0) % 60}s`,
+          timeTakenSeconds: r.timeTakenTotalSeconds || 0,
+          submitted: true,
+          flags: [],
+        }));
+
+      try {
+        const token = localStorage.getItem("dynoquizz_token");
+        const res = await fetch(
+          `${API_BASE}/api/v1/quizzes/code/${cleanCode}/package`,
+          {
+            headers: {
+              ...(token ? { Authorization: `Bearer ${token}` } : {}),
+              "Content-Type": "application/json",
+            },
+          },
+        );
+
+        if (res.ok) {
+          const data = await res.json();
+          const backendStudents: StudentRecord[] = Array.isArray(data.students) ? data.students : [];
+          const seen = new Set(backendStudents.map((s) => s.name.toUpperCase()));
+          const mergedStudents = [
+            ...backendStudents,
+            ...localStudents.filter((l) => !seen.has(l.name.toUpperCase())),
+          ];
+
+          setAssessmentData({
+            ...data,
+            title: data.title || localTest?.quizName || `Assessment ${cleanCode}`,
+            students: mergedStudents.length > 0 ? mergedStudents : localStudents,
+          });
+
+          if (data.settings) {
+            setTestSettings({
+              publishScoresImmediately: !!data.settings.publishScoresImmediately,
+              revealSolutions: !!data.settings.revealSolutions,
+              showIntegrityFlagsToStudent: !!data.settings.showIntegrityFlagsToStudent,
+            });
+          }
+          setLoading(false);
+          return;
+        }
+      } catch (e) {
+        console.warn("Backend assessment fetch fallback to local session:", e);
+      }
+
+      setAssessmentData({
+        title: localTest?.quizName || `Assessment Session (${cleanCode})`,
+        quizCode: cleanCode,
+        targetClass: localTest?.targetClass || "CS302 - 2026 Batch",
+        totalStudents: 50,
+        overallTimerSeconds: (localTest?.totalTimeLimitMinutes || 30) * 60,
+        students: localStudents,
+        settings: {
+          publishScoresImmediately: true,
+          revealSolutions: true,
+          showIntegrityFlagsToStudent: false,
+        },
       });
-    }
+      setLoading(false);
+    };
+
+    fetchAssessmentDetails();
   }, [testCode]);
 
-  const handleToggleSetting = (key: keyof typeof testSettings) => {
+  const handleToggleSetting = async (key: keyof typeof testSettings) => {
     const newVal = !testSettings[key];
-    const updated = updateTestSettings(testCode, { [key]: newVal });
-    if (updated && updated.settings) {
-      setTestSettings({
-        publishScoresImmediately: !!updated.settings.publishScoresImmediately,
-        revealSolutions: !!updated.settings.revealSolutions,
-        showIntegrityFlagsToStudent: !!updated.settings.showIntegrityFlagsToStudent,
+    setTestSettings((prev) => ({ ...prev, [key]: newVal }));
+    try {
+      const token = localStorage.getItem("dynoquizz_token");
+      await fetch(`${API_BASE}/api/v1/teacher/quizzes/${testCode}/settings`, {
+        method: "PUT",
+        headers: {
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ [key]: newVal }),
       });
+    } catch (e) {
+      console.error("Failed to sync setting to backend:", e);
     }
   };
 
-  // ── Derived stats ────────────────────────────────────────────────────────────
-  const submitted    = allStudents.filter((s) => s.submitted);
-  const classAvg     = Math.round(submitted.reduce((a, s) => a + s.adjustedScore, 0) / Math.max(1, submitted.length));
-  const highScore    = Math.max(...(submitted.map((s) => s.adjustedScore).length > 0 ? submitted.map((s) => s.adjustedScore) : [0]));
+  const allStudents: StudentRecord[] = assessmentData?.students || [];
+  const submitted = allStudents.filter((s) => s.submitted);
+  const classAvg = Math.round(
+    submitted.reduce((a, s) => a + (s.adjustedScore || 0), 0) /
+      Math.max(1, submitted.length),
+  );
+  const highScore = Math.max(
+    ...(submitted.map((s) => s.adjustedScore).length > 0
+      ? submitted.map((s) => s.adjustedScore)
+      : [0]),
+  );
   const flaggedCount = allStudents.filter((s) => totalFlags(s) > 0).length;
-  const topThree     = [...submitted].sort((a, b) => b.adjustedScore - a.adjustedScore).slice(0, 3);
+  const topThree = [...submitted]
+    .sort((a, b) => b.adjustedScore - a.adjustedScore)
+    .slice(0, 3);
 
-  // ── Filtered + sorted list ───────────────────────────────────────────────────
   const displayList = useMemo(() => {
     const ranked = [...allStudents]
-      .sort((a, b) => b.adjustedScore - a.adjustedScore)
+      .sort((a, b) => (b.adjustedScore || 0) - (a.adjustedScore || 0))
       .map((s, i) => ({ ...s, rank: i + 1 }));
 
-    const filtered = ranked.filter((s) =>
-      s.name.toLowerCase().includes(query.toLowerCase()) ||
-      s.grade.toLowerCase().includes(query.toLowerCase())
+    const filtered = ranked.filter(
+      (s) =>
+        s.name?.toLowerCase().includes(query.toLowerCase()) ||
+        s.grade?.toLowerCase().includes(query.toLowerCase()),
     );
 
     return filtered.sort((a, b) => {
       let cmp = 0;
-      if (sortKey === "rank")          cmp = a.rank          - b.rank;
-      else if (sortKey === "name")     cmp = a.name.localeCompare(b.name);
-      else if (sortKey === "rawScore") cmp = a.rawScore       - b.rawScore;
-      else if (sortKey === "adjustedScore") cmp = a.adjustedScore - b.adjustedScore;
-      else if (sortKey === "timeTaken") cmp = a.timeTaken.localeCompare(b.timeTaken);
+      if (sortKey === "rank") cmp = a.rank - b.rank;
+      else if (sortKey === "name")
+        cmp = (a.name || "").localeCompare(b.name || "");
+      else if (sortKey === "rawScore")
+        cmp = (a.rawScore || 0) - (b.rawScore || 0);
+      else if (sortKey === "adjustedScore")
+        cmp = (a.adjustedScore || 0) - (b.adjustedScore || 0);
+      else if (sortKey === "timeTaken")
+        cmp = (a.timeTaken || "").localeCompare(b.timeTaken || "");
       else if (sortKey === "flagCount") cmp = totalFlags(a) - totalFlags(b);
       return sortDir === "asc" ? cmp : -cmp;
     });
@@ -279,20 +373,29 @@ export default function TeacherAssessmentPage({
 
   function toggleSort(key: SortKey) {
     if (sortKey === key) setSortDir((d) => (d === "asc" ? "desc" : "asc"));
-    else { setSortKey(key); setSortDir("asc"); }
+    else {
+      setSortKey(key);
+      setSortDir("asc");
+    }
   }
 
   function handleExport() {
-    exportCSV(testCode, displayList, assessment.title);
+    exportCSV(testCode, displayList, assessmentData?.title || "Assessment");
     setExported(true);
     setTimeout(() => setExported(false), 2500);
+  }
+
+  if (loading) {
+    return (
+      <main className="min-h-screen bg-frost-surface flex items-center justify-center text-xs text-steel-blue-gray">
+        Loading assessment governance panel...
+      </main>
+    );
   }
 
   return (
     <main className="min-h-screen bg-frost-surface text-midnight-navy p-4 md:p-6 lg:p-8 font-sans selection:bg-frost-surface selection:text-signal-green">
       <div className="mx-auto flex min-h-[90vh] max-w-[1400px] flex-col rounded-cards bg-paper-white shadow-xl border border-mist-blue overflow-hidden text-left">
-        
-        {/* Header */}
         <header className="flex w-full items-center justify-between border-b border-mist-blue/30 px-6 py-4 bg-paper-white">
           <div className="flex items-center gap-3">
             <Link
@@ -315,33 +418,38 @@ export default function TeacherAssessmentPage({
             }`}
           >
             {exported ? (
-              <><CheckCircle2 className="h-3.5 w-3.5 text-pastel-mint-text" /> Exported</>
+              <>
+                <CheckCircle2 className="h-3.5 w-3.5 text-pastel-mint-text" />{" "}
+                Exported
+              </>
             ) : (
-              <><Download className="h-3.5 w-3.5 text-white" /> Export to CSV</>
+              <>
+                <Download className="h-3.5 w-3.5 text-white" /> Export to CSV
+              </>
             )}
           </button>
         </header>
 
         <div className="flex flex-1 flex-col gap-5 p-5 md:p-6 bg-paper-white">
-
-          {/* Title Area */}
           <div className="flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">
             <div className="text-left">
               <p className="text-[10px] font-bold uppercase tracking-widest text-steel-blue-gray">
-                Past Assessment · Review
+                Assessment Governance
               </p>
               <h1 className="text-xl font-bold text-midnight-navy mt-0.5">
-                {assessment.title}
+                {assessmentData?.title || "Assessment Session"}
               </h1>
               <div className="mt-2 flex flex-wrap items-center gap-3 text-xs text-steel-blue-gray font-medium">
                 <span className="flex items-center gap-1">
-                  <CalendarDays className="h-3.5 w-3.5 text-steel-blue-gray" /> {assessment.date}
+                  <CalendarDays className="h-3.5 w-3.5 text-steel-blue-gray" />{" "}
+                  {assessmentData?.date || "Active Session"}
                 </span>
                 <span className="flex items-center gap-1">
-                  <Clock className="h-3.5 w-3.5 text-steel-blue-gray" /> {assessment.duration}
-                </span>
-                <span className="flex items-center gap-1">
-                  <CheckCircle2 className="h-3.5 w-3.5 text-steel-blue-gray" /> {assessment.totalQuestions} questions
+                  <Clock className="h-3.5 w-3.5 text-steel-blue-gray" />{" "}
+                  {Math.floor(
+                    (assessmentData?.overallTimerSeconds || 3600) / 60,
+                  )}{" "}
+                  min
                 </span>
                 <span className="rounded-pills bg-frost-surface px-2.5 py-0.5 font-mono text-[9px] font-bold text-signal-green border border-mist-blue/30">
                   {testCode}
@@ -350,10 +458,10 @@ export default function TeacherAssessmentPage({
             </div>
           </div>
 
-          {/* Teacher Governance Control Panel */}
           <section className="rounded-cards border border-mist-blue bg-paper-white p-4 space-y-3 shadow-sm">
             <h3 className="text-xs font-bold uppercase tracking-wider text-midnight-navy flex items-center gap-1.5 border-b border-mist-blue/30 pb-2">
-              <Lock className="h-3.5 w-3.5 text-signal-green" /> Teacher Control Panel (Dynamic Settings)
+              <Lock className="h-3.5 w-3.5 text-signal-green" /> Teacher Control
+              Panel (Dynamic Settings)
             </h3>
 
             <div className="grid grid-cols-1 md:grid-cols-3 gap-2.5">
@@ -374,12 +482,15 @@ export default function TeacherAssessmentPage({
                   key: "showIntegrityFlagsToStudent",
                 },
               ].map((item) => {
-                const active = testSettings[item.key as keyof typeof testSettings];
+                const active =
+                  testSettings[item.key as keyof typeof testSettings];
                 return (
                   <button
                     key={item.key}
                     type="button"
-                    onClick={() => handleToggleSetting(item.key as keyof typeof testSettings)}
+                    onClick={() =>
+                      handleToggleSetting(item.key as keyof typeof testSettings)
+                    }
                     className={`flex items-start justify-between gap-3 rounded-inputs border p-3 text-left transition-all duration-150 active:scale-[0.98] cursor-pointer ${
                       active
                         ? "border-signal-green bg-frost-surface text-midnight-navy ring-2 ring-signal-green/20"
@@ -387,8 +498,12 @@ export default function TeacherAssessmentPage({
                     }`}
                   >
                     <div className="text-left">
-                      <span className="block text-xs font-bold text-midnight-navy">{item.label}</span>
-                      <span className="block text-[10px] text-steel-blue-gray mt-0.5 font-medium">{item.hint}</span>
+                      <span className="block text-xs font-bold text-midnight-navy">
+                        {item.label}
+                      </span>
+                      <span className="block text-[10px] text-steel-blue-gray mt-0.5 font-medium">
+                        {item.hint}
+                      </span>
                     </div>
                     <div
                       className={`relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-150 ${
@@ -407,13 +522,30 @@ export default function TeacherAssessmentPage({
             </div>
           </section>
 
-          {/* Stats Cards */}
           <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
             {[
-              { icon: <Users className="h-4 w-4 text-signal-green" />,        label: "Submitted", value: `${submitted.length}/${allStudents.length}` },
-              { icon: <TrendingUp className="h-4 w-4 text-pastel-mint-text" />, label: "Class Avg", value: `${classAvg}%` },
-              { icon: <Award className="h-4 w-4 text-signal-green" />,        label: "High Score", value: `${highScore}%` },
-              { icon: <AlertTriangle className="h-4 w-4 text-pastel-pink-text" />,  label: "Flagged", value: flaggedCount },
+              {
+                icon: <Users className="h-4 w-4 text-signal-green" />,
+                label: "Submitted",
+                value: `${submitted.length}/${allStudents.length}`,
+              },
+              {
+                icon: <TrendingUp className="h-4 w-4 text-pastel-mint-text" />,
+                label: "Class Avg",
+                value: `${classAvg}%`,
+              },
+              {
+                icon: <Award className="h-4 w-4 text-signal-green" />,
+                label: "High Score",
+                value: `${highScore}%`,
+              },
+              {
+                icon: (
+                  <AlertTriangle className="h-4 w-4 text-pastel-pink-text" />
+                ),
+                label: "Flagged",
+                value: flaggedCount,
+              },
             ].map((stat) => (
               <div
                 key={stat.label}
@@ -423,18 +555,23 @@ export default function TeacherAssessmentPage({
                   {stat.icon}
                 </div>
                 <div className="text-left">
-                  <p className="text-lg font-bold text-midnight-navy">{stat.value}</p>
-                  <p className="text-[9px] text-steel-blue-gray font-bold uppercase tracking-wider">{stat.label}</p>
+                  <p className="text-lg font-bold text-midnight-navy">
+                    {stat.value}
+                  </p>
+                  <p className="text-[9px] text-steel-blue-gray font-bold uppercase tracking-wider">
+                    {stat.label}
+                  </p>
                 </div>
               </div>
             ))}
           </div>
 
-          {/* Podium */}
           <section className="text-left">
             <div className="mb-2.5 flex items-center gap-2">
               <Trophy className="h-4 w-4 text-pastel-yellow-text" />
-              <h2 className="text-xs font-bold text-midnight-navy uppercase tracking-wider">Top Performers</h2>
+              <h2 className="text-xs font-bold text-midnight-navy uppercase tracking-wider">
+                Top Performers
+              </h2>
             </div>
             <div className="grid gap-3 sm:grid-cols-3">
               {topThree.map((s, pos) => {
@@ -442,51 +579,48 @@ export default function TeacherAssessmentPage({
                 const flags = totalFlags(s);
                 return (
                   <div
-                    key={s.id}
+                    key={s.id || pos}
                     className="relative overflow-hidden rounded-cards border border-mist-blue bg-paper-white p-4 shadow-sm"
                   >
-                    <span className="absolute right-3.5 top-3.5 text-lg">{c.icon}</span>
-
-                    <div className={`mb-2.5 flex h-9 w-9 items-center justify-center rounded-full ${avatarStyle(s.grade, flags)} text-[10px] font-bold`}>
-                      {s.avatar}
+                    <span className="absolute right-3.5 top-3.5 text-lg">
+                      {c.icon}
+                    </span>
+                    <div
+                      className={`mb-2.5 flex h-9 w-9 items-center justify-center rounded-full ${avatarStyle(s.grade, flags)} text-[10px] font-bold`}
+                    >
+                      {s.avatar || "ST"}
                     </div>
-                    <p className="font-bold text-midnight-navy truncate pr-6 text-xs text-left">{s.name}</p>
-                    <p className="text-[10px] text-steel-blue-gray font-medium text-left">
-                      Rank #{pos + 1} · {s.timeTaken}
+                    <p className="font-bold text-midnight-navy truncate pr-6 text-xs text-left">
+                      {s.name}
                     </p>
-
+                    <p className="text-[10px] text-steel-blue-gray font-medium text-left">
+                      Rank #{pos + 1} · {s.timeTaken || "00:00"}
+                    </p>
                     <div className="mt-3 flex items-end gap-2 text-left">
                       <div>
-                        <p className="text-xl font-bold text-midnight-navy">{s.adjustedScore}%</p>
-                        <p className="text-[8px] text-steel-blue-gray font-bold uppercase">Adjusted</p>
+                        <p className="text-xl font-bold text-midnight-navy">
+                          {s.adjustedScore}%
+                        </p>
+                        <p className="text-[8px] text-steel-blue-gray font-bold uppercase">
+                          Adjusted
+                        </p>
                       </div>
-                      {s.rawScore !== s.adjustedScore && (
-                        <p className="mb-0.5 text-[10px] text-steel-blue-gray line-through font-medium">{s.rawScore}%</p>
-                      )}
-                      <span className={`ml-auto inline-flex items-center rounded-pills px-2.5 py-0.5 text-[9px] font-bold ${gradeStyle(s.grade)}`}>
-                        {s.grade}
+                      <span
+                        className={`ml-auto inline-flex items-center rounded-pills px-2.5 py-0.5 text-[9px] font-bold ${gradeStyle(s.grade)}`}
+                      >
+                        {s.grade || "A"}
                       </span>
                     </div>
-
-                    {flags > 0 && (
-                      <p className="mt-1.5 text-[9px] text-pastel-pink-text font-bold text-left">
-                        ⚠ {flags} proctoring flag{flags > 1 ? "s" : ""}
-                      </p>
-                    )}
                   </div>
                 );
               })}
             </div>
           </section>
 
-          {/* Full Results Table */}
           <section className="flex flex-1 flex-col">
             <div className="mb-3 flex flex-col gap-2.5 sm:flex-row sm:items-center sm:justify-between">
               <h2 className="text-xs font-bold text-midnight-navy uppercase tracking-wider text-left">
-                All Students
-                <span className="ml-1 text-[10px] font-medium text-steel-blue-gray lowercase">
-                  ({displayList.length} of {allStudents.length})
-                </span>
+                All Students ({displayList.length} of {allStudents.length})
               </h2>
               <div className="relative">
                 <Search className="pointer-events-none absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-steel-blue-gray" />
@@ -501,116 +635,133 @@ export default function TeacherAssessmentPage({
             </div>
 
             <div className="flex-1 rounded-cards border border-mist-blue overflow-hidden bg-paper-white shadow-xl text-left">
-              {/* Column headers */}
               <div className="grid grid-cols-[2.5rem_1fr_6rem_7rem_5rem_6rem_4rem_12rem] items-center gap-3 border-b border-mist-blue/30 bg-paper-white px-5 py-2">
-                <Th label="#"        col="rank"          sortKey={sortKey} sortDir={sortDir} onSort={toggleSort} />
-                <Th label="Student"  col="name"          sortKey={sortKey} sortDir={sortDir} onSort={toggleSort} />
-                <Th label="Raw"      col="rawScore"      sortKey={sortKey} sortDir={sortDir} onSort={toggleSort} className="justify-center" />
-                <Th label="Adjusted" col="adjustedScore" sortKey={sortKey} sortDir={sortDir} onSort={toggleSort} className="justify-center" />
-                <span className="text-center text-[9px] font-bold uppercase tracking-wider text-steel-blue-gray">Grade</span>
-                <Th label="Duration" col="timeTaken"     sortKey={sortKey} sortDir={sortDir} onSort={toggleSort} className="justify-center" />
-                <Th label="Flags"    col="flagCount"     sortKey={sortKey} sortDir={sortDir} onSort={toggleSort} className="justify-center" />
-                <span className="text-left text-[9px] font-bold uppercase tracking-wider text-steel-blue-gray">Suspicion Flags</span>
+                <Th
+                  label="#"
+                  col="rank"
+                  sortKey={sortKey}
+                  sortDir={sortDir}
+                  onSort={toggleSort}
+                />
+                <Th
+                  label="Student"
+                  col="name"
+                  sortKey={sortKey}
+                  sortDir={sortDir}
+                  onSort={toggleSort}
+                />
+                <Th
+                  label="Raw"
+                  col="rawScore"
+                  sortKey={sortKey}
+                  sortDir={sortDir}
+                  onSort={toggleSort}
+                  className="justify-center"
+                />
+                <Th
+                  label="Adjusted"
+                  col="adjustedScore"
+                  sortKey={sortKey}
+                  sortDir={sortDir}
+                  onSort={toggleSort}
+                  className="justify-center"
+                />
+                <span className="text-center text-[9px] font-bold uppercase tracking-wider text-steel-blue-gray">
+                  Grade
+                </span>
+                <Th
+                  label="Duration"
+                  col="timeTaken"
+                  sortKey={sortKey}
+                  sortDir={sortDir}
+                  onSort={toggleSort}
+                  className="justify-center"
+                />
+                <Th
+                  label="Flags"
+                  col="flagCount"
+                  sortKey={sortKey}
+                  sortDir={sortDir}
+                  onSort={toggleSort}
+                  className="justify-center"
+                />
+                <span className="text-left text-[9px] font-bold uppercase tracking-wider text-steel-blue-gray">
+                  Suspicion Flags
+                </span>
               </div>
 
               {displayList.length === 0 ? (
                 <div className="flex flex-col items-center justify-center gap-1 py-10 text-steel-blue-gray">
                   <Search className="h-6 w-6 text-mist-blue" />
-                  <p className="text-xs">No students match your search.</p>
+                  <p className="text-xs">
+                    No student submissions match your query.
+                  </p>
                 </div>
               ) : (
                 <ul className="divide-y divide-mist-blue/30 bg-paper-white">
                   {displayList.map((student) => {
-                    const flags     = totalFlags(student);
-                    const isHigh    = flags >= 4;
-                    const isMed     = flags >= 2 && flags < 4;
-                    const rowBg     = isHigh
-                      ? "bg-pastel-pink/10 hover:bg-pastel-pink/20"
-                      : isMed
-                      ? "bg-pastel-yellow/10 hover:bg-pastel-yellow/20"
-                      : "hover:bg-frost-surface/30";
-
+                    const flags = totalFlags(student);
                     return (
                       <li
                         key={student.id}
-                        className={`grid grid-cols-[2.5rem_1fr_6rem_7rem_5rem_6rem_4rem_12rem] items-center gap-3 px-5 py-2.5 transition-colors ${rowBg}`}
+                        className="grid grid-cols-[2.5rem_1fr_6rem_7rem_5rem_6rem_4rem_12rem] items-center gap-3 px-5 py-2.5 transition-colors hover:bg-frost-surface/30"
                       >
-                        {/* Rank */}
                         <span className="text-xs font-bold font-mono text-steel-blue-gray">
                           {student.rank}
                         </span>
-
-                        {/* Name + avatar */}
                         <div className="flex min-w-0 items-center gap-2">
-                          <div className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-[10px] font-bold ${avatarStyle(student.grade, flags)}`}>
-                            {student.avatar}
+                          <div
+                            className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-[10px] font-bold ${avatarStyle(student.grade, flags)}`}
+                          >
+                            {student.avatar || "ST"}
                           </div>
-                          <div className="min-w-0 text-left">
-                            <p className="truncate text-xs font-bold text-midnight-navy">{student.name}</p>
-                            {!student.submitted && (
-                              <span className="text-[9px] font-bold text-pastel-pink-text">No submission</span>
-                            )}
-                          </div>
+                          <p className="truncate text-xs font-bold text-midnight-navy">
+                            {student.name}
+                          </p>
                         </div>
-
-                        {/* Raw score */}
-                        <div className="flex justify-center text-xs font-medium">
-                          <span className={`tabular-nums ${student.rawScore !== student.adjustedScore ? "text-steel-blue-gray line-through" : "text-midnight-navy"}`}>
-                            {student.rawScore}%
-                          </span>
+                        <div className="flex justify-center text-xs font-medium text-midnight-navy">
+                          {student.rawScore}%
                         </div>
-
-                        {/* Adjusted score */}
                         <div className="flex justify-center">
-                          <span className={`inline-flex min-w-[3rem] items-center justify-center rounded-pills px-2.5 py-0.5 text-xs font-bold tabular-nums ${
-                            student.adjustedScore >= 80 ? "bg-pastel-mint text-pastel-mint-text"
-                            : student.adjustedScore >= 60 ? "bg-pastel-lavender text-pastel-lavender-text"
-                            : student.adjustedScore >= 40 ? "bg-pastel-yellow text-pastel-yellow-text"
-                            : "bg-pastel-pink text-pastel-pink-text"
-                          }`}>
+                          <span className="inline-flex min-w-[3rem] items-center justify-center rounded-pills px-2.5 py-0.5 text-xs font-bold tabular-nums bg-pastel-mint text-pastel-mint-text">
                             {student.adjustedScore}%
                           </span>
                         </div>
-
-                        {/* Grade */}
                         <div className="flex justify-center">
-                          <span className={`inline-flex min-w-[2rem] items-center justify-center rounded-pills px-2.5 py-0.5 text-[9px] font-bold ${gradeStyle(student.grade)}`}>
-                            {student.grade}
+                          <span
+                            className={`inline-flex min-w-[2rem] items-center justify-center rounded-pills px-2.5 py-0.5 text-[9px] font-bold ${gradeStyle(student.grade)}`}
+                          >
+                            {student.grade || "A"}
                           </span>
                         </div>
-
-                        {/* Time taken */}
                         <div className="flex justify-center">
-                          <span className="font-mono text-[10px] font-semibold text-steel-blue-gray">{student.timeTaken}</span>
+                          <span className="font-mono text-[10px] font-semibold text-steel-blue-gray">
+                            {student.timeTaken || "00:00"}
+                          </span>
                         </div>
-
-                        {/* Flag count badge */}
                         <div className="flex justify-center">
                           {flags === 0 ? (
-                            <span className="text-xs text-steel-blue-gray">—</span>
+                            <span className="text-xs text-steel-blue-gray">
+                              —
+                            </span>
                           ) : (
-                            <span className={`inline-flex items-center gap-0.5 rounded-pills px-2 py-0.5 text-[9px] font-bold ${
-                              isHigh ? "bg-pastel-pink text-pastel-pink-text" : isMed ? "bg-pastel-yellow text-pastel-yellow-text" : "bg-frost-surface text-signal-green"
-                            }`}>
-                              <AlertTriangle className="h-2.5 w-2.5" />
+                            <span className="text-xs font-bold text-pastel-pink-text">
                               {flags}
                             </span>
                           )}
                         </div>
-
-                        {/* Flag pills */}
                         <div className="flex flex-wrap gap-1 text-left">
-                          {student.flags.length === 0 ? (
-                            <span className="text-[10px] text-steel-blue-gray font-medium">Clean</span>
+                          {(student.flags || []).length === 0 ? (
+                            <span className="text-[10px] text-steel-blue-gray font-medium">
+                              Clean
+                            </span>
                           ) : (
                             student.flags.map((f, fi) => (
                               <span
                                 key={fi}
                                 className={`flex items-center gap-1 rounded-pills px-2 py-0.5 text-[9px] font-bold ${flagChipStyle(f.type)}`}
                               >
-                                {flagIcon(f.type)}
-                                {f.label}
-                                <span className="ml-0.5 font-mono opacity-70">×{f.count}</span>
+                                {flagIcon(f.type)} {f.label} ×{f.count}
                               </span>
                             ))
                           )}
@@ -622,18 +773,6 @@ export default function TeacherAssessmentPage({
               )}
             </div>
           </section>
-
-          {/* Footer Info */}
-          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 text-center sm:text-left mt-2 border-t border-mist-blue/30 pt-4">
-            <p className="text-[10px] text-steel-blue-gray font-medium">
-              Proctoring flags are sourced from the{" "}
-              <code className="rounded bg-frost-surface px-1 py-0.5 font-mono text-signal-green border border-mist-blue/35">useProctoring</code>{" "}
-              hook · Score adjustment applied by the grading engine
-            </p>
-            <p className="text-[10px] text-steel-blue-gray font-medium">
-              DynoQuizz Assessment Governance System
-            </p>
-          </div>
         </div>
       </div>
     </main>
