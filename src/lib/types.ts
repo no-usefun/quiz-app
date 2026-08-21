@@ -3,6 +3,9 @@ export interface QuizQuestion {
   text: string;
   options: string[];
   correctOption: string;
+  marks?: number;
+  negativeMarks?: number;
+  questionTimerSeconds?: number;
 }
 
 export interface QuizTest {
@@ -20,8 +23,13 @@ export interface QuizTest {
     publishScoresImmediately: boolean; // default: false
     revealSolutions: boolean;          // default: false
     showIntegrityFlagsToStudent: boolean; // default: false
+    timeBonusEnabled?: boolean;
+    allowReview?: boolean;
+    allowResume?: boolean;
+    autoSubmit?: boolean;
   };
   questions: QuizQuestion[];
+  allowedRegistrationNumbers?: string[];
   createdAt: string;
   status: "LIVE" | "ENDED";
 }
@@ -30,6 +38,9 @@ export interface StudentAnswer {
   questionId: number;
   selectedOption: string | null;
   timeTakenSeconds: number;
+  isCorrect?: boolean;
+  baseScore?: number;
+  speedBonus?: number;
 }
 
 export interface StudentTestResult {
@@ -39,8 +50,10 @@ export interface StudentTestResult {
   studentName: string;
   answers: StudentAnswer[];
   submittedAt: string;
-  rawScore: number;       // Percentage (0-100)
-  adjustedScore: number;  // Percentage after proctoring deductions (0-100)
+  rawScore: number;       // Base percentage or points
+  adjustedScore: number;  // Final score with speed bonus
+  accuracyPercentage?: number;
+  speedBonusTotal?: number;
   totalQuestions: number;
   correctCount: number;
   grade: string;

@@ -1,4 +1,5 @@
-const JWT_SECRET = "dynoquizz-super-secret-key-change-in-prod";
+const JWT_SECRET = "quizly-super-secret-key-change-in-prod";
+
 
 function base64urlEncode(str: string): string {
   return btoa(str)
