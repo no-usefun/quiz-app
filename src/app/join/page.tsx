@@ -4,7 +4,39 @@ import { useState, useEffect, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { motion } from "framer-motion";
-import { ArrowLeft, KeyRound, ArrowRight, ShieldCheck, AlertCircle } from "lucide-react";
+import {
+  ArrowLeft,
+  KeyRound,
+  ArrowRight,
+  ShieldCheck,
+  AlertCircle,
+  UserCheck,
+} from "lucide-react";
+
+import { getTestByCode } from "@/lib/storage";
+
+const API_BASE = (
+  process.env.NEXT_PUBLIC_API_URL || "http://localhost:8080"
+).replace(/\/+$/, "");
+
+function getClientAuthToken(): string | null {
+  if (typeof window === "undefined") return null;
+  let token = localStorage.getItem("dynoquizz_token");
+  if (!token) {
+    const match = document.cookie.match(/(?:^|;\s*)dynoquizz_token=([^;]+)/);
+    if (match) {
+      token = match[1];
+      try {
+        localStorage.setItem("dynoquizz_token", token);
+      } catch {
+        // ignore
+      }
+    }
+  }
+  if (token) return token;
+  if (localStorage.getItem("dynoquizz_user")) return "session_active";
+  return null;
+}
 
 function JoinForm() {
   const router = useRouter();
@@ -12,22 +44,103 @@ function JoinForm() {
   const queryCode = searchParams.get("code") || "";
 
   const [testCode, setTestCode] = useState("");
+  const [registrationNo, setRegistrationNo] = useState("");
   const [error, setError] = useState<string | null>(null);
+  const [loading, setLoading] = useState(false);
 
   useEffect(() => {
     if (queryCode) {
       setTestCode(queryCode.toUpperCase());
     }
-  }, [queryCode]);
+    if (typeof window !== "undefined") {
+      const token = getClientAuthToken();
+      if (!token) {
+        router.push(
+          `/login?role=student&redirect=/join${queryCode ? `?code=${queryCode}` : ""}`,
+        );
+        return;
+      }
+      const stored = localStorage.getItem("dynoquizz_regNo");
+      if (stored) setRegistrationNo(stored);
+    }
+  }, [queryCode, router]);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     const cleanCode = testCode.trim().toUpperCase();
-    if (cleanCode.length < 4) {
-      setError("Please enter a valid test code.");
+    const cleanReg = registrationNo.trim().toUpperCase();
+
+    if (!cleanCode || cleanCode.length < 2) {
+      setError("Please enter a valid assessment code.");
       return;
     }
-    router.push(`/test/${cleanCode}/verify`);
+
+    if (!cleanReg) {
+      setError("Please enter your Student Registration / Roll Number.");
+      return;
+    }
+
+    setLoading(true);
+    setError(null);
+
+    try {
+      // 1. Verify existence of the assessment either locally or on backend
+      const localTest = getTestByCode(cleanCode);
+      let backendPackage: any = null;
+
+      try {
+        const token = localStorage.getItem("dynoquizz_token");
+        const res = await fetch(`${API_BASE}/api/v1/quizzes/code/${cleanCode}/package`, {
+          headers: {
+            ...(token ? { Authorization: `Bearer ${token}` } : {}),
+            "Content-Type": "application/json",
+          },
+        });
+        if (res.ok) {
+          backendPackage = await res.json();
+        }
+      } catch {
+        // Backend offline fallback
+      }
+
+      if (!localTest && !backendPackage) {
+        setError(`Assessment session code "${cleanCode}" was not found. Please verify the code.`);
+        setLoading(false);
+        return;
+      }
+
+      // 2. Validate against Whitelist if configured
+      let allowedList = localTest?.allowedRegistrationNumbers;
+      if (!allowedList || allowedList.length === 0) {
+        if (backendPackage?.allowedRegistrationNumbers && Array.isArray(backendPackage.allowedRegistrationNumbers)) {
+          allowedList = backendPackage.allowedRegistrationNumbers;
+        }
+      }
+
+      if (allowedList && allowedList.length > 0) {
+        const isAuthorized = allowedList.some(
+          (r: string) => r.toUpperCase() === cleanReg,
+        );
+        if (!isAuthorized) {
+          setError(
+            `Registration number "${cleanReg}" is not authorized for assessment session ${cleanCode}. Please contact your instructor.`,
+          );
+          setLoading(false);
+          return;
+        }
+      }
+
+      if (typeof window !== "undefined") {
+        localStorage.setItem("dynoquizz_regNo", cleanReg);
+        sessionStorage.setItem("dynoquizz_student_reg", cleanReg);
+      }
+
+      router.push(`/test/${cleanCode}`);
+    } catch {
+      setError("An error occurred while validating the assessment. Please try again.");
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
@@ -47,9 +160,32 @@ function JoinForm() {
               setTestCode(e.target.value.toUpperCase());
               setError(null);
             }}
-            placeholder="e.g. CS-101"
+            placeholder="e.g. 849201"
             maxLength={10}
             className="w-full rounded-inputs border border-mist-blue bg-frost-surface py-3 pl-9 pr-3 text-center font-mono text-lg font-black tracking-widest text-midnight-navy outline-none transition-all placeholder:font-sans placeholder:text-xs placeholder:tracking-normal placeholder:text-steel-blue-gray/60 focus:border-signal-green focus:ring-2 focus:ring-signal-green/20"
+            required
+          />
+        </div>
+      </div>
+
+      <div className="space-y-1.5 text-left">
+        <label className="text-[10px] font-bold uppercase tracking-wider text-steel-blue-gray block">
+          Student Registration / Roll Number
+        </label>
+        <div className="relative">
+          <div className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3 text-steel-blue-gray">
+            <UserCheck className="h-4 w-4" />
+          </div>
+          <input
+            type="text"
+            value={registrationNo}
+            onChange={(e) => {
+              setRegistrationNo(e.target.value.toUpperCase());
+              setError(null);
+            }}
+            placeholder="e.g. 21BCE1024"
+            maxLength={20}
+            className="w-full rounded-inputs border border-mist-blue bg-frost-surface py-2.5 pl-9 pr-3 text-xs font-bold uppercase text-midnight-navy outline-none transition-all placeholder:text-steel-blue-gray/60 focus:border-signal-green focus:ring-2 focus:ring-signal-green/20"
             required
           />
         </div>
@@ -62,9 +198,11 @@ function JoinForm() {
 
       <button
         type="submit"
-        className="flex w-full items-center justify-center gap-2 rounded-buttons bg-signal-green px-4 py-2.5 text-xs font-bold text-white hover:bg-signal-green/90 active:scale-[0.98] transition-all duration-200 shadow-none cursor-pointer border-0"
+        disabled={loading}
+        className="flex w-full items-center justify-center gap-2 rounded-buttons bg-signal-green px-4 py-2.5 text-xs font-bold text-white hover:bg-signal-green/90 active:scale-[0.98] transition-all duration-200 shadow-none cursor-pointer border-0 disabled:opacity-50"
       >
-        Validate &amp; Proceed <ArrowRight className="h-4 w-4" />
+        {loading ? "Launching Assessment..." : "Start Assessment"}{" "}
+        <ArrowRight className="h-4 w-4" />
       </button>
     </form>
   );
@@ -105,11 +243,18 @@ export default function JoinPage() {
             Join Assessment
           </h1>
           <p className="mt-1 text-xs text-steel-blue-gray leading-relaxed font-medium">
-            Enter the test code provided by your instructor to begin identity verification.
+            Enter the test code provided by your instructor to begin identity
+            verification.
           </p>
         </div>
 
-        <Suspense fallback={<div className="text-xs text-steel-blue-gray font-medium">Loading code entry...</div>}>
+        <Suspense
+          fallback={
+            <div className="text-xs text-steel-blue-gray font-medium">
+              Loading code entry...
+            </div>
+          }
+        >
           <JoinForm />
         </Suspense>
       </motion.div>

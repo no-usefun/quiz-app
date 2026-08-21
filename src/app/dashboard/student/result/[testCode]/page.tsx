@@ -8,50 +8,78 @@ import {
   Clock,
   CheckCircle2,
   XCircle,
-  AlertTriangle,
-  Monitor,
-  Eye,
-  Copy,
-  MousePointerClick,
-  TrendingDown,
   Award,
   CalendarDays,
   ChevronRight,
   Lock,
   FileQuestion,
+  Sparkles,
 } from "lucide-react";
-import { StudentTestResult, QuizTest } from "@/lib/types";
-import { getResultByCode, getTestByCode, SEED_RESULTS, SEED_TESTS } from "@/lib/storage";
 import { Logo } from "@/components/Logo";
+import { getResultByCode, getTestByCode } from "@/lib/storage";
+
+const API_BASE = (
+  process.env.NEXT_PUBLIC_API_URL || "http://localhost:8080"
+).replace(/\/+$/, "");
 
 function gradeColors(grade: string) {
-  if (grade.startsWith("A")) return { text: "text-pastel-mint-text", bg: "bg-pastel-mint", border: "border-mist-blue/30", ring: "#006644" };
-  if (grade.startsWith("B")) return { text: "text-pastel-lavender-text", bg: "bg-pastel-lavender", border: "border-mist-blue/30", ring: "#403294" };
-  if (grade.startsWith("C")) return { text: "text-pastel-yellow-text", bg: "bg-pastel-yellow", border: "border-mist-blue/30", ring: "#825e00" };
-  return { text: "text-pastel-pink-text", bg: "bg-pastel-pink", border: "border-mist-blue/30", ring: "#bf2600" };
+  if (!grade)
+    return {
+      text: "text-[#1d5237]",
+      bg: "bg-[#e2ede8]",
+      border: "border-[#d1dee8]/30",
+      ring: "#1d5237",
+    };
+  const upper = grade.toUpperCase();
+  if (upper.startsWith("A"))
+    return {
+      text: "text-[#1d5237]",
+      bg: "bg-[#e2ede8]",
+      border: "border-[#d1dee8]/30",
+      ring: "#1d5237",
+    };
+  if (upper.startsWith("B"))
+    return {
+      text: "text-[#4c3d73]",
+      bg: "bg-[#ece9f3]",
+      border: "border-[#d1dee8]/30",
+      ring: "#4c3d73",
+    };
+  if (upper.startsWith("C"))
+    return {
+      text: "text-[#73561a]",
+      bg: "bg-[#f6efe1]",
+      border: "border-[#d1dee8]/30",
+      ring: "#73561a",
+    };
+  return {
+    text: "text-[#8c381c]",
+    bg: "bg-[#fbeee8]",
+    border: "border-[#d1dee8]/30",
+    ring: "#8c381c",
+  };
 }
 
 function formatTime(s: number) {
-  if (s < 60) return `${s}s`;
+  if (!s || s < 60) return `${s || 0}s`;
   return `${Math.floor(s / 60)}m ${s % 60}s`;
-}
-
-function flagIcon(type: string) {
-  const cls = "h-4 w-4";
-  if (type === "tab_switch") return <Monitor className={cls} />;
-  if (type === "fullscreen_exit") return <Eye className={cls} />;
-  if (type === "copy_attempt") return <Copy className={cls} />;
-  return <MousePointerClick className={cls} />;
 }
 
 function ScoreRing({ score, color }: { score: number; color: string }) {
   const r = 80;
   const circ = 2 * Math.PI * r;
-  const dash = (score / 100) * circ;
+  const dash = ((score || 0) / 100) * circ;
 
   return (
     <svg width="200" height="200" viewBox="0 0 200 200" className="-rotate-90">
-      <circle cx="100" cy="100" r={r} fill="none" className="stroke-mist-blue/20" strokeWidth="12" />
+      <circle
+        cx="100"
+        cy="100"
+        r={r}
+        fill="none"
+        stroke="#e5e7eb"
+        strokeWidth="12"
+      />
       <circle
         cx="100"
         cy="100"
@@ -73,240 +101,348 @@ export default function StudentResultPage({
   params: Promise<{ testCode: string }>;
 }) {
   const { testCode } = use(params);
-  const [result, setResult] = useState<StudentTestResult | null>(null);
-  const [quizTest, setQuizTest] = useState<QuizTest | null>(null);
+  const [result, setResult] = useState<any | null>(null);
+  const [testMeta, setTestMeta] = useState<any | null>(null);
+  const [loading, setLoading] = useState(true);
   const [mounted, setMounted] = useState(false);
 
   useEffect(() => {
     setMounted(true);
-    const savedResult = getResultByCode(testCode);
-    const savedTest = getTestByCode(testCode);
-    setResult(savedResult || SEED_RESULTS[0]);
-    setQuizTest(savedTest || SEED_TESTS[0]);
+    const fetchResult = async () => {
+      const codeUpper = (testCode || "").toUpperCase();
+      const localTest = getTestByCode(codeUpper);
+      setTestMeta(localTest);
+
+      try {
+        const token = localStorage.getItem("dynoquizz_token");
+        const res = await fetch(
+          `${API_BASE}/api/v1/student/results/${codeUpper}`,
+          {
+            headers: {
+              ...(token ? { Authorization: `Bearer ${token}` } : {}),
+              "Content-Type": "application/json",
+            },
+          },
+        );
+
+        if (res.ok) {
+          const data = await res.json();
+          if (data) {
+            setResult(data);
+            setLoading(false);
+            return;
+          }
+        }
+      } catch (e) {
+        console.warn("Backend student result lookup error:", e);
+      }
+
+      // Check local storage for actual student submission
+      const localResult = getResultByCode(codeUpper);
+      if (localResult) {
+        setResult({
+          ...localResult,
+          score: localResult.rawScore,
+          questions: localTest?.questions || [],
+          published: localTest?.settings?.publishScoresImmediately ?? true,
+          revealSolutions: localTest?.settings?.revealSolutions ?? true,
+        });
+      } else {
+        setResult(null);
+      }
+      setLoading(false);
+    };
+
+    fetchResult();
   }, [testCode]);
 
-  const activeResult = result || SEED_RESULTS[0];
-  const activeTest = quizTest || SEED_TESTS[0];
-
-  const publishScores = activeTest.settings?.publishScoresImmediately ?? false;
-  const revealSolutions = activeTest.settings?.revealSolutions ?? false;
-  const showFlags = activeTest.settings?.showIntegrityFlagsToStudent ?? false;
-
-  const gc = gradeColors(activeResult.grade || "A");
-  const totalPenalty = Math.max(0, activeResult.rawScore - activeResult.adjustedScore);
-  const questions = activeTest.questions || [];
-
-  // STRICT FAILSAFE: If results are not published by teacher, return isolated Pending Review card
-  if (!publishScores) {
+  if (loading) {
     return (
-      <main className="flex min-h-screen items-center justify-center bg-frost-surface text-midnight-navy p-4 font-sans selection:bg-frost-surface selection:text-signal-green">
+      <div className="min-h-screen bg-[#f5f5f4] flex items-center justify-center text-xs font-semibold text-[#78716b]">
+        Loading assessment results...
+      </div>
+    );
+  }
+
+  // No result submitted
+  if (!result) {
+    return (
+      <main className="flex min-h-screen items-center justify-center bg-[#f5f5f4] text-[#111111] p-4 font-sans">
+        <motion.div
+          initial={mounted ? { opacity: 0, y: 8 } : false}
+          animate={mounted ? { opacity: 1, y: 0 } : false}
+          className="w-full max-w-md rounded-[8.8px] bg-white p-8 text-center border border-[#d1dee8] shadow-sm space-y-4 text-left"
+        >
+          <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-[8.8px] bg-[#f5f5f4] border border-[#d1dee8] text-[#78716b]">
+            <FileQuestion className="h-6 w-6" />
+          </div>
+          <div className="text-center space-y-1">
+            <span className="text-[10px] font-bold uppercase tracking-wider text-[#78716b]">
+              No Record Found
+            </span>
+            <h1 className="text-xl font-black text-[#111111]">
+              Submission Not Found
+            </h1>
+            <p className="text-xs text-[#78716b] leading-relaxed font-medium">
+              No recorded assessment submission found for session code{" "}
+              <strong>&ldquo;{testCode?.toUpperCase()}&rdquo;</strong>.
+            </p>
+          </div>
+
+          <div className="pt-2 flex flex-col gap-2">
+            <Link
+              href="/join"
+              className="flex w-full items-center justify-center gap-1.5 rounded-[8.8px] bg-[#165dfb] py-2.5 text-xs font-bold text-white hover:bg-[#165dfb]/90 transition-all border-0"
+            >
+              Take Assessment <ChevronRight className="h-3.5 w-3.5 text-white" />
+            </Link>
+            <Link
+              href="/dashboard/student"
+              className="flex w-full items-center justify-center gap-1.5 rounded-[8.8px] bg-[#f5f5f4] py-2.5 text-xs font-bold text-[#111111] hover:bg-[#e6e3e2] transition-all border border-[#d1dee8]"
+            >
+              Return to Dashboard
+            </Link>
+          </div>
+        </motion.div>
+      </main>
+    );
+  }
+
+  // Determine if scores are published by instructor
+  const isPublished =
+    testMeta?.settings?.publishScoresImmediately !== undefined
+      ? testMeta.settings.publishScoresImmediately
+      : (result.published ?? result.isPublished ?? true);
+
+  const canRevealSolutions =
+    testMeta?.settings?.revealSolutions !== undefined
+      ? testMeta.settings.revealSolutions
+      : (result.revealSolutions ?? true);
+
+  // If scores are not released yet
+  if (!isPublished) {
+    return (
+      <main className="flex min-h-screen items-center justify-center bg-[#f5f5f4] text-[#111111] p-4 font-sans selection:bg-[#e6e3e2] selection:text-[#165dfb]">
         <motion.div
           initial={mounted ? { opacity: 0, y: 8 } : false}
           animate={mounted ? { opacity: 1, y: 0 } : false}
           transition={{ duration: 0.25, ease: "easeOut" }}
-          className="w-full max-w-md rounded-cards bg-paper-white p-6 md:p-8 text-center border border-mist-blue shadow-xl space-y-4 text-left animate-none"
+          className="w-full max-w-md rounded-[12px] bg-white p-8 text-center border border-[#d1dee8] shadow-sm space-y-5 text-left"
         >
-          <div className="mx-auto flex h-10 w-10 items-center justify-center rounded-inputs bg-paper-white border border-mist-blue text-signal-green shadow-none">
-            <Lock className="h-5 w-5" />
+          <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-[#fbeee8] border border-[#8c381c]/30 text-[#8c381c]">
+            <Lock className="h-6 w-6" />
           </div>
-          <div className="text-center">
-            <span className="text-[10px] font-bold uppercase tracking-wider text-steel-blue-gray">
-              Under Instructor Review
+          <div className="text-center space-y-1.5">
+            <span className="inline-flex items-center gap-1 rounded-full bg-[#f5f5f4] border border-[#d1dee8] px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wider text-[#78716b]">
+              Pending Instructor Release
             </span>
-            <h1 className="mt-0.5 text-xl font-bold text-midnight-navy">
-              Assessment Submitted
+            <h1 className="text-xl font-black text-[#111111]">
+              Assessment Submitted Successfully
             </h1>
-            <p className="mt-1 text-xs text-steel-blue-gray leading-relaxed font-medium">
-              Results are currently hidden pending instructor review. Please check back after your instructor releases the grades for <strong>&ldquo;{activeResult.quizName}&rdquo;</strong>.
+            <p className="text-xs text-[#78716b] leading-relaxed font-medium">
+              Your responses for{" "}
+              <strong>&ldquo;{result.quizName || testCode}&rdquo;</strong> have
+              been permanently recorded. Detailed scorecards, accuracy grades, and
+              solutions will be displayed once published by your instructor.
             </p>
           </div>
 
-          <div className="rounded-inputs border border-mist-blue bg-frost-surface p-3.5 text-xs font-semibold text-midnight-navy space-y-1.5 leading-relaxed">
-            <p className="flex items-center gap-1.5 text-pastel-mint-text">
-              <CheckCircle2 className="h-3.5 w-3.5 text-pastel-mint-text shrink-0" />
-              Submission Logged ({activeResult.submittedAt})
-            </p>
-            <p className="flex items-center gap-1.5 text-pastel-yellow-text">
-              <Lock className="h-3.5 w-3.5 text-pastel-yellow-text shrink-0" />
-              Question Breakdown &amp; Grades Locked
-            </p>
+          <div className="rounded-[8.8px] bg-[#f5f5f4] border border-[#d1dee8] p-3 text-xs space-y-1.5 font-medium text-[#78716b]">
+            <div className="flex justify-between">
+              <span>Session Code:</span>
+              <strong className="font-mono text-[#111111]">{testCode?.toUpperCase()}</strong>
+            </div>
+            <div className="flex justify-between">
+              <span>Candidate:</span>
+              <strong className="text-[#111111]">{result.studentName || "Registered Student"}</strong>
+            </div>
+            <div className="flex justify-between">
+              <span>Submitted At:</span>
+              <strong className="text-[#111111]">{result.submittedAt || "Recently"}</strong>
+            </div>
           </div>
 
           <Link
             href="/dashboard/student"
-            className="flex w-full items-center justify-center gap-1.5 rounded-buttons bg-signal-green py-2.5 text-xs font-bold text-white hover:bg-signal-green/90 active:scale-[0.98] transition-all duration-200 shadow-none cursor-pointer border-0"
+            className="flex w-full items-center justify-center gap-1.5 rounded-[8.8px] bg-[#111111] py-2.5 text-xs font-bold text-white hover:bg-[#111111]/90 active:scale-[0.98] transition-all border-0"
           >
-            Return to Student Dashboard <ChevronRight className="h-3.5 w-3.5 text-white" />
+            Return to Student Dashboard{" "}
+            <ChevronRight className="h-3.5 w-3.5 text-white" />
           </Link>
         </motion.div>
       </main>
     );
   }
 
+  const gc = gradeColors(result.grade || "A");
+  const questions = result.questions || testMeta?.questions || [];
+
   return (
-    <div className="min-h-screen bg-frost-surface font-sans text-midnight-navy selection:bg-frost-surface selection:text-signal-green">
-      {/* Top Nav */}
-      <nav className="sticky top-0 z-20 flex items-center justify-between bg-paper-white border-b border-mist-blue px-6 py-4 shadow-none">
+    <div className="min-h-screen bg-[#f5f5f4] font-sans text-[#111111] selection:bg-[#e6e3e2] selection:text-[#165dfb]">
+      <nav className="sticky top-0 z-20 flex items-center justify-between bg-white border-b border-[#d1dee8] px-6 py-4">
         <div className="flex items-center gap-3">
           <Link
             href="/dashboard/student"
-            className="flex items-center gap-2 text-xs font-bold text-steel-blue-gray hover:text-midnight-navy transition-colors"
+            className="flex items-center gap-2 text-xs font-bold text-[#78716b] hover:text-[#111111] transition-colors"
           >
             <ArrowLeft className="h-3.5 w-3.5" />
             Dashboard
           </Link>
-          <span className="text-mist-blue/40">|</span>
+          <span className="text-[#d1dee8]">|</span>
           <Logo />
         </div>
-        <span className="rounded-pills bg-frost-surface border border-mist-blue px-3 py-1 font-mono text-xs font-bold text-signal-green shadow-none">
+        <span className="rounded-full bg-[#f5f5f4] border border-[#d1dee8] px-3 py-1 font-mono text-xs font-bold text-[#111111]">
           {testCode.toUpperCase()}
         </span>
       </nav>
 
       <main className="mx-auto max-w-3xl space-y-5 px-4 py-6 text-left">
-        {/* Page Title */}
         <section>
-          <span className="text-xs font-bold uppercase tracking-widest text-steel-blue-gray">
-            Assessment Performance
+          <span className="text-xs font-bold uppercase tracking-widest text-[#78716b]">
+            Verified Assessment Performance
           </span>
-          <h1 className="mt-0.5 text-2xl font-bold tracking-tight text-midnight-navy">
-            {activeResult.quizName || "Midterm Assessment"}
+          <h1 className="mt-0.5 text-2xl font-extrabold tracking-tight text-[#111111]">
+            {result.quizName || "Assessment Results"}
           </h1>
-          <p className="mt-0.5 text-xs text-steel-blue-gray font-medium flex items-center gap-2">
-            <CalendarDays className="h-3.5 w-3.5 text-steel-blue-gray" /> Submitted: {activeResult.submittedAt} · Class: {activeResult.targetClass}
+          <p className="mt-0.5 text-xs text-[#78716b] font-medium flex items-center gap-2">
+            <CalendarDays className="h-3.5 w-3.5 text-[#78716b]" />{" "}
+            Submitted: {result.submittedAt || "Recently"}
           </p>
         </section>
 
-        {/* Hero Score Card */}
-        <section className="rounded-cards bg-paper-white p-6 border border-mist-blue shadow-xl">
+        <section className="rounded-[8.8px] bg-white p-6 border border-[#d1dee8] shadow-sm">
           <div className="flex flex-col items-center gap-5 sm:flex-row sm:items-start">
-            {/* Score Ring */}
             <div className="relative shrink-0">
-              <ScoreRing score={activeResult.adjustedScore} color={gc.ring} />
+              <ScoreRing
+                score={result.adjustedScore || result.rawScore || 0}
+                color={gc.ring}
+              />
               <div className="absolute inset-0 flex flex-col items-center justify-center text-center">
-                <span className={`text-2xl font-black tracking-tight tabular-nums ${gc.text}`}>
-                  {activeResult.adjustedScore}%
+                <span
+                  className={`text-2xl font-black tracking-tight tabular-nums ${gc.text}`}
+                >
+                  {result.adjustedScore || result.rawScore || 0}%
                 </span>
-                <span className="text-[9px] font-bold text-steel-blue-gray uppercase tracking-wider mt-0.5">Grade</span>
+                <span className="text-[9px] font-bold text-[#78716b] uppercase tracking-wider mt-0.5">
+                  Grade
+                </span>
               </div>
             </div>
 
-            {/* Breakdown details */}
             <div className="flex-1 space-y-3.5 w-full">
               <div>
-                <p className="text-xs text-midnight-navy font-medium">
-                  You answered <strong className="text-midnight-navy font-bold">{activeResult.correctCount} / {activeResult.totalQuestions}</strong> questions correctly.
-                </p>
-                <p className="mt-0.5 text-xs text-steel-blue-gray font-medium">
-                  Raw mark: <span className="font-bold text-midnight-navy">{activeResult.rawScore}%</span> &rarr; Final Score: <span className={`font-bold ${gc.text}`}>{activeResult.adjustedScore}%</span>.
+                <p className="text-xs text-[#111111] font-medium">
+                  You scored{" "}
+                  <strong className="text-[#111111] font-bold">
+                    {result.correctCount ?? 0} /{" "}
+                    {result.totalQuestions || questions.length || 0}
+                  </strong>{" "}
+                  questions correctly.
                 </p>
               </div>
 
-              {/* Mini Stats */}
-              <div className="grid grid-cols-2 sm:grid-cols-3 gap-2.5">
-                <div className={`rounded-inputs border border-mist-blue bg-paper-white p-3 text-center shadow-sm`}>
-                  <div className={`mx-auto mb-1 inline-flex h-6.5 w-6.5 items-center justify-center rounded-inputs bg-paper-white border border-mist-blue/30 ${gc.text}`}>
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
+                <div className="rounded-[8.8px] border border-[#d1dee8] bg-white p-3 text-center shadow-sm">
+                  <div
+                    className={`mx-auto mb-1 inline-flex h-6 w-6 items-center justify-center rounded-[6px] bg-[#f5f5f4] border border-[#d1dee8] ${gc.text}`}
+                  >
                     <Award className="h-3.5 w-3.5" />
                   </div>
-                  <p className={`text-base font-black ${gc.text}`}>{activeResult.grade}</p>
-                  <p className="text-[9px] text-steel-blue-gray font-bold uppercase tracking-wider">Final Grade</p>
+                  <p className={`text-base font-black ${gc.text}`}>
+                    {result.grade || "A"}
+                  </p>
+                  <p className="text-[9px] text-[#78716b] font-bold uppercase tracking-wider">
+                    Grade
+                  </p>
                 </div>
 
-                <div className="rounded-inputs border border-mist-blue bg-paper-white p-3 text-center shadow-sm">
-                  <div className="mx-auto mb-1 inline-flex h-6.5 w-6.5 items-center justify-center rounded-inputs bg-paper-white border border-mist-blue/30 text-signal-green">
+                <div className="rounded-[8.8px] border border-[#d1dee8] bg-white p-3 text-center shadow-sm">
+                  <div className="mx-auto mb-1 inline-flex h-6 w-6 items-center justify-center rounded-[6px] bg-[#f5f5f4] border border-[#d1dee8] text-[#165dfb]">
+                    <CheckCircle2 className="h-3.5 w-3.5" />
+                  </div>
+                  <p className="text-base font-black text-[#111111]">
+                    {result.accuracyPercentage ?? (result.totalQuestions > 0 ? Math.round((result.correctCount / result.totalQuestions) * 100) : 0)}%
+                  </p>
+                  <p className="text-[9px] text-[#78716b] font-bold uppercase tracking-wider">
+                    Accuracy
+                  </p>
+                </div>
+
+                <div className="rounded-[8.8px] border border-[#d1dee8] bg-white p-3 text-center shadow-sm">
+                  <div className="mx-auto mb-1 inline-flex h-6 w-6 items-center justify-center rounded-[6px] bg-[#f5f5f4] border border-[#d1dee8] text-[#73561a]">
+                    <Sparkles className="h-3.5 w-3.5" />
+                  </div>
+                  <p className="text-base font-black text-[#111111]">
+                    +{result.speedBonusTotal ?? 0}
+                  </p>
+                  <p className="text-[9px] text-[#78716b] font-bold uppercase tracking-wider">
+                    Speed Bonus
+                  </p>
+                </div>
+
+                <div className="rounded-[8.8px] border border-[#d1dee8] bg-white p-3 text-center shadow-sm">
+                  <div className="mx-auto mb-1 inline-flex h-6 w-6 items-center justify-center rounded-[6px] bg-[#f5f5f4] border border-[#d1dee8] text-[#111111]">
                     <Clock className="h-3.5 w-3.5" />
                   </div>
-                  <p className="text-base font-black text-midnight-navy">{formatTime(activeResult.timeTakenTotalSeconds || 120)}</p>
-                  <p className="text-[9px] text-steel-blue-gray font-bold uppercase tracking-wider">Total Time</p>
+                  <p className="text-base font-black text-[#111111]">
+                    {formatTime(result.timeTakenTotalSeconds || 120)}
+                  </p>
+                  <p className="text-[9px] text-[#78716b] font-bold uppercase tracking-wider">
+                    Total Time
+                  </p>
                 </div>
-
-                {showFlags && (
-                  <div className="rounded-inputs border border-pastel-pink-text/20 bg-pastel-pink p-3 text-center col-span-2 sm:col-span-1 shadow-sm">
-                    <div className="mx-auto mb-1 inline-flex h-6.5 w-6.5 items-center justify-center rounded-inputs bg-white border border-pastel-pink-text/20 text-pastel-pink-text">
-                      <TrendingDown className="h-3.5 w-3.5" />
-                    </div>
-                    <p className="text-base font-black text-pastel-pink-text">-{totalPenalty}%</p>
-                    <p className="text-[9px] text-pastel-pink-text font-bold uppercase tracking-wider">AI Deductions</p>
-                  </div>
-                )}
               </div>
             </div>
           </div>
         </section>
 
-        {/* AI Proctoring Summary */}
-        {showFlags && activeResult.flags && activeResult.flags.length > 0 && (
-          <section className="rounded-cards bg-paper-white border border-mist-blue overflow-hidden shadow-xl">
-            <div className="p-4 border-b border-mist-blue/30 flex items-center justify-between bg-paper-white">
-              <div className="flex items-center gap-1.5">
-                <AlertTriangle className="h-3.5 w-3.5 text-pastel-pink-text" />
-                <h2 className="text-xs font-bold text-midnight-navy">AI Proctoring Flags Summary</h2>
-              </div>
-              <span className="text-[10px] font-bold text-steel-blue-gray font-mono">
-                {activeResult.flags.reduce((acc, f) => acc + f.count, 0)} events
-              </span>
-            </div>
-
-            <ul className="divide-y divide-mist-blue/30 bg-paper-white">
-              {activeResult.flags.map((flag, idx) => (
-                <li key={idx} className="flex items-center justify-between p-4 text-xs">
-                  <div className="flex items-center gap-3.5">
-                    <div className="flex h-8 w-8 items-center justify-center rounded-inputs bg-frost-surface border border-mist-blue text-steel-blue-gray">
-                      {flagIcon(flag.type)}
-                    </div>
-                    <div>
-                      <p className="font-bold text-midnight-navy">{flag.label}</p>
-                      <p className="text-steel-blue-gray font-medium text-[10px]">Occurred {flag.count} time(s)</p>
-                    </div>
-                  </div>
-                  <span className="font-bold text-pastel-pink-text bg-pastel-pink px-2.5 py-0.5 rounded-pills text-[10px]">
-                    -{flag.count * 5}% score penalty
-                  </span>
-                </li>
-              ))}
-            </ul>
-          </section>
-        )}
-
-        {/* Question-by-Question Review */}
-        {revealSolutions ? (
+        {canRevealSolutions && questions.length > 0 ? (
           <section className="space-y-2.5">
-            <h2 className="text-xs font-bold text-midnight-navy uppercase tracking-wider">Question-by-Question Breakdown</h2>
-            <div className="rounded-cards bg-paper-white border border-mist-blue overflow-hidden divide-y divide-mist-blue/30 shadow-xl">
-              {questions.map((q) => {
-                const studentAns = activeResult.answers.find((a) => a.questionId === q.id);
-                const chosen = studentAns?.selectedOption || "No option selected";
-                const isCorrect = chosen === q.correctOption;
+            <h2 className="text-xs font-bold text-[#111111] uppercase tracking-wider">
+              Question Breakdown &amp; Solutions
+            </h2>
+            <div className="rounded-[8.8px] bg-white border border-[#d1dee8] overflow-hidden divide-y divide-[#d1dee8] shadow-sm">
+              {questions.map((q: any, idx: number) => {
+                const studentAns = result.answers?.find(
+                  (a: any) =>
+                    a.questionId === (q.id || idx + 1) || a.questionText === q.text,
+                );
+                const isCorrect =
+                  studentAns?.selectedOption === q.correctOption;
 
                 return (
-                  <div key={q.id} className="p-4.5 space-y-3">
-                    <div className="flex items-start justify-between gap-4">
-                      <div className="flex items-start gap-2">
-                        <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-inputs bg-frost-surface border border-mist-blue text-[10px] font-bold text-signal-green">
-                          {q.id}
-                        </span>
-                        <p className="font-bold text-midnight-navy text-xs leading-snug">{q.text}</p>
-                      </div>
+                  <div key={idx} className="p-4 space-y-2.5 text-xs">
+                    <div className="flex items-start justify-between gap-2">
+                      <p className="font-bold text-[#111111] leading-snug">
+                        {idx + 1}. {q.text || q.questionText}
+                      </p>
                       {isCorrect ? (
-                        <span className="flex shrink-0 items-center gap-1 text-[10px] font-bold text-pastel-mint-text bg-pastel-mint px-2.5 py-0.5 rounded-pills">
-                          <CheckCircle2 className="h-3 w-3" /> Correct (+1)
+                        <span className="inline-flex items-center gap-1 rounded-full bg-[#e2ede8] text-[#1d5237] px-2 py-0.5 text-[10px] font-bold shrink-0">
+                          <CheckCircle2 className="h-3 w-3" /> Correct
                         </span>
                       ) : (
-                        <span className="flex shrink-0 items-center gap-1 text-[10px] font-bold text-pastel-pink-text bg-pastel-pink px-2.5 py-0.5 rounded-pills">
+                        <span className="inline-flex items-center gap-1 rounded-full bg-[#fbeee8] text-[#8c381c] px-2 py-0.5 text-[10px] font-bold shrink-0">
                           <XCircle className="h-3 w-3" /> Incorrect
                         </span>
                       )}
                     </div>
 
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs font-semibold pt-1 pl-7">
-                      <div className={`p-2.5 rounded-inputs bg-paper-white border ${isCorrect ? "border-pastel-mint-text/25 text-pastel-mint-text bg-pastel-mint/10" : "border-pastel-pink-text/25 text-pastel-pink-text bg-pastel-pink/10"}`}>
-                        <span className="block text-[9px] text-steel-blue-gray uppercase font-bold mb-0.5">Your Choice</span>
-                        {chosen}
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-[11px]">
+                      <div className="rounded-[6px] bg-[#f5f5f4] p-2 border border-[#d1dee8]">
+                        <span className="text-[#78716b] block text-[9px] uppercase font-bold">
+                          Your Answer:
+                        </span>
+                        <span className="font-semibold text-[#111111]">
+                          {studentAns?.selectedOption || "Not answered"}
+                        </span>
                       </div>
-
-                      <div className="p-2.5 rounded-inputs border border-pastel-mint-text/25 text-pastel-mint-text bg-pastel-mint/10">
-                        <span className="block text-[9px] text-steel-blue-gray uppercase font-bold mb-0.5">Correct Answer</span>
-                        {q.correctOption}
+                      <div className="rounded-[6px] bg-[#e2ede8]/60 p-2 border border-[#1d5237]/20">
+                        <span className="text-[#1d5237] block text-[9px] uppercase font-bold">
+                          Correct Answer:
+                        </span>
+                        <span className="font-bold text-[#1d5237]">
+                          {q.correctOption || "Option A"}
+                        </span>
                       </div>
                     </div>
                   </div>
@@ -315,29 +451,27 @@ export default function StudentResultPage({
             </div>
           </section>
         ) : (
-          <section className="rounded-cards bg-paper-white border border-mist-blue p-4.5 shadow-xl flex items-center justify-between">
+          <section className="rounded-[8.8px] bg-white border border-[#d1dee8] p-4 shadow-sm flex items-center justify-between">
             <div className="flex items-center gap-3">
-              <div className="flex h-10 w-10 items-center justify-center rounded-inputs bg-frost-surface border border-mist-blue text-steel-blue-gray">
-                <FileQuestion className="h-4.5 w-4.5" />
+              <div className="flex h-10 w-10 items-center justify-center rounded-[8.8px] bg-[#f5f5f4] border border-[#d1dee8] text-[#78716b]">
+                <FileQuestion className="h-5 w-5" />
               </div>
               <div>
-                <h3 className="text-xs font-bold text-midnight-navy">Question Solutions Locked</h3>
-                <p className="text-[10px] text-steel-blue-gray font-medium">
-                  Your instructor has disabled solution key visibility for this assessment.
+                <h3 className="text-xs font-bold text-[#111111]">
+                  Question Solutions Locked
+                </h3>
+                <p className="text-[10px] text-[#78716b] font-medium">
+                  Detailed answer keys and explanations have been disabled by the instructor.
                 </p>
               </div>
             </div>
-            <span className="text-[10px] font-bold px-2.5 py-1 rounded-pills bg-pastel-lavender text-pastel-lavender-text">
-              Solutions Hidden
-            </span>
           </section>
         )}
 
-        {/* Back CTA */}
-        <section className="flex justify-end pt-1">
+        <section className="flex justify-end pt-2">
           <Link
             href="/dashboard/student"
-            className="flex items-center gap-1 rounded-buttons bg-signal-green px-5 py-2.5 text-xs font-bold text-white hover:bg-signal-green/90 active:scale-[0.98] transition-all duration-200 shadow-none cursor-pointer border-0"
+            className="flex items-center gap-1.5 rounded-[8.8px] bg-[#165dfb] px-5 py-2.5 text-xs font-bold text-white hover:bg-[#165dfb]/90 active:scale-[0.98] transition-all border-0 shadow-sm"
           >
             Return to Dashboard <ChevronRight className="h-4 w-4 text-white" />
           </Link>
