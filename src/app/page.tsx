@@ -36,9 +36,10 @@ import {
   Layers,
   Scan,
 } from "lucide-react";
-import { Logo } from "@/components/Logo";
+import { Logo, AppWordmark } from "@/components/Logo";
 import { useSession } from "@/hooks/useSession";
 import { WaveText } from "@/components/WaveText";
+
 
 // ─── Design tokens (inline for zero-class-collision safety) ──────────────────
 const C = {
@@ -530,7 +531,7 @@ export default function Home() {
         <div className="mx-auto flex max-w-6xl items-center justify-between px-6 py-4">
           <Logo />
           <nav className="hidden md:flex items-center gap-8 text-xs font-bold" style={{ color: C.fog }}>
-            <Link href="#problem" className="hover:text-[#111111] transition-colors">Why DynoQuizz</Link>
+            <Link href="#problem" className="hover:text-[#111111] transition-colors">Why Quizly</Link>
             <Link href="#proctoring" className="hover:text-[#111111] transition-colors">AI Proctoring</Link>
             <Link href="#telemetry" className="hover:text-[#111111] transition-colors">Live Monitor</Link>
             <Link href="#workflow" className="hover:text-[#111111] transition-colors">Workflow</Link>
@@ -545,18 +546,13 @@ export default function Home() {
                 Dashboard <ArrowRight className="h-3.5 w-3.5" />
               </Link>
             ) : (
-              <>
-                <Link href="/login" className="text-xs font-bold px-3 py-1.5 transition-colors" style={{ color: C.fog }}>
-                  Log in
-                </Link>
-                <Link
-                  href="/signup"
-                  className="flex items-center gap-1.5 rounded-[8.8px] px-4 py-2 text-xs font-bold text-white border-0 transition-colors"
-                  style={{ background: C.cobalt }}
-                >
-                  Get Started <ArrowRight className="h-3.5 w-3.5" />
-                </Link>
-              </>
+              <Link
+                href="/signup"
+                className="flex items-center gap-1.5 rounded-[8.8px] px-4 py-2 text-xs font-bold text-white border-0 transition-colors"
+                style={{ background: C.cobalt }}
+              >
+                Create Account <ArrowRight className="h-3.5 w-3.5" />
+              </Link>
             )}
           </div>
         </div>
@@ -591,7 +587,7 @@ export default function Home() {
           className="mx-auto mt-6 max-w-2xl text-sm leading-relaxed font-medium"
           style={{ color: C.fog }}
         >
-          DynoQuizz runs offline-ready assessments with local edge AI, biometric face verification,
+          Quizly runs offline-ready assessments with local edge AI, biometric face verification,
           movement monitoring, and anti-cheat detection — all synced live to the teacher console.
         </motion.p>
 
@@ -710,7 +706,7 @@ export default function Home() {
               style={{ background: "white", borderColor: C.ice, color: C.cobalt }}
             >
               <CheckCircle2 className="h-4 w-4" />
-              DynoQuizz brings assessment, integrity, and intelligence into a single platform.
+              Quizly brings assessment, integrity, and intelligence into a single platform.
             </div>
           </motion.div>
         </div>
@@ -970,7 +966,7 @@ export default function Home() {
               Built for classrooms where the internet isn&apos;t perfect.
             </h2>
             <p className="text-sm font-medium leading-relaxed" style={{ color: C.fog }}>
-              Losing internet mid-exam shouldn&apos;t invalidate submissions. DynoQuizz downloads the entire exam package locally, caches every response, and syncs automatically when connectivity returns.
+              Losing internet mid-exam shouldn&apos;t invalidate submissions. Quizly downloads the entire exam package locally, caches every response, and syncs automatically when connectivity returns.
             </p>
           </div>
           <div className="flex-1 w-full max-w-md">
@@ -1130,7 +1126,7 @@ export default function Home() {
               Not every correct answer tells the whole story.
             </h2>
             <p className="text-sm font-medium leading-relaxed" style={{ color: C.fog }}>
-              DynoQuizz maps response speed to score value. Fast, independent answers receive full marks. Slow submissions that correlate with peers trigger a decay factor — incentivizing genuine comprehension.
+              Quizly maps response speed to score value. Fast, independent answers receive full marks. Slow submissions that correlate with peers trigger a decay factor — incentivizing genuine comprehension.
             </p>
           </div>
           <div className="flex-1 w-full max-w-sm space-y-4">
@@ -1208,7 +1204,7 @@ export default function Home() {
         </div>
       </section>
 
-      {/* ─── Why DynoQuizz ──────────────────────────────────────────────── */}
+      {/* ─── Why Quizly ──────────────────────────────────────────────── */}
       <motion.section
         initial="hidden"
         whileInView="visible"
@@ -1220,7 +1216,7 @@ export default function Home() {
         <div className="max-w-5xl mx-auto">
           <div className="text-center mb-14">
             <motion.span variants={childUp} className="text-[10px] font-bold uppercase tracking-widest block mb-2" style={{ color: C.cobalt }}>
-              Why DynoQuizz
+              Why Quizly
             </motion.span>
             <motion.h2 variants={childUp} className="text-3xl font-extrabold -tracking-wide" style={{ color: C.ink }}>
               Assessments you can trust.
@@ -1299,11 +1295,11 @@ export default function Home() {
       <footer className="border-t px-6 py-6" style={{ background: C.paper, borderColor: C.ice }}>
         <div className="flex flex-col sm:flex-row items-center justify-between max-w-5xl mx-auto gap-2">
           <div className="flex items-center gap-1.5 text-xs font-bold" style={{ color: C.ink }}>
-            <ShieldCheck className="h-4 w-4" style={{ color: C.cobalt }} />
-            DynoQuizz Assessment Platform
+            <AppWordmark size="sm" />
+            <span className="text-[#78716b] font-medium">Assessment Platform</span>
           </div>
           <p className="text-xs font-medium" style={{ color: C.fog }}>
-            © {new Date().getFullYear()} DynoQuizz. All rights reserved.
+            © {new Date().getFullYear()} Quizly. All rights reserved.
           </p>
         </div>
       </footer>

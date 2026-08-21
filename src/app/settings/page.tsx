@@ -135,13 +135,48 @@ function ProfilePanel({ onSave, user }: { onSave: () => void; user: any }) {
   const [email, setEmail] = useState("");
   const [institution, setInstitution] = useState("VIT AP");
   const [program, setProgram] = useState("B.Tech Computer Science");
+  const [saving, setSaving] = useState(false);
 
   useEffect(() => {
     if (user) {
-      setFullName(user.name || "");
+      setFullName(user.name || user.fullName || "");
       setEmail(user.email || "");
+      if (user.institution) setInstitution(user.institution);
+      if (user.program) setProgram(user.program);
     }
   }, [user]);
+
+  const handleSaveProfile = async () => {
+    setSaving(true);
+    const updatedUser = {
+      ...(user || {}),
+      name: fullName.trim() || user?.name || "User",
+      email: email.trim() || user?.email || "",
+      institution: institution.trim(),
+      program: program.trim(),
+    };
+
+    if (typeof window !== "undefined") {
+      localStorage.setItem("dynoquizz_user", JSON.stringify(updatedUser));
+    }
+
+    try {
+      const token = localStorage.getItem("dynoquizz_token");
+      await fetch(`${(process.env.NEXT_PUBLIC_API_URL || "http://localhost:8080").replace(/\/+$/, "")}/api/v1/user/profile`, {
+        method: "PUT",
+        headers: {
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(updatedUser),
+      });
+    } catch {
+      // Offline fallback saved in localStorage
+    } finally {
+      setSaving(false);
+      onSave();
+    }
+  };
 
   const initial = fullName ? fullName.charAt(0).toUpperCase() : "U";
 
@@ -207,11 +242,12 @@ function ProfilePanel({ onSave, user }: { onSave: () => void; user: any }) {
 
       <div className="flex justify-end pt-2">
         <button
-          onClick={onSave}
-          className="flex items-center gap-1.5 rounded-[8.8px] bg-[#165dfb] px-4 py-2 text-xs font-bold text-white hover:bg-[#165dfb]/90 transition-all cursor-pointer border-0"
+          onClick={handleSaveProfile}
+          disabled={saving}
+          className="flex items-center gap-1.5 rounded-[8.8px] bg-[#165dfb] px-4 py-2 text-xs font-bold text-white hover:bg-[#165dfb]/90 transition-all cursor-pointer border-0 disabled:opacity-50"
         >
           <Save className="h-3.5 w-3.5" />
-          Save Changes
+          {saving ? "Saving..." : "Save Changes"}
         </button>
       </div>
     </div>
