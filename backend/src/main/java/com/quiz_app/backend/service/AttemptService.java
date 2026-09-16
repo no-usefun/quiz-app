@@ -38,8 +38,16 @@ public class AttemptService {
 
         @Transactional
         public AttemptResponse startAttempt(
-                        Long quizId,
+                        String quizCode,
                         StartAttemptRequest request) {
+
+                if (quizCode == null || quizCode.isBlank()) {
+                        throw new BadRequestException("Quiz code is required");
+                }
+
+                if (request == null || request.studentId() == null) {
+                        throw new BadRequestException("Student ID is required");
+                }
 
                 // 1. Find student
                 User student = userRepository.findById(request.studentId())
@@ -52,7 +60,7 @@ public class AttemptService {
                 }
 
                 // 3. Find quiz
-                Quiz quiz = quizRepository.findById(quizId)
+                Quiz quiz = quizRepository.findByQuizCode(quizCode)
                                 .orElseThrow(() -> new ResourceNotFoundException("Quiz not found"));
 
                 // 4. Check quiz status
@@ -79,8 +87,8 @@ public class AttemptService {
                 }
 
                 // 6. Prevent duplicate attempt
-                if (quizAttemptRepository.existsByQuizIdAndStudentId(
-                                quizId,
+                if (quizAttemptRepository.existsByQuizQuizCodeAndStudentId(
+                                quizCode,
                                 student.getId())) {
 
                         throw new ConflictException(
