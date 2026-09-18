@@ -13,6 +13,7 @@ import com.quiz_app.backend.dto.attempt.AnswerResponse;
 import com.quiz_app.backend.dto.attempt.AttemptResponse;
 import com.quiz_app.backend.dto.attempt.SaveAnswerRequest;
 import com.quiz_app.backend.dto.attempt.StartAttemptRequest;
+import com.quiz_app.backend.dto.attempt.SubmitAttemptResponse;
 import com.quiz_app.backend.service.AttemptService;
 
 @RestController
@@ -47,6 +48,15 @@ public class AttemptController {
                 attemptId,
                 questionId,
                 request);
+
+        return ResponseEntity.ok(response);
+    }
+
+    @PostMapping("/attempts/{attemptId}/submit")
+    public ResponseEntity<SubmitAttemptResponse> submitAttempt(
+            @PathVariable Long attemptId) {
+
+        SubmitAttemptResponse response = attemptService.submitAttempt(attemptId);
 
         return ResponseEntity.ok(response);
     }

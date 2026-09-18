@@ -1,8 +1,13 @@
 package com.quiz_app.backend.service;
 
 import java.math.BigDecimal;
+import java.time.Duration;
 import java.time.LocalDateTime;
+import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
+import java.util.Set;
 
 import org.springframework.stereotype.Service;
 
@@ -10,6 +15,7 @@ import com.quiz_app.backend.dto.attempt.AnswerResponse;
 import com.quiz_app.backend.dto.attempt.AttemptResponse;
 import com.quiz_app.backend.dto.attempt.SaveAnswerRequest;
 import com.quiz_app.backend.dto.attempt.StartAttemptRequest;
+import com.quiz_app.backend.dto.attempt.SubmitAttemptResponse;
 import com.quiz_app.backend.entity.AnswerStatus;
 import com.quiz_app.backend.entity.AttemptStatus;
 import com.quiz_app.backend.entity.Option;
@@ -297,5 +303,186 @@ public class AttemptService {
                                 // Multiple selections are allowed.
                         }
                 }
+        }
+
+        @Transactional
+        public SubmitAttemptResponse submitAttempt(Long attemptId) {
+
+                if (attemptId == null) {
+                        throw new BadRequestException("Attempt ID is required");
+                }
+
+                // 1. Load attempt
+                QuizAttempt attempt = quizAttemptRepository.findById(attemptId)
+                                .orElseThrow(() -> new ResourceNotFoundException(
+                                                "Attempt not found with id: " + attemptId));
+
+                // 2. Attempt must still be in progress
+                if (attempt.getStatus() != AttemptStatus.IN_PROGRESS) {
+                        throw new ConflictException(
+                                        "Attempt has already been submitted");
+                }
+
+                Quiz quiz = attempt.getQuiz();
+
+                // 3. Load all questions of the quiz
+                List<Question> questions = questionRepository.findByQuizIdOrderByDisplayOrder(
+                                quiz.getId());
+
+                // 4. Load all answers already saved by the student
+                List<StudentAnswer> existingAnswers = studentAnswerRepository.findByAttemptId(attemptId);
+
+                Map<Long, StudentAnswer> answerMap = new HashMap<>();
+
+                for (StudentAnswer answer : existingAnswers) {
+                        answerMap.put(answer.getQuestion().getId(), answer);
+                }
+
+                BigDecimal finalScore = BigDecimal.ZERO;
+
+                // 5. Evaluate every question
+                for (Question question : questions) {
+
+                        StudentAnswer answer = answerMap.get(question.getId());
+
+                        /*
+                         * Student never interacted with this question.
+                         * Create an explicit UNANSWERED record.
+                         */
+                        if (answer == null) {
+
+                                answer = new StudentAnswer();
+
+                                answer.setAttempt(attempt);
+                                answer.setQuestion(question);
+                                answer.setAnswerStatus(AnswerStatus.UNANSWERED);
+                                answer.setCorrect(false);
+                                answer.setMarksAwarded(BigDecimal.ZERO);
+                                answer.setResponseTimeSeconds(null);
+                                answer.setAnsweredAt(null);
+
+                                studentAnswerRepository.save(answer);
+
+                                continue;
+                        }
+
+                        /*
+                         * Get the options selected by the student.
+                         */
+                        List<StudentSelectedOption> selectedOptions = studentSelectedOptionRepository
+                                        .findByAnswerId(answer.getId());
+
+                        /*
+                         * No selected option = unanswered.
+                         */
+                        if (selectedOptions.isEmpty()) {
+
+                                answer.setAnswerStatus(AnswerStatus.UNANSWERED);
+                                answer.setCorrect(false);
+                                answer.setMarksAwarded(BigDecimal.ZERO);
+                                answer.setAnsweredAt(null);
+
+                                studentAnswerRepository.save(answer);
+
+                                continue;
+                        }
+
+                        /*
+                         * IDs selected by the student.
+                         */
+                        Set<Long> selectedOptionIds = new HashSet<>();
+
+                        for (StudentSelectedOption selectedOption : selectedOptions) {
+                                selectedOptionIds.add(
+                                                selectedOption.getOption().getId());
+                        }
+
+                        /*
+                         * Get all options belonging to this question.
+                         */
+                        List<Option> questionOptions = optionRepository
+                                        .findByQuestionIdOrderByOptionOrder(
+                                                        question.getId());
+
+                        /*
+                         * IDs of the correct options.
+                         */
+                        Set<Long> correctOptionIds = new HashSet<>();
+
+                        for (Option option : questionOptions) {
+
+                                if (option.isCorrect()) {
+                                        correctOptionIds.add(option.getId());
+                                }
+                        }
+
+                        /*
+                         * Exact-set comparison.
+                         *
+                         * MCQ:
+                         * student {A}, correct {A} -> correct
+                         *
+                         * MSQ:
+                         * student {A,C}, correct {A,C} -> correct
+                         * student {A}, correct {A,C} -> wrong
+                         * student {A,B}, correct {A,C} -> wrong
+                         */
+                        boolean correct = selectedOptionIds.equals(correctOptionIds);
+
+                        answer.setAnswerStatus(AnswerStatus.ANSWERED);
+                        answer.setCorrect(correct);
+
+                        BigDecimal marksAwarded;
+
+                        if (correct) {
+
+                                marksAwarded = question.getMarks();
+
+                        } else if (quiz.isNegativeMarking()) {
+
+                                BigDecimal negativeMarks = question.getNegativeMarks();
+
+                                if (negativeMarks == null) {
+                                        negativeMarks = BigDecimal.ZERO;
+                                }
+
+                                marksAwarded = negativeMarks.negate();
+
+                        } else {
+
+                                marksAwarded = BigDecimal.ZERO;
+                        }
+
+                        answer.setMarksAwarded(marksAwarded);
+
+                        studentAnswerRepository.save(answer);
+
+                        finalScore = finalScore.add(marksAwarded);
+                }
+
+                // 6. Calculate total time taken
+                LocalDateTime submittedAt = LocalDateTime.now();
+
+                int totalTimeTaken = (int) Duration
+                                .between(attempt.getStartedAt(), submittedAt)
+                                .getSeconds();
+
+                // 7. Update attempt
+                attempt.setFinalScore(finalScore);
+                attempt.setStatus(AttemptStatus.SUBMITTED);
+                attempt.setSubmittedAt(submittedAt);
+                attempt.setTotalTimeTaken(totalTimeTaken);
+
+                quizAttemptRepository.save(attempt);
+
+                // 8. Return result
+                return new SubmitAttemptResponse(
+                                attempt.getId(),
+                                quiz.getId(),
+                                attempt.getStatus(),
+                                attempt.getFinalScore(),
+                                quiz.getTotalMarks(),
+                                attempt.getTotalTimeTaken(),
+                                attempt.getSubmittedAt());
         }
 }
