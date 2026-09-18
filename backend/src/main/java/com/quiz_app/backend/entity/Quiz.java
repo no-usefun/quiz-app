@@ -108,6 +108,13 @@ public class Quiz {
     @Column(name = "quiz_code", nullable = false, unique = true, length = 6)
     private String quizCode;
 
+    @Enumerated(EnumType.STRING)
+    @Column(name = "result_visibility", nullable = false, length = 20)
+    private ResultVisibility resultVisibility = ResultVisibility.NONE;
+
+    @Column(name = "results_published", nullable = false)
+    private boolean resultsPublished = false;
+
     public Quiz() {
     }
 
@@ -321,5 +328,21 @@ public class Quiz {
 
     public void setQuizCode(String quizCode) {
         this.quizCode = quizCode;
+    }
+
+    public ResultVisibility getResultVisibility() {
+        return resultVisibility;
+    }
+
+    public void setResultVisibility(ResultVisibility resultVisibility) {
+        this.resultVisibility = resultVisibility;
+    }
+
+    public boolean isResultsPublished() {
+        return resultsPublished;
+    }
+
+    public void setResultsPublished(boolean resultsPublished) {
+        this.resultsPublished = resultsPublished;
     }
 }

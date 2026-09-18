@@ -56,10 +56,12 @@ CREATE TABLE quizzes (
     start_time TIMESTAMP NOT NULL,
     end_time TIMESTAMP NOT NULL,
     status VARCHAR(20) NOT NULL DEFAULT 'DRAFT' CHECK (status IN ('DRAFT', 'PUBLISHED', 'COMPLETED', 'CANCELLED')),
-    exam_state VARCHAR(20) NOT NULL DEFAULT 'WAITING' CHECK (exam_state IN ('WAITING', 'RUNNING', 'PAUSED', 'ENDED')),
+    result_visibility VARCHAR(20) NOT NULL DEFAULT 'NONE',
+    results_published BOOLEAN NOT NULL DEFAULT FALSE,
     created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    CONSTRAINT chk_quiz_time_range CHECK (end_time > start_time)
+    CONSTRAINT chk_quiz_time_range CHECK (end_time > start_time),
+    CONSTRAINT chk_quizzes_result_visibility CHECK (result_visibility IN ('NONE', 'LEADERBOARD', 'QUESTION_WISE', 'BOTH'))
 );
 
 CREATE TABLE questions (

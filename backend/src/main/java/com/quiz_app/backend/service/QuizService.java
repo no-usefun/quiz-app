@@ -91,6 +91,8 @@ public class QuizService {
                 // Phase 2 field
                 // Keep the DB value, but don't implement proctoring logic now.
                 quiz.setMaxTabSwitch(3);
+                quiz.setResultVisibility(com.quiz_app.backend.entity.ResultVisibility.NONE);
+                quiz.setResultsPublished(false);
 
                 quiz.setStartTime(request.startTime());
                 quiz.setEndTime(request.endTime());
