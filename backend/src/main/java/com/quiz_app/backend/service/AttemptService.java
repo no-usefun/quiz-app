@@ -13,6 +13,9 @@ import org.springframework.stereotype.Service;
 
 import com.quiz_app.backend.dto.attempt.AnswerResponse;
 import com.quiz_app.backend.dto.attempt.AttemptResponse;
+import com.quiz_app.backend.dto.attempt.AttemptResultDetailResponse;
+import com.quiz_app.backend.dto.attempt.AttemptResultResponse;
+import com.quiz_app.backend.dto.attempt.LeaderboardEntryResponse;
 import com.quiz_app.backend.dto.attempt.SaveAnswerRequest;
 import com.quiz_app.backend.dto.attempt.StartAttemptRequest;
 import com.quiz_app.backend.dto.attempt.SubmitAttemptResponse;
@@ -23,6 +26,7 @@ import com.quiz_app.backend.entity.Question;
 import com.quiz_app.backend.entity.Quiz;
 import com.quiz_app.backend.entity.QuizAttempt;
 import com.quiz_app.backend.entity.QuizStatus;
+import com.quiz_app.backend.entity.ResultVisibility;
 import com.quiz_app.backend.entity.StudentAnswer;
 import com.quiz_app.backend.entity.StudentSelectedOption;
 import com.quiz_app.backend.entity.User;
@@ -484,5 +488,263 @@ public class AttemptService {
                                 quiz.getTotalMarks(),
                                 attempt.getTotalTimeTaken(),
                                 attempt.getSubmittedAt());
+        }
+
+        public AttemptResultResponse getAttemptResult(Long attemptId) {
+
+                if (attemptId == null) {
+                        throw new BadRequestException("Attempt ID is required");
+                }
+
+                QuizAttempt attempt = quizAttemptRepository.findById(attemptId)
+                                .orElseThrow(() -> new ResourceNotFoundException("Attempt not found"));
+
+                if (attempt.getStatus() != AttemptStatus.SUBMITTED) {
+                        throw new BadRequestException(
+                                        "Result is available only after submission");
+                }
+
+                Quiz quiz = attempt.getQuiz();
+
+                if (attempt.getStatus() != AttemptStatus.SUBMITTED) {
+                        throw new BadRequestException(
+                                        "Result is available only after submission");
+                }
+
+                if (!quiz.isResultsPublished()) {
+                        throw new BadRequestException(
+                                        "Results have not been published yet");
+                }
+
+                if (quiz.getResultVisibility() == ResultVisibility.NONE) {
+                        throw new BadRequestException(
+                                        "Results are not available to students");
+                }
+
+                BigDecimal totalMarks = quiz.getTotalMarks();
+
+                BigDecimal percentage = BigDecimal.ZERO;
+
+                if (totalMarks != null && totalMarks.compareTo(BigDecimal.ZERO) > 0) {
+                        percentage = attempt.getFinalScore()
+                                        .multiply(BigDecimal.valueOf(100))
+                                        .divide(totalMarks, 2, java.math.RoundingMode.HALF_UP);
+                }
+
+                return new AttemptResultResponse(
+                                attempt.getId(),
+                                quiz.getId(),
+                                quiz.getTitle(),
+                                attempt.getStudent().getId(),
+                                attempt.getStatus(),
+                                attempt.getFinalScore(),
+                                totalMarks,
+                                percentage,
+                                attempt.getTotalTimeTaken(),
+                                attempt.getStartedAt(),
+                                attempt.getSubmittedAt());
+        }
+
+        public List<AttemptResultDetailResponse> getAttemptResultDetails(
+                        Long attemptId) {
+
+                if (attemptId == null) {
+                        throw new BadRequestException("Attempt ID is required");
+                }
+
+                QuizAttempt attempt = quizAttemptRepository.findById(attemptId)
+                                .orElseThrow(() -> new ResourceNotFoundException("Attempt not found"));
+
+                if (attempt.getStatus() != AttemptStatus.SUBMITTED) {
+                        throw new BadRequestException(
+                                        "Result details are available only after submission");
+                }
+
+                Quiz quiz = attempt.getQuiz();
+
+                if (attempt.getStatus() != AttemptStatus.SUBMITTED) {
+                        throw new BadRequestException(
+                                        "Result is available only after submission");
+                }
+
+                if (!quiz.isResultsPublished()) {
+                        throw new BadRequestException(
+                                        "Results have not been published yet");
+                }
+
+                if (quiz.getResultVisibility() != ResultVisibility.QUESTION_WISE
+                                && quiz.getResultVisibility() != ResultVisibility.BOTH) {
+
+                        throw new BadRequestException(
+                                        "Question-wise results are not available");
+                }
+
+                List<Question> questions = questionRepository.findByQuizIdOrderByDisplayOrder(
+                                attempt.getQuiz().getId());
+
+                List<StudentAnswer> answers = studentAnswerRepository.findByAttemptId(attemptId);
+
+                java.util.Map<Long, StudentAnswer> answerMap = new java.util.HashMap<>();
+
+                for (StudentAnswer answer : answers) {
+                        answerMap.put(
+                                        answer.getQuestion().getId(),
+                                        answer);
+                }
+
+                List<AttemptResultDetailResponse> result = new java.util.ArrayList<>();
+
+                for (Question question : questions) {
+
+                        StudentAnswer answer = answerMap.get(question.getId());
+
+                        List<Long> selectedOptionIds = new java.util.ArrayList<>();
+
+                        List<Long> correctOptionIds = optionRepository
+                                        .findByQuestionIdOrderByOptionOrder(question.getId())
+                                        .stream()
+                                        .filter(Option::isCorrect)
+                                        .map(Option::getId)
+                                        .toList();
+
+                        AnswerStatus answerStatus;
+                        boolean correct = false;
+                        BigDecimal marksAwarded = BigDecimal.ZERO;
+                        Integer responseTimeSeconds = null;
+
+                        if (answer == null) {
+
+                                answerStatus = AnswerStatus.UNANSWERED;
+
+                        } else {
+
+                                answerStatus = answer.getAnswerStatus();
+                                correct = answer.isCorrect();
+                                marksAwarded = answer.getMarksAwarded();
+                                responseTimeSeconds = answer.getResponseTimeSeconds();
+
+                                List<StudentSelectedOption> selectedOptions = studentSelectedOptionRepository
+                                                .findByAnswerId(answer.getId());
+
+                                selectedOptionIds = selectedOptions.stream()
+                                                .map(selected -> selected.getOption().getId())
+                                                .toList();
+                        }
+
+                        result.add(
+                                        new AttemptResultDetailResponse(
+                                                        question.getId(),
+                                                        question.getQuestionText(),
+                                                        question.getDisplayOrder(),
+                                                        selectedOptionIds,
+                                                        correctOptionIds,
+                                                        answerStatus,
+                                                        correct,
+                                                        marksAwarded,
+                                                        question.getMarks(),
+                                                        responseTimeSeconds));
+                }
+
+                return result;
+        }
+
+        public List<LeaderboardEntryResponse> getLeaderboard(Long quizId) {
+
+                if (quizId == null) {
+                        throw new BadRequestException("Quiz ID is required");
+                }
+
+                Quiz quiz = quizRepository.findById(quizId)
+                                .orElseThrow(() -> new ResourceNotFoundException("Quiz not found"));
+
+                if (!quiz.isResultsPublished()) {
+                        throw new BadRequestException(
+                                        "Results have not been published yet");
+                }
+
+                if (quiz.getResultVisibility() != ResultVisibility.LEADERBOARD
+                                && quiz.getResultVisibility() != ResultVisibility.BOTH) {
+
+                        throw new BadRequestException(
+                                        "Leaderboard is not available");
+                }
+
+                List<QuizAttempt> attempts = quizAttemptRepository.findByQuizId(quizId);
+
+                List<QuizAttempt> submittedAttempts = attempts.stream()
+                                .filter(attempt -> attempt.getStatus() == AttemptStatus.SUBMITTED)
+                                .sorted(
+                                                java.util.Comparator
+                                                                .comparing(
+                                                                                QuizAttempt::getFinalScore,
+                                                                                java.util.Comparator.reverseOrder())
+                                                                .thenComparing(
+                                                                                QuizAttempt::getTotalTimeTaken))
+                                .toList();
+
+                List<LeaderboardEntryResponse> result = new java.util.ArrayList<>();
+
+                int rank = 1;
+
+                for (QuizAttempt attempt : submittedAttempts) {
+
+                        BigDecimal score = attempt.getFinalScore();
+
+                        BigDecimal percentage = BigDecimal.ZERO;
+
+                        if (quiz.getTotalMarks() != null
+                                        && quiz.getTotalMarks()
+                                                        .compareTo(BigDecimal.ZERO) > 0) {
+
+                                percentage = score
+                                                .multiply(BigDecimal.valueOf(100))
+                                                .divide(
+                                                                quiz.getTotalMarks(),
+                                                                2,
+                                                                java.math.RoundingMode.HALF_UP);
+                        }
+
+                        result.add(
+                                        new LeaderboardEntryResponse(
+                                                        rank++,
+                                                        attempt.getStudent().getId(),
+                                                        attempt.getStudent().getFullName(),
+                                                        score,
+                                                        quiz.getTotalMarks(),
+                                                        percentage,
+                                                        attempt.getTotalTimeTaken()));
+                }
+
+                return result;
+        }
+
+        @Transactional
+        public void publishResults(Long quizId) {
+
+                if (quizId == null) {
+                        throw new BadRequestException("Quiz ID is required");
+                }
+
+                Quiz quiz = quizRepository.findById(quizId)
+                                .orElseThrow(() -> new ResourceNotFoundException("Quiz not found"));
+
+                quiz.setResultsPublished(true);
+
+                quizRepository.save(quiz);
+        }
+
+        @Transactional
+        public void unpublishResults(Long quizId) {
+
+                if (quizId == null) {
+                        throw new BadRequestException("Quiz ID is required");
+                }
+
+                Quiz quiz = quizRepository.findById(quizId)
+                                .orElseThrow(() -> new ResourceNotFoundException("Quiz not found"));
+
+                quiz.setResultsPublished(false);
+
+                quizRepository.save(quiz);
         }
 }

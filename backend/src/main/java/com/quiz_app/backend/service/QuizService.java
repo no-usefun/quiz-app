@@ -15,6 +15,7 @@ import com.quiz_app.backend.dto.quiz.QuizResponse;
 import com.quiz_app.backend.entity.Option;
 import com.quiz_app.backend.entity.Question;
 import com.quiz_app.backend.entity.Quiz;
+import com.quiz_app.backend.entity.ResultVisibility;
 import com.quiz_app.backend.entity.User;
 import com.quiz_app.backend.exception.BadRequestException;
 import com.quiz_app.backend.exception.ResourceNotFoundException;
@@ -72,6 +73,13 @@ public class QuizService {
                 quiz.setSubject(request.subject());
                 quiz.setSubjectCode(request.subjectCode());
                 quiz.setTotalStudents(request.totalStudents());
+
+                quiz.setResultVisibility(
+                                request.resultVisibility() != null
+                                                ? request.resultVisibility()
+                                                : ResultVisibility.NONE);
+
+                quiz.setResultsPublished(false);
 
                 quiz.setOverallTimerSeconds(request.overallTimerSeconds());
 
@@ -192,6 +200,9 @@ public class QuizService {
                                 quiz.getStartTime(),
                                 quiz.getEndTime(),
 
+                                quiz.getResultVisibility(),
+                                quiz.isResultsPublished(),
+
                                 quiz.getStatus(),
                                 quiz.getExamState());
         }
@@ -232,6 +243,11 @@ public class QuizService {
 
                         throw new BadRequestException(
                                         "Quiz must contain at least one question");
+                }
+
+                if (request.resultVisibility() == null) {
+                        throw new BadRequestException(
+                                        "Quiz must have a result visibility declaration");
                 }
 
                 if (request.negativeMarking()

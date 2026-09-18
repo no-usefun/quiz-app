@@ -1,5 +1,7 @@
 package com.quiz_app.backend.repository;
 
+import java.util.List;
+
 import org.springframework.data.jpa.repository.JpaRepository;
 
 import com.quiz_app.backend.entity.QuizAttempt;
@@ -10,4 +12,6 @@ public interface QuizAttemptRepository
         boolean existsByQuizQuizCodeAndStudentId(
                         String quizCode,
                         Long studentId);
+
+        List<QuizAttempt> findByQuizId(Long quizId);
 }
