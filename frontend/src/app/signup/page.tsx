@@ -259,19 +259,21 @@ function SignupContent() {
       />
       <div className="relative w-full max-w-md bg-white rounded-2xl shadow-[0_18px_50px_-20px_rgba(15,23,42,0.18)] ring-1 ring-neutral-900/5 border border-neutral-100 p-8 space-y-6">
         <div>
-          <button
-            type="button"
-            onClick={() => {
-              setError("");
-              router.push("/signup");
-            }}
-            className="group text-xs font-medium text-neutral-400 hover:text-neutral-700 transition-colors mb-5 cursor-pointer bg-transparent border-0 p-0 inline-flex items-center gap-1.5"
-          >
-            <ArrowLeft className="h-3.5 w-3.5 transition-transform duration-200 group-hover:-translate-x-0.5" />{" "}
-            Back to roles
-          </button>
+          <div className="mb-5">
+            <button
+              type="button"
+              onClick={() => {
+                setError("");
+                router.push("/signup");
+              }}
+              className="group text-xs font-medium text-neutral-400 hover:text-neutral-700 transition-colors cursor-pointer bg-transparent border-0 p-0 inline-flex items-center gap-1.5"
+            >
+              <ArrowLeft className="h-3.5 w-3.5 transition-transform duration-200 group-hover:-translate-x-0.5" />{" "}
+              Back to roles
+            </button>
+          </div>
           <span
-            className={`mb-4 inline-flex h-11 w-11 items-center justify-center rounded-xl ring-1 ${
+            className={`mb-4 flex h-11 w-11 items-center justify-center rounded-xl ring-1 ${
               activeRole === "teacher"
                 ? "bg-[#0F172A] text-white ring-[#0F172A]/20"
                 : "bg-neutral-100 text-neutral-900 ring-neutral-900/10"

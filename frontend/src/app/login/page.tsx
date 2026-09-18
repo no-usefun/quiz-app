@@ -7,7 +7,14 @@ const API_BASE = (
 import { useState, useEffect, Suspense } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
-import { Eye, EyeOff, ArrowLeft } from "lucide-react";
+import {
+  Eye,
+  EyeOff,
+  ArrowLeft,
+  GraduationCap,
+  Presentation,
+  ArrowRight,
+} from "lucide-react";
 
 function isTokenValid(token: string): boolean {
   if (!token) return false;
@@ -127,16 +134,34 @@ function LoginContent() {
     }
   };
 
+  const fieldClass =
+    "w-full rounded-lg border border-neutral-200 bg-neutral-50/70 px-3.5 py-2.5 text-sm text-neutral-900 outline-none transition-all placeholder:text-neutral-400 hover:border-neutral-300 focus:bg-white focus:border-neutral-900 focus:ring-4 focus:ring-neutral-900/10";
+
   if (!activeRole) {
     return (
-      <main className="min-h-screen w-full grid grid-cols-1 md:grid-cols-2 font-sans">
-        <section className="flex flex-col items-center justify-center p-8 sm:p-16 bg-[#F9FAFB] text-center">
-          <div className="w-full max-w-xs space-y-4">
-            <div className="space-y-1.5">
+      <main className="relative min-h-screen w-full grid grid-cols-1 md:grid-cols-2 font-sans">
+        <span className="absolute left-1/2 top-6 z-20 -translate-x-1/2 rounded-full bg-white/90 px-4 py-1.5 text-sm font-bold tracking-tight text-[#111827] shadow-sm ring-1 ring-black/5 backdrop-blur">
+          Quizly
+        </span>
+
+        <section className="group relative flex flex-col items-center justify-center p-8 sm:p-16 bg-[#F9FAFB] text-center transition-colors duration-300 hover:bg-white">
+          <div
+            aria-hidden
+            className="pointer-events-none absolute inset-0 opacity-0 transition-opacity duration-500 group-hover:opacity-100"
+            style={{
+              backgroundImage:
+                "radial-gradient(circle at 50% 45%, rgba(17,24,39,0.06), transparent 60%)",
+            }}
+          />
+          <div className="relative w-full max-w-xs space-y-6">
+            <span className="mx-auto flex h-12 w-12 items-center justify-center rounded-xl bg-[#111827]/5 text-[#111827] ring-1 ring-[#111827]/10 transition-transform duration-300 group-hover:-translate-y-0.5">
+              <GraduationCap className="h-6 w-6" />
+            </span>
+            <div className="space-y-2">
               <h1 className="text-3xl sm:text-4xl font-bold tracking-tight text-[#111827]">
                 Student
               </h1>
-              <p className="text-sm text-[#6B7280]">
+              <p className="text-sm leading-relaxed text-[#6B7280]">
                 Take quizzes with an access code
               </p>
             </div>
@@ -146,20 +171,32 @@ function LoginContent() {
                 setError("");
                 router.push("/login?role=student");
               }}
-              className="w-full rounded-lg bg-[#111827] text-white py-3 px-5 text-sm font-medium hover:bg-black active:scale-[0.99] transition-all cursor-pointer shadow-sm border-0"
+              className="group/btn inline-flex w-full items-center justify-center gap-2 rounded-lg bg-[#111827] text-white py-3 px-5 text-sm font-medium shadow-sm ring-offset-2 transition-all hover:bg-black hover:shadow-md active:scale-[0.99] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#111827] cursor-pointer border-0"
             >
               Continue as Student
+              <ArrowRight className="h-4 w-4 transition-transform duration-200 group-hover/btn:translate-x-0.5" />
             </button>
           </div>
         </section>
 
-        <section className="flex flex-col items-center justify-center p-8 sm:p-16 bg-[#0F172A] text-center border-t md:border-t-0 md:border-l border-neutral-800">
-          <div className="w-full max-w-xs space-y-4">
-            <div className="space-y-1.5">
+        <section className="group relative flex flex-col items-center justify-center p-8 sm:p-16 bg-[#0F172A] text-center border-t md:border-t-0 md:border-l border-neutral-800 transition-colors duration-300 hover:bg-[#0B1220]">
+          <div
+            aria-hidden
+            className="pointer-events-none absolute inset-0 opacity-0 transition-opacity duration-500 group-hover:opacity-100"
+            style={{
+              backgroundImage:
+                "radial-gradient(circle at 50% 45%, rgba(255,255,255,0.07), transparent 60%)",
+            }}
+          />
+          <div className="relative w-full max-w-xs space-y-6">
+            <span className="mx-auto flex h-12 w-12 items-center justify-center rounded-xl bg-white/10 text-white ring-1 ring-white/15 transition-transform duration-300 group-hover:-translate-y-0.5">
+              <Presentation className="h-6 w-6" />
+            </span>
+            <div className="space-y-2">
               <h1 className="text-3xl sm:text-4xl font-bold tracking-tight text-white">
                 Instructor
               </h1>
-              <p className="text-sm text-[#94A3B8]">
+              <p className="text-sm leading-relaxed text-[#94A3B8]">
                 Create and manage quizzes
               </p>
             </div>
@@ -169,9 +206,10 @@ function LoginContent() {
                 setError("");
                 router.push("/login?role=teacher");
               }}
-              className="w-full rounded-lg bg-white text-[#0F172A] py-3 px-5 text-sm font-medium hover:bg-neutral-100 active:scale-[0.99] transition-all cursor-pointer shadow-sm border-0"
+              className="group/btn inline-flex w-full items-center justify-center gap-2 rounded-lg bg-white text-[#0F172A] py-3 px-5 text-sm font-medium shadow-sm ring-offset-2 ring-offset-[#0F172A] transition-all hover:bg-neutral-100 hover:shadow-md active:scale-[0.99] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white cursor-pointer border-0"
             >
               Continue as Instructor
+              <ArrowRight className="h-4 w-4 transition-transform duration-200 group-hover/btn:translate-x-0.5" />
             </button>
           </div>
         </section>
@@ -180,39 +218,70 @@ function LoginContent() {
   }
 
   return (
-    <main className="min-h-screen flex flex-col items-center justify-center p-6 sm:p-12 bg-neutral-50 text-[#111827] font-sans">
-      <div className="w-full max-w-md bg-white rounded-2xl shadow-[0_0_40px_-10px_rgba(0,0,0,0.05)] border border-neutral-100 p-8 space-y-6">
+    <main className="relative min-h-screen flex flex-col items-center justify-center p-6 sm:p-12 bg-neutral-50 text-[#111827] font-sans">
+      <div
+        aria-hidden
+        className="pointer-events-none absolute inset-0"
+        style={{
+          backgroundImage:
+            "radial-gradient(circle at 50% 0%, rgba(17,24,39,0.05), transparent 55%)",
+        }}
+      />
+      <div className="relative w-full max-w-md bg-white rounded-2xl shadow-[0_18px_50px_-20px_rgba(15,23,42,0.18)] ring-1 ring-neutral-900/5 border border-neutral-100 p-8 space-y-6">
         <div>
-          <button
-            type="button"
-            onClick={() => {
-              setError("");
-              router.push("/login");
-            }}
-            className="text-xs font-medium text-neutral-400 hover:text-neutral-700 transition-colors mb-4 cursor-pointer bg-transparent border-0 p-0 inline-flex items-center gap-1.5"
+          <div className="mb-5">
+            <button
+              type="button"
+              onClick={() => {
+                setError("");
+                router.push("/login");
+              }}
+              className="group text-xs font-medium text-neutral-400 hover:text-neutral-700 transition-colors cursor-pointer bg-transparent border-0 p-0 inline-flex items-center gap-1.5"
+            >
+              <ArrowLeft className="h-3.5 w-3.5 transition-transform duration-200 group-hover:-translate-x-0.5" />{" "}
+              Back to roles
+            </button>
+          </div>
+          <span
+            className={`mb-4 flex h-11 w-11 items-center justify-center rounded-xl ring-1 ${
+              activeRole === "teacher"
+                ? "bg-[#0F172A] text-white ring-[#0F172A]/20"
+                : "bg-neutral-100 text-neutral-900 ring-neutral-900/10"
+            }`}
           >
-            <ArrowLeft className="h-3.5 w-3.5" /> Back to roles
-          </button>
+            {activeRole === "teacher" ? (
+              <Presentation className="h-5 w-5" />
+            ) : (
+              <GraduationCap className="h-5 w-5" />
+            )}
+          </span>
           <h1 className="text-2xl font-bold tracking-tight text-neutral-900">
             {activeRole === "teacher"
               ? "Log in as Instructor"
               : "Log in as Student"}
           </h1>
-          <p className="text-sm text-neutral-500 mt-1">
+          <p className="text-sm text-neutral-500 mt-1.5 leading-relaxed">
             Enter your credentials to continue.
           </p>
         </div>
 
         {error && (
-          <div className="rounded-lg bg-red-50 p-3.5 text-sm text-red-700 font-medium border border-red-100/50">
-            {error}
+          <div
+            role="alert"
+            className="flex gap-2.5 rounded-lg bg-red-50 p-3.5 text-sm text-red-700 font-medium border border-red-200/70"
+          >
+            <span
+              aria-hidden
+              className="mt-0.5 h-1.5 w-1.5 shrink-0 rounded-full bg-red-500"
+            />
+            <span>{error}</span>
           </div>
         )}
 
         <form onSubmit={handleLoginSubmit} className="space-y-4">
           <div className="space-y-1.5">
-            <label className="text-xs font-bold text-neutral-700 block">
-              Email Address
+            <label className="text-xs font-semibold text-neutral-700 block">
+              Email address
             </label>
             <input
               type="email"
@@ -221,13 +290,13 @@ function LoginContent() {
               placeholder="name@example.com"
               required
               autoFocus
-              className="w-full rounded-lg border border-neutral-200 bg-neutral-50 px-3.5 py-2.5 text-sm text-neutral-900 outline-none focus:bg-white focus:border-neutral-900 focus:ring-1 focus:ring-neutral-900 transition-all placeholder:text-neutral-400"
+              className={fieldClass}
             />
           </div>
 
           <div className="space-y-1.5">
             <div className="flex items-center justify-between">
-              <label className="text-xs font-bold text-neutral-700 block">
+              <label className="text-xs font-semibold text-neutral-700 block">
                 Password
               </label>
               <span className="text-xs text-neutral-400 cursor-not-allowed hover:text-neutral-600 transition-colors">
@@ -241,12 +310,13 @@ function LoginContent() {
                 onChange={(e) => setPassword(e.target.value)}
                 placeholder="••••••••"
                 required
-                className="w-full rounded-lg border border-neutral-200 bg-neutral-50 px-3.5 py-2.5 pr-10 text-sm text-neutral-900 outline-none focus:bg-white focus:border-neutral-900 focus:ring-1 focus:ring-neutral-900 transition-all placeholder:text-neutral-400"
+                className={`${fieldClass} pr-10`}
               />
               <button
                 type="button"
                 onClick={() => setShowPassword(!showPassword)}
-                className="absolute right-3 top-1/2 -translate-y-1/2 text-neutral-400 hover:text-neutral-700 transition-colors cursor-pointer border-0 bg-transparent p-0 flex items-center justify-center"
+                aria-label={showPassword ? "Hide password" : "Show password"}
+                className="absolute right-2 top-1/2 -translate-y-1/2 rounded-md p-1.5 text-neutral-400 hover:bg-neutral-100 hover:text-neutral-700 transition-colors cursor-pointer border-0 bg-transparent flex items-center justify-center"
               >
                 {showPassword ? (
                   <EyeOff className="h-4 w-4" />
@@ -260,21 +330,31 @@ function LoginContent() {
           <button
             type="submit"
             disabled={loading}
-            className="w-full rounded-lg bg-gradient-to-b from-neutral-800 to-neutral-900 py-2.5 px-4 text-sm font-bold text-white hover:from-neutral-900 hover:to-black active:scale-[0.99] transition-all disabled:opacity-50 cursor-pointer border-0 mt-4 shadow-sm"
+            className="w-full rounded-lg bg-gradient-to-b from-neutral-800 to-neutral-900 py-3 px-4 text-sm font-semibold text-white shadow-sm transition-all hover:from-neutral-900 hover:to-black hover:shadow-md active:scale-[0.99] disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-neutral-900 focus-visible:ring-offset-2 cursor-pointer border-0 mt-5"
           >
-            {loading ? "Signing in..." : "Log in"}
+            {loading ? (
+              <span className="inline-flex items-center justify-center gap-2">
+                <span className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-white/30 border-t-white" />
+                Signing in...
+              </span>
+            ) : (
+              "Log in"
+            )}
           </button>
         </form>
 
-        <p className="text-center text-sm text-neutral-500 pt-2">
-          Don&apos;t have an account?{" "}
-          <Link
-            href={`/signup?role=${activeRole}`}
-            className="font-bold text-neutral-900 hover:underline"
-          >
-            Sign up
-          </Link>
-        </p>
+        <div className="pt-1">
+          <div className="h-px w-full bg-neutral-100" />
+          <p className="text-center text-sm text-neutral-500 pt-4">
+            Don&apos;t have an account?{" "}
+            <Link
+              href={`/signup?role=${activeRole}`}
+              className="font-semibold text-neutral-900 underline-offset-4 hover:underline"
+            >
+              Sign up
+            </Link>
+          </p>
+        </div>
       </div>
     </main>
   );
@@ -284,7 +364,8 @@ export default function LoginPage() {
   return (
     <Suspense
       fallback={
-        <div className="flex min-h-screen items-center justify-center bg-neutral-50 text-sm text-neutral-400 font-medium">
+        <div className="flex min-h-screen items-center justify-center gap-2 bg-neutral-50 text-sm text-neutral-400 font-medium">
+          <span className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-neutral-200 border-t-neutral-400" />
           Loading...
         </div>
       }
