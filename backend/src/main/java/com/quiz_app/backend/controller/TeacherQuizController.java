@@ -8,7 +8,6 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 import com.quiz_app.backend.security.CustomUserDetails;
-import com.quiz_app.backend.service.QuizService;
 import com.quiz_app.backend.service.TeacherQuizService;
 
 @RestController
@@ -16,14 +15,11 @@ import com.quiz_app.backend.service.TeacherQuizService;
 public class TeacherQuizController {
 
     private final TeacherQuizService teacherQuizService;
-    private final QuizService quizService;
 
     public TeacherQuizController(
-            TeacherQuizService teacherQuizService,
-            QuizService quizService) {
+            TeacherQuizService teacherQuizService) {
 
         this.teacherQuizService = teacherQuizService;
-        this.quizService = quizService;
     }
 
     @PutMapping("/quizzes/{quizId}/publish")
@@ -33,7 +29,7 @@ public class TeacherQuizController {
 
         CustomUserDetails userDetails = (CustomUserDetails) authentication.getPrincipal();
 
-        quizService.publishQuiz(
+        teacherQuizService.publishQuiz(
                 quizId,
                 userDetails.getId());
 
