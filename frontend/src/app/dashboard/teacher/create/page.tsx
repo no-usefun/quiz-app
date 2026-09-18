@@ -155,7 +155,7 @@ export default function CreateAssessmentPage() {
                     ? 0.25
                     : 0,
               questionTimerSeconds: q.questionTimerSeconds || 60,
-              difficulty: q.difficulty || "EASY",
+              difficulty: q.difficulty || "MEDIUM",
               displayOrder: qNum,
               options: normalizedOpts,
             });
@@ -218,7 +218,7 @@ export default function CreateAssessmentPage() {
                 marks: parts[6] ? Number(parts[6]) : 1,
                 negativeMarks: negativeMarking ? 0.25 : 0,
                 questionTimerSeconds: 60,
-                difficulty: "EASY",
+                difficulty: "MEDIUM",
                 displayOrder: index + 1,
                 options: availableOptions.map((opt, oIdx) => ({
                   optionText: opt.text,
@@ -249,7 +249,7 @@ export default function CreateAssessmentPage() {
         marks: 1,
         negativeMarks: negativeMarking ? 0.25 : 0,
         questionTimerSeconds: 60,
-        difficulty: "EASY",
+        difficulty: "MEDIUM",
         displayOrder: prev.length + 1,
         options: [
           { optionText: "", optionImage: "", optionOrder: 1, isCorrect: true },
@@ -346,48 +346,70 @@ export default function CreateAssessmentPage() {
 
     const safeTeacherId = user?.id ? Number(user.id) : Number(tokenUserId);
 
-    const allowedRegistrationNumbers = allowedRollsText
-      .split(/[\n,]+/)
-      .map((s) => s.trim().toUpperCase())
-      .filter(Boolean);
-
+    // --- FIX 1: Timestamp & Availability window ---
     const now = new Date();
-    const endTime = new Date(now.getTime() + timeLimit * 60000);
+    // Shift start time back by 5 minutes to bypass slight server clock mismatches
+    const startTime = new Date(now.getTime() - 5 * 60000);
+    // Give a 24-hour window for the quiz to remain "Available" in the lobby
+    // (The test duration itself is still strictly enforced by overallTimerSeconds)
+    const endTime = new Date(now.getTime() + 24 * 60 * 60000);
+
+    const resultVis =
+      publishScoresImmediately && revealSolutions
+        ? "BOTH"
+        : publishScoresImmediately
+          ? "LEADERBOARD"
+          : revealSolutions
+            ? "QUESTION_WISE"
+            : "NONE";
+
+    // Process authorized rolls
+    const allowedRollsArray = allowedRollsText
+      .split(",")
+      .map((roll) => roll.trim())
+      .filter((roll) => roll.length > 0);
 
     try {
-      // STRICT MAPPING to provided JSON request schema
       const payload = {
         teacherId: Number(safeTeacherId > 0 ? safeTeacherId : 1),
-        title: String(title.trim()),
-        description: String(description.trim()),
-        instructions: String(instructions.trim()),
-        subject: String(subject.trim()),
-        subjectCode: String(subjectCode.trim()),
-        totalStudents: Number(allowedRegistrationNumbers.length),
-        overallTimerSeconds: Number(timeLimit * 60),
+        title: title.trim(),
+        description: description.trim(),
+        instructions: instructions.trim(),
+        subject: subject.trim(),
+        subjectCode: subjectCode.trim(),
+        overallTimerSeconds: Math.floor(timeLimit * 60),
         negativeMarking: Boolean(negativeMarking),
         negativeMarks: Number(negativeMarking ? negativeMarks : 0),
-        timeBonusEnabled: Boolean(true),
-        randomQuestionOrder: Boolean(true),
-        randomOptionOrder: Boolean(true),
-        allowReview: Boolean(true),
-        allowResume: Boolean(true),
-        autoSubmit: Boolean(true),
-        startTime: String(now.toISOString()),
-        endTime: String(endTime.toISOString()),
+        timeBonusEnabled: false,
+        randomQuestionOrder: true,
+        randomOptionOrder: true,
+        allowReview: true,
+        allowResume: true,
+        autoSubmit: true,
+
+        // Use our adjusted timestamps
+        startTime: startTime.toISOString(),
+        endTime: endTime.toISOString(),
+
+        resultVisibility: resultVis,
+        status: "PUBLISHED",
+
+        allowedRolls: allowedRollsArray,
+        totalStudents: allowedRollsArray.length,
+
         questions: parsedQuestions.map((q: any, index: number) => ({
-          questionText: String(q.questionText),
-          imageUrl: String(""),
-          explanation: String(q.explanation || ""),
-          questionType: String("MCQ"),
+          questionText: String(q.questionText).trim(),
+          imageUrl: "",
+          explanation: String(q.explanation || "").trim(),
+          questionType: "MCQ",
           marks: Number(q.marks || 1),
           negativeMarks: Number(negativeMarking ? negativeMarks : 0),
           questionTimerSeconds: Number(q.questionTimerSeconds || 60),
-          difficulty: String(q.difficulty || "EASY"),
+          difficulty: q.difficulty || "MEDIUM",
           displayOrder: Number(index + 1),
           options: q.options.map((opt: any, optIndex: number) => ({
-            optionText: String(opt.optionText),
-            optionImage: String(""),
+            optionText: String(opt.optionText).trim(),
+            optionImage: "",
             optionOrder: Number(optIndex + 1),
             isCorrect: Boolean(opt.isCorrect),
           })),
@@ -406,12 +428,51 @@ export default function CreateAssessmentPage() {
       if (!res.ok) {
         const errorData = await res.json().catch(() => ({}));
         throw new Error(
-          `Server returned status: ${res.status}. Check backend console for details.`,
+          errorData.message ||
+            errorData.error ||
+            `Server returned status: ${res.status}`,
         );
       }
 
       const data = await res.json();
-      router.push(`/dashboard/teacher/share/${data.quizCode}`);
+
+      // ── Write to the canonical roster key ────────────────────────────────
+      // The dashboard reads dynoquizz_teacher_quizzes directly from localStorage.
+      // Spread order:
+      //   1. Raw backend response first  → preserves quizId, quizCode, and any
+      //      other server-assigned fields.
+      //   2. Local payload fields on top → ensures title, subject, counts are
+      //      always populated even when the backend omits them.
+      //   3. status pinned to "PUBLISHED" last → a successful 2xx POST always
+      //      means the quiz is published, regardless of what the server echoes.
+      const newQuiz = {
+        ...data,
+        title: payload.title,
+        description: payload.description,
+        subject: payload.subject,
+        subjectCode: payload.subjectCode,
+        totalStudents: payload.totalStudents,
+        totalQuestions: payload.questions.length,
+        overallTimerSeconds: payload.overallTimerSeconds,
+        status: "PUBLISHED",
+      };
+
+      try {
+        const existing: any[] = JSON.parse(
+          localStorage.getItem("dynoquizz_teacher_quizzes") || "[]",
+        );
+        // Deduplicate: remove any stale entry with the same quizId before prepending
+        const deduped = existing.filter(
+          (q) => (q.quizId ?? q.id) !== (newQuiz.quizId ?? newQuiz.id),
+        );
+        deduped.unshift(newQuiz); // newest first
+        localStorage.setItem("dynoquizz_teacher_quizzes", JSON.stringify(deduped));
+      } catch {
+        // If localStorage write fails, proceed — redirect still works
+      }
+
+      // Navigate strictly to /dashboard/teacher/share/${data.quizId} using the database identifier
+      router.push(`/dashboard/teacher/share/${data.quizId}`);
     } catch (err: any) {
       console.error("Failed to create quiz:", err);
       setValidationError(`Failed to create assessment: ${err.message}`);

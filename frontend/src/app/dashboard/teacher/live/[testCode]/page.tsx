@@ -19,6 +19,7 @@ import {
 } from "lucide-react";
 import { Logo } from "@/components/Logo";
 import { getStoredResults, getStoredTests } from "@/lib/storage";
+import { resolveQuizIdentifiers } from "@/lib/quizCache";
 
 const API_BASE = (
   process.env.NEXT_PUBLIC_API_URL || "http://localhost:8080"
@@ -81,17 +82,28 @@ export default function LiveLeaderboard({
   const [loading, setLoading] = useState(true);
 
   const syncTelemetry = async () => {
-    const cleanCode = (testCode || "").toUpperCase();
+    // The URL param may be a numeric quizId (e.g. "42") or an access code.
+    // Resolve the real access code from the local cache so /code/{code}/…
+    // endpoints receive the correct value.
+    const { quizId: resolvedId, quizCode } = resolveQuizIdentifiers(testCode);
 
-    // Check stored test details
-    const localTest = getStoredTests().find((t) => t.testCode.toUpperCase() === cleanCode);
+    // Match stored tests by either access code or numeric quizId
+    const localTest = getStoredTests().find(
+      (t) =>
+        t.testCode.toUpperCase() === quizCode.toUpperCase() ||
+        (resolvedId && String((t as any).quizId ?? (t as any).id) === resolvedId),
+    );
     if (localTest) {
       setTestTitle(localTest.quizName);
     }
 
-    // Check local actual submissions
+    // Match stored submissions by the resolved access code
     const localSubmissions = getStoredResults()
-      .filter((r) => r.testCode.toUpperCase() === cleanCode)
+      .filter(
+        (r) =>
+          r.testCode.toUpperCase() === quizCode.toUpperCase() ||
+          (resolvedId && String((r as any).quizId) === resolvedId),
+      )
       .map((r, idx) => ({
         id: idx + 100,
         name: r.studentName || "Candidate",
@@ -99,7 +111,6 @@ export default function LiveLeaderboard({
         answered: r.totalQuestions,
         total: r.totalQuestions,
         score: r.score || 0,
-
         timeLeft: "00:00",
         status: "submitted" as const,
         flags: [],
@@ -107,8 +118,8 @@ export default function LiveLeaderboard({
 
     try {
       const token = localStorage.getItem("dynoquizz_token");
-      const res = await fetch(
-        `${API_BASE}/api/v1/quizzes/code/${cleanCode}/package`,
+      let res = await fetch(
+        `${API_BASE}/api/v1/quizzes/code/${quizCode}/package`,
         {
           headers: {
             ...(token ? { Authorization: `Bearer ${token}` } : {}),
@@ -117,13 +128,39 @@ export default function LiveLeaderboard({
         },
       );
 
+      if (!res.ok && resolvedId && quizCode !== testCode) {
+        const altRes = await fetch(
+          `${API_BASE}/api/v1/quizzes/code/${testCode}/package`,
+          {
+            headers: {
+              ...(token ? { Authorization: `Bearer ${token}` } : {}),
+              "Content-Type": "application/json",
+            },
+          },
+        ).catch(() => null);
+        if (altRes && altRes.ok) res = altRes;
+      }
+
+      if (!res.ok) {
+        const teacherRes = await fetch(
+          `${API_BASE}/api/v1/teacher/quizzes/${resolvedId || testCode}`,
+          {
+            headers: {
+              ...(token ? { Authorization: `Bearer ${token}` } : {}),
+              "Content-Type": "application/json",
+            },
+          },
+        ).catch(() => null);
+        if (teacherRes && teacherRes.ok) res = teacherRes;
+      }
+
       if (res.ok) {
         const data = await res.json();
         setTestTitle(data.title || data.quizName || testTitle);
         const backendStudents: StudentRow[] = Array.isArray(data.students)
           ? data.students
           : [];
-        
+
         // Merge backend and local submissions
         const seenNames = new Set(backendStudents.map((s) => s.name.toUpperCase()));
         const combined = [

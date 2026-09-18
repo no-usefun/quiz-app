@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { motion } from "framer-motion";
 import {
   Plus,
@@ -12,7 +13,6 @@ import {
   FileQuestion,
   BookOpen,
   Edit2,
-  AlertCircle,
 } from "lucide-react";
 import { TopNav } from "@/components/TopNav";
 import { useSession } from "@/hooks/useSession";
@@ -22,48 +22,87 @@ const API_BASE = (
 ).replace(/\/+$/, "");
 
 export default function TeacherDashboard() {
-  const { user } = useSession();
+  const router = useRouter();
+  const { user, loading: sessionLoading } = useSession();
   const [tests, setTests] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
   const [copiedCode, setCopiedCode] = useState<string | null>(null);
   const [mounted, setMounted] = useState(false);
 
   useEffect(() => {
     setMounted(true);
+
+    // Strictly await session verification before attempting backend fetch
+    if (sessionLoading) return;
+
     const fetchQuizzes = async () => {
+      let localQuizzes: any[] = [];
       try {
-        const token = localStorage.getItem("dynoquizz_token");
+        const raw = localStorage.getItem("dynoquizz_teacher_quizzes");
+        if (raw) localQuizzes = JSON.parse(raw);
+      } catch {
+        // ignore
+      }
+
+      const token =
+        typeof window !== "undefined"
+          ? localStorage.getItem("dynoquizz_token")
+          : null;
+
+      if (!token) {
+        setTests(localQuizzes);
+        setLoading(false);
+        return;
+      }
+
+      try {
         const res = await fetch(`${API_BASE}/api/v1/teacher/quizzes`, {
           headers: {
-            ...(token ? { Authorization: `Bearer ${token}` } : {}),
+            Authorization: `Bearer ${token}`,
             "Content-Type": "application/json",
           },
         });
 
         if (res.ok) {
           const data = await res.json();
-          setTests(Array.isArray(data) ? data : []);
-        } else if (res.status === 404) {
-          // Gracefully handle 404 if the user just has no quizzes yet
-          setTests([]);
+          const list: any[] = Array.isArray(data)
+            ? data
+            : Array.isArray(data?.content)
+              ? data.content
+              : Array.isArray(data?.data)
+                ? data.data
+                : [];
+
+          // Merge backend list with any local quizzes not yet synced
+          const backendIds = new Set(
+            list.map((q: any) => String(q.quizId ?? q.id)),
+          );
+          const uncommitted = localQuizzes.filter(
+            (l: any) => !backendIds.has(String(l.quizId ?? l.id)),
+          );
+          const combined = [...list, ...uncommitted];
+          setTests(combined);
+          try {
+            localStorage.setItem(
+              "dynoquizz_teacher_quizzes",
+              JSON.stringify(combined),
+            );
+          } catch {
+            // ignore
+          }
         } else {
-          // Throw the exact status code so we can see it
-          throw new Error(`Backend rejected with status: ${res.status}`);
+          setTests(localQuizzes);
         }
-      } catch (e: any) {
+      } catch (e) {
         console.error("Dashboard fetch error:", e);
-        setError(
-          `Connection failed: ${e.message}. Please check the backend console.`,
-        );
-        setTests([]);
+        setTests(localQuizzes);
       } finally {
         setLoading(false);
       }
     };
 
     fetchQuizzes();
-  }, []);
+  }, [sessionLoading]);
 
   const copyCode = (code: string) => {
     navigator.clipboard.writeText(code);
@@ -71,7 +110,6 @@ export default function TeacherDashboard() {
     setTimeout(() => setCopiedCode(null), 2000);
   };
 
-  // FIX: Force the UI to only use the First Name (splits by space if it's a full name)
   const displayName =
     user?.firstName ||
     user?.name?.split(" ")[0] ||
@@ -88,16 +126,16 @@ export default function TeacherDashboard() {
   ).length;
 
   return (
-    <div className="min-h-screen bg-[#f5f5f4] font-sans text-[#111111] flex flex-col">
+    <div className="min-h-screen bg-[#f5f5f4] font-sans text-[#111111] flex flex-col text-left">
       <TopNav role="teacher" />
 
-      <main className="flex-1 p-4 md:p-8 space-y-6 text-left max-w-7xl mx-auto w-full">
+      <main className="flex-1 p-4 md:p-8 space-y-6 max-w-7xl mx-auto w-full">
         <section className="border-b border-[#d1dee8]/50 pb-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
           <div>
             <span className="text-xs font-bold uppercase tracking-widest text-[#78716b]">
               Educator Control Center
             </span>
-            <h1 className="text-2xl font-extrabold tracking-tight text-[#111111] -tracking-wide mt-0.5">
+            <h1 className="text-2xl font-extrabold tracking-tight text-[#111111] mt-0.5">
               Welcome back, {displayName}
             </h1>
             <p className="text-xs text-[#78716b] font-medium mt-0.5">
@@ -148,7 +186,7 @@ export default function TeacherDashboard() {
               Assessments Roster ({tests.length})
             </h2>
             <span className="text-xs font-medium text-[#78716b]">
-              Sorted chronologically
+              Newest first
             </span>
           </div>
 
@@ -156,18 +194,6 @@ export default function TeacherDashboard() {
             {loading ? (
               <div className="rounded-[8.8px] bg-white border border-[#d1dee8] p-10 text-center text-xs text-[#78716b]">
                 Loading assessments roster...
-              </div>
-            ) : error ? (
-              <div className="rounded-[8.8px] bg-[#fbeee8] border border-[#8c381c]/30 p-10 text-center space-y-3">
-                <AlertCircle className="h-8 w-8 text-[#8c381c] mx-auto opacity-80" />
-                <div>
-                  <p className="font-bold text-[#8c381c] text-sm">
-                    Connection Error
-                  </p>
-                  <p className="text-xs text-[#8c381c] mt-0.5 font-medium">
-                    {error}
-                  </p>
-                </div>
               </div>
             ) : tests.length === 0 ? (
               <div className="rounded-[8.8px] bg-white border border-[#d1dee8] p-10 text-center space-y-3">
@@ -192,13 +218,25 @@ export default function TeacherDashboard() {
               </div>
             ) : (
               tests.map((test, idx) => {
-                const code = test.quizCode || test.testCode || "CODE";
+                const quizId = test.quizId ?? test.id;
+                const code = test.quizCode || test.testCode || quizId;
                 const name = test.title || test.quizName || "Assessment";
-                const status = test.status || "PUBLISHED";
+                const status = (test.status || "PUBLISHED").toUpperCase();
+                const isDraft = status === "DRAFT";
+
+                // Clicking the card opens the results/leaderboard page
+                const openResults = () =>
+                  router.push(`/dashboard/teacher/assessment/${quizId}`);
 
                 return (
                   <motion.div
-                    key={code + idx}
+                    key={`${quizId}-${idx}`}
+                    role={isDraft ? undefined : "link"}
+                    tabIndex={isDraft ? undefined : 0}
+                    onClick={isDraft ? undefined : openResults}
+                    onKeyDown={(e) => {
+                      if (!isDraft && e.key === "Enter") openResults();
+                    }}
                     initial={mounted ? { opacity: 0, y: 4 } : false}
                     animate={mounted ? { opacity: 1, y: 0 } : false}
                     transition={{
@@ -206,22 +244,24 @@ export default function TeacherDashboard() {
                       duration: 0.2,
                       ease: "easeOut",
                     }}
-                    className="flex flex-col rounded-[8.8px] bg-white border border-[#d1dee8] p-4 sm:flex-row sm:items-center sm:justify-between gap-4 hover:border-[#165dfb]/40 transition-all duration-200"
+                    className={`flex flex-col rounded-[8.8px] bg-white border border-[#d1dee8] p-4 sm:flex-row sm:items-center sm:justify-between gap-4 hover:border-[#165dfb]/40 transition-all duration-200 ${
+                      isDraft ? "" : "cursor-pointer"
+                    }`}
                   >
-                    <div className="min-w-0 text-left space-y-1">
+                    <div className="min-w-0 space-y-1">
                       <div className="flex items-center gap-2">
                         <span
                           className={`rounded-[8.8px] px-2.5 py-0.5 text-[9px] font-bold border border-[#d1dee8]/30 ${
                             status === "PUBLISHED" || status === "LIVE"
                               ? "bg-[#e2ede8] text-[#1d5237]"
-                              : status === "DRAFT"
+                              : isDraft
                                 ? "bg-[#f6efe1] text-[#73561a]"
                                 : "bg-[#ece9f3] text-[#4c3d73]"
                           }`}
                         >
                           {status}
                         </span>
-                        <h3 className="font-extrabold text-[#111111] text-sm -tracking-wide truncate">
+                        <h3 className="font-extrabold text-[#111111] text-sm truncate">
                           {name}
                         </h3>
                       </div>
@@ -244,13 +284,16 @@ export default function TeacherDashboard() {
                           mins
                         </span>
 
-                        {status !== "DRAFT" && (
+                        {!isDraft && (
                           <button
                             type="button"
-                            onClick={() => copyCode(code)}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              copyCode(String(code));
+                            }}
                             className="flex items-center gap-1 font-mono text-[#165dfb] hover:underline font-bold cursor-pointer bg-transparent border-0"
                           >
-                            {copiedCode === code ? (
+                            {copiedCode === String(code) ? (
                               <>
                                 <CheckCircle2 className="h-3 w-3 text-[#1d5237]" />{" "}
                                 Copied
@@ -266,10 +309,13 @@ export default function TeacherDashboard() {
                       </div>
                     </div>
 
-                    <div className="flex items-center gap-2 shrink-0">
-                      {status === "DRAFT" ? (
+                    <div
+                      className="flex items-center gap-2 shrink-0"
+                      onClick={(e) => e.stopPropagation()}
+                    >
+                      {isDraft ? (
                         <Link
-                          href={`/dashboard/teacher/create?draftId=${code}`}
+                          href={`/dashboard/teacher/create?draftId=${quizId}`}
                           className="flex items-center gap-1.5 rounded-[8.8px] bg-[#165dfb] px-5 py-1.5 text-xs font-bold text-white hover:bg-[#165dfb]/90 active:scale-[0.98] transition-all border-0 cursor-pointer"
                         >
                           <Edit2 className="h-3.5 w-3.5" /> Edit Draft
@@ -277,19 +323,19 @@ export default function TeacherDashboard() {
                       ) : (
                         <>
                           <Link
-                            href={`/dashboard/teacher/share/${code}`}
+                            href={`/dashboard/teacher/share/${quizId}`}
                             className="flex items-center gap-1 rounded-[8.8px] border border-[#d1dee8] bg-[#f5f5f4] px-3 py-1.5 text-xs font-bold text-[#111111] hover:bg-[#e6e3e2] active:scale-[0.98] transition-all cursor-pointer"
                           >
                             Share
                           </Link>
                           <Link
-                            href={`/dashboard/teacher/live/${code}`}
+                            href={`/dashboard/teacher/live/${quizId}`}
                             className="flex items-center gap-1 rounded-[8.8px] bg-[#165dfb] px-3 py-1.5 text-xs font-bold text-white hover:bg-[#165dfb]/90 active:scale-[0.98] transition-all border-0 cursor-pointer"
                           >
                             <BarChart3 className="h-3 w-3 text-white" /> Monitor
                           </Link>
                           <Link
-                            href={`/dashboard/teacher/assessment/${code}`}
+                            href={`/dashboard/teacher/assessment/${quizId}`}
                             className="flex items-center gap-1 rounded-[8.8px] border border-[#d1dee8] bg-white px-3 py-1.5 text-xs font-bold text-[#111111] hover:bg-[#f5f5f4] active:scale-[0.98] transition-all cursor-pointer"
                           >
                             Results

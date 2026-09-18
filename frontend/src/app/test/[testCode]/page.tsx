@@ -21,7 +21,9 @@ const API_BASE = (
 
 function getClientAuthToken(): string | null {
   if (typeof window === "undefined") return null;
+
   let token = localStorage.getItem("dynoquizz_token");
+
   if (!token) {
     const match = document.cookie.match(/(?:^|;\s*)dynoquizz_token=([^;]+)/);
     if (match) {
@@ -33,8 +35,13 @@ function getClientAuthToken(): string | null {
       }
     }
   }
+
   if (token) return token;
-  if (localStorage.getItem("dynoquizz_user")) return "session_active";
+
+  if (localStorage.getItem("dynoquizz_user")) {
+    return "session_active";
+  }
+
   return null;
 }
 
@@ -51,8 +58,9 @@ export default function TestArenaPage({
   const [currentIndex, setCurrentIndex] = useState(0);
   const [selectedOption, setSelectedOption] = useState<number | null>(null);
 
-  // Track answers as a map of questionId -> optionId
+  // Track answers as questionId -> optionId
   const [answers, setAnswers] = useState<Record<number, number>>({});
+
   const [timeTakenPerQuestion, setTimeTakenPerQuestion] = useState<
     Record<number, number>
   >({});
@@ -64,18 +72,29 @@ export default function TestArenaPage({
 
   const { flags } = useProctoring();
 
+  const [saveStatus, setSaveStatus] = useState<"idle" | "saving" | "saved">(
+    "idle",
+  );
+  const [sessionExpired, setSessionExpired] = useState(false);
+  const [deadlineNotice, setDeadlineNotice] = useState<string | null>(null);
+
+  /*
+   * Load test and restore locally cached answers
+   */
   useEffect(() => {
     setMounted(true);
     const cleanCode = testCode.toUpperCase();
 
     if (typeof window !== "undefined") {
       const token = getClientAuthToken();
+
       if (!token) {
         router.push(`/login?role=student&redirect=/test/${cleanCode}`);
         return;
       }
 
       const cached = localStorage.getItem(`dynoquizz_active_test_${cleanCode}`);
+
       if (cached) {
         try {
           const parsed = JSON.parse(cached);
@@ -88,9 +107,9 @@ export default function TestArenaPage({
     }
 
     const loadTest = async () => {
-      const cleanCode = testCode.toUpperCase();
       try {
         const token = localStorage.getItem("dynoquizz_token");
+
         const res = await fetch(
           `${API_BASE}/api/v1/quizzes/code/${cleanCode}/package`,
           {
@@ -103,13 +122,11 @@ export default function TestArenaPage({
 
         if (res.ok) {
           const data = await res.json();
-
-          // Map to backend schema: use questionId and option array directly
           const normalizedQuestions = (data.questions || []).map(
             (q: any, qIdx: number) => ({
               id: q.questionId || qIdx + 1,
               text: q.questionText || `Question ${qIdx + 1}`,
-              options: q.options || [], // Array of {optionId, optionText}
+              options: q.options || [],
               marks: q.marks || 4,
               negativeMarks: q.negativeMarks || (data.negativeMarking ? 1 : 0),
               questionTimerSeconds: q.questionTimerSeconds || 30,
@@ -137,6 +154,7 @@ export default function TestArenaPage({
 
     const handleOnline = () => setIsOnline(true);
     const handleOffline = () => setIsOnline(false);
+
     window.addEventListener("online", handleOnline);
     window.addEventListener("offline", handleOffline);
 
@@ -150,18 +168,57 @@ export default function TestArenaPage({
   const currentQuestion = questions[currentIndex];
   const progressPercentage =
     questions.length > 0 ? ((currentIndex + 1) / questions.length) * 100 : 0;
-  const [saveStatus, setSaveStatus] = useState<"idle" | "saving" | "saved">(
-    "idle",
-  );
 
+  /*
+   * Sync a single selected answer to backend
+   */
+  const syncAnswerToBackend = async (questionId: number, optionId: number) => {
+    try {
+      const token = localStorage.getItem("dynoquizz_token");
+      const attemptId = localStorage.getItem("dynoquizz_attemptId");
+
+      if (!attemptId) {
+        console.warn("No attemptId found. Cannot sync individual answer.");
+        return;
+      }
+
+      const res = await fetch(
+        `${API_BASE}/api/v1/attempts/${attemptId}/answers/${questionId}`,
+        {
+          method: "PUT",
+          headers: {
+            ...(token ? { Authorization: `Bearer ${token}` } : {}),
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            selectedOptionIds: [optionId],
+            responseTimeSeconds: timeTakenPerQuestion[questionId] || 0,
+          }),
+        },
+      );
+
+      if (!res.ok) {
+        throw new Error(`Failed to sync answer. Status: ${res.status}`);
+      }
+    } catch (e) {
+      console.error("Error syncing answer to backend:", e);
+      // Do not block UI. localStorage remains the fallback.
+    }
+  };
+
+  /*
+   * Select an answer
+   */
   const handleSelectOption = (optionId: number) => {
     setSelectedOption(optionId);
     if (!currentQuestion) return;
 
     setSaveStatus("saving");
+
     const newAnswers = { ...answers, [currentQuestion.id]: optionId };
     setAnswers(newAnswers);
 
+    // Save locally as fallback
     try {
       localStorage.setItem(
         `dynoquizz_active_test_${testCode.toUpperCase()}`,
@@ -174,16 +231,20 @@ export default function TestArenaPage({
       // ignore
     }
 
-    setTimeout(() => {
+    // Sync with backend immediately
+    syncAnswerToBackend(currentQuestion.id, optionId).then(() => {
       setSaveStatus("saved");
-    }, 150);
+    });
   };
 
+  /*
+   * Move to next question or submit
+   */
   const advanceOrSubmit = (latestAnswers: Record<number, number>) => {
     if (currentIndex < questions.length - 1) {
       setCurrentIndex((prev) => prev + 1);
       const nextQ = questions[currentIndex + 1];
-      setSelectedOption(latestAnswers[nextQ?.id] || null);
+      setSelectedOption(latestAnswers[nextQ?.id] ?? null);
       setTimeLeft(nextQ?.questionTimerSeconds || 30);
       setSaveStatus("idle");
     } else {
@@ -191,6 +252,9 @@ export default function TestArenaPage({
     }
   };
 
+  /*
+   * Handle Next Question
+   */
   const handleNextQuestion = () => {
     if (!selectedOption && !answers[currentQuestion?.id]) return;
 
@@ -200,9 +264,9 @@ export default function TestArenaPage({
     advanceOrSubmit(newAnswers);
   };
 
-  const [sessionExpired, setSessionExpired] = useState(false);
-  const [deadlineNotice, setDeadlineNotice] = useState<string | null>(null);
-
+  /*
+   * Save active assessment state when leaving tab/page
+   */
   useEffect(() => {
     const cleanCode = testCode.toUpperCase();
     const flushActiveState = () => {
@@ -235,8 +299,12 @@ export default function TestArenaPage({
     };
   }, [answers, timeTakenPerQuestion, testCode]);
 
+  /*
+   * Submit assessment
+   */
   const finishAssessment = async (latestAnswers: Record<number, number>) => {
     if (isSubmitted || !test) return;
+
     setIsSubmitted(true);
 
     try {
@@ -248,35 +316,31 @@ export default function TestArenaPage({
     }
 
     let totalTimeTaken = 0;
-    Object.values(timeTakenPerQuestion).forEach((t) => (totalTimeTaken += t));
-
-    const studentRoll =
-      (typeof window !== "undefined"
-        ? localStorage.getItem("dynoquizz_regNo") ||
-          sessionStorage.getItem("dynoquizz_student_reg")
-        : null) || "Student Candidate";
+    Object.values(timeTakenPerQuestion).forEach((t) => {
+      totalTimeTaken += t;
+    });
 
     try {
       const token = localStorage.getItem("dynoquizz_token");
+      const attemptId = localStorage.getItem("dynoquizz_attemptId");
 
-      // Submit raw optionIds mapped to questionIds to the backend for secure grading
-      const res = await fetch(
-        `${API_BASE}/api/v1/student/quizzes/${testCode.toUpperCase()}/submit`,
-        {
-          method: "POST",
-          headers: {
-            ...(token ? { Authorization: `Bearer ${token}` } : {}),
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({
-            testCode: testCode.toUpperCase(),
-            registrationNo: studentRoll,
-            timeTakenTotalSeconds: totalTimeTaken,
-            answers: latestAnswers, // The backend will evaluate this map securely
-            proctoringFlags: flags, // Pass any integrity flags caught by useProctoring
-          }),
+      // Target the newly updated Submit Attempt API
+      const targetUrl = attemptId
+        ? `${API_BASE}/api/v1/attempts/${attemptId}/submit`
+        : `${API_BASE}/api/v1/student/quizzes/${testCode.toUpperCase()}/submit`; // Fallback
+
+      const res = await fetch(targetUrl, {
+        method: "POST",
+        headers: {
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+          "Content-Type": "application/json",
         },
-      );
+        body: JSON.stringify({
+          timeTakenTotalSeconds: totalTimeTaken,
+          answers: latestAnswers,
+          proctoringFlags: flags,
+        }),
+      });
 
       if (res.status === 401) {
         localStorage.setItem(
@@ -292,6 +356,9 @@ export default function TestArenaPage({
       }
 
       if (res.ok) {
+        // Clear attemptId from local storage upon successful completion
+        localStorage.removeItem("dynoquizz_attemptId");
+
         const data = await res.json();
         if (data.deadlineExceeded || data.error === "EXAM_DEADLINE_EXCEEDED") {
           setDeadlineNotice(
@@ -304,14 +371,19 @@ export default function TestArenaPage({
     }
   };
 
+  /*
+   * Handle timer expiration
+   */
   const handleTimerExpired = () => {
-    // If timer expires and no option is selected, we record -1 (skipped)
     const finalAns = selectedOption || answers[currentQuestion?.id] || -1;
     const newAnswers = { ...answers, [currentQuestion?.id]: finalAns };
     setAnswers(newAnswers);
     advanceOrSubmit(newAnswers);
   };
 
+  /*
+   * Question timer
+   */
   useEffect(() => {
     if (isSubmitted || questions.length === 0 || !currentQuestion) return;
 
@@ -333,6 +405,9 @@ export default function TestArenaPage({
     return () => clearInterval(timer);
   }, [currentIndex, isSubmitted, questions.length, currentQuestion]);
 
+  /*
+   * Session expired screen
+   */
   if (sessionExpired) {
     const allowResume = test?.settings?.allowResume !== false;
     return (
@@ -380,6 +455,9 @@ export default function TestArenaPage({
     );
   }
 
+  /*
+   * Submitted screen
+   */
   if (isSubmitted) {
     return (
       <main className="flex min-h-screen items-center justify-center bg-frost-surface text-midnight-navy p-4 font-sans selection:bg-frost-surface selection:text-signal-green">
@@ -404,13 +482,11 @@ export default function TestArenaPage({
               for evaluation.
             </p>
           </div>
-
           {deadlineNotice && (
             <div className="rounded-inputs border border-pastel-yellow bg-pastel-yellow/20 p-3 text-xs text-pastel-yellow-text text-left font-medium">
               {deadlineNotice}
             </div>
           )}
-
           <div className="flex gap-2 pt-4">
             <Link
               href={`/dashboard/student/result/${testCode.toUpperCase()}`}
@@ -430,6 +506,9 @@ export default function TestArenaPage({
     );
   }
 
+  /*
+   * Test not found/loading
+   */
   if (!test || questions.length === 0) {
     return (
       <main className="flex min-h-screen items-center justify-center bg-[#f5f5f4] text-[#111111] p-4 font-sans">
@@ -458,6 +537,9 @@ export default function TestArenaPage({
     );
   }
 
+  /*
+   * Main assessment UI
+   */
   return (
     <div className="flex min-h-screen bg-frost-surface text-midnight-navy p-4 md:p-6 font-sans selection:bg-frost-surface selection:text-signal-green">
       <motion.div
@@ -474,7 +556,6 @@ export default function TestArenaPage({
             <span className="text-xs font-bold text-steel-blue-gray">
               Question {currentIndex + 1} of {questions.length}
             </span>
-
             {saveStatus === "saving" && (
               <span className="text-[11px] font-bold text-steel-blue-gray">
                 Saving...
@@ -486,7 +567,6 @@ export default function TestArenaPage({
               </span>
             )}
           </div>
-
           <div className="flex items-center gap-3.5 font-sans">
             {isOnline ? (
               <span className="flex items-center gap-1.5 rounded-pills bg-pastel-mint text-pastel-mint-text px-2.5 py-0.5 text-xs font-bold">
@@ -503,7 +583,6 @@ export default function TestArenaPage({
                 Offline Mode
               </span>
             )}
-
             <div
               className={`flex items-center gap-1.5 rounded-pills px-3 py-1 font-bold text-xs transition-colors border ${
                 timeLeft <= 10
@@ -536,7 +615,6 @@ export default function TestArenaPage({
               <h2 className="mb-5 text-lg font-bold leading-snug text-midnight-navy md:text-xl tracking-tight">
                 {currentQuestion.text}
               </h2>
-
               <div className="space-y-2.5">
                 {currentQuestion.options.map((option: any, idx: number) => {
                   const isSelected =
@@ -576,7 +654,6 @@ export default function TestArenaPage({
           <span className="text-[10px] font-medium text-steel-blue-gray">
             Question {currentIndex + 1} of {questions.length}
           </span>
-
           <button
             onClick={handleNextQuestion}
             disabled={!selectedOption && !answers[currentQuestion?.id]}

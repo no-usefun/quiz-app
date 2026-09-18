@@ -25,6 +25,7 @@ import {
 } from "lucide-react";
 import { Logo } from "@/components/Logo";
 import { getStoredResults, getStoredTests } from "@/lib/storage";
+import { resolveQuizIdentifiers } from "@/lib/quizCache";
 
 const API_BASE = (
   process.env.NEXT_PUBLIC_API_URL || "http://localhost:8080"
@@ -35,12 +36,7 @@ type FlagType =
   | "fullscreen_exit"
   | "right_click"
   | "copy_attempt";
-type SortKey =
-  | "rank"
-  | "name"
-  | "score"
-  | "timeTaken"
-  | "flagCount";
+type SortKey = "rank" | "name" | "score" | "timeTaken" | "flagCount";
 type SortDir = "asc" | "desc";
 
 interface StudentRecord {
@@ -54,7 +50,6 @@ interface StudentRecord {
   submitted: boolean;
   flags: { type: FlagType; label: string; count: number }[];
 }
-
 
 function avatarStyle(flagCount: number) {
   if (flagCount >= 4) return "bg-pastel-pink text-pastel-pink-text";
@@ -204,24 +199,39 @@ export default function TeacherAssessmentPage({
     revealSolutions: true,
     showIntegrityFlagsToStudent: false,
   });
+  const [settingsError, setSettingsError] = useState<string | null>(null);
 
   useEffect(() => {
     const fetchAssessmentDetails = async () => {
-      const cleanCode = (testCode || "").toUpperCase();
+      // The URL param may be a numeric quizId (e.g. "42") or an access code.
+      // Resolve both identifiers from the local cache up front.
+      const { quizId: resolvedId, quizCode } = resolveQuizIdentifiers(testCode);
 
-      // Check stored test details
-      const localTest = getStoredTests().find((t) => t.testCode.toUpperCase() === cleanCode);
+      // Match stored tests by access code OR numeric quizId
+      const localTest = getStoredTests().find(
+        (t) =>
+          t.testCode.toUpperCase() === quizCode.toUpperCase() ||
+          (resolvedId &&
+            String((t as any).quizId ?? (t as any).id) === resolvedId),
+      );
 
-      // Check local actual submissions
+      // Match stored submissions by the resolved access code or quizId
       const localStudents: StudentRecord[] = getStoredResults()
-        .filter((r) => r.testCode.toUpperCase() === cleanCode)
+        .filter(
+          (r) =>
+            r.testCode.toUpperCase() === quizCode.toUpperCase() ||
+            (resolvedId && String((r as any).quizId) === resolvedId),
+        )
         .map((r, idx) => ({
           id: idx + 1,
           name: r.studentName || "Candidate",
           avatar: (r.studentName || "C").slice(0, 2).toUpperCase(),
           score: r.score || 0,
-          accuracyPercentage: r.accuracyPercentage ?? (r.totalQuestions > 0 ? Math.round((r.correctCount / r.totalQuestions) * 100) : 0),
-
+          accuracyPercentage:
+            r.accuracyPercentage ??
+            (r.totalQuestions > 0
+              ? Math.round((r.correctCount / r.totalQuestions) * 100)
+              : 0),
           timeTaken: `${Math.floor((r.timeTakenTotalSeconds || 0) / 60)}m ${(r.timeTakenTotalSeconds || 0) % 60}s`,
           timeTakenSeconds: r.timeTakenTotalSeconds || 0,
           submitted: true,
@@ -230,36 +240,120 @@ export default function TeacherAssessmentPage({
 
       try {
         const token = localStorage.getItem("dynoquizz_token");
-        const res = await fetch(
-          `${API_BASE}/api/v1/quizzes/code/${cleanCode}/package`,
-          {
-            headers: {
-              ...(token ? { Authorization: `Bearer ${token}` } : {}),
-              "Content-Type": "application/json",
-            },
-          },
-        );
+        const headers = {
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+          "Content-Type": "application/json",
+        };
 
-        if (res.ok) {
-          const data = await res.json();
-          const backendStudents: StudentRecord[] = Array.isArray(data.students) ? data.students : [];
-          const seen = new Set(backendStudents.map((s) => s.name.toUpperCase()));
+        // Use quizCode for /code/{code}/… endpoints
+        // Use resolvedId (numeric quizId) for the leaderboard if available
+        const leaderboardUrl = resolvedId
+          ? `${API_BASE}/api/v1/quizzes/${resolvedId}/leaderboard`
+          : `${API_BASE}/api/v1/quizzes/${quizCode}/leaderboard`;
+
+        // Fetch Quiz details and Leaderboard simultaneously
+        const [pkgRes, lbRes] = await Promise.all([
+          fetch(`${API_BASE}/api/v1/quizzes/code/${quizCode}/package`, {
+            headers,
+          }).catch(() => null),
+          fetch(leaderboardUrl, { headers }).catch(() => null),
+        ]);
+
+        let pkgData: any = {};
+        if (pkgRes && pkgRes.ok) {
+          pkgData = await pkgRes.json();
+        } else {
+          // Fallback to teacher quiz endpoint by ID if /package by code was 404
+          const altRes = await fetch(
+            `${API_BASE}/api/v1/teacher/quizzes/${testCode}`,
+            { headers },
+          ).catch(() => null);
+          if (altRes && altRes.ok) {
+            pkgData = await altRes.json();
+          }
+        }
+
+        let backendStudents: StudentRecord[] = [];
+        let activeLbRes = lbRes;
+        if ((!activeLbRes || !activeLbRes.ok) && resolvedId && quizCode !== resolvedId) {
+          activeLbRes = await fetch(
+            `${API_BASE}/api/v1/quizzes/${quizCode}/leaderboard`,
+            { headers },
+          ).catch(() => null);
+        }
+
+        if (activeLbRes && activeLbRes.ok) {
+          const lbData = await activeLbRes.json();
+          // Extract array whether it's wrapped in a response object or root level array
+          const rawList = Array.isArray(lbData)
+            ? lbData
+            : lbData.content || lbData.leaderboard || lbData.students || [];
+
+          backendStudents = rawList.map((entry: any, idx: number) => {
+            const timeSecs = Number(
+              entry.timeTakenSeconds || entry.timeTakenTotalSeconds || 0,
+            );
+            return {
+              id: entry.attemptId || entry.id || idx + 1,
+              name:
+                entry.studentName ||
+                entry.registrationNo ||
+                entry.username ||
+                "Candidate",
+              avatar: String(
+                entry.studentName ||
+                  entry.registrationNo ||
+                  entry.username ||
+                  "C",
+              )
+                .slice(0, 2)
+                .toUpperCase(),
+              score: Number(entry.score || entry.percentage || 0),
+              accuracyPercentage: Number(
+                entry.accuracy || entry.score || entry.percentage || 0,
+              ),
+              timeTaken: `${Math.floor(timeSecs / 60)}m ${timeSecs % 60}s`,
+              timeTakenSeconds: timeSecs,
+              submitted: true, // If they are on the leaderboard, they submitted
+              flags: Array.isArray(entry.proctoringFlags)
+                ? entry.proctoringFlags
+                : [],
+            };
+          });
+        }
+
+        if (pkgData.title || backendStudents.length > 0) {
+          const seen = new Set(
+            backendStudents.map((s) => s.name.toUpperCase()),
+          );
           const mergedStudents = [
             ...backendStudents,
             ...localStudents.filter((l) => !seen.has(l.name.toUpperCase())),
           ];
 
           setAssessmentData({
-            ...data,
-            title: data.title || localTest?.quizName || `Assessment ${cleanCode}`,
-            students: mergedStudents.length > 0 ? mergedStudents : localStudents,
+            ...pkgData,
+            title:
+              pkgData.title || localTest?.quizName || `Assessment ${quizCode}`,
+            students:
+              mergedStudents.length > 0 ? mergedStudents : localStudents,
           });
 
-          if (data.settings) {
+          if (pkgData.resultVisibility) {
+            const rv = pkgData.resultVisibility;
             setTestSettings({
-              publishScoresImmediately: !!data.settings.publishScoresImmediately,
-              revealSolutions: !!data.settings.revealSolutions,
-              showIntegrityFlagsToStudent: !!data.settings.showIntegrityFlagsToStudent,
+              publishScoresImmediately: rv === "BOTH" || rv === "LEADERBOARD",
+              revealSolutions: rv === "BOTH" || rv === "QUESTION_WISE",
+              showIntegrityFlagsToStudent:
+                !!pkgData.showIntegrityFlagsToStudent,
+            });
+          } else if (pkgData.settings) {
+            setTestSettings({
+              publishScoresImmediately:
+                !!pkgData.settings.publishScoresImmediately,
+              revealSolutions: !!pkgData.settings.revealSolutions,
+              showIntegrityFlagsToStudent:
+                !!pkgData.settings.showIntegrityFlagsToStudent,
             });
           }
           setLoading(false);
@@ -270,8 +364,8 @@ export default function TeacherAssessmentPage({
       }
 
       setAssessmentData({
-        title: localTest?.quizName || `Assessment Session (${cleanCode})`,
-        quizCode: cleanCode,
+        title: localTest?.quizName || `Assessment Session (${quizCode})`,
+        quizCode,
         targetClass: localTest?.targetClass || "CS302 - 2026 Batch",
         totalStudents: 50,
         overallTimerSeconds: (localTest?.totalTimeLimitMinutes || 30) * 60,
@@ -288,21 +382,125 @@ export default function TeacherAssessmentPage({
     fetchAssessmentDetails();
   }, [testCode]);
 
+  // Update settings on backend, synchronizing resultVisibility and toggles
   const handleToggleSetting = async (key: keyof typeof testSettings) => {
+    const prevSettings = { ...testSettings };
     const newVal = !testSettings[key];
-    setTestSettings((prev) => ({ ...prev, [key]: newVal }));
+    const nextSettings = { ...testSettings, [key]: newVal };
+
+    const nextPub = nextSettings.publishScoresImmediately;
+    const nextRev = nextSettings.revealSolutions;
+    const resultVisibility =
+      nextPub && nextRev
+        ? "BOTH"
+        : nextPub
+          ? "LEADERBOARD"
+          : nextRev
+            ? "QUESTION_WISE"
+            : "NONE";
+
+    // Optimistically update UI
+    setTestSettings(nextSettings);
+    setSettingsError(null);
+
     try {
-      const token = localStorage.getItem("dynoquizz_token");
-      await fetch(`${API_BASE}/api/v1/teacher/quizzes/${testCode}/settings`, {
-        method: "PUT",
-        headers: {
-          Authorization: `Bearer ${token}`,
-          "Content-Type": "application/json",
+      const token =
+        typeof window !== "undefined"
+          ? localStorage.getItem("dynoquizz_token")
+          : null;
+      if (!token) {
+        throw new Error("Authentication token not found. Please log in.");
+      }
+
+      const { quizId: resolvedId, quizCode } = resolveQuizIdentifiers(testCode);
+      const settingsId = resolvedId ?? testCode;
+
+      const payload = {
+        [key]: newVal,
+        resultVisibility,
+        publishScoresImmediately: nextPub,
+        revealSolutions: nextRev,
+        showIntegrityFlagsToStudent: nextSettings.showIntegrityFlagsToStudent,
+      };
+
+      let res = await fetch(
+        `${API_BASE}/api/v1/teacher/quizzes/${settingsId}/settings`,
+        {
+          method: "PUT",
+          headers: {
+            Authorization: `Bearer ${token}`,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify(payload),
         },
-        body: JSON.stringify({ [key]: newVal }),
-      });
-    } catch (e) {
+      );
+
+      // If PUT returned 404 or 405, try PATCH
+      if (!res.ok && res.status !== 401 && res.status !== 403) {
+        const patchRes = await fetch(
+          `${API_BASE}/api/v1/teacher/quizzes/${settingsId}/settings`,
+          {
+            method: "PATCH",
+            headers: {
+              Authorization: `Bearer ${token}`,
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify(payload),
+          },
+        );
+        if (patchRes.ok) res = patchRes;
+      }
+
+      // If still not ok and quizCode is available and different, try with quizCode
+      if (
+        !res.ok &&
+        quizCode &&
+        quizCode !== settingsId &&
+        res.status !== 401 &&
+        res.status !== 403
+      ) {
+        const codeRes = await fetch(
+          `${API_BASE}/api/v1/teacher/quizzes/${quizCode}/settings`,
+          {
+            method: "PUT",
+            headers: {
+              Authorization: `Bearer ${token}`,
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify(payload),
+          },
+        );
+        if (codeRes.ok) res = codeRes;
+      }
+
+      if (!res.ok) {
+        const errData = await res.json().catch(() => ({}));
+        throw new Error(
+          errData.message ||
+            errData.error ||
+            `Server rejected settings update with status ${res.status}`,
+        );
+      }
+
+      const updated = await res.json().catch(() => null);
+      if (updated?.resultVisibility) {
+        const rv = updated.resultVisibility;
+        setTestSettings({
+          publishScoresImmediately: rv === "BOTH" || rv === "LEADERBOARD",
+          revealSolutions: rv === "BOTH" || rv === "QUESTION_WISE",
+          showIntegrityFlagsToStudent:
+            updated.showIntegrityFlagsToStudent ??
+            nextSettings.showIntegrityFlagsToStudent,
+        });
+      }
+    } catch (e: any) {
       console.error("Failed to sync setting to backend:", e);
+      // Visually revert setting on failure
+      setTestSettings(prevSettings);
+      setSettingsError(
+        e.message || "Failed to update assessment settings on the server.",
+      );
+      setTimeout(() => setSettingsError(null), 4000);
     }
   };
 
@@ -318,18 +516,15 @@ export default function TeacherAssessmentPage({
       : [0]),
   );
   const flaggedCount = allStudents.filter((s) => totalFlags(s) > 0).length;
-  const topThree = [...submitted]
-    .sort((a, b) => b.score - a.score)
-    .slice(0, 3);
+  const topThree = [...submitted].sort((a, b) => b.score - a.score).slice(0, 3);
 
   const displayList = useMemo(() => {
     const ranked = [...allStudents]
       .sort((a, b) => (b.score || 0) - (a.score || 0))
       .map((s, i) => ({ ...s, rank: i + 1 }));
 
-    const filtered = ranked.filter(
-      (s) =>
-        s.name?.toLowerCase().includes(query.toLowerCase()),
+    const filtered = ranked.filter((s) =>
+      s.name?.toLowerCase().includes(query.toLowerCase()),
     );
 
     return filtered.sort((a, b) => {
@@ -337,15 +532,13 @@ export default function TeacherAssessmentPage({
       if (sortKey === "rank") cmp = a.rank - b.rank;
       else if (sortKey === "name")
         cmp = (a.name || "").localeCompare(b.name || "");
-      else if (sortKey === "score")
-        cmp = (a.score || 0) - (b.score || 0);
+      else if (sortKey === "score") cmp = (a.score || 0) - (b.score || 0);
       else if (sortKey === "timeTaken")
-        cmp = (a.timeTaken || "").localeCompare(b.timeTaken || "");
+        cmp = (a.timeTakenSeconds || 0) - (b.timeTakenSeconds || 0);
       else if (sortKey === "flagCount") cmp = totalFlags(a) - totalFlags(b);
       return sortDir === "asc" ? cmp : -cmp;
     });
   }, [allStudents, query, sortKey, sortDir]);
-
 
   function toggleSort(key: SortKey) {
     if (sortKey === key) setSortDir((d) => (d === "asc" ? "desc" : "asc"));
@@ -439,6 +632,13 @@ export default function TeacherAssessmentPage({
               <Lock className="h-3.5 w-3.5 text-signal-green" /> Teacher Control
               Panel (Dynamic Settings)
             </h3>
+
+            {settingsError && (
+              <div className="flex items-center gap-2 rounded-inputs bg-pastel-pink/30 border border-pastel-pink text-pastel-pink-text px-3 py-2 text-xs font-bold">
+                <AlertTriangle className="h-3.5 w-3.5 shrink-0" />
+                <span>{settingsError}</span>
+              </div>
+            )}
 
             <div className="grid grid-cols-1 md:grid-cols-3 gap-2.5">
               {[
@@ -721,7 +921,6 @@ export default function TeacherAssessmentPage({
               )}
             </div>
           </section>
-
         </div>
       </div>
     </main>

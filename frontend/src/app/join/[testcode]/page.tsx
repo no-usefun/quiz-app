@@ -96,7 +96,7 @@ export default function TestLandingPage({
     fetchQuizDetails();
   }, [testcode, router]);
 
-  const handleStartExam = (e: React.FormEvent) => {
+  const handleStartExam = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!registrationNo.trim()) {
       setError("Please enter your registered roll / registration number.");
@@ -107,20 +107,70 @@ export default function TestLandingPage({
     const cleanReg = registrationNo.trim().toUpperCase();
 
     // Check whitelist if configured
-    if (quizInfo?.allowedRegistrationNumbers && Array.isArray(quizInfo.allowedRegistrationNumbers) && quizInfo.allowedRegistrationNumbers.length > 0) {
+    if (
+      quizInfo?.allowedRegistrationNumbers &&
+      Array.isArray(quizInfo.allowedRegistrationNumbers) &&
+      quizInfo.allowedRegistrationNumbers.length > 0
+    ) {
       const isAuthorized = quizInfo.allowedRegistrationNumbers.some(
         (r: string) => r.toUpperCase() === cleanReg,
       );
       if (!isAuthorized) {
-        setError(`Registration number "${cleanReg}" is not authorized for assessment session ${cleanCode}. Please contact your instructor.`);
+        setError(
+          `Registration number "${cleanReg}" is not authorized for assessment session ${cleanCode}. Please contact your instructor.`,
+        );
         return;
       }
     }
 
     setSubmitting(true);
+    setError(null);
     localStorage.setItem("dynoquizz_regNo", cleanReg);
     sessionStorage.setItem("dynoquizz_student_reg", cleanReg);
-    router.push(`/test/${cleanCode}`);
+
+    // Call the Start Attempt API
+    try {
+      const token = localStorage.getItem("dynoquizz_token");
+      const res = await fetch(
+        `${API_BASE}/api/v1/quizzes/${cleanCode}/attempts`,
+        {
+          method: "POST",
+          headers: {
+            ...(token ? { Authorization: `Bearer ${token}` } : {}),
+            "Content-Type": "application/json",
+          },
+        },
+      );
+
+      if (!res.ok) {
+        const errData = await res.json().catch(() => ({}));
+        throw new Error(
+          errData.message ||
+            errData.error ||
+            "Failed to start assessment session.",
+        );
+      }
+
+      const data = await res.json();
+
+      // Store the attempt ID so the test arena can use it for syncing answers
+      const attemptId = data.attemptId || data.id;
+      if (attemptId) {
+        localStorage.setItem("dynoquizz_attemptId", attemptId.toString());
+      } else {
+        console.warn("Warning: No attemptId returned from server");
+      }
+
+      // Route to the active test
+      router.push(`/test/${cleanCode}`);
+    } catch (err: any) {
+      console.error("Failed to start attempt:", err);
+      setError(
+        err.message ||
+          "Failed to connect to assessment server. Please try again.",
+      );
+      setSubmitting(false);
+    }
   };
 
   if (loading) {

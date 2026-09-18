@@ -1,5 +1,5 @@
 "use client";
-
+// src/app/test/[testCode]/lobby/page.tsx
 import { use, useState, useEffect, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";

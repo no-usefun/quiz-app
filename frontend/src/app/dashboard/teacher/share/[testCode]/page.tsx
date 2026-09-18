@@ -14,6 +14,7 @@ import {
 } from "lucide-react";
 import { TopNav } from "@/components/TopNav";
 import { useSession } from "@/hooks/useSession";
+import { resolveQuizIdentifiers } from "@/lib/quizCache";
 
 const API_BASE = (
   process.env.NEXT_PUBLIC_API_URL || "http://localhost:8080"
@@ -32,31 +33,106 @@ export default function ShareAssessmentPage({
   const [copiedLink, setCopiedLink] = useState(false);
   const [copiedCode, setCopiedCode] = useState(false);
 
+  // resolvedCode is the human-readable access code the backend expects.
+  // testCode (from the URL) may be a numeric quizId after a creation redirect.
+  const [resolvedCode, setResolvedCode] = useState<string>(testCode);
+
   useEffect(() => {
     const fetchQuizDetails = async () => {
       try {
         const token = localStorage.getItem("dynoquizz_token");
-        const res = await fetch(
-          `${API_BASE}/api/v1/quizzes/code/${testCode}/package`,
+
+        // ── Step 1: resolve the real access code from local cache ─────────
+        // The URL param is a numeric quizId (e.g. "4"). The backend /code/{code}/package
+        // endpoint expects the access code (e.g. "482910"). We resolve it from cache.
+        const { quizId, quizCode } = resolveQuizIdentifiers(testCode);
+        const accessCode = quizCode || testCode;
+        setResolvedCode(accessCode);
+
+        // Find cached quiz object if available
+        let cachedQuiz: any = null;
+        try {
+          const allKeys = Object.keys(localStorage).filter(
+            (k) => k.startsWith("dynoquizz_quizzes_") || k === "dynoquizz_teacher_quizzes",
+          );
+          for (const key of allKeys) {
+            const list: any[] = JSON.parse(localStorage.getItem(key) || "[]");
+            const found = list.find(
+              (q) =>
+                String(q.quizId ?? q.id) === String(testCode) ||
+                String(q.quizCode) === String(testCode),
+            );
+            if (found) {
+              cachedQuiz = found;
+              break;
+            }
+          }
+        } catch {
+          // ignore
+        }
+
+        // ── Step 2: fetch the quiz package using the resolved access code ──
+        let res = await fetch(
+          `${API_BASE}/api/v1/quizzes/code/${accessCode}/package`,
           {
             headers: {
-              Authorization: `Bearer ${token}`,
+              ...(token ? { Authorization: `Bearer ${token}` } : {}),
               "Content-Type": "application/json",
             },
           },
         );
 
-        if (res.status === 404) {
-          throw new Error(
-            "Assessment not found in the database. Ensure it was saved correctly.",
+        if (res.status === 404 && accessCode !== testCode) {
+          // If resolved code was not found, try testCode
+          const retryRes = await fetch(
+            `${API_BASE}/api/v1/quizzes/code/${testCode}/package`,
+            {
+              headers: {
+                ...(token ? { Authorization: `Bearer ${token}` } : {}),
+                "Content-Type": "application/json",
+              },
+            },
           );
+          if (retryRes.ok) res = retryRes;
+        }
+
+        if (res.status === 404) {
+          // Try teacher quiz endpoint with the database id
+          const teacherRes = await fetch(
+            `${API_BASE}/api/v1/teacher/quizzes/${testCode}`,
+            {
+              headers: {
+                ...(token ? { Authorization: `Bearer ${token}` } : {}),
+                "Content-Type": "application/json",
+              },
+            },
+          );
+          if (teacherRes.ok) res = teacherRes;
         }
 
         if (!res.ok) {
+          if (cachedQuiz) {
+            setQuizData(cachedQuiz);
+            if (cachedQuiz.quizCode || cachedQuiz.accessCode) {
+              setResolvedCode(cachedQuiz.quizCode || cachedQuiz.accessCode);
+            }
+            setLoading(false);
+            return;
+          }
+
+          if (res.status === 404) {
+            throw new Error(
+              "Assessment not found in the database. Ensure it was saved correctly.",
+            );
+          }
           throw new Error(`Server returned ${res.status}`);
         }
 
         const data = await res.json();
+        // If the backend response includes the quiz code, prefer it
+        if (data.quizCode || data.accessCode) {
+          setResolvedCode(data.quizCode || data.accessCode);
+        }
         setQuizData(data);
       } catch (e: any) {
         console.error("Failed to load quiz package for sharing:", e);
@@ -75,8 +151,8 @@ export default function ShareAssessmentPage({
 
   const assessmentLink =
     typeof window !== "undefined"
-      ? `${window.location.origin}/join?code=${testCode}`
-      : `http://localhost:3000/join?code=${testCode}`;
+      ? `${window.location.origin}/join?code=${resolvedCode}`
+      : `http://localhost:3000/join?code=${resolvedCode}`;
 
   const copyToClipboard = (text: string, type: "link" | "code") => {
     navigator.clipboard.writeText(text);
@@ -198,10 +274,10 @@ export default function ShareAssessmentPage({
               </span>
               <div className="flex items-center justify-between bg-white border border-[#d1dee8] p-3 rounded-[8.8px]">
                 <span className="font-mono text-lg font-black text-[#165dfb] tracking-wider">
-                  {testCode.toUpperCase()}
+                  {resolvedCode.toUpperCase()}
                 </span>
                 <button
-                  onClick={() => copyToClipboard(testCode, "code")}
+                  onClick={() => copyToClipboard(resolvedCode, "code")}
                   className="flex items-center gap-1 px-3 py-1.5 rounded-[8.8px] bg-[#f5f5f4] hover:bg-[#e6e3e2] text-xs font-bold text-[#111111] transition-colors cursor-pointer border-0"
                 >
                   {copiedCode ? (
