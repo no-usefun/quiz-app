@@ -19,6 +19,7 @@ import com.quiz_app.backend.dto.attempt.AttemptResultResponse;
 import com.quiz_app.backend.dto.attempt.LeaderboardEntryResponse;
 import com.quiz_app.backend.dto.attempt.SaveAnswerRequest;
 import com.quiz_app.backend.dto.attempt.StartAttemptRequest;
+import com.quiz_app.backend.dto.attempt.SubmitAttemptRequest;
 import com.quiz_app.backend.dto.attempt.SubmitAttemptResponse;
 import com.quiz_app.backend.security.CustomUserDetails;
 import com.quiz_app.backend.service.AttemptService;
@@ -69,12 +70,14 @@ public class AttemptController {
     @PostMapping("/attempts/{attemptId}/submit")
     public ResponseEntity<SubmitAttemptResponse> submitAttempt(
             @PathVariable Long attemptId,
+            @RequestBody SubmitAttemptRequest request,
             Authentication authentication) {
 
         CustomUserDetails userDetails = (CustomUserDetails) authentication.getPrincipal();
 
         SubmitAttemptResponse response = attemptService.submitAttempt(
                 attemptId,
+                request,
                 userDetails.getId());
 
         return ResponseEntity.ok(response);
