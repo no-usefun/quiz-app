@@ -92,22 +92,4 @@ public class AttemptController {
         return ResponseEntity.ok(
                 attemptService.getLeaderboard(quizId));
     }
-
-    @PutMapping("/teacher/quizzes/{quizId}/results/publish")
-    public ResponseEntity<Void> publishResults(
-            @PathVariable Long quizId) {
-
-        attemptService.publishResults(quizId);
-
-        return ResponseEntity.noContent().build();
-    }
-
-    @PutMapping("/teacher/quizzes/{quizId}/results/unpublish")
-    public ResponseEntity<Void> unpublishResults(
-            @PathVariable Long quizId) {
-
-        attemptService.unpublishResults(quizId);
-
-        return ResponseEntity.noContent().build();
-    }
 }
