@@ -146,6 +146,7 @@ public class AttemptService {
 
                 attempt.setFinalScore(java.math.BigDecimal.ZERO);
                 attempt.setCreatedAt(now);
+                attempt.setCurrentQuestion(1);
 
                 attempt = quizAttemptRepository.save(attempt);
 
@@ -593,14 +594,11 @@ public class AttemptService {
                                         "You are not authorized to view this result");
                 }
 
-                if (attempt.getStatus() != AttemptStatus.SUBMITTED) {
-                        throw new BadRequestException(
-                                        "Result is available only after submission");
-                }
-
                 Quiz quiz = attempt.getQuiz();
 
-                if (attempt.getStatus() != AttemptStatus.SUBMITTED) {
+                if (attempt.getStatus() != AttemptStatus.SUBMITTED
+                                && attempt.getStatus() != AttemptStatus.AUTO_SUBMITTED) {
+
                         throw new BadRequestException(
                                         "Result is available only after submission");
                 }
@@ -657,14 +655,11 @@ public class AttemptService {
                                         "You are not authorized to view this result");
                 }
 
-                if (attempt.getStatus() != AttemptStatus.SUBMITTED) {
-                        throw new BadRequestException(
-                                        "Result details are available only after submission");
-                }
-
                 Quiz quiz = attempt.getQuiz();
 
-                if (attempt.getStatus() != AttemptStatus.SUBMITTED) {
+                if (attempt.getStatus() != AttemptStatus.SUBMITTED
+                                && attempt.getStatus() != AttemptStatus.AUTO_SUBMITTED) {
+
                         throw new BadRequestException(
                                         "Result is available only after submission");
                 }
@@ -774,7 +769,8 @@ public class AttemptService {
                 List<QuizAttempt> attempts = quizAttemptRepository.findByQuizId(quizId);
 
                 List<QuizAttempt> submittedAttempts = attempts.stream()
-                                .filter(attempt -> attempt.getStatus() == AttemptStatus.SUBMITTED)
+                                .filter(attempt -> attempt.getStatus() == AttemptStatus.SUBMITTED
+                                                || attempt.getStatus() == AttemptStatus.AUTO_SUBMITTED)
                                 .sorted(
                                                 java.util.Comparator
                                                                 .comparing(

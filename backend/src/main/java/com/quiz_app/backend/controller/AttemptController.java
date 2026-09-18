@@ -2,8 +2,8 @@ package com.quiz_app.backend.controller;
 
 import java.util.List;
 
-import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -22,7 +22,6 @@ import com.quiz_app.backend.dto.attempt.StartAttemptRequest;
 import com.quiz_app.backend.dto.attempt.SubmitAttemptResponse;
 import com.quiz_app.backend.security.CustomUserDetails;
 import com.quiz_app.backend.service.AttemptService;
-import org.springframework.security.core.Authentication;
 
 @RestController
 @RequestMapping("/api/v1")
