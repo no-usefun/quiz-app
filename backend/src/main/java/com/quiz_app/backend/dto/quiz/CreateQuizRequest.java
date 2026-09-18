@@ -6,8 +6,6 @@ import java.util.List;
 import com.quiz_app.backend.entity.ResultVisibility;
 
 public record CreateQuizRequest(
-                Long teacherId,
-
                 String title,
                 String description,
                 String instructions,

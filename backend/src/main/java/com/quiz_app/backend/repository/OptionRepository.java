@@ -9,4 +9,6 @@ import com.quiz_app.backend.entity.Option;
 public interface OptionRepository extends JpaRepository<Option, Long> {
 
     List<Option> findByQuestionIdOrderByOptionOrder(Long questionId);
+
+    List<Option> findByQuestionIdAndCorrectTrue(Long questionId);
 }

@@ -1,106 +1,131 @@
 package com.quiz_app.backend.controller;
 
+import java.math.BigDecimal;
 import java.time.LocalDateTime;
-import java.util.List;
 
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertSame;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
-import org.mockito.InjectMocks;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import org.mockito.Mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 import org.mockito.junit.jupiter.MockitoExtension;
-import org.springframework.http.HttpStatus;
-import org.springframework.http.ResponseEntity;
+import org.springframework.http.MediaType;
+import org.springframework.security.core.Authentication;
+import org.springframework.test.web.servlet.MockMvc;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
+import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 
-import com.quiz_app.backend.dto.attempt.AnswerResponse;
 import com.quiz_app.backend.dto.attempt.AttemptResponse;
-import com.quiz_app.backend.dto.attempt.SaveAnswerRequest;
-import com.quiz_app.backend.dto.attempt.StartAttemptRequest;
+import com.quiz_app.backend.dto.attempt.SubmitAttemptRequest;
+import com.quiz_app.backend.dto.attempt.SubmitAttemptResponse;
 import com.quiz_app.backend.entity.AttemptStatus;
+import com.quiz_app.backend.exception.GlobalExceptionHandler;
+import com.quiz_app.backend.security.CustomUserDetails;
 import com.quiz_app.backend.service.AttemptService;
 
 @ExtendWith(MockitoExtension.class)
 class AttemptControllerTest {
 
-    @Mock
-    private AttemptService attemptService;
+        @Mock
+        private AttemptService attemptService;
 
-    @InjectMocks
-    private AttemptController attemptController;
+        @Mock
+        private Authentication authentication;
 
-    private AttemptResponse attemptResponse;
-    private AnswerResponse answerResponse;
+        @Mock
+        private CustomUserDetails userDetails;
 
-    @BeforeEach
-    void setUp() {
-        attemptResponse = new AttemptResponse(
-                1000L,
-                10L,
-                1L,
-                LocalDateTime.now(),
-                null,
-                AttemptStatus.IN_PROGRESS,
-                1,
-                0);
+        private MockMvc mockMvc;
 
-        answerResponse = new AnswerResponse(
-                100L,
-                1L,
-                200L,
-                List.of(301L),
-                15,
-                null);
-    }
+        @BeforeEach
+        void setUp() {
+                mockMvc = MockMvcBuilders
+                                .standaloneSetup(
+                                                new AttemptController(attemptService))
+                                .setControllerAdvice(
+                                                new GlobalExceptionHandler())
+                                .build();
 
-    @Test
-    void startAttempt_shouldReturnCreatedResponse() {
+                when(authentication.getPrincipal())
+                                .thenReturn(userDetails);
 
-        String quizCode = "123456";
+                when(userDetails.getId())
+                                .thenReturn(1L);
+        }
 
-        StartAttemptRequest request = new StartAttemptRequest(20L);
+        @Test
+        void startAttempt_shouldPassAuthenticatedStudentId() throws Exception {
 
-        when(attemptService.startAttempt(quizCode, request))
-                .thenReturn(attemptResponse);
+                AttemptResponse response = new AttemptResponse(
+                                1000L,
+                                10L,
+                                1L,
+                                LocalDateTime.now(),
+                                null,
+                                AttemptStatus.IN_PROGRESS,
+                                1,
+                                0);
 
-        ResponseEntity<AttemptResponse> response = attemptController.startAttempt(quizCode, request);
+                when(attemptService.startAttempt(
+                                "123456",
+                                1L))
+                                .thenReturn(response);
 
-        assertEquals(HttpStatus.CREATED, response.getStatusCode());
-        assertSame(attemptResponse, response.getBody());
+                mockMvc.perform(
+                                post("/api/v1/quizzes/123456/attempts")
+                                                .contentType(MediaType.APPLICATION_JSON)
+                                                .content("{}")
+                                                .principal(authentication))
+                                .andExpect(status().isOk());
 
-        verify(attemptService).startAttempt(quizCode, request);
-    }
+                verify(attemptService)
+                                .startAttempt("123456", 1L);
+        }
 
-    @Test
-    void saveAnswer_shouldReturnOkResponse() {
+        @Test
+        void submitAttempt_shouldPassAuthenticatedStudentId()
+                        throws Exception {
 
-        Long attemptId = 1L;
-        Long questionId = 200L;
+                SubmitAttemptResponse response = new SubmitAttemptResponse(
+                                1000L,
+                                10L,
+                                AttemptStatus.SUBMITTED,
+                                BigDecimal.valueOf(5),
+                                BigDecimal.valueOf(5),
+                                100,
+                                LocalDateTime.now());
 
-        SaveAnswerRequest request = new SaveAnswerRequest(
-                List.of(301L),
-                15);
+                when(attemptService.submitAttempt(
+                                eq(1000L),
+                                any(SubmitAttemptRequest.class),
+                                eq(1L)))
+                                .thenReturn(response);
 
-        when(attemptService.saveAnswer(
-                attemptId,
-                questionId,
-                request))
-                .thenReturn(answerResponse);
+                mockMvc.perform(
+                                post("/api/v1/attempts/1000/submit")
+                                                .contentType(MediaType.APPLICATION_JSON)
+                                                .content("""
+                                                                {
+                                                                  "answers": [
+                                                                    {
+                                                                      "questionId": 100,
+                                                                      "selectedOptionIds": [101],
+                                                                      "responseTimeSeconds": 15
+                                                                    }
+                                                                  ]
+                                                                }
+                                                                """)
+                                                .principal(authentication))
+                                .andExpect(status().isOk());
 
-        ResponseEntity<AnswerResponse> response = attemptController.saveAnswer(
-                attemptId,
-                questionId,
-                request);
-
-        assertEquals(HttpStatus.OK, response.getStatusCode());
-        assertSame(answerResponse, response.getBody());
-
-        verify(attemptService).saveAnswer(
-                attemptId,
-                questionId,
-                request);
-    }
+                verify(attemptService)
+                                .submitAttempt(
+                                                eq(1000L),
+                                                any(SubmitAttemptRequest.class),
+                                                eq(1L));
+        }
 }

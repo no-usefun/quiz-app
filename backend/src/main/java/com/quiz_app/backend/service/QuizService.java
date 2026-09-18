@@ -49,10 +49,17 @@ public class QuizService {
         }
 
         @Transactional
-        public QuizResponse createQuiz(CreateQuizRequest request) {
+        public QuizResponse createQuiz(
+                        CreateQuizRequest request,
+                        Long teacherId) {
 
                 // 1. Find teacher
-                User teacher = userRepository.findById(request.teacherId())
+                if (teacherId == null) {
+                        throw new BadRequestException(
+                                        "Teacher authentication is required");
+                }
+
+                User teacher = userRepository.findById(teacherId)
                                 .orElseThrow(() -> new ResourceNotFoundException("Teacher not found"));
 
                 // 2. Validate teacher role
@@ -210,11 +217,6 @@ public class QuizService {
 
         private void validateQuiz(CreateQuizRequest request) {
 
-                if (request.teacherId() == null) {
-                        throw new BadRequestException(
-                                        "Teacher ID is required");
-                }
-
                 if (request.title() == null || request.title().isBlank()) {
                         throw new BadRequestException(
                                         "Quiz title is required");
@@ -371,6 +373,11 @@ public class QuizService {
 
                 Quiz quiz = quizRepository.findById(quizId)
                                 .orElseThrow(() -> new ResourceNotFoundException("Quiz not found"));
+
+                if (quiz.getStatus() != QuizStatus.PUBLISHED) {
+                        throw new BadRequestException(
+                                        "Quiz is not available to students");
+                }
 
                 var questions = questionRepository
                                 .findByQuizIdOrderByDisplayOrder(quizId);
