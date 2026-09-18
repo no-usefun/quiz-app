@@ -1,6 +1,7 @@
 package com.quiz_app.backend.service;
 
 import java.math.BigDecimal;
+import java.time.LocalDateTime;
 import java.util.concurrent.ThreadLocalRandom;
 
 import org.springframework.stereotype.Service;
@@ -12,9 +13,12 @@ import com.quiz_app.backend.dto.quiz.CreateQuizRequest;
 import com.quiz_app.backend.dto.quiz.OptionRequest;
 import com.quiz_app.backend.dto.quiz.QuestionRequest;
 import com.quiz_app.backend.dto.quiz.QuizResponse;
+import com.quiz_app.backend.entity.ExamState;
 import com.quiz_app.backend.entity.Option;
 import com.quiz_app.backend.entity.Question;
 import com.quiz_app.backend.entity.Quiz;
+import com.quiz_app.backend.entity.QuizStatus;
+import com.quiz_app.backend.entity.ResultVisibility;
 import com.quiz_app.backend.entity.User;
 import com.quiz_app.backend.exception.BadRequestException;
 import com.quiz_app.backend.exception.ResourceNotFoundException;
@@ -73,6 +77,13 @@ public class QuizService {
                 quiz.setSubjectCode(request.subjectCode());
                 quiz.setTotalStudents(request.totalStudents());
 
+                quiz.setResultVisibility(
+                                request.resultVisibility() != null
+                                                ? request.resultVisibility()
+                                                : ResultVisibility.NONE);
+
+                quiz.setResultsPublished(false);
+
                 quiz.setOverallTimerSeconds(request.overallTimerSeconds());
 
                 quiz.setNegativeMarking(request.negativeMarking());
@@ -103,14 +114,12 @@ public class QuizService {
                  * These enum values may need to match the exact defaults
                  * in your database schema.
                  */
-                quiz.setStatus(
-                                com.quiz_app.backend.entity.QuizStatus.DRAFT);
+                quiz.setStatus(QuizStatus.DRAFT);
 
-                quiz.setExamState(
-                                com.quiz_app.backend.entity.ExamState.WAITING);
+                quiz.setExamState(ExamState.WAITING);
 
-                quiz.setCreatedAt(java.time.LocalDateTime.now());
-                quiz.setUpdatedAt(java.time.LocalDateTime.now());
+                quiz.setCreatedAt(LocalDateTime.now());
+                quiz.setUpdatedAt(LocalDateTime.now());
 
                 // 5. Save quiz first because questions need quiz_id
                 quiz = quizRepository.save(quiz);
@@ -140,8 +149,8 @@ public class QuizService {
                         question.setDifficulty(questionRequest.difficulty());
                         question.setDisplayOrder(questionRequest.displayOrder());
 
-                        question.setCreatedAt(java.time.LocalDateTime.now());
-                        question.setUpdatedAt(java.time.LocalDateTime.now());
+                        question.setCreatedAt(LocalDateTime.now());
+                        question.setUpdatedAt(LocalDateTime.now());
 
                         question = questionRepository.save(question);
 
@@ -155,7 +164,7 @@ public class QuizService {
                                 option.setOptionImage(optionRequest.optionImage());
                                 option.setCorrect(optionRequest.isCorrect());
                                 option.setOptionOrder(optionRequest.optionOrder());
-                                option.setCreatedAt(java.time.LocalDateTime.now());
+                                option.setCreatedAt(LocalDateTime.now());
 
                                 optionRepository.save(option);
                         }
@@ -191,6 +200,9 @@ public class QuizService {
 
                                 quiz.getStartTime(),
                                 quiz.getEndTime(),
+
+                                quiz.getResultVisibility(),
+                                quiz.isResultsPublished(),
 
                                 quiz.getStatus(),
                                 quiz.getExamState());
@@ -232,6 +244,11 @@ public class QuizService {
 
                         throw new BadRequestException(
                                         "Quiz must contain at least one question");
+                }
+
+                if (request.resultVisibility() == null) {
+                        throw new BadRequestException(
+                                        "Quiz must have a result visibility declaration");
                 }
 
                 if (request.negativeMarking()
