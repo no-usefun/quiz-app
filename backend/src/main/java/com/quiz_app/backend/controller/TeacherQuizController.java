@@ -8,21 +8,21 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 import com.quiz_app.backend.security.CustomUserDetails;
-import com.quiz_app.backend.service.AttemptService;
 import com.quiz_app.backend.service.QuizService;
+import com.quiz_app.backend.service.TeacherQuizService;
 
 @RestController
 @RequestMapping("/api/v1/teacher")
 public class TeacherQuizController {
 
-    private final AttemptService attemptService;
+    private final TeacherQuizService teacherQuizService;
     private final QuizService quizService;
 
     public TeacherQuizController(
-            AttemptService attemptService,
+            TeacherQuizService teacherQuizService,
             QuizService quizService) {
 
-        this.attemptService = attemptService;
+        this.teacherQuizService = teacherQuizService;
         this.quizService = quizService;
     }
 
@@ -47,7 +47,7 @@ public class TeacherQuizController {
 
         CustomUserDetails userDetails = (CustomUserDetails) authentication.getPrincipal();
 
-        attemptService.publishResults(
+        teacherQuizService.publishResults(
                 quizId,
                 userDetails.getId());
 
@@ -61,7 +61,7 @@ public class TeacherQuizController {
 
         CustomUserDetails userDetails = (CustomUserDetails) authentication.getPrincipal();
 
-        attemptService.unpublishResults(
+        teacherQuizService.unpublishResults(
                 quizId,
                 userDetails.getId());
 

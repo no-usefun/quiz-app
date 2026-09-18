@@ -17,6 +17,8 @@ import com.quiz_app.backend.dto.attempt.AttemptResultDetailResponse;
 import com.quiz_app.backend.dto.attempt.AttemptResultResponse;
 import com.quiz_app.backend.dto.attempt.LeaderboardEntryResponse;
 import com.quiz_app.backend.dto.attempt.SaveAnswerRequest;
+import com.quiz_app.backend.dto.attempt.SubmitAnswerRequest;
+import com.quiz_app.backend.dto.attempt.SubmitAttemptRequest;
 import com.quiz_app.backend.dto.attempt.SubmitAttemptResponse;
 import com.quiz_app.backend.entity.AnswerStatus;
 import com.quiz_app.backend.entity.AttemptStatus;
@@ -146,7 +148,6 @@ public class AttemptService {
 
                 attempt.setFinalScore(java.math.BigDecimal.ZERO);
                 attempt.setCreatedAt(now);
-                attempt.setCurrentQuestion(1);
 
                 attempt = quizAttemptRepository.save(attempt);
 
@@ -337,13 +338,28 @@ public class AttemptService {
         @Transactional
         public SubmitAttemptResponse submitAttempt(
                         Long attemptId,
+                        SubmitAttemptRequest request,
                         Long studentId) {
+
+                if (attemptId == null) {
+                        throw new BadRequestException("Attempt ID is required");
+                }
+
+                if (request == null) {
+                        throw new BadRequestException(
+                                        "Submission request is required");
+                }
+
+                if (studentId == null) {
+                        throw new BadRequestException(
+                                        "Student authentication is required");
+                }
 
                 QuizAttempt attempt = quizAttemptRepository.findById(attemptId)
                                 .orElseThrow(() -> new ResourceNotFoundException("Attempt not found"));
 
-                if (attempt.getStudent() == null ||
-                                !attempt.getStudent().getId().equals(studentId)) {
+                if (attempt.getStudent() == null
+                                || !attempt.getStudent().getId().equals(studentId)) {
 
                         throw new BadRequestException(
                                         "You are not authorized to submit this attempt");
@@ -354,9 +370,176 @@ public class AttemptService {
                                         "Attempt has already been submitted");
                 }
 
+                Quiz quiz = attempt.getQuiz();
+
+                LocalDateTime now = LocalDateTime.now();
+
+                /*
+                 * Backend is the source of truth for the deadline.
+                 */
+                boolean deadlineExceeded = isAttemptDeadlineExceeded(attempt, quiz, now);
+
+                List<SubmitAnswerRequest> submittedAnswers = request.answers();
+
+                if (submittedAnswers == null) {
+                        submittedAnswers = List.of();
+                }
+
+                Set<Long> submittedQuestionIds = submittedAnswers.stream()
+                                .map(SubmitAnswerRequest::questionId)
+                                .filter(java.util.Objects::nonNull)
+                                .collect(Collectors.toSet());
+
+                if (submittedQuestionIds.size() != submittedAnswers.size()) {
+                        throw new BadRequestException(
+                                        "Submission contains duplicate or invalid question IDs");
+                }
+
+                /*
+                 * Save the complete answer sheet before scoring.
+                 */
+                saveSubmittedAnswers(
+                                attempt,
+                                submittedAnswers);
+
+                /*
+                 * If the server deadline has already passed,
+                 * this submission is treated as an auto-submission.
+                 */
+                AttemptStatus finalStatus = deadlineExceeded
+                                ? AttemptStatus.AUTO_SUBMITTED
+                                : AttemptStatus.SUBMITTED;
+
                 return finalizeAttempt(
                                 attempt,
-                                AttemptStatus.SUBMITTED);
+                                finalStatus);
+        }
+
+        private void saveSubmittedAnswers(
+                        QuizAttempt attempt,
+                        List<SubmitAnswerRequest> submittedAnswers) {
+
+                Quiz quiz = attempt.getQuiz();
+
+                List<Question> questions = questionRepository.findByQuizIdOrderByDisplayOrder(
+                                quiz.getId());
+
+                Map<Long, Question> questionMap = questions.stream()
+                                .collect(Collectors.toMap(
+                                                Question::getId,
+                                                Function.identity()));
+
+                for (SubmitAnswerRequest submittedAnswer : submittedAnswers) {
+
+                        if (submittedAnswer.questionId() == null) {
+                                throw new BadRequestException(
+                                                "Question ID is required");
+                        }
+
+                        Question question = questionMap.get(submittedAnswer.questionId());
+
+                        if (question == null) {
+                                throw new BadRequestException(
+                                                "Question does not belong to this quiz: "
+                                                                + submittedAnswer.questionId());
+                        }
+
+                        List<Long> selectedIds = submittedAnswer.selectedOptionIds();
+
+                        if (selectedIds == null) {
+                                selectedIds = List.of();
+                        }
+
+                        if (submittedAnswer.responseTimeSeconds() != null
+                                        && submittedAnswer.responseTimeSeconds() < 0) {
+
+                                throw new BadRequestException(
+                                                "Response time cannot be negative");
+                        }
+
+                        /*
+                         * Load and validate selected options.
+                         */
+                        List<Option> selectedOptions = selectedIds.stream()
+                                        .map(optionId -> optionRepository.findById(optionId)
+                                                        .orElseThrow(() -> new ResourceNotFoundException(
+                                                                        "Option not found: "
+                                                                                        + optionId)))
+                                        .toList();
+
+                        /*
+                         * Make sure every option belongs to this question.
+                         */
+                        for (Option option : selectedOptions) {
+
+                                if (option.getQuestion() == null
+                                                || !option.getQuestion().getId()
+                                                                .equals(question.getId())) {
+
+                                        throw new BadRequestException(
+                                                        "Selected option does not belong to this question");
+                                }
+                        }
+
+                        /*
+                         * Validate MCQ / MSQ / TRUE_FALSE selection rules.
+                         */
+                        validateSelectionCount(
+                                        question,
+                                        selectedOptions);
+
+                        /*
+                         * Find existing answer or create one.
+                         */
+                        StudentAnswer answer = studentAnswerRepository
+                                        .findByAttemptIdAndQuestionId(
+                                                        attempt.getId(),
+                                                        question.getId())
+                                        .orElseGet(StudentAnswer::new);
+
+                        answer.setAttempt(attempt);
+                        answer.setQuestion(question);
+
+                        answer.setAnswerStatus(
+                                        selectedOptions.isEmpty()
+                                                        ? AnswerStatus.UNANSWERED
+                                                        : AnswerStatus.ANSWERED);
+
+                        /*
+                         * Scoring happens later in finalizeAttempt().
+                         */
+                        answer.setCorrect(false);
+                        answer.setMarksAwarded(BigDecimal.ZERO);
+
+                        answer.setResponseTimeSeconds(
+                                        submittedAnswer.responseTimeSeconds());
+
+                        answer.setAnsweredAt(
+                                        selectedOptions.isEmpty()
+                                                        ? null
+                                                        : LocalDateTime.now());
+
+                        answer = studentAnswerRepository.save(answer);
+
+                        /*
+                         * Replace any previous selections.
+                         */
+                        studentSelectedOptionRepository.deleteByAnswerId(
+                                        answer.getId());
+
+                        for (Option option : selectedOptions) {
+
+                                StudentSelectedOption selectedOption = new StudentSelectedOption();
+
+                                selectedOption.setAnswer(answer);
+                                selectedOption.setOption(option);
+                                selectedOption.setCreatedAt(
+                                                LocalDateTime.now());
+
+                                studentSelectedOptionRepository.save(
+                                                selectedOption);
+                        }
+                }
         }
 
         @Transactional
@@ -450,11 +633,8 @@ public class AttemptService {
                         /*
                          * Get the correct options.
                          */
-                        List<Option> correctOptions = optionRepository.findAll().stream()
-                                        .filter(option -> option.getQuestion() != null
-                                                        && option.getQuestion().getId().equals(question.getId())
-                                                        && option.isCorrect())
-                                        .toList();
+                        List<Option> correctOptions = optionRepository.findByQuestionIdAndCorrectTrue(
+                                        question.getId());
 
                         Set<Long> correctOptionIds = correctOptions.stream()
                                         .map(Option::getId)
@@ -816,49 +996,19 @@ public class AttemptService {
                 return result;
         }
 
-        @Transactional
-        public void publishResults(Long quizId, Long teacherId) {
+        private boolean isAttemptDeadlineExceeded(
+                        QuizAttempt attempt,
+                        Quiz quiz,
+                        LocalDateTime now) {
 
-                Quiz quiz = quizRepository.findById(quizId)
-                                .orElseThrow(() -> new ResourceNotFoundException("Quiz not found"));
+                LocalDateTime deadline = attempt.getStartedAt()
+                                .plusSeconds(quiz.getOverallTimerSeconds());
 
-                if (quiz.getTeacher() == null ||
-                                !quiz.getTeacher().getId().equals(teacherId)) {
-
-                        throw new BadRequestException(
-                                        "You are not authorized to publish results for this quiz");
+                if (quiz.getEndTime() != null
+                                && quiz.getEndTime().isBefore(deadline)) {
+                        deadline = quiz.getEndTime();
                 }
 
-                if (quiz.getStatus() != QuizStatus.COMPLETED) {
-                        throw new BadRequestException(
-                                        "Results can only be published after the quiz is completed");
-                }
-
-                quiz.setResultsPublished(true);
-
-                quizRepository.save(quiz);
-        }
-
-        @Transactional
-        public void unpublishResults(Long quizId, Long teacherId) {
-
-                Quiz quiz = quizRepository.findById(quizId)
-                                .orElseThrow(() -> new ResourceNotFoundException("Quiz not found"));
-
-                if (quiz.getTeacher() == null ||
-                                !quiz.getTeacher().getId().equals(teacherId)) {
-
-                        throw new BadRequestException(
-                                        "You are not authorized to publish results for this quiz");
-                }
-
-                if (quiz.getStatus() != QuizStatus.COMPLETED) {
-                        throw new BadRequestException(
-                                        "Results can only be published after the quiz is completed");
-                }
-
-                quiz.setResultsPublished(false);
-
-                quizRepository.save(quiz);
+                return !now.isBefore(deadline);
         }
 }
