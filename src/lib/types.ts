@@ -39,8 +39,7 @@ export interface StudentAnswer {
   selectedOption: string | null;
   timeTakenSeconds: number;
   isCorrect?: boolean;
-  baseScore?: number;
-  speedBonus?: number;
+  score?: number;
 }
 
 export interface StudentTestResult {
@@ -50,13 +49,10 @@ export interface StudentTestResult {
   studentName: string;
   answers: StudentAnswer[];
   submittedAt: string;
-  rawScore: number;       // Base percentage or points
-  adjustedScore: number;  // Final score with speed bonus
+  score: number;           // Unified time-decay score (percentage or points)
   accuracyPercentage?: number;
-  speedBonusTotal?: number;
   totalQuestions: number;
   correctCount: number;
-  grade: string;
   timeTakenTotalSeconds: number;
   flags: {
     type: "tab_switch" | "fullscreen_exit" | "right_click" | "copy_attempt";
@@ -64,3 +60,4 @@ export interface StudentTestResult {
     count: number;
   }[];
 }
+

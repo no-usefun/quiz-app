@@ -12,35 +12,62 @@ export function useSession() {
   const [user, setUser] = useState<any | null>(null);
   const [loading, setLoading] = useState(true);
 
-  const fetchSession = () => {
+  const fetchSession = async () => {
     try {
-      const storedUser = typeof window !== "undefined" ? localStorage.getItem("dynoquizz_user") : null;
-      const token = typeof window !== "undefined" ? localStorage.getItem("dynoquizz_token") : null;
-      const role = typeof window !== "undefined" ? localStorage.getItem("dynoquizz_role") : null;
+      const token =
+        typeof window !== "undefined"
+          ? localStorage.getItem("dynoquizz_token")
+          : null;
+      const storedUser =
+        typeof window !== "undefined"
+          ? localStorage.getItem("dynoquizz_user")
+          : null;
 
+      // 1. Optimistic Load: Instantly load cached user to prevent UI lag
       if (storedUser) {
         try {
-          const parsed = JSON.parse(storedUser);
-          setUser(parsed);
-          setLoading(false);
-          return;
+          setUser(JSON.parse(storedUser));
         } catch (e) {
           // ignore
         }
       }
 
-      if (token) {
-        const defaultRole = (role || "STUDENT").toUpperCase();
-        setUser({
-          name: defaultRole === "TEACHER" ? "Instructor Account" : "Student Candidate",
-          email: defaultRole === "TEACHER" ? "instructor@quizly.app" : "student@quizly.app",
-          role: defaultRole,
-        });
-      } else {
+      if (!token) {
         setUser(null);
+        setLoading(false);
+        return;
       }
-    } catch {
-      setUser(null);
+
+      // 2. Background Verification: Ping the live backend for fresh data
+      const res = await fetch(`${API_BASE}/api/v1/auth/me`, {
+        method: "GET",
+        headers: {
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json",
+        },
+      });
+
+      if (res.ok) {
+        const liveUserData = await res.json();
+        setUser(liveUserData);
+
+        // Keep local cache synced with live database data
+        if (typeof window !== "undefined") {
+          localStorage.setItem("dynoquizz_user", JSON.stringify(liveUserData));
+          localStorage.setItem("dynoquizz_role", liveUserData.role);
+          if (liveUserData.registrationNo) {
+            localStorage.setItem(
+              "dynoquizz_regNo",
+              liveUserData.registrationNo,
+            );
+          }
+        }
+      } else if (res.status === 401 || res.status === 403) {
+        // 3. Security: If token is rejected by backend, clear session
+        await logout();
+      }
+    } catch (err) {
+      console.warn("Session verification network error. Relying on cache.");
     } finally {
       setLoading(false);
     }
@@ -48,27 +75,42 @@ export function useSession() {
 
   useEffect(() => {
     fetchSession();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const login = async (credentials: { email: string; password: string; role?: string }) => {
+  const login = async (credentials: {
+    email: string;
+    password: string;
+    role?: string;
+  }) => {
     try {
-      const res = await fetch("/api/auth/login", {
+      const backendRole = (credentials.role || "STUDENT").toUpperCase();
+      const res = await fetch(`${API_BASE}/api/v1/auth/login`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(credentials),
+        body: JSON.stringify({
+          email: credentials.email.trim(),
+          password: credentials.password,
+          role: backendRole,
+        }),
       });
 
-      const data = await res.json();
-      if (res.ok && data.success) {
+      const data = await res.json().catch(() => ({}));
+
+      if (res.ok) {
+        const returnedRole = (
+          data.user?.role ||
+          data.role ||
+          backendRole
+        ).toUpperCase();
         const userObj = data.user || {
           email: credentials.email,
-          role: (credentials.role || "student").toUpperCase(),
-          name: data.user?.name || credentials.email.split("@")[0],
+          role: returnedRole,
         };
 
         if (typeof window !== "undefined") {
           localStorage.setItem("dynoquizz_user", JSON.stringify(userObj));
-          localStorage.setItem("dynoquizz_role", userObj.role);
+          localStorage.setItem("dynoquizz_role", returnedRole);
           if (data.token) {
             localStorage.setItem("dynoquizz_token", data.token);
             document.cookie = `dynoquizz_token=${data.token}; path=/; max-age=86400`;
@@ -77,31 +119,55 @@ export function useSession() {
         setUser(userObj);
         return userObj;
       }
-      throw new Error(data.error || "Invalid email or password.");
+      throw new Error(
+        data.error || data.message || "Invalid email or password.",
+      );
     } catch (e: any) {
       throw new Error(e.message || "Failed to log in.");
     }
   };
 
-  const signup = async (payload: { name: string; email: string; password: string; role?: string }) => {
+  const signup = async (payload: {
+    firstName: string;
+    lastName: string;
+    email: string;
+    password: string;
+    role?: string;
+  }) => {
     try {
-      const res = await fetch("/api/auth/signup", {
+      const backendRole = (payload.role || "STUDENT").toUpperCase();
+      const combinedName = `${payload.firstName.trim()} ${payload.lastName.trim()}`;
+
+      const res = await fetch(`${API_BASE}/api/v1/auth/signup`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
+        body: JSON.stringify({
+          firstName: payload.firstName.trim(),
+          lastName: payload.lastName.trim(),
+          name: combinedName,
+          email: payload.email.trim(),
+          password: payload.password,
+          role: backendRole,
+        }),
       });
 
-      const data = await res.json();
-      if (res.ok && data.success) {
+      const data = await res.json().catch(() => ({}));
+
+      if (res.ok) {
+        const returnedRole = (
+          data.user?.role ||
+          data.role ||
+          backendRole
+        ).toUpperCase();
         const userObj = data.user || {
           email: payload.email,
-          role: (payload.role || "student").toUpperCase(),
-          name: payload.name,
+          role: returnedRole,
+          name: combinedName,
         };
 
         if (typeof window !== "undefined") {
           localStorage.setItem("dynoquizz_user", JSON.stringify(userObj));
-          localStorage.setItem("dynoquizz_role", userObj.role);
+          localStorage.setItem("dynoquizz_role", returnedRole);
           if (data.token) {
             localStorage.setItem("dynoquizz_token", data.token);
             document.cookie = `dynoquizz_token=${data.token}; path=/; max-age=86400`;
@@ -110,26 +176,36 @@ export function useSession() {
         setUser(userObj);
         return userObj;
       }
-      throw new Error(data.error || "Failed to create account.");
+      throw new Error(
+        data.error || data.message || "Failed to create account.",
+      );
     } catch (e: any) {
       throw new Error(e.message || "Failed to sign up.");
     }
   };
 
   const logout = async () => {
-    try {
-      await fetch("/api/auth/logout", { method: "POST" });
-    } catch {
-      // ignore
-    }
-
+    // Optional: If backend adds an invalidation endpoint later, ping it here
     if (typeof window !== "undefined") {
       localStorage.removeItem("dynoquizz_token");
       localStorage.removeItem("dynoquizz_user");
       localStorage.removeItem("dynoquizz_role");
       localStorage.removeItem("dynoquizz_regNo");
+
+      // Clear any active test caches to prevent data leaking between users
+      const keys = Object.keys(localStorage);
+      for (const key of keys) {
+        if (
+          key.startsWith("dynoquizz_active_test_") ||
+          key.startsWith("dynoquizz_attemptId_")
+        ) {
+          localStorage.removeItem(key);
+        }
+      }
+
       sessionStorage.clear();
-      document.cookie = "dynoquizz_token=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;";
+      document.cookie =
+        "dynoquizz_token=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;";
     }
     setUser(null);
     window.location.href = "/login";

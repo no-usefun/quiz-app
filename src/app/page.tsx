@@ -40,7 +40,6 @@ import { Logo, AppWordmark } from "@/components/Logo";
 import { useSession } from "@/hooks/useSession";
 import { WaveText } from "@/components/WaveText";
 
-
 // ─── Design tokens (inline for zero-class-collision safety) ──────────────────
 const C = {
   ink: "#111111",
@@ -75,17 +74,29 @@ const staggerContainer = (stagger = 0.1, delay = 0) => ({
 
 const childUp = {
   hidden: { opacity: 0, y: 40 },
-  visible: { opacity: 1, y: 0, transition: { duration: 0.55, ease: [0.16, 1, 0.3, 1] as const } },
+  visible: {
+    opacity: 1,
+    y: 0,
+    transition: { duration: 0.55, ease: [0.16, 1, 0.3, 1] as const },
+  },
 };
 
 const childLeft = {
   hidden: { opacity: 0, x: -60 },
-  visible: { opacity: 1, x: 0, transition: { duration: 0.6, ease: [0.16, 1, 0.3, 1] as const } },
+  visible: {
+    opacity: 1,
+    x: 0,
+    transition: { duration: 0.6, ease: [0.16, 1, 0.3, 1] as const },
+  },
 };
 
 const childRight = {
   hidden: { opacity: 0, x: 60 },
-  visible: { opacity: 1, x: 0, transition: { duration: 0.6, ease: [0.16, 1, 0.3, 1] as const } },
+  visible: {
+    opacity: 1,
+    x: 0,
+    transition: { duration: 0.6, ease: [0.16, 1, 0.3, 1] as const },
+  },
 };
 
 // ─── Assessment categories for infinite marquee ───────────────────────────────
@@ -95,11 +106,8 @@ const CATEGORIES = [
   "Academic Evaluations",
   "Certification Tests",
   "Classroom Assessments",
-  "Technical Interviews",
   "Remote Assessments",
-  "Corporate Training",
   "Entrance Examinations",
-  "Professional Licensing",
 ];
 
 // ─── Stage slider data ────────────────────────────────────────────────────────
@@ -143,28 +151,130 @@ const STAGES = [
 
 // ─── Problem cards ───────────────────────────────────────────────────────────
 const PROBLEMS = [
-  { icon: MonitorStop, title: "Tab Switching", desc: "Candidates silently switch to answer-sharing tabs.", from: "left" },
-  { icon: Clipboard, title: "Clipboard Abuse", desc: "Copy-paste exploits bypass question comprehension.", from: "bottom" },
-  { icon: Fullscreen, title: "Fullscreen Exit", desc: "Exiting secure view allows external tool access.", from: "right" },
-  { icon: WifiOff, title: "Network Drops", desc: "Connection loss mid-exam discards in-progress work.", from: "left" },
-  { icon: UserRound, title: "Answer Sharing", desc: "Slow submission patterns signal collusion networks.", from: "bottom" },
-  { icon: BarChart3, title: "No Live Vision", desc: "Teachers see nothing until final grades are submitted.", from: "right" },
+  {
+    icon: MonitorStop,
+    title: "Tab Switching",
+    desc: "Candidates silently switch to answer-sharing tabs.",
+    from: "left",
+  },
+  {
+    icon: Clipboard,
+    title: "Clipboard Abuse",
+    desc: "Copy-paste exploits bypass question comprehension.",
+    from: "bottom",
+  },
+  {
+    icon: Fullscreen,
+    title: "Fullscreen Exit",
+    desc: "Exiting secure view allows external tool access.",
+    from: "right",
+  },
+  {
+    icon: WifiOff,
+    title: "Network Drops",
+    desc: "Connection loss mid-exam discards in-progress work.",
+    from: "left",
+  },
+  {
+    icon: UserRound,
+    title: "Answer Sharing",
+    desc: "Slow submission patterns signal collusion networks.",
+    from: "bottom",
+  },
+  {
+    icon: BarChart3,
+    title: "No Live Vision",
+    desc: "Teachers see nothing until final grades are submitted.",
+    from: "right",
+  },
 ];
 
 // ─── Capability cards ────────────────────────────────────────────────────────
 const CAPABILITIES = [
-  { icon: Eye, label: "Face Verification", bg: C.blue, accent: C.cobalt, pill: "Active" },
-  { icon: Brain, label: "Eye & Head Tracking", bg: C.lavender, accent: "#7c5cbf", pill: "Calibrating" },
-  { icon: MonitorStop, label: "Tab Monitoring", bg: C.peach, accent: "#b05430", pill: "Watching" },
-  { icon: Clipboard, label: "Clipboard Protection", bg: C.mint, accent: "#1d6b42", pill: "Locked" },
-  { icon: Fullscreen, label: "Fullscreen Enforcement", bg: C.yellow, accent: "#8a6a10", pill: "Enforced" },
-  { icon: Wifi, label: "Offline-First Mode", bg: C.blue, accent: C.cobalt, pill: "Ready" },
-  { icon: Timer, label: "Dynamic Time Scoring", bg: C.lavender, accent: "#7c5cbf", pill: "Live" },
-  { icon: BarChart3, label: "Live Teacher Monitor", bg: C.peach, accent: "#b05430", pill: "Streaming" },
-  { icon: ShieldCheck, label: "Integrity Flags", bg: C.rose, accent: "#9c3535", pill: "Flagged" },
-  { icon: FileBarChart2, label: "Analytics Reports", bg: C.mint, accent: "#1d6b42", pill: "Generated" },
-  { icon: Layers, label: "Multi-Session Support", bg: C.yellow, accent: "#8a6a10", pill: "Active" },
-  { icon: Lock, label: "Proctored Submits", bg: C.blue, accent: C.cobalt, pill: "Sealed" },
+  {
+    icon: Eye,
+    label: "Face Verification",
+    bg: C.blue,
+    accent: C.cobalt,
+    pill: "Active",
+  },
+  {
+    icon: Brain,
+    label: "Eye & Head Tracking",
+    bg: C.lavender,
+    accent: "#7c5cbf",
+    pill: "Calibrating",
+  },
+  {
+    icon: MonitorStop,
+    label: "Tab Monitoring",
+    bg: C.peach,
+    accent: "#b05430",
+    pill: "Watching",
+  },
+  {
+    icon: Clipboard,
+    label: "Clipboard Protection",
+    bg: C.mint,
+    accent: "#1d6b42",
+    pill: "Locked",
+  },
+  {
+    icon: Fullscreen,
+    label: "Fullscreen Enforcement",
+    bg: C.yellow,
+    accent: "#8a6a10",
+    pill: "Enforced",
+  },
+  {
+    icon: Wifi,
+    label: "Offline-First Mode",
+    bg: C.blue,
+    accent: C.cobalt,
+    pill: "Ready",
+  },
+  {
+    icon: Timer,
+    label: "Dynamic Time Scoring",
+    bg: C.lavender,
+    accent: "#7c5cbf",
+    pill: "Live",
+  },
+  {
+    icon: BarChart3,
+    label: "Live Teacher Monitor",
+    bg: C.peach,
+    accent: "#b05430",
+    pill: "Streaming",
+  },
+  {
+    icon: ShieldCheck,
+    label: "Integrity Flags",
+    bg: C.rose,
+    accent: "#9c3535",
+    pill: "Flagged",
+  },
+  {
+    icon: FileBarChart2,
+    label: "Analytics Reports",
+    bg: C.mint,
+    accent: "#1d6b42",
+    pill: "Generated",
+  },
+  {
+    icon: Layers,
+    label: "Multi-Session Support",
+    bg: C.yellow,
+    accent: "#8a6a10",
+    pill: "Active",
+  },
+  {
+    icon: Lock,
+    label: "Proctored Submits",
+    bg: C.blue,
+    accent: C.cobalt,
+    pill: "Sealed",
+  },
 ];
 
 // ─── Proctoring simulator ─────────────────────────────────────────────────────
@@ -201,7 +311,9 @@ function ProctoringMonitor() {
         {/* Scanning line */}
         <div
           className="animate-scan absolute left-0 w-full h-0.5 pointer-events-none"
-          style={{ background: `linear-gradient(90deg, transparent, ${C.cobalt}88, transparent)` }}
+          style={{
+            background: `linear-gradient(90deg, transparent, ${C.cobalt}88, transparent)`,
+          }}
         />
         {/* Face outline simulation */}
         <div className="absolute inset-0 flex items-center justify-center">
@@ -209,27 +321,51 @@ function ProctoringMonitor() {
             {/* Head oval */}
             <div
               className="h-20 w-16 rounded-full border-2 opacity-70"
-              style={{ borderColor: step === 4 || step === 5 ? "#ef4444" : C.cobalt }}
+              style={{
+                borderColor: step === 4 || step === 5 ? "#ef4444" : C.cobalt,
+              }}
             />
             {/* Eye tracking dots */}
-            <div className="absolute top-5 left-3 h-1.5 w-1.5 rounded-full animate-blink" style={{ background: C.cobalt }} />
-            <div className="absolute top-5 right-3 h-1.5 w-1.5 rounded-full animate-blink" style={{ background: C.cobalt }} />
+            <div
+              className="absolute top-5 left-3 h-1.5 w-1.5 rounded-full animate-blink"
+              style={{ background: C.cobalt }}
+            />
+            <div
+              className="absolute top-5 right-3 h-1.5 w-1.5 rounded-full animate-blink"
+              style={{ background: C.cobalt }}
+            />
             {/* Corner tracking corners */}
-            <div className="absolute -top-2 -left-2 h-3 w-3 border-l-2 border-t-2 opacity-80" style={{ borderColor: C.cobalt }} />
-            <div className="absolute -top-2 -right-2 h-3 w-3 border-r-2 border-t-2 opacity-80" style={{ borderColor: C.cobalt }} />
-            <div className="absolute -bottom-2 -left-2 h-3 w-3 border-l-2 border-b-2 opacity-80" style={{ borderColor: C.cobalt }} />
-            <div className="absolute -bottom-2 -right-2 h-3 w-3 border-r-2 border-b-2 opacity-80" style={{ borderColor: C.cobalt }} />
+            <div
+              className="absolute -top-2 -left-2 h-3 w-3 border-l-2 border-t-2 opacity-80"
+              style={{ borderColor: C.cobalt }}
+            />
+            <div
+              className="absolute -top-2 -right-2 h-3 w-3 border-r-2 border-t-2 opacity-80"
+              style={{ borderColor: C.cobalt }}
+            />
+            <div
+              className="absolute -bottom-2 -left-2 h-3 w-3 border-l-2 border-b-2 opacity-80"
+              style={{ borderColor: C.cobalt }}
+            />
+            <div
+              className="absolute -bottom-2 -right-2 h-3 w-3 border-r-2 border-b-2 opacity-80"
+              style={{ borderColor: C.cobalt }}
+            />
           </div>
         </div>
         {/* Status label overlay */}
         <div className="absolute bottom-2 left-2 right-2 flex items-center justify-between">
-          <span className="rounded px-1.5 py-0.5 text-[9px] font-bold text-white" style={{ background: "rgba(0,0,0,0.6)" }}>
+          <span
+            className="rounded px-1.5 py-0.5 text-[9px] font-bold text-white"
+            style={{ background: "rgba(0,0,0,0.6)" }}
+          >
             BIOMETRIC MONITOR
           </span>
           <span
             className="rounded px-1.5 py-0.5 text-[9px] font-bold"
             style={{
-              background: step === 4 || step === 5 ? "#ef444433" : `${C.cobalt}33`,
+              background:
+                step === 4 || step === 5 ? "#ef444433" : `${C.cobalt}33`,
               color: step === 4 || step === 5 ? "#ef4444" : C.cobalt,
             }}
           >
@@ -244,7 +380,10 @@ function ProctoringMonitor() {
           <span className="text-[9px] font-bold text-[#111111] uppercase tracking-wider flex items-center gap-1">
             <Zap className="h-3 w-3 text-[#165dfb]" /> PROCTOR ENGINE
           </span>
-          <span className="font-mono text-[10px] font-bold" style={{ color: integrity < 90 ? "#ef4444" : C.cobalt }}>
+          <span
+            className="font-mono text-[10px] font-bold"
+            style={{ color: integrity < 90 ? "#ef4444" : C.cobalt }}
+          >
             {integrity}% integrity
           </span>
         </div>
@@ -256,12 +395,21 @@ function ProctoringMonitor() {
               key={check.label}
               className="flex justify-between items-center text-[10px] font-medium rounded px-1.5 py-0.5 transition-colors"
               style={{
-                background: flagged ? "#fdebec" : isActive ? C.blue : "transparent",
+                background: flagged
+                  ? "#fdebec"
+                  : isActive
+                    ? C.blue
+                    : "transparent",
                 color: flagged ? "#9c3535" : "#78716b",
               }}
             >
               <span>{check.label}</span>
-              <span className="font-bold" style={{ color: flagged ? "#9c3535" : check.ok ? "#1d6b42" : "#78716b" }}>
+              <span
+                className="font-bold"
+                style={{
+                  color: flagged ? "#9c3535" : check.ok ? "#1d6b42" : "#78716b",
+                }}
+              >
                 {flagged ? "⚠ Flagged" : "✓ Active"}
               </span>
             </div>
@@ -285,9 +433,30 @@ interface Candidate {
 function LiveTelemetry() {
   const [tick, setTick] = useState(0);
   const [candidates, setCandidates] = useState<Candidate[]>([
-    { id: "c1", name: "Candidate 01", score: 94, progress: 80, status: "Active", flags: 0 },
-    { id: "c2", name: "Candidate 02", score: 88, progress: 65, status: "Active", flags: 0 },
-    { id: "c3", name: "Candidate 03", score: 81, progress: 40, status: "Active", flags: 0 },
+    {
+      id: "c1",
+      name: "Candidate 01",
+      score: 94,
+      progress: 80,
+      status: "Active",
+      flags: 0,
+    },
+    {
+      id: "c2",
+      name: "Candidate 02",
+      score: 88,
+      progress: 65,
+      status: "Active",
+      flags: 0,
+    },
+    {
+      id: "c3",
+      name: "Candidate 03",
+      score: 81,
+      progress: 40,
+      status: "Active",
+      flags: 0,
+    },
   ]);
   const [alert, setAlert] = useState<string | null>(null);
   const [activeCount, setActiveCount] = useState(42);
@@ -300,9 +469,30 @@ function LiveTelemetry() {
   useEffect(() => {
     if (tick === 0) {
       setCandidates([
-        { id: "c1", name: "Candidate 01", score: 94, progress: 80, status: "Active", flags: 0 },
-        { id: "c2", name: "Candidate 02", score: 88, progress: 65, status: "Active", flags: 0 },
-        { id: "c3", name: "Candidate 03", score: 81, progress: 40, status: "Active", flags: 0 },
+        {
+          id: "c1",
+          name: "Candidate 01",
+          score: 94,
+          progress: 80,
+          status: "Active",
+          flags: 0,
+        },
+        {
+          id: "c2",
+          name: "Candidate 02",
+          score: 88,
+          progress: 65,
+          status: "Active",
+          flags: 0,
+        },
+        {
+          id: "c3",
+          name: "Candidate 03",
+          score: 81,
+          progress: 40,
+          status: "Active",
+          flags: 0,
+        },
       ]);
       setAlert(null);
       setActiveCount(42);
@@ -310,20 +500,31 @@ function LiveTelemetry() {
       // Candidate 04 joins
       setCandidates((p) => [
         ...p,
-        { id: "c4", name: "Candidate 04", score: 0, progress: 3, status: "Joined", flags: 0 },
+        {
+          id: "c4",
+          name: "Candidate 04",
+          score: 0,
+          progress: 3,
+          status: "Joined",
+          flags: 0,
+        },
       ]);
       setActiveCount(43);
       setAlert("Candidate 04 joined the session");
     } else if (tick === 2) {
       // Candidate 02 progress jumps to 91%
       setCandidates((p) =>
-        p.map((c) => (c.id === "c2" ? { ...c, progress: 91, score: 91 } : c))
+        p.map((c) => (c.id === "c2" ? { ...c, progress: 91, score: 91 } : c)),
       );
       setAlert(null);
     } else if (tick === 3) {
       // Candidate 04 active and scoring
       setCandidates((p) =>
-        p.map((c) => (c.id === "c4" ? { ...c, progress: 28, score: 76, status: "Active" } : c))
+        p.map((c) =>
+          c.id === "c4"
+            ? { ...c, progress: 28, score: 76, status: "Active" }
+            : c,
+        ),
       );
     } else if (tick === 4) {
       // Sort by score DESC — ranks shuffle
@@ -333,7 +534,14 @@ function LiveTelemetry() {
       // Candidate 07 tab switch flag
       setCandidates((p) => [
         ...p,
-        { id: "c7", name: "Candidate 07", score: 67, progress: 48, status: "Flagged", flags: 1 },
+        {
+          id: "c7",
+          name: "Candidate 07",
+          score: 67,
+          progress: 48,
+          status: "Flagged",
+          flags: 1,
+        },
       ]);
       setAlert("⚠ Tab switch detected — Candidate 07");
     } else if (tick === 6) {
@@ -350,8 +558,14 @@ function LiveTelemetry() {
       <div className="flex items-center justify-between px-5 py-3 border-b border-[#d1dee8]/50 bg-[#f5f5f4]">
         <div className="flex items-center gap-2">
           <span className="relative flex h-2 w-2">
-            <span className="animate-ping absolute inline-flex h-full w-full rounded-full opacity-75" style={{ background: C.cobalt }} />
-            <span className="relative inline-flex rounded-full h-2 w-2" style={{ background: C.cobalt }} />
+            <span
+              className="animate-ping absolute inline-flex h-full w-full rounded-full opacity-75"
+              style={{ background: C.cobalt }}
+            />
+            <span
+              className="relative inline-flex rounded-full h-2 w-2"
+              style={{ background: C.cobalt }}
+            />
           </span>
           <span className="text-[10px] font-bold text-[#111111] uppercase tracking-widest">
             Live Teacher Console — Session CS-302
@@ -359,7 +573,11 @@ function LiveTelemetry() {
         </div>
         <span
           className="rounded-full px-2.5 py-0.5 text-[9px] font-bold border"
-          style={{ background: C.mint, borderColor: "#c0e8d0", color: "#1d6b42" }}
+          style={{
+            background: C.mint,
+            borderColor: "#c0e8d0",
+            color: "#1d6b42",
+          }}
         >
           {activeCount} Online
         </span>
@@ -380,7 +598,9 @@ function LiveTelemetry() {
                 color: alert.startsWith("⚠") ? "#9c3535" : C.cobalt,
               }}
             >
-              {alert.startsWith("⚠") && <AlertTriangle className="h-3 w-3 shrink-0" />}
+              {alert.startsWith("⚠") && (
+                <AlertTriangle className="h-3 w-3 shrink-0" />
+              )}
               {alert}
             </motion.div>
           )}
@@ -415,23 +635,44 @@ function LiveTelemetry() {
                     {c.name.split(" ")[1]}
                   </div>
                   <div>
-                    <p className="text-xs font-extrabold text-[#111111]">{c.name}</p>
+                    <p className="text-xs font-extrabold text-[#111111]">
+                      {c.name}
+                    </p>
                     <div className="flex items-center gap-2 mt-0.5">
-                      <div className="w-24 h-1 rounded-full overflow-hidden" style={{ background: C.ice }}>
+                      <div
+                        className="w-24 h-1 rounded-full overflow-hidden"
+                        style={{ background: C.ice }}
+                      >
                         <div
                           className="h-full transition-all duration-700"
-                          style={{ width: `${c.progress}%`, background: flagged ? "#9c3535" : C.cobalt }}
+                          style={{
+                            width: `${c.progress}%`,
+                            background: flagged ? "#9c3535" : C.cobalt,
+                          }}
                         />
                       </div>
-                      <span className="text-[8px] font-mono text-[#78716b]">{c.progress}%</span>
+                      <span className="text-[8px] font-mono text-[#78716b]">
+                        {c.progress}%
+                      </span>
                     </div>
                   </div>
                 </div>
                 <div className="text-right">
-                  <p className="text-xs font-bold tabular-nums" style={{ color: C.ink }}>{c.score}%</p>
+                  <p
+                    className="text-xs font-bold tabular-nums"
+                    style={{ color: C.ink }}
+                  >
+                    {c.score}%
+                  </p>
                   <p
                     className="text-[8px] font-bold uppercase"
-                    style={{ color: flagged ? "#9c3535" : submitted ? C.cobalt : "#78716b" }}
+                    style={{
+                      color: flagged
+                        ? "#9c3535"
+                        : submitted
+                          ? C.cobalt
+                          : "#78716b",
+                    }}
                   >
                     {flagged ? "⚠ Flagged" : c.status}
                   </p>
@@ -457,16 +698,25 @@ function ScoreDecayWidget() {
 
   return (
     <div className="rounded-[8.8px] border border-[#d1dee8] bg-white p-4 space-y-3">
-      <span className="text-[9px] font-bold text-[#78716b] uppercase tracking-wider">Dynamic Pacing Score</span>
-      <div className="w-full h-2 rounded-full overflow-hidden" style={{ background: C.chalk }}>
+      <span className="text-[9px] font-bold text-[#78716b] uppercase tracking-wider">
+        Dynamic Pacing Score
+      </span>
+      <div
+        className="w-full h-2 rounded-full overflow-hidden"
+        style={{ background: C.chalk }}
+      >
         <div
           className="h-full transition-all duration-1000"
           style={{ width: `${pct}%`, background: C.cobalt }}
         />
       </div>
       <div className="flex justify-between text-[10px]">
-        <span className="font-bold" style={{ color: C.ink }}>{t}s left</span>
-        <span className="font-bold" style={{ color: C.cobalt }}>{score}% value</span>
+        <span className="font-bold" style={{ color: C.ink }}>
+          {t}s left
+        </span>
+        <span className="font-bold" style={{ color: C.cobalt }}>
+          {score}% value
+        </span>
       </div>
     </div>
   );
@@ -476,7 +726,9 @@ function ScoreDecayWidget() {
 function JoinCodeWidget() {
   return (
     <div className="rounded-[8.8px] border border-[#d1dee8] bg-white p-4 text-center space-y-2">
-      <span className="text-[9px] font-bold text-[#78716b] uppercase tracking-wider block">Join Assessment</span>
+      <span className="text-[9px] font-bold text-[#78716b] uppercase tracking-wider block">
+        Join Assessment
+      </span>
       <div
         className="font-mono text-lg font-black rounded-[8.8px] py-2 px-4 tracking-widest border"
         style={{ background: C.blue, borderColor: "#c5d8f7", color: C.cobalt }}
@@ -486,7 +738,9 @@ function JoinCodeWidget() {
       <div className="flex justify-center" style={{ color: C.fog }}>
         <QrCode className="h-10 w-10 opacity-40" />
       </div>
-      <span className="text-[9px] text-[#78716b] font-medium">Or scan QR code</span>
+      <span className="text-[9px] text-[#78716b] font-medium">
+        Or scan QR code
+      </span>
     </div>
   );
 }
@@ -512,7 +766,9 @@ export default function Home() {
     sliderTimer.current = setInterval(() => {
       setActiveSlide((p) => (p + 1) % STAGES.length);
     }, 4800);
-    return () => { if (sliderTimer.current) clearInterval(sliderTimer.current); };
+    return () => {
+      if (sliderTimer.current) clearInterval(sliderTimer.current);
+    };
   }, [autoplay]);
 
   // Shared viewport motion props
@@ -530,16 +786,43 @@ export default function Home() {
       >
         <div className="mx-auto flex max-w-6xl items-center justify-between px-6 py-4">
           <Logo />
-          <nav className="hidden md:flex items-center gap-8 text-xs font-bold" style={{ color: C.fog }}>
-            <Link href="#problem" className="hover:text-[#111111] transition-colors">Why Quizly</Link>
-            <Link href="#proctoring" className="hover:text-[#111111] transition-colors">AI Proctoring</Link>
-            <Link href="#telemetry" className="hover:text-[#111111] transition-colors">Live Monitor</Link>
-            <Link href="#workflow" className="hover:text-[#111111] transition-colors">Workflow</Link>
+          <nav
+            className="hidden md:flex items-center gap-8 text-xs font-bold"
+            style={{ color: C.fog }}
+          >
+            <Link
+              href="#problem"
+              className="hover:text-[#111111] transition-colors"
+            >
+              Why Quizly
+            </Link>
+            <Link
+              href="#proctoring"
+              className="hover:text-[#111111] transition-colors"
+            >
+              AI Proctoring
+            </Link>
+            <Link
+              href="#telemetry"
+              className="hover:text-[#111111] transition-colors"
+            >
+              Live Monitor
+            </Link>
+            <Link
+              href="#workflow"
+              className="hover:text-[#111111] transition-colors"
+            >
+              Workflow
+            </Link>
           </nav>
           <div className="flex items-center gap-2.5">
             {user ? (
               <Link
-                href={user.role === "teacher" ? "/dashboard/teacher" : "/dashboard/student"}
+                href={
+                  user.role === "teacher"
+                    ? "/dashboard/teacher"
+                    : "/dashboard/student"
+                }
                 className="flex items-center gap-1.5 rounded-[8.8px] px-4 py-2 text-xs font-bold text-white border-0 transition-colors"
                 style={{ background: C.cobalt }}
               >
@@ -569,14 +852,25 @@ export default function Home() {
           animate={{ opacity: 1, scale: 1 }}
           transition={{ duration: 0.5, delay: 0.1 }}
           className="mb-5 inline-flex items-center gap-1.5 rounded-full px-3.5 py-1 text-xs font-bold border"
-          style={{ background: C.blue, borderColor: "#c5d8f7", color: C.cobalt }}
+          style={{
+            background: C.blue,
+            borderColor: "#c5d8f7",
+            color: C.cobalt,
+          }}
         >
-          <Sparkles className="h-3 w-3" /> Offline-First  ·  AI-Proctored  ·  Real-Time
+          <Sparkles className="h-3 w-3" /> Offline-First · AI-Proctored ·
+          Real-Time
         </motion.div>
 
         {/* Main heading — WaveText word-by-word */}
-        <h1 className="max-w-4xl text-4xl sm:text-6xl font-extrabold leading-tight -tracking-wide" style={{ color: C.ink }}>
-          <WaveText text="Secure. Fair. AI-Proctored Assessments." stagger={0.07} />
+        <h1
+          className="max-w-4xl text-4xl sm:text-6xl font-extrabold leading-tight -tracking-wide"
+          style={{ color: C.ink }}
+        >
+          <WaveText
+            text="Secure. Fair. AI-Proctored Assessments."
+            stagger={0.07}
+          />
         </h1>
 
         {/* Sub-heading */}
@@ -587,8 +881,9 @@ export default function Home() {
           className="mx-auto mt-6 max-w-2xl text-sm leading-relaxed font-medium"
           style={{ color: C.fog }}
         >
-          Quizly runs offline-ready assessments with local edge AI, biometric face verification,
-          movement monitoring, and anti-cheat detection — all synced live to the teacher console.
+          Quizly runs offline-ready assessments with local edge AI, biometric
+          face verification, movement monitoring, and anti-cheat detection — all
+          synced live to the teacher console.
         </motion.p>
 
         {/* CTAs */}
@@ -623,7 +918,10 @@ export default function Home() {
           style={{ color: C.fog }}
         >
           <span className="flex items-center gap-1">
-            <span className="h-1.5 w-1.5 rounded-full animate-blink" style={{ background: "#1d6b42" }} />
+            <span
+              className="h-1.5 w-1.5 rounded-full animate-blink"
+              style={{ background: "#1d6b42" }}
+            />
             System Operational
           </span>
           <span className="flex items-center gap-1">
@@ -651,14 +949,27 @@ export default function Home() {
             variants={staggerContainer(0.08)}
             className="text-center mb-14"
           >
-            <motion.span variants={childUp} className="text-[10px] font-bold uppercase tracking-widest block mb-2" style={{ color: C.cobalt }}>
+            <motion.span
+              variants={childUp}
+              className="text-[10px] font-bold uppercase tracking-widest block mb-2"
+              style={{ color: C.cobalt }}
+            >
               The Challenge
             </motion.span>
-            <motion.h2 variants={childUp} className="text-3xl sm:text-4xl font-extrabold -tracking-wide max-w-3xl mx-auto" style={{ color: C.ink }}>
+            <motion.h2
+              variants={childUp}
+              className="text-3xl sm:text-4xl font-extrabold -tracking-wide max-w-3xl mx-auto"
+              style={{ color: C.ink }}
+            >
               <WaveText text="Online assessments are easy to compromise." />
             </motion.h2>
-            <motion.p variants={childUp} className="mt-4 text-sm font-medium max-w-xl mx-auto" style={{ color: C.fog }}>
-              Standard exam environments give supervisors almost no visibility into what candidates actually do during the test.
+            <motion.p
+              variants={childUp}
+              className="mt-4 text-sm font-medium max-w-xl mx-auto"
+              style={{ color: C.fog }}
+            >
+              Standard exam environments give supervisors almost no visibility
+              into what candidates actually do during the test.
             </motion.p>
           </motion.div>
 
@@ -670,7 +981,12 @@ export default function Home() {
             className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3"
           >
             {PROBLEMS.map(({ icon: Icon, title, desc, from }) => {
-              const variant = from === "left" ? childLeft : from === "right" ? childRight : childUp;
+              const variant =
+                from === "left"
+                  ? childLeft
+                  : from === "right"
+                    ? childRight
+                    : childUp;
               return (
                 <motion.div
                   key={title}
@@ -686,8 +1002,18 @@ export default function Home() {
                     <Icon className="h-4 w-4" style={{ color: "#9c3535" }} />
                   </div>
                   <div>
-                    <h3 className="text-xs font-extrabold mb-0.5" style={{ color: C.ink }}>{title}</h3>
-                    <p className="text-[11px] font-medium leading-relaxed" style={{ color: C.fog }}>{desc}</p>
+                    <h3
+                      className="text-xs font-extrabold mb-0.5"
+                      style={{ color: C.ink }}
+                    >
+                      {title}
+                    </h3>
+                    <p
+                      className="text-[11px] font-medium leading-relaxed"
+                      style={{ color: C.fog }}
+                    >
+                      {desc}
+                    </p>
                   </div>
                 </motion.div>
               );
@@ -703,10 +1029,15 @@ export default function Home() {
           >
             <div
               className="inline-flex items-center gap-2 rounded-[8.8px] border px-5 py-3 text-xs font-bold"
-              style={{ background: "white", borderColor: C.ice, color: C.cobalt }}
+              style={{
+                background: "white",
+                borderColor: C.ice,
+                color: C.cobalt,
+              }}
             >
               <CheckCircle2 className="h-4 w-4" />
-              Quizly brings assessment, integrity, and intelligence into a single platform.
+              Quizly brings assessment, integrity, and intelligence into a
+              single platform.
             </div>
           </motion.div>
         </div>
@@ -727,14 +1058,31 @@ export default function Home() {
             variants={staggerContainer(0.1)}
             className="text-center mb-16"
           >
-            <motion.span variants={childUp} className="text-[10px] font-bold uppercase tracking-widest block mb-2" style={{ color: C.cobalt }}>
+            <motion.span
+              variants={childUp}
+              className="text-[10px] font-bold uppercase tracking-widest block mb-2"
+              style={{ color: C.cobalt }}
+            >
               AI Proctoring
             </motion.span>
-            <motion.h2 variants={childUp} className="text-3xl sm:text-4xl font-extrabold -tracking-wide max-w-3xl mx-auto" style={{ color: C.ink }}>
-              <WaveText text="Your assessment has eyes on the important moments." stagger={0.06} />
+            <motion.h2
+              variants={childUp}
+              className="text-3xl sm:text-4xl font-extrabold -tracking-wide max-w-3xl mx-auto"
+              style={{ color: C.ink }}
+            >
+              <WaveText
+                text="Your assessment has eyes on the important moments."
+                stagger={0.06}
+              />
             </motion.h2>
-            <motion.p variants={childUp} className="mt-4 text-sm font-medium max-w-xl mx-auto" style={{ color: C.fog }}>
-              Local edge routines detect tab changes, fullscreen exits, clipboard events, head movement, and multiple faces — instantly, without heavy data transfer.
+            <motion.p
+              variants={childUp}
+              className="mt-4 text-sm font-medium max-w-xl mx-auto"
+              style={{ color: C.fog }}
+            >
+              Local edge routines detect tab changes, fullscreen exits,
+              clipboard events, head movement, and multiple faces — instantly,
+              without heavy data transfer.
             </motion.p>
           </motion.div>
 
@@ -745,9 +1093,18 @@ export default function Home() {
               initial={{ opacity: 0, x: -80, rotate: -5 }}
               whileInView={{ opacity: 1, x: 0, rotate: -5 }}
               viewport={vp}
-              whileHover={{ rotate: 0, y: -8, scale: 1.02, transition: { duration: 0.25 } }}
+              whileHover={{
+                rotate: 0,
+                y: -8,
+                scale: 1.02,
+                transition: { duration: 0.25 },
+              }}
               className="absolute left-0 lg:-left-8 w-64 rounded-[8.8px] border p-5 cursor-pointer z-0 hidden lg:flex flex-col gap-4"
-              style={{ background: C.mint, borderColor: "#c0e8d0", top: "50px" }}
+              style={{
+                background: C.mint,
+                borderColor: "#c0e8d0",
+                top: "50px",
+              }}
             >
               <div
                 className="h-8 w-8 rounded-[8.8px] flex items-center justify-center border"
@@ -755,9 +1112,19 @@ export default function Home() {
               >
                 <Lock className="h-4 w-4" style={{ color: C.cobalt }} />
               </div>
-              <h3 className="text-xs font-extrabold -tracking-wide" style={{ color: C.ink }}>Instant Code Join</h3>
+              <h3
+                className="text-xs font-extrabold -tracking-wide"
+                style={{ color: C.ink }}
+              >
+                Instant Code Join
+              </h3>
               <JoinCodeWidget />
-              <span className="text-[9px] font-bold uppercase tracking-wider" style={{ color: "#1d6b42" }}>Frictionless Entry</span>
+              <span
+                className="text-[9px] font-bold uppercase tracking-wider"
+                style={{ color: "#1d6b42" }}
+              >
+                Frictionless Entry
+              </span>
             </motion.div>
 
             {/* Center card (dominant) */}
@@ -783,12 +1150,27 @@ export default function Home() {
                   Core Feature
                 </span>
               </div>
-              <h3 className="text-sm font-extrabold -tracking-wide" style={{ color: C.ink }}>Edge-AI Proctoring</h3>
-              <p className="text-xs font-medium leading-relaxed" style={{ color: C.fog }}>
-                Locally-running browser routines monitor camera feeds, detect suspicious motion, and flag integrity events with zero server round-trips.
+              <h3
+                className="text-sm font-extrabold -tracking-wide"
+                style={{ color: C.ink }}
+              >
+                Edge-AI Proctoring
+              </h3>
+              <p
+                className="text-xs font-medium leading-relaxed"
+                style={{ color: C.fog }}
+              >
+                Locally-running browser routines monitor camera feeds, detect
+                suspicious motion, and flag integrity events with zero server
+                round-trips.
               </p>
               <ProctoringMonitor />
-              <span className="text-[9px] font-bold uppercase tracking-wider" style={{ color: C.cobalt }}>Integrity Shield</span>
+              <span
+                className="text-[9px] font-bold uppercase tracking-wider"
+                style={{ color: C.cobalt }}
+              >
+                Integrity Shield
+              </span>
             </motion.div>
 
             {/* Right side card (clipped, rotated) */}
@@ -796,9 +1178,18 @@ export default function Home() {
               initial={{ opacity: 0, x: 80, rotate: 5 }}
               whileInView={{ opacity: 1, x: 0, rotate: 5 }}
               viewport={vp}
-              whileHover={{ rotate: 0, y: -8, scale: 1.02, transition: { duration: 0.25 } }}
+              whileHover={{
+                rotate: 0,
+                y: -8,
+                scale: 1.02,
+                transition: { duration: 0.25 },
+              }}
               className="absolute right-0 lg:-right-8 w-64 rounded-[8.8px] border p-5 cursor-pointer z-0 hidden lg:flex flex-col gap-4"
-              style={{ background: C.lavender, borderColor: "#d8d0f0", top: "50px" }}
+              style={{
+                background: C.lavender,
+                borderColor: "#d8d0f0",
+                top: "50px",
+              }}
             >
               <div
                 className="h-8 w-8 rounded-[8.8px] flex items-center justify-center border"
@@ -806,9 +1197,19 @@ export default function Home() {
               >
                 <Timer className="h-4 w-4" style={{ color: C.cobalt }} />
               </div>
-              <h3 className="text-xs font-extrabold -tracking-wide" style={{ color: C.ink }}>Dynamic Time Scoring</h3>
+              <h3
+                className="text-xs font-extrabold -tracking-wide"
+                style={{ color: C.ink }}
+              >
+                Dynamic Time Scoring
+              </h3>
               <ScoreDecayWidget />
-              <span className="text-[9px] font-bold uppercase tracking-wider" style={{ color: "#7c5cbf" }}>Cognitive Velocity</span>
+              <span
+                className="text-[9px] font-bold uppercase tracking-wider"
+                style={{ color: "#7c5cbf" }}
+              >
+                Cognitive Velocity
+              </span>
             </motion.div>
           </div>
         </div>
@@ -824,30 +1225,73 @@ export default function Home() {
         style={{ background: C.lavender, borderColor: C.ice }}
       >
         <div className="max-w-5xl mx-auto text-center">
-          <span className="text-[10px] font-bold uppercase tracking-widest block mb-2" style={{ color: C.cobalt }}>
+          <span
+            className="text-[10px] font-bold uppercase tracking-widest block mb-2"
+            style={{ color: C.cobalt }}
+          >
             Integrity System
           </span>
-          <h2 className="text-3xl font-extrabold -tracking-wide mb-12" style={{ color: C.ink }}>
+          <h2
+            className="text-3xl font-extrabold -tracking-wide mb-12"
+            style={{ color: C.ink }}
+          >
             How every flag becomes an action.
           </h2>
           <div className="flex flex-col md:flex-row items-center justify-center gap-4 md:gap-0">
             {[
-              { n: "01", label: "Incident Detected", desc: "Tab switch, head movement, or fullscreen exit triggers the edge engine." },
-              { n: "02", label: "Flag Logged", desc: "Event is timestamped and attached to the candidate's integrity record." },
-              { n: "03", label: "Teacher Alerted", desc: "Real-time notification appears on the teacher console immediately." },
-              { n: "04", label: "Score Adjusted", desc: "Penalty multiplier applies to the candidate's final evaluation." },
+              {
+                n: "01",
+                label: "Incident Detected",
+                desc: "Tab switch, head movement, or fullscreen exit triggers the edge engine.",
+              },
+              {
+                n: "02",
+                label: "Flag Logged",
+                desc: "Event is timestamped and attached to the candidate's integrity record.",
+              },
+              {
+                n: "03",
+                label: "Teacher Alerted",
+                desc: "Real-time notification appears on the teacher console immediately.",
+              },
+              {
+                n: "04",
+                label: "Score Adjusted",
+                desc: "Penalty multiplier applies to the candidate's final evaluation.",
+              },
             ].map((step, i, arr) => (
-              <div key={step.n} className="flex flex-col md:flex-row items-center gap-0 flex-1 min-w-0">
+              <div
+                key={step.n}
+                className="flex flex-col md:flex-row items-center gap-0 flex-1 min-w-0"
+              >
                 <div
                   className="rounded-[8.8px] border p-4 text-left flex-1 min-w-0"
                   style={{ background: "white", borderColor: C.ice }}
                 >
-                  <span className="font-mono text-2xl font-black block mb-1" style={{ color: `${C.cobalt}30` }}>{step.n}</span>
-                  <h4 className="text-xs font-extrabold mb-0.5" style={{ color: C.ink }}>{step.label}</h4>
-                  <p className="text-[10px] font-medium leading-relaxed" style={{ color: C.fog }}>{step.desc}</p>
+                  <span
+                    className="font-mono text-2xl font-black block mb-1"
+                    style={{ color: `${C.cobalt}30` }}
+                  >
+                    {step.n}
+                  </span>
+                  <h4
+                    className="text-xs font-extrabold mb-0.5"
+                    style={{ color: C.ink }}
+                  >
+                    {step.label}
+                  </h4>
+                  <p
+                    className="text-[10px] font-medium leading-relaxed"
+                    style={{ color: C.fog }}
+                  >
+                    {step.desc}
+                  </p>
                 </div>
                 {i < arr.length - 1 && (
-                  <ChevronRight className="h-4 w-4 shrink-0 mx-2 hidden md:block" style={{ color: C.cobalt }} />
+                  <ChevronRight
+                    className="h-4 w-4 shrink-0 mx-2 hidden md:block"
+                    style={{ color: C.cobalt }}
+                  />
                 )}
               </div>
             ))}
@@ -866,10 +1310,18 @@ export default function Home() {
       >
         <div className="max-w-6xl mx-auto">
           <div className="text-center mb-12">
-            <motion.span variants={childUp} className="text-[10px] font-bold uppercase tracking-widest block mb-2" style={{ color: C.cobalt }}>
+            <motion.span
+              variants={childUp}
+              className="text-[10px] font-bold uppercase tracking-widest block mb-2"
+              style={{ color: C.cobalt }}
+            >
               Platform Capabilities
             </motion.span>
-            <motion.h2 variants={childUp} className="text-3xl font-extrabold -tracking-wide" style={{ color: C.ink }}>
+            <motion.h2
+              variants={childUp}
+              className="text-3xl font-extrabold -tracking-wide"
+              style={{ color: C.ink }}
+            >
               Built for every assessment need.
             </motion.h2>
           </div>
@@ -885,18 +1337,30 @@ export default function Home() {
                 <div className="flex items-center justify-between">
                   <div
                     className="h-8 w-8 rounded-[8.8px] flex items-center justify-center"
-                    style={{ background: "white", border: `1px solid ${C.ice}` }}
+                    style={{
+                      background: "white",
+                      border: `1px solid ${C.ice}`,
+                    }}
                   >
                     <Icon className="h-3.5 w-3.5" style={{ color: accent }} />
                   </div>
                   <span
                     className="rounded-full px-2 py-0.5 text-[8px] font-bold border"
-                    style={{ background: "white", borderColor: C.ice, color: accent }}
+                    style={{
+                      background: "white",
+                      borderColor: C.ice,
+                      color: accent,
+                    }}
                   >
                     {pill}
                   </span>
                 </div>
-                <span className="text-[10px] font-extrabold leading-snug" style={{ color: C.ink }}>{label}</span>
+                <span
+                  className="text-[10px] font-extrabold leading-snug"
+                  style={{ color: C.ink }}
+                >
+                  {label}
+                </span>
               </motion.div>
             ))}
           </div>
@@ -918,30 +1382,61 @@ export default function Home() {
             className="flex flex-col lg:flex-row items-start gap-12"
           >
             <div className="flex-1 space-y-4">
-              <motion.span variants={childUp} className="text-[10px] font-bold uppercase tracking-widest block" style={{ color: C.cobalt }}>
+              <motion.span
+                variants={childUp}
+                className="text-[10px] font-bold uppercase tracking-widest block"
+                style={{ color: C.cobalt }}
+              >
                 Live Monitoring
               </motion.span>
-              <motion.h2 variants={childUp} className="text-3xl font-extrabold -tracking-wide leading-tight" style={{ color: C.ink }}>
-                <WaveText text="Teachers see the exam happening." stagger={0.06} />
+              <motion.h2
+                variants={childUp}
+                className="text-3xl font-extrabold -tracking-wide leading-tight"
+                style={{ color: C.ink }}
+              >
+                <WaveText
+                  text="Teachers see the exam happening."
+                  stagger={0.06}
+                />
               </motion.h2>
-              <motion.p variants={childUp} className="text-sm font-medium leading-relaxed" style={{ color: C.fog }}>
-                The teacher console streams live progress, leaderboard reordering, and integrity warnings as they occur. No refresh required.
+              <motion.p
+                variants={childUp}
+                className="text-sm font-medium leading-relaxed"
+                style={{ color: C.fog }}
+              >
+                The teacher console streams live progress, leaderboard
+                reordering, and integrity warnings as they occur. No refresh
+                required.
               </motion.p>
-              <motion.ul variants={staggerContainer(0.07)} className="space-y-2 text-xs font-bold" style={{ color: C.ink }}>
+              <motion.ul
+                variants={staggerContainer(0.07)}
+                className="space-y-2 text-xs font-bold"
+                style={{ color: C.ink }}
+              >
                 {[
                   "Layout-animated leaderboard re-sorting",
                   "Instant incident flag markers",
                   "Per-student progress bars",
                   "Connection health indicators",
                 ].map((item) => (
-                  <motion.li key={item} variants={childUp} className="flex items-center gap-2">
-                    <CheckCircle2 className="h-4 w-4 shrink-0" style={{ color: C.cobalt }} />
+                  <motion.li
+                    key={item}
+                    variants={childUp}
+                    className="flex items-center gap-2"
+                  >
+                    <CheckCircle2
+                      className="h-4 w-4 shrink-0"
+                      style={{ color: C.cobalt }}
+                    />
                     {item}
                   </motion.li>
                 ))}
               </motion.ul>
             </div>
-            <motion.div variants={sectionVariants} className="flex-1 w-full max-w-lg">
+            <motion.div
+              variants={sectionVariants}
+              className="flex-1 w-full max-w-lg"
+            >
               <LiveTelemetry />
             </motion.div>
           </motion.div>
@@ -959,31 +1454,64 @@ export default function Home() {
       >
         <div className="max-w-5xl mx-auto flex flex-col lg:flex-row items-center gap-12">
           <div className="flex-1 space-y-4 text-left">
-            <span className="text-[10px] font-bold uppercase tracking-widest block" style={{ color: C.cobalt }}>
+            <span
+              className="text-[10px] font-bold uppercase tracking-widest block"
+              style={{ color: C.cobalt }}
+            >
               Connectivity Resilience
             </span>
-            <h2 className="text-3xl font-extrabold -tracking-wide leading-tight" style={{ color: C.ink }}>
+            <h2
+              className="text-3xl font-extrabold -tracking-wide leading-tight"
+              style={{ color: C.ink }}
+            >
               Built for classrooms where the internet isn&apos;t perfect.
             </h2>
-            <p className="text-sm font-medium leading-relaxed" style={{ color: C.fog }}>
-              Losing internet mid-exam shouldn&apos;t invalidate submissions. Quizly downloads the entire exam package locally, caches every response, and syncs automatically when connectivity returns.
+            <p
+              className="text-sm font-medium leading-relaxed"
+              style={{ color: C.fog }}
+            >
+              Losing internet mid-exam shouldn&apos;t invalidate submissions.
+              Quizly downloads the entire exam package locally, caches every
+              response, and syncs automatically when connectivity returns.
             </p>
           </div>
           <div className="flex-1 w-full max-w-md">
-            <div className="rounded-[8.8px] border p-6" style={{ background: "white", borderColor: C.ice }}>
-              <p className="text-[9px] font-bold uppercase tracking-widest text-center mb-6" style={{ color: C.fog }}>
+            <div
+              className="rounded-[8.8px] border p-6"
+              style={{ background: "white", borderColor: C.ice }}
+            >
+              <p
+                className="text-[9px] font-bold uppercase tracking-widest text-center mb-6"
+                style={{ color: C.fog }}
+              >
                 Offline Persistence Lifecycle
               </p>
               <div className="space-y-2.5">
                 {[
-                  { label: "Online — Package Downloaded", bg: C.blue, color: C.cobalt },
-                  { label: "Offline — Assessment Continues Locally", bg: C.rose, color: "#9c3535" },
-                  { label: "Reconnected — Responses Auto-Synced", bg: C.mint, color: "#1d6b42" },
+                  {
+                    label: "Online — Package Downloaded",
+                    bg: C.blue,
+                    color: C.cobalt,
+                  },
+                  {
+                    label: "Offline — Assessment Continues Locally",
+                    bg: C.rose,
+                    color: "#9c3535",
+                  },
+                  {
+                    label: "Reconnected — Responses Auto-Synced",
+                    bg: C.mint,
+                    color: "#1d6b42",
+                  },
                 ].map((step) => (
                   <div
                     key={step.label}
                     className="rounded-[8.8px] border px-4 py-3 text-xs font-bold"
-                    style={{ background: step.bg, borderColor: C.ice, color: step.color }}
+                    style={{
+                      background: step.bg,
+                      borderColor: C.ice,
+                      color: step.color,
+                    }}
                   >
                     {step.label}
                   </div>
@@ -1007,10 +1535,18 @@ export default function Home() {
             viewport={vp}
             variants={staggerContainer(0.08)}
           >
-            <motion.span variants={childUp} className="text-[10px] font-bold uppercase tracking-widest block mb-2" style={{ color: C.cobalt }}>
+            <motion.span
+              variants={childUp}
+              className="text-[10px] font-bold uppercase tracking-widest block mb-2"
+              style={{ color: C.cobalt }}
+            >
               Platform Stages
             </motion.span>
-            <motion.h2 variants={childUp} className="text-3xl font-extrabold -tracking-wide mb-10" style={{ color: C.ink }}>
+            <motion.h2
+              variants={childUp}
+              className="text-3xl font-extrabold -tracking-wide mb-10"
+              style={{ color: C.ink }}
+            >
               One platform. Every stage of assessment.
             </motion.h2>
           </motion.div>
@@ -1028,12 +1564,16 @@ export default function Home() {
               <button
                 key={s.id}
                 type="button"
-                onClick={() => { setActiveSlide(idx); setAutoplay(false); }}
+                onClick={() => {
+                  setActiveSlide(idx);
+                  setAutoplay(false);
+                }}
                 className="rounded-[8.8px] px-3.5 py-2 text-xs font-bold transition-all cursor-pointer border-0"
                 style={{
                   background: activeSlide === idx ? "white" : "transparent",
                   color: activeSlide === idx ? C.ink : C.fog,
-                  boxShadow: activeSlide === idx ? `0 0 0 1px ${C.ice}` : "none",
+                  boxShadow:
+                    activeSlide === idx ? `0 0 0 1px ${C.ice}` : "none",
                 }}
               >
                 {s.label}
@@ -1054,13 +1594,21 @@ export default function Home() {
           >
             <div className="p-6 md:p-8">
               <div className="flex items-center justify-between mb-5">
-                <span className="text-[9px] font-bold uppercase tracking-widest" style={{ color: C.cobalt }}>
+                <span
+                  className="text-[9px] font-bold uppercase tracking-widest"
+                  style={{ color: C.cobalt }}
+                >
                   STAGE 0{activeSlide + 1}
                 </span>
                 <div className="flex items-center gap-1">
                   <button
                     type="button"
-                    onClick={() => { setActiveSlide((p) => (p - 1 + STAGES.length) % STAGES.length); setAutoplay(false); }}
+                    onClick={() => {
+                      setActiveSlide(
+                        (p) => (p - 1 + STAGES.length) % STAGES.length,
+                      );
+                      setAutoplay(false);
+                    }}
                     className="p-1 rounded-[8.8px] border cursor-pointer transition-colors hover:bg-[#f5f5f4]"
                     style={{ borderColor: C.ice }}
                   >
@@ -1068,33 +1616,54 @@ export default function Home() {
                   </button>
                   <button
                     type="button"
-                    onClick={() => { setActiveSlide((p) => (p + 1) % STAGES.length); setAutoplay(false); }}
+                    onClick={() => {
+                      setActiveSlide((p) => (p + 1) % STAGES.length);
+                      setAutoplay(false);
+                    }}
                     className="p-1 rounded-[8.8px] border cursor-pointer transition-colors hover:bg-[#f5f5f4]"
                     style={{ borderColor: C.ice }}
                   >
-                    <ChevronRight className="h-4 w-4" style={{ color: C.ink }} />
+                    <ChevronRight
+                      className="h-4 w-4"
+                      style={{ color: C.ink }}
+                    />
                   </button>
                 </div>
               </div>
               <div className="flex gap-5 items-start">
                 <div
                   className="h-12 w-12 shrink-0 rounded-[8.8px] flex items-center justify-center border"
-                  style={{ background: STAGES[activeSlide].bg, borderColor: C.ice }}
+                  style={{
+                    background: STAGES[activeSlide].bg,
+                    borderColor: C.ice,
+                  }}
                 >
-                  <FileQuestion className="h-5 w-5" style={{ color: C.cobalt }} />
+                  <FileQuestion
+                    className="h-5 w-5"
+                    style={{ color: C.cobalt }}
+                  />
                 </div>
                 <div>
-                  <h4 className="text-sm font-extrabold -tracking-wide mb-1" style={{ color: C.ink }}>
+                  <h4
+                    className="text-sm font-extrabold -tracking-wide mb-1"
+                    style={{ color: C.ink }}
+                  >
                     {STAGES[activeSlide].title}
                   </h4>
-                  <p className="text-xs font-medium leading-relaxed" style={{ color: C.fog }}>
+                  <p
+                    className="text-xs font-medium leading-relaxed"
+                    style={{ color: C.fog }}
+                  >
                     {STAGES[activeSlide].desc}
                   </p>
                 </div>
               </div>
             </div>
             {/* Progress bar */}
-            <div className="absolute bottom-0 left-0 right-0 h-0.5" style={{ background: C.ice }}>
+            <div
+              className="absolute bottom-0 left-0 right-0 h-0.5"
+              style={{ background: C.ice }}
+            >
               <motion.div
                 key={activeSlide}
                 initial={{ width: "0%" }}
@@ -1119,20 +1688,44 @@ export default function Home() {
       >
         <div className="max-w-5xl mx-auto flex flex-col lg:flex-row-reverse items-center gap-12">
           <div className="flex-1 space-y-4 text-left">
-            <span className="text-[10px] font-bold uppercase tracking-widest block" style={{ color: C.cobalt }}>
+            <span
+              className="text-[10px] font-bold uppercase tracking-widest block"
+              style={{ color: C.cobalt }}
+            >
               Scoring Intelligence
             </span>
-            <h2 className="text-3xl font-extrabold -tracking-wide leading-tight" style={{ color: C.ink }}>
+            <h2
+              className="text-3xl font-extrabold -tracking-wide leading-tight"
+              style={{ color: C.ink }}
+            >
               Not every correct answer tells the whole story.
             </h2>
-            <p className="text-sm font-medium leading-relaxed" style={{ color: C.fog }}>
-              Quizly maps response speed to score value. Fast, independent answers receive full marks. Slow submissions that correlate with peers trigger a decay factor — incentivizing genuine comprehension.
+            <p
+              className="text-sm font-medium leading-relaxed"
+              style={{ color: C.fog }}
+            >
+              Quizly maps response speed to score value. Fast, independent
+              answers receive full marks. Slow submissions that correlate with
+              peers trigger a decay factor — incentivizing genuine
+              comprehension.
             </p>
           </div>
           <div className="flex-1 w-full max-w-sm space-y-4">
             {[
-              { name: "Candidate A", time: "4.5s", correlation: "Isolated", score: "100%", fast: true },
-              { name: "Candidate B", time: "28.8s", correlation: "High Risk", score: "82%", fast: false },
+              {
+                name: "Candidate A",
+                time: "4.5s",
+                correlation: "Isolated",
+                score: "100%",
+                fast: true,
+              },
+              {
+                name: "Candidate B",
+                time: "28.8s",
+                correlation: "High Risk",
+                score: "82%",
+                fast: false,
+              },
             ].map((c) => (
               <div
                 key={c.name}
@@ -1140,7 +1733,12 @@ export default function Home() {
                 style={{ background: "white", borderColor: C.ice }}
               >
                 <div className="flex items-center justify-between mb-3">
-                  <span className="text-xs font-extrabold" style={{ color: C.ink }}>{c.name}</span>
+                  <span
+                    className="text-xs font-extrabold"
+                    style={{ color: C.ink }}
+                  >
+                    {c.name}
+                  </span>
                   <span
                     className="rounded-full px-2.5 py-0.5 text-[9px] font-bold border"
                     style={{
@@ -1155,16 +1753,25 @@ export default function Home() {
                 <div className="space-y-1 text-[10px]" style={{ color: C.fog }}>
                   <div className="flex justify-between">
                     <span>Response time</span>
-                    <span className="font-bold" style={{ color: C.ink }}>{c.time}</span>
+                    <span className="font-bold" style={{ color: C.ink }}>
+                      {c.time}
+                    </span>
                   </div>
                   <div className="flex justify-between">
                     <span>Correlation</span>
-                    <span className="font-bold" style={{ color: C.ink }}>{c.correlation}</span>
+                    <span className="font-bold" style={{ color: C.ink }}>
+                      {c.correlation}
+                    </span>
                   </div>
                 </div>
-                <div className="mt-3 pt-3 border-t flex justify-between text-xs font-bold" style={{ borderColor: C.ice }}>
+                <div
+                  className="mt-3 pt-3 border-t flex justify-between text-xs font-bold"
+                  style={{ borderColor: C.ice }}
+                >
                   <span style={{ color: C.fog }}>Score</span>
-                  <span style={{ color: c.fast ? "#1d6b42" : C.fog }}>{c.score}</span>
+                  <span style={{ color: c.fast ? "#1d6b42" : C.fog }}>
+                    {c.score}
+                  </span>
                 </div>
               </div>
             ))}
@@ -1184,7 +1791,10 @@ export default function Home() {
           transition={{ duration: 0.6 }}
           className="text-center mb-8"
         >
-          <p className="text-[10px] font-bold uppercase tracking-widest" style={{ color: C.fog }}>
+          <p
+            className="text-[10px] font-bold uppercase tracking-widest"
+            style={{ color: C.fog }}
+          >
             Built for modern assessments
           </p>
         </motion.div>
@@ -1215,22 +1825,60 @@ export default function Home() {
       >
         <div className="max-w-5xl mx-auto">
           <div className="text-center mb-14">
-            <motion.span variants={childUp} className="text-[10px] font-bold uppercase tracking-widest block mb-2" style={{ color: C.cobalt }}>
+            <motion.span
+              variants={childUp}
+              className="text-[10px] font-bold uppercase tracking-widest block mb-2"
+              style={{ color: C.cobalt }}
+            >
               Why Quizly
             </motion.span>
-            <motion.h2 variants={childUp} className="text-3xl font-extrabold -tracking-wide" style={{ color: C.ink }}>
+            <motion.h2
+              variants={childUp}
+              className="text-3xl font-extrabold -tracking-wide"
+              style={{ color: C.ink }}
+            >
               Assessments you can trust.
             </motion.h2>
           </div>
 
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
             {[
-              { icon: ShieldCheck, title: "Zero-Shadow UI", desc: "Clean flat surfaces with Ice Line borders for maximum readability under exam conditions.", bg: C.blue },
-              { icon: Wifi, title: "Offline-First", desc: "Full exam packages download locally. Connection drops don't mean lost progress.", bg: C.mint },
-              { icon: Zap, title: "Edge Intelligence", desc: "Proctoring runs inside the browser — no server round-trips for detection events.", bg: C.lavender },
-              { icon: BarChart3, title: "Real-Time Data", desc: "Live streaming to teacher consoles. Every event lands in milliseconds.", bg: C.peach },
-              { icon: Timer, title: "Dynamic Scoring", desc: "Time-correlated grading rewards quick independent responses and penalizes suspicious delays.", bg: C.yellow },
-              { icon: FileQuestion, title: "CSV Import", desc: "Upload entire assessment banks in seconds using standard CSV template format.", bg: C.rose },
+              {
+                icon: ShieldCheck,
+                title: "Zero-Shadow UI",
+                desc: "Clean flat surfaces with Ice Line borders for maximum readability under exam conditions.",
+                bg: C.blue,
+              },
+              {
+                icon: Wifi,
+                title: "Offline-First",
+                desc: "Full exam packages download locally. Connection drops don't mean lost progress.",
+                bg: C.mint,
+              },
+              {
+                icon: Zap,
+                title: "Edge Intelligence",
+                desc: "Proctoring runs inside the browser — no server round-trips for detection events.",
+                bg: C.lavender,
+              },
+              {
+                icon: BarChart3,
+                title: "Real-Time Data",
+                desc: "Live streaming to teacher consoles. Every event lands in milliseconds.",
+                bg: C.peach,
+              },
+              {
+                icon: Timer,
+                title: "Dynamic Scoring",
+                desc: "Time-correlated grading rewards quick independent responses and penalizes suspicious delays.",
+                bg: C.yellow,
+              },
+              {
+                icon: FileQuestion,
+                title: "CSV Import",
+                desc: "Upload entire assessment banks in seconds using standard CSV template format.",
+                bg: C.rose,
+              },
             ].map(({ icon: Icon, title, desc, bg }) => (
               <motion.div
                 key={title}
@@ -1245,8 +1893,15 @@ export default function Home() {
                 >
                   <Icon className="h-3.5 w-3.5" style={{ color: C.cobalt }} />
                 </div>
-                <h3 className="text-xs font-extrabold" style={{ color: C.ink }}>{title}</h3>
-                <p className="text-[11px] font-medium leading-relaxed" style={{ color: C.fog }}>{desc}</p>
+                <h3 className="text-xs font-extrabold" style={{ color: C.ink }}>
+                  {title}
+                </h3>
+                <p
+                  className="text-[11px] font-medium leading-relaxed"
+                  style={{ color: C.fog }}
+                >
+                  {desc}
+                </p>
               </motion.div>
             ))}
           </div>
@@ -1263,16 +1918,32 @@ export default function Home() {
         style={{ background: C.blue, borderColor: C.ice }}
       >
         <div className="max-w-2xl mx-auto space-y-6">
-          <motion.span variants={childUp} className="text-[10px] font-bold uppercase tracking-widest" style={{ color: C.cobalt }}>
+          <motion.span
+            variants={childUp}
+            className="text-[10px] font-bold uppercase tracking-widest"
+            style={{ color: C.cobalt }}
+          >
             Get Started
           </motion.span>
-          <motion.h2 variants={childUp} className="text-3xl sm:text-4xl font-extrabold -tracking-wide" style={{ color: C.ink }}>
+          <motion.h2
+            variants={childUp}
+            className="text-3xl sm:text-4xl font-extrabold -tracking-wide"
+            style={{ color: C.ink }}
+          >
             <WaveText text="Build assessments you can trust." stagger={0.08} />
           </motion.h2>
-          <motion.p variants={childUp} className="text-sm font-medium max-w-md mx-auto" style={{ color: C.fog }}>
-            Create a secure assessment, invite your students, and monitor the entire session in real time.
+          <motion.p
+            variants={childUp}
+            className="text-sm font-medium max-w-md mx-auto"
+            style={{ color: C.fog }}
+          >
+            Create a secure assessment, invite your students, and monitor the
+            entire session in real time.
           </motion.p>
-          <motion.div variants={childUp} className="flex flex-col sm:flex-row items-center justify-center gap-3 pt-2">
+          <motion.div
+            variants={childUp}
+            className="flex flex-col sm:flex-row items-center justify-center gap-3 pt-2"
+          >
             <Link
               href="/signup"
               className="flex items-center gap-2 rounded-[8.8px] px-6 py-3 text-xs font-bold text-white border-0 transition-colors hover:opacity-90"
@@ -1292,11 +1963,19 @@ export default function Home() {
       </motion.section>
 
       {/* ─── Footer ─────────────────────────────────────────────────────── */}
-      <footer className="border-t px-6 py-6" style={{ background: C.paper, borderColor: C.ice }}>
+      <footer
+        className="border-t px-6 py-6"
+        style={{ background: C.paper, borderColor: C.ice }}
+      >
         <div className="flex flex-col sm:flex-row items-center justify-between max-w-5xl mx-auto gap-2">
-          <div className="flex items-center gap-1.5 text-xs font-bold" style={{ color: C.ink }}>
+          <div
+            className="flex items-center gap-1.5 text-xs font-bold"
+            style={{ color: C.ink }}
+          >
             <AppWordmark size="sm" />
-            <span className="text-[#78716b] font-medium">Assessment Platform</span>
+            <span className="text-[#78716b] font-medium">
+              Assessment Platform
+            </span>
           </div>
           <p className="text-xs font-medium" style={{ color: C.fog }}>
             © {new Date().getFullYear()} Quizly. All rights reserved.
