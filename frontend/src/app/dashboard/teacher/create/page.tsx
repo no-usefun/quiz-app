@@ -14,6 +14,9 @@ import {
   Trash2,
   PlusCircle,
   Lock,
+  Check,
+  AlertCircle,
+  FileQuestion,
 } from "lucide-react";
 import { useSession } from "@/hooks/useSession";
 
@@ -418,18 +421,21 @@ export default function CreateAssessmentPage() {
   };
 
   const inputClass =
-    "w-full rounded-[8.8px] border border-[#d1dee8] bg-[#f5f5f4] p-3 text-xs text-[#111111] outline-none transition-all focus:border-[#165dfb] focus:bg-white font-medium";
+    "w-full rounded-[10px] border border-[#d1dee8] bg-[#fbfbfa] px-3.5 py-2.5 text-xs text-[#111111] outline-none transition-all placeholder:text-[#a8a29d] hover:border-[#b9cbd9] focus:border-[#165dfb] focus:bg-white focus:ring-4 focus:ring-[#165dfb]/10 font-medium";
+
+  const labelClass =
+    "mb-1.5 block text-[10px] font-bold uppercase tracking-wider text-[#78716b]";
 
   return (
     <div className="min-h-screen bg-[#f5f5f4] font-sans text-[#111111] p-4 md:p-6 lg:p-8 text-left">
       <div className="mx-auto max-w-4xl space-y-6">
-        <header className="flex items-center justify-between border-b border-[#d1dee8]/50 pb-4">
+        <header className="sticky top-0 z-20 -mx-4 flex items-center justify-between gap-4 border-b border-[#d1dee8]/60 bg-[#f5f5f4]/85 px-4 py-4 backdrop-blur-md md:-mx-6 md:px-6">
           <div className="flex items-center gap-3">
             <Link
               href="/dashboard/teacher"
-              className="flex h-8 w-8 items-center justify-center rounded-[8.8px] border border-[#d1dee8] bg-white text-[#78716b] hover:bg-[#e6e3e2]/40 transition-all"
+              className="group flex h-9 w-9 shrink-0 items-center justify-center rounded-[10px] border border-[#d1dee8] bg-white text-[#78716b] shadow-sm transition-all hover:border-[#b9cbd9] hover:bg-white hover:text-[#111111]"
             >
-              <ArrowLeft className="h-4 w-4" />
+              <ArrowLeft className="h-4 w-4 transition-transform group-hover:-translate-x-0.5" />
             </Link>
             <div>
               <span className="text-[10px] font-bold uppercase tracking-widest text-[#78716b]">
@@ -440,56 +446,65 @@ export default function CreateAssessmentPage() {
               </h1>
             </div>
           </div>
-          <button
-            onClick={(e) => handleSave(e)}
-            disabled={submitting}
-            className="rounded-[8.8px] bg-[#165dfb] px-4 py-2 text-xs font-bold text-white hover:bg-[#165dfb]/90 disabled:opacity-40"
-          >
-            {submitting ? "Publishing..." : "Publish Assessment"}
-          </button>
+          <div className="flex items-center gap-3">
+            <span className="hidden rounded-full border border-[#d1dee8] bg-white px-3 py-1 text-[10px] font-bold text-[#78716b] sm:inline-flex">
+              {parsedQuestions.length}{" "}
+              {parsedQuestions.length === 1 ? "question" : "questions"}
+            </span>
+            <button
+              onClick={(e) => handleSave(e)}
+              disabled={submitting}
+              className="inline-flex items-center gap-2 rounded-[10px] bg-[#165dfb] px-4 py-2.5 text-xs font-bold text-white shadow-sm shadow-[#165dfb]/25 transition-all hover:bg-[#0f4fd8] hover:shadow-md active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-40"
+            >
+              {submitting && (
+                <span className="h-3 w-3 animate-spin rounded-full border-2 border-white/30 border-t-white" />
+              )}
+              {submitting ? "Publishing..." : "Publish Assessment"}
+            </button>
+          </div>
         </header>
 
         {validationError && (
-          <div className="rounded-[8.8px] bg-[#fbeee8] border border-[#8c381c]/30 p-3 text-xs text-[#8c381c] font-semibold">
-            {validationError}
+          <div
+            role="alert"
+            className="flex items-start gap-2.5 rounded-[10px] border border-[#8c381c]/25 bg-[#fbeee8] p-3.5 text-xs font-semibold text-[#8c381c]"
+          >
+            <AlertCircle className="mt-px h-4 w-4 shrink-0" />
+            <span className="leading-relaxed">{validationError}</span>
           </div>
         )}
 
         <form onSubmit={(e) => handleSave(e)} className="space-y-6">
-          <div className="rounded-[8.8px] border border-[#d1dee8] bg-white p-6 space-y-5">
-            <h3 className="text-xs font-bold uppercase text-[#111111] border-b border-[#d1dee8]/30 pb-2.5">
+          <div className="rounded-[14px] border border-[#d1dee8] bg-white p-6 space-y-5 shadow-[0_1px_2px_rgba(16,24,40,0.04)]">
+            <h3 className="flex items-center gap-2 border-b border-[#d1dee8]/50 pb-3 text-xs font-bold uppercase tracking-wider text-[#111111]">
+              <span className="h-3.5 w-1 rounded-full bg-[#165dfb]" />
               Assessment Details
             </h3>
             <div className="space-y-4">
               <div className="text-left">
-                <label className="mb-1.5 block text-[10px] font-bold uppercase text-[#78716b]">
-                  Assessment Title
-                </label>
+                <label className={labelClass}>Assessment Title</label>
                 <input
                   type="text"
                   value={title}
                   onChange={(e) => setTitle(e.target.value)}
                   placeholder="e.g. Data Structures & Algorithms — Midterm"
-                  className={inputClass}
+                  className={`${inputClass} text-sm`}
                   required
                 />
               </div>
               <div className="text-left">
-                <label className="mb-1.5 block text-[10px] font-bold uppercase text-[#78716b]">
-                  Description
-                </label>
+                <label className={labelClass}>Description</label>
                 <textarea
                   value={description}
                   onChange={(e) => setDescription(e.target.value)}
                   rows={3}
-                  className={inputClass}
+                  placeholder="What this assessment covers"
+                  className={`${inputClass} resize-y leading-relaxed`}
                 />
               </div>
               <div className="grid gap-3 sm:grid-cols-3">
                 <div className="text-left">
-                  <label className="mb-1.5 block text-[10px] font-bold uppercase text-[#78716b]">
-                    Subject Name
-                  </label>
+                  <label className={labelClass}>Subject Name</label>
                   <input
                     type="text"
                     value={subject}
@@ -498,9 +513,7 @@ export default function CreateAssessmentPage() {
                   />
                 </div>
                 <div className="text-left">
-                  <label className="mb-1.5 block text-[10px] font-bold uppercase text-[#78716b]">
-                    Subject Code
-                  </label>
+                  <label className={labelClass}>Subject Code</label>
                   <input
                     type="text"
                     value={subjectCode}
@@ -509,11 +522,9 @@ export default function CreateAssessmentPage() {
                   />
                 </div>
                 <div className="text-left">
-                  <label className="mb-1.5 block text-[10px] font-bold uppercase text-[#78716b]">
-                    TIME LIMIT (MINUTES)
-                  </label>
-                  <div className="flex items-center gap-2 rounded-[8.8px] border border-[#d1dee8] bg-[#f5f5f4] p-2">
-                    <Clock className="h-4 w-4 text-[#78716b]" />
+                  <label className={labelClass}>Time Limit (minutes)</label>
+                  <div className="flex items-center gap-2 rounded-[10px] border border-[#d1dee8] bg-[#fbfbfa] px-3 py-2.5 transition-all hover:border-[#b9cbd9] focus-within:border-[#165dfb] focus-within:bg-white focus-within:ring-4 focus-within:ring-[#165dfb]/10">
+                    <Clock className="h-4 w-4 shrink-0 text-[#78716b]" />
                     <input
                       type="number"
                       value={timeLimit}
@@ -522,10 +533,13 @@ export default function CreateAssessmentPage() {
                       className="bg-transparent outline-none w-full text-xs font-bold text-[#111111]"
                       required
                     />
+                    <span className="text-[10px] font-bold uppercase text-[#a8a29d]">
+                      min
+                    </span>
                   </div>
                 </div>
                 <div className="text-left sm:col-span-3">
-                  <label className="text-[10px] font-bold uppercase text-[#78716b] mb-1.5 block">
+                  <label className={labelClass}>
                     Authorized Student Roll Numbers (Optional)
                   </label>
                   <textarea
@@ -533,7 +547,7 @@ export default function CreateAssessmentPage() {
                     onChange={(e) => setAllowedRollsText(e.target.value)}
                     rows={2}
                     placeholder="Comma separated, e.g. 21BCE1001, 21BCE1002"
-                    className={inputClass}
+                    className={`${inputClass} resize-y leading-relaxed`}
                   />
                 </div>
               </div>
@@ -541,30 +555,43 @@ export default function CreateAssessmentPage() {
           </div>
 
           <div className="space-y-4">
-            <div className="flex items-center justify-between border-b border-[#d1dee8]/30 pb-2">
-              <h3 className="text-xs font-bold uppercase text-[#111111]">
-                QUESTIONS ({parsedQuestions.length})
+            <div className="flex items-center justify-between border-b border-[#d1dee8]/50 pb-2.5">
+              <h3 className="flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-[#111111]">
+                <span className="h-3.5 w-1 rounded-full bg-[#165dfb]" />
+                Questions
+                <span className="rounded-full bg-[#eef4ff] px-2 py-0.5 text-[10px] font-bold text-[#165dfb]">
+                  {parsedQuestions.length}
+                </span>
               </h3>
             </div>
 
             {parsedQuestions.length === 0 ? (
-              <div className="rounded-[8.8px] border border-dashed border-[#d1dee8] bg-white p-8 text-center text-xs text-[#78716b]">
-                No questions added yet.
+              <div className="rounded-[14px] border border-dashed border-[#d1dee8] bg-white px-6 py-10 text-center">
+                <FileQuestion className="mx-auto mb-3 h-8 w-8 text-[#c9c5c2]" />
+                <p className="text-xs font-bold text-[#57534e]">
+                  No questions yet
+                </p>
+                <p className="mt-1 text-xs text-[#a8a29d]">
+                  Import a CSV or JSON file, or add a question card below.
+                </p>
               </div>
             ) : (
               <div className="space-y-4">
                 {parsedQuestions.map((q, idx) => (
                   <div
                     key={idx}
-                    className="rounded-[8.8px] border border-[#d1dee8] bg-white p-5 space-y-4 relative"
+                    className="group relative overflow-hidden rounded-[14px] border border-[#d1dee8] bg-white shadow-[0_1px_2px_rgba(16,24,40,0.04)] transition-all hover:border-[#b9cbd9] hover:shadow-[0_6px_20px_-12px_rgba(16,24,40,0.28)]"
                   >
-                    <div className="flex items-center justify-between border-b border-[#d1dee8]/30 pb-2">
-                      <span className="font-mono text-xs font-bold text-[#78716b]">
-                        Question 0{idx + 1}
+                    <div className="flex items-center justify-between gap-3 border-b border-[#d1dee8]/50 bg-[#fbfbfa] px-5 py-3">
+                      <span className="inline-flex items-center gap-2 text-xs font-bold text-[#57534e]">
+                        <span className="flex h-6 w-6 items-center justify-center rounded-md bg-[#eef4ff] font-mono text-[10px] font-bold text-[#165dfb]">
+                          {String(idx + 1).padStart(2, "0")}
+                        </span>
+                        Question
                       </span>
-                      <div className="flex gap-3 items-center">
-                        <label className="text-[10px] font-bold text-[#78716b]">
-                          Marks:
+                      <div className="flex items-center gap-2">
+                        <label className="text-[10px] font-bold uppercase tracking-wider text-[#78716b]">
+                          Marks
                         </label>
                         <input
                           type="number"
@@ -576,60 +603,91 @@ export default function CreateAssessmentPage() {
                               Number(e.target.value),
                             )
                           }
-                          className="w-12 border p-1 rounded text-center text-xs outline-none"
+                          className="w-14 rounded-md border border-[#d1dee8] bg-white px-2 py-1 text-center text-xs font-bold text-[#111111] outline-none transition-all focus:border-[#165dfb] focus:ring-4 focus:ring-[#165dfb]/10"
                         />
                         <button
                           type="button"
                           onClick={() => handleDeleteQuestion(idx)}
-                          className="text-[#8c381c] hover:opacity-70"
+                          aria-label={`Delete question ${idx + 1}`}
+                          className="flex h-7 w-7 items-center justify-center rounded-md text-[#a8a29d] transition-all hover:bg-[#fbeee8] hover:text-[#8c381c]"
                         >
                           <Trash2 className="h-4 w-4" />
                         </button>
                       </div>
                     </div>
-                    <input
-                      type="text"
-                      value={q.questionText}
-                      onChange={(e) =>
-                        handleUpdateQuestionField(
-                          idx,
-                          "questionText",
-                          e.target.value,
-                        )
-                      }
-                      placeholder="Question text"
-                      className="w-full border p-2 text-xs rounded outline-none"
-                    />
-                    <div className="grid gap-2 sm:grid-cols-2">
-                      {q.options.map((opt: any, oi: number) => (
-                        <div
-                          key={oi}
-                          className={`flex items-center gap-2 border p-2 text-xs rounded ${opt.isCorrect ? "border-[#165dfb] bg-[#eef4ff]" : "bg-white"}`}
-                        >
-                          <button
-                            type="button"
-                            onClick={() => handleSetCorrectOption(idx, oi)}
-                            className={`h-6 w-6 rounded-full text-xs font-bold ${opt.isCorrect ? "bg-[#165dfb] text-white" : "bg-[#e6e3e2]"}`}
+
+                    <div className="space-y-4 p-5">
+                      <input
+                        type="text"
+                        value={q.questionText}
+                        onChange={(e) =>
+                          handleUpdateQuestionField(
+                            idx,
+                            "questionText",
+                            e.target.value,
+                          )
+                        }
+                        placeholder="Type your question"
+                        className="w-full rounded-[10px] border border-[#d1dee8] bg-[#fbfbfa] px-3.5 py-2.5 text-sm font-semibold text-[#111111] outline-none transition-all placeholder:font-medium placeholder:text-[#a8a29d] hover:border-[#b9cbd9] focus:border-[#165dfb] focus:bg-white focus:ring-4 focus:ring-[#165dfb]/10"
+                      />
+
+                      <div className="grid gap-2.5 sm:grid-cols-2">
+                        {q.options.map((opt: any, oi: number) => (
+                          <div
+                            key={oi}
+                            className={`flex items-center gap-2.5 rounded-[10px] border px-3 py-2.5 text-xs transition-all ${
+                              opt.isCorrect
+                                ? "border-[#165dfb] bg-[#eef4ff] shadow-[0_0_0_3px_rgba(22,93,251,0.08)]"
+                                : "border-[#d1dee8] bg-white hover:border-[#b9cbd9] hover:bg-[#fbfbfa]"
+                            }`}
                           >
-                            {String.fromCharCode(65 + oi)}
-                          </button>
-                          <input
-                            type="text"
-                            value={opt.optionText}
-                            onChange={(e) =>
-                              handleUpdateOption(idx, oi, e.target.value)
-                            }
-                            className="w-full bg-transparent outline-none"
-                          />
-                        </div>
-                      ))}
+                            <button
+                              type="button"
+                              onClick={() => handleSetCorrectOption(idx, oi)}
+                              aria-label={`Mark option ${String.fromCharCode(65 + oi)} correct`}
+                              className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-[11px] font-bold transition-all ${
+                                opt.isCorrect
+                                  ? "bg-[#165dfb] text-white shadow-sm shadow-[#165dfb]/30"
+                                  : "bg-[#f0eeed] text-[#78716b] hover:bg-[#e2dfdd] hover:text-[#111111]"
+                              }`}
+                            >
+                              {opt.isCorrect ? (
+                                <Check
+                                  className="h-3.5 w-3.5"
+                                  strokeWidth={3}
+                                />
+                              ) : (
+                                String.fromCharCode(65 + oi)
+                              )}
+                            </button>
+                            <input
+                              type="text"
+                              value={opt.optionText}
+                              placeholder={`Option ${String.fromCharCode(65 + oi)}`}
+                              onChange={(e) =>
+                                handleUpdateOption(idx, oi, e.target.value)
+                              }
+                              className={`w-full bg-transparent outline-none placeholder:text-[#a8a29d] ${
+                                opt.isCorrect
+                                  ? "font-semibold text-[#0f3fa8]"
+                                  : "text-[#111111]"
+                              }`}
+                            />
+                            {opt.isCorrect && (
+                              <span className="shrink-0 rounded-full bg-[#165dfb]/10 px-2 py-0.5 text-[9px] font-bold uppercase tracking-wider text-[#165dfb]">
+                                Correct
+                              </span>
+                            )}
+                          </div>
+                        ))}
+                      </div>
                     </div>
                   </div>
                 ))}
               </div>
             )}
 
-            <div className="rounded-[8.8px] border border-dashed border-[#d1dee8] bg-[#eef8f3] p-6 text-center hover:border-[#165dfb] transition-all">
+            <div className="rounded-[14px] border border-dashed border-[#bcd9c9] bg-[#eef8f3] p-6 text-center transition-all hover:border-[#165dfb] hover:bg-[#ecf5ff]">
               <input
                 type="file"
                 id="csv-upload"
@@ -638,33 +696,42 @@ export default function CreateAssessmentPage() {
                 onChange={handleFileUpload}
               />
               <label htmlFor="csv-upload" className="cursor-pointer block">
-                <FileType className="mx-auto mb-2 h-7 w-7 text-[#165dfb]" />
-                <h4 className="text-xs font-bold">Import via CSV or JSON</h4>
-                <div className="mt-3 inline-flex items-center gap-1.5 border bg-white px-4 py-1.5 text-xs font-bold rounded hover:bg-[#e6e3e2]/40">
+                <span className="mx-auto mb-3 flex h-11 w-11 items-center justify-center rounded-xl bg-white shadow-sm ring-1 ring-[#165dfb]/10">
+                  <FileType className="h-5 w-5 text-[#165dfb]" />
+                </span>
+                <h4 className="text-xs font-bold text-[#111111]">
+                  Import via CSV or JSON
+                </h4>
+                <p className="mt-1 text-[11px] text-[#78716b]">
+                  Question, options, then the correct answer
+                </p>
+                <div className="mt-3 inline-flex items-center gap-1.5 rounded-[10px] border border-[#d1dee8] bg-white px-4 py-2 text-xs font-bold shadow-sm transition-all hover:border-[#165dfb] hover:text-[#165dfb]">
                   <Upload className="h-3.5 w-3.5" /> Select File
                 </div>
               </label>
             </div>
+
             <button
               type="button"
               onClick={handleAddNewQuestion}
-              className="flex w-full items-center justify-center gap-1.5 border border-dashed bg-white py-3 text-xs font-bold text-[#165dfb] hover:bg-[#eef4ff] rounded"
+              className="flex w-full items-center justify-center gap-1.5 rounded-[14px] border border-dashed border-[#d1dee8] bg-white py-3.5 text-xs font-bold text-[#165dfb] transition-all hover:border-[#165dfb] hover:bg-[#eef4ff]"
             >
               <PlusCircle className="h-4 w-4" /> Add Custom Question Card
             </button>
           </div>
 
-          <div className="rounded-[8.8px] border border-[#d1dee8] bg-[#f1efff]/50 overflow-hidden">
+          <div className="overflow-hidden rounded-[14px] border border-[#d1dee8] bg-[#f1efff]/50">
             <button
               type="button"
               onClick={() => setShowAdvanced(!showAdvanced)}
-              className="w-full flex items-center justify-between p-4 bg-[#f1efff] text-xs font-bold text-[#4c3d73]"
+              aria-expanded={showAdvanced}
+              className="flex w-full items-center justify-between bg-[#f1efff] p-4 text-xs font-bold uppercase tracking-wider text-[#4c3d73] transition-colors hover:bg-[#eae6ff]"
             >
-              <span className="flex items-center gap-1.5">
-                <Lock className="h-4 w-4" /> ADVANCED SETTINGS
+              <span className="flex items-center gap-2">
+                <Lock className="h-4 w-4" /> Advanced Settings
               </span>
               <ChevronDown
-                className={`h-4 w-4 transition-transform ${showAdvanced ? "rotate-180" : ""}`}
+                className={`h-4 w-4 transition-transform duration-200 ${showAdvanced ? "rotate-180" : ""}`}
               />
             </button>
             <AnimatePresence>
@@ -675,7 +742,7 @@ export default function CreateAssessmentPage() {
                   exit={{ height: 0 }}
                   className="overflow-hidden border-t border-[#d1dee8]/30"
                 >
-                  <div className="p-4 grid gap-4 sm:grid-cols-2">
+                  <div className="p-4 grid gap-3 sm:grid-cols-2">
                     {[
                       {
                         label: "Release Scores Instantly",
@@ -695,7 +762,11 @@ export default function CreateAssessmentPage() {
                     ].map((item) => (
                       <div
                         key={item.label}
-                        className="flex items-center justify-between border p-3 rounded bg-white"
+                        className={`flex items-center justify-between gap-3 rounded-[10px] border bg-white p-3.5 transition-all ${
+                          item.val
+                            ? "border-[#165dfb]/40 shadow-[0_0_0_3px_rgba(22,93,251,0.06)]"
+                            : "border-[#d1dee8] hover:border-[#b9cbd9]"
+                        }`}
                       >
                         <span className="block text-xs font-bold text-[#111111]">
                           {item.label}
@@ -703,7 +774,10 @@ export default function CreateAssessmentPage() {
                         <button
                           type="button"
                           onClick={() => item.setter(!item.val)}
-                          className={`relative inline-flex h-5 w-9 shrink-0 cursor-pointer items-center rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${item.val ? "bg-[#165dfb]" : "bg-[#d1dee8]"}`}
+                          role="switch"
+                          aria-checked={item.val}
+                          aria-label={item.label}
+                          className={`relative inline-flex h-5 w-9 shrink-0 cursor-pointer items-center rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus-visible:ring-4 focus-visible:ring-[#165dfb]/20 ${item.val ? "bg-[#165dfb]" : "bg-[#d1dee8]"}`}
                         >
                           <span
                             className={`pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${item.val ? "translate-x-4" : "translate-x-0"}`}
