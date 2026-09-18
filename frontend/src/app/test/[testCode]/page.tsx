@@ -12,6 +12,9 @@ import {
   ChevronRight,
   ShieldCheck,
   AlertTriangle,
+  Camera,
+  Maximize2,
+  AlertOctagon,
 } from "lucide-react";
 import { useProctoring } from "@/hooks/useProctoring";
 
@@ -48,6 +51,7 @@ export default function TestArenaPage({
 
   // Test data and question indexing
   const [test, setTest] = useState<any>(null);
+  const [attemptId, setAttemptId] = useState<number | null>(null);
   const [currentIndex, setCurrentIndex] = useState(0);
   const [selectedOption, setSelectedOption] = useState<number | null>(null);
 
@@ -62,7 +66,24 @@ export default function TestArenaPage({
   const [mounted, setMounted] = useState(false);
   const [isOnline, setIsOnline] = useState(true);
 
-  const { flags } = useProctoring();
+  // ─── Real-time AI Proctoring ──────────────────────────────────────────────
+  const {
+    videoRef,
+    warningsCount,
+    maxWarnings,
+    proctorStatus,
+    statusMessage,
+    faceStatus,
+    isFullscreen,
+    requestFullscreen,
+  } = useProctoring({
+    attemptId,
+    maxWarnings: 3,
+    onAutoSubmit: () => {
+      finishAssessment(answers);
+    },
+    enabled: !isSubmitted,
+  });
 
   useEffect(() => {
     setMounted(true);
@@ -73,6 +94,11 @@ export default function TestArenaPage({
       if (!token) {
         router.push(`/login?role=student&redirect=/test/${cleanCode}`);
         return;
+      }
+
+      const storedAttemptId = sessionStorage.getItem(`dynoquizz_attempt_${cleanCode}`);
+      if (storedAttemptId) {
+        setAttemptId(Number(storedAttemptId));
       }
 
       const cached = localStorage.getItem(`dynoquizz_active_test_${cleanCode}`);
@@ -104,12 +130,11 @@ export default function TestArenaPage({
         if (res.ok) {
           const data = await res.json();
 
-          // Map to backend schema: use questionId and option array directly
           const normalizedQuestions = (data.questions || []).map(
             (q: any, qIdx: number) => ({
               id: q.questionId || qIdx + 1,
               text: q.questionText || `Question ${qIdx + 1}`,
-              options: q.options || [], // Array of {optionId, optionText}
+              options: q.options || [],
               marks: q.marks || 4,
               negativeMarks: q.negativeMarks || (data.negativeMarking ? 1 : 0),
               questionTimerSeconds: q.questionTimerSeconds || 30,
@@ -117,6 +142,7 @@ export default function TestArenaPage({
           );
 
           setTest({
+            quizId: data.id,
             testCode: cleanCode,
             quizName: data.title || `Assessment ${cleanCode}`,
             totalTimeLimitMinutes: Math.floor(
@@ -203,38 +229,6 @@ export default function TestArenaPage({
   const [sessionExpired, setSessionExpired] = useState(false);
   const [deadlineNotice, setDeadlineNotice] = useState<string | null>(null);
 
-  useEffect(() => {
-    const cleanCode = testCode.toUpperCase();
-    const flushActiveState = () => {
-      try {
-        localStorage.setItem(
-          `dynoquizz_active_test_${cleanCode}`,
-          JSON.stringify({
-            answers,
-            timeTaken: timeTakenPerQuestion,
-            lastUpdated: Date.now(),
-          }),
-        );
-      } catch {
-        // ignore
-      }
-    };
-
-    const handleVisibilityChange = () => {
-      if (document.visibilityState === "hidden") flushActiveState();
-    };
-
-    document.addEventListener("visibilitychange", handleVisibilityChange);
-    window.addEventListener("pagehide", flushActiveState);
-    window.addEventListener("beforeunload", flushActiveState);
-
-    return () => {
-      document.removeEventListener("visibilitychange", handleVisibilityChange);
-      window.removeEventListener("pagehide", flushActiveState);
-      window.removeEventListener("beforeunload", flushActiveState);
-    };
-  }, [answers, timeTakenPerQuestion, testCode]);
-
   const finishAssessment = async (latestAnswers: Record<number, number>) => {
     if (isSubmitted || !test) return;
     setIsSubmitted(true);
@@ -259,7 +253,6 @@ export default function TestArenaPage({
     try {
       const token = localStorage.getItem("dynoquizz_token");
 
-      // Submit raw optionIds mapped to questionIds to the backend for secure grading
       const res = await fetch(
         `${API_BASE}/api/v1/student/quizzes/${testCode.toUpperCase()}/submit`,
         {
@@ -272,21 +265,13 @@ export default function TestArenaPage({
             testCode: testCode.toUpperCase(),
             registrationNo: studentRoll,
             timeTakenTotalSeconds: totalTimeTaken,
-            answers: latestAnswers, // The backend will evaluate this map securely
-            proctoringFlags: flags, // Pass any integrity flags caught by useProctoring
+            answers: latestAnswers,
+            warningsCount,
           }),
         },
       );
 
       if (res.status === 401) {
-        localStorage.setItem(
-          `dynoquizz_active_test_${testCode.toUpperCase()}`,
-          JSON.stringify({
-            answers: latestAnswers,
-            timeTaken: timeTakenPerQuestion,
-          }),
-        );
-        setIsSubmitted(false);
         setSessionExpired(true);
         return;
       }
@@ -305,7 +290,6 @@ export default function TestArenaPage({
   };
 
   const handleTimerExpired = () => {
-    // If timer expires and no option is selected, we record -1 (skipped)
     const finalAns = selectedOption || answers[currentQuestion?.id] || -1;
     const newAnswers = { ...answers, [currentQuestion?.id]: finalAns };
     setAnswers(newAnswers);
@@ -334,9 +318,8 @@ export default function TestArenaPage({
   }, [currentIndex, isSubmitted, questions.length, currentQuestion]);
 
   if (sessionExpired) {
-    const allowResume = test?.settings?.allowResume !== false;
     return (
-      <main className="flex min-h-screen items-center justify-center bg-frost-surface text-midnight-navy p-4 font-sans selection:bg-frost-surface selection:text-signal-green">
+      <main className="flex min-h-screen items-center justify-center bg-frost-surface text-midnight-navy p-4 font-sans">
         <motion.div
           initial={mounted ? { opacity: 0, y: 8 } : false}
           animate={mounted ? { opacity: 1, y: 0 } : false}
@@ -346,34 +329,20 @@ export default function TestArenaPage({
             <AlertTriangle className="h-6 w-6 text-[#8c381c]" />
           </div>
           <div className="text-center space-y-1">
-            <span className="text-[10px] font-bold uppercase tracking-wider text-steel-blue-gray">
-              Authentication Notice
-            </span>
             <h1 className="text-lg font-bold text-midnight-navy">
               Session Expired Mid-Assessment
             </h1>
             <p className="text-xs text-steel-blue-gray leading-relaxed font-medium">
-              {allowResume
-                ? "Your authentication session has expired. Your answers have been preserved in local cache. Please log in again to resume your assessment."
-                : "Your authentication session has expired. This assessment does not permit resumption."}
+              Please log in again to resume your assessment.
             </p>
           </div>
           <div className="pt-2 flex flex-col gap-2">
-            {allowResume ? (
-              <Link
-                href={`/login?role=student&redirect=/test/${testCode.toUpperCase()}`}
-                className="flex items-center justify-center gap-1.5 rounded-buttons bg-signal-green py-2.5 px-4 text-xs font-bold text-white hover:bg-signal-green/90 transition-all border-0 shadow-none"
-              >
-                Log In to Resume
-              </Link>
-            ) : (
-              <Link
-                href="/dashboard/student"
-                className="flex items-center justify-center gap-1.5 rounded-buttons bg-signal-green py-2.5 px-4 text-xs font-bold text-white hover:bg-signal-green/90 transition-all border-0 shadow-none"
-              >
-                Return to Dashboard
-              </Link>
-            )}
+            <Link
+              href={`/login?role=student&redirect=/test/${testCode.toUpperCase()}`}
+              className="flex items-center justify-center gap-1.5 rounded-buttons bg-signal-green py-2.5 px-4 text-xs font-bold text-white hover:bg-signal-green/90 transition-all border-0 shadow-none"
+            >
+              Log In to Resume
+            </Link>
           </div>
         </motion.div>
       </main>
@@ -382,7 +351,7 @@ export default function TestArenaPage({
 
   if (isSubmitted) {
     return (
-      <main className="flex min-h-screen items-center justify-center bg-frost-surface text-midnight-navy p-4 font-sans selection:bg-frost-surface selection:text-signal-green">
+      <main className="flex min-h-screen items-center justify-center bg-frost-surface text-midnight-navy p-4 font-sans">
         <motion.div
           initial={mounted ? { opacity: 0, y: 8 } : false}
           animate={mounted ? { opacity: 1, y: 0 } : false}
@@ -400,8 +369,7 @@ export default function TestArenaPage({
               Assessment Submitted
             </h1>
             <p className="mt-1 text-xs text-steel-blue-gray leading-relaxed font-medium">
-              Your exam responses have been securely transmitted to the server
-              for evaluation.
+              Your exam responses and proctoring telemetry have been securely transmitted to the server.
             </p>
           </div>
 
@@ -443,8 +411,7 @@ export default function TestArenaPage({
             </h1>
             <p className="text-xs text-[#78716b] leading-relaxed font-medium">
               No questions found for session code{" "}
-              <strong>&ldquo;{testCode?.toUpperCase()}&rdquo;</strong>. Please
-              check the code or contact your educator.
+              <strong>&ldquo;{testCode?.toUpperCase()}&rdquo;</strong>.
             </p>
           </div>
           <Link
@@ -459,196 +426,287 @@ export default function TestArenaPage({
   }
 
   return (
-    <div className="flex min-h-screen bg-frost-surface text-midnight-navy p-4 md:p-6 font-sans selection:bg-frost-surface selection:text-signal-green">
-      <motion.div
-        initial={mounted ? { opacity: 0, y: 8 } : false}
-        animate={mounted ? { opacity: 1, y: 0 } : false}
-        transition={{ duration: 0.25, ease: "easeOut" }}
-        className="flex flex-1 flex-col rounded-cards bg-paper-white overflow-hidden border border-mist-blue shadow-xl text-left"
-      >
-        <header className="flex flex-wrap items-center justify-between bg-paper-white px-6 py-4 gap-3 border-b border-mist-blue/30">
-          <div className="flex items-center gap-3.5">
-            <span className="rounded-pills bg-frost-surface px-3 py-0.5 text-xs font-bold text-signal-green font-mono border border-mist-blue/30 shadow-none">
-              {testCode.toUpperCase()}
+    <div className="flex min-h-screen flex-col bg-frost-surface text-midnight-navy p-4 md:p-6 font-sans">
+      {/* ⚠️ Real-time Proctoring Warning Banner */}
+      {warningsCount > 0 && (
+        <motion.div
+          initial={{ opacity: 0, y: -10 }}
+          animate={{ opacity: 1, y: 0 }}
+          className={`mb-3 flex items-center justify-between rounded-cards p-3 text-xs font-bold ${
+            warningsCount >= maxWarnings
+              ? "bg-pastel-pink text-pastel-pink-text border border-pastel-pink-text/30"
+              : "bg-pastel-yellow text-pastel-yellow-text border border-pastel-yellow-text/30"
+          }`}
+        >
+          <div className="flex items-center gap-2">
+            <AlertOctagon className="h-4 w-4 shrink-0" />
+            <span>
+              {statusMessage || "Proctoring violation detected!"} Warning Count:{" "}
+              <strong>
+                {warningsCount} / {maxWarnings}
+              </strong>
             </span>
-            <span className="text-xs font-bold text-steel-blue-gray">
+          </div>
+          {warningsCount >= maxWarnings && (
+            <span className="text-[10px] uppercase tracking-wider font-extrabold">
+              Exam Auto-Submit Pending
+            </span>
+          )}
+        </motion.div>
+      )}
+
+      <div className="flex flex-1 gap-4">
+        <motion.div
+          initial={mounted ? { opacity: 0, y: 8 } : false}
+          animate={mounted ? { opacity: 1, y: 0 } : false}
+          transition={{ duration: 0.25, ease: "easeOut" }}
+          className="flex flex-1 flex-col rounded-cards bg-paper-white overflow-hidden border border-mist-blue shadow-xl text-left"
+        >
+          <header className="flex flex-wrap items-center justify-between bg-paper-white px-6 py-4 gap-3 border-b border-mist-blue/30">
+            <div className="flex items-center gap-3.5">
+              <span className="rounded-pills bg-frost-surface px-3 py-0.5 text-xs font-bold text-signal-green font-mono border border-mist-blue/30 shadow-none">
+                {testCode.toUpperCase()}
+              </span>
+              <span className="text-xs font-bold text-steel-blue-gray">
+                Question {currentIndex + 1} of {questions.length}
+              </span>
+
+              {saveStatus === "saving" && (
+                <span className="text-[11px] font-bold text-steel-blue-gray">
+                  Saving...
+                </span>
+              )}
+              {saveStatus === "saved" && (
+                <span className="text-[11px] font-bold text-pastel-mint-text">
+                  ✓ Saved
+                </span>
+              )}
+            </div>
+
+            <div className="flex items-center gap-3.5 font-sans">
+              {!isFullscreen && (
+                <button
+                  onClick={requestFullscreen}
+                  className="flex items-center gap-1 rounded-pills bg-paper-white border border-mist-blue px-2.5 py-1 text-xs font-bold text-steel-blue-gray hover:text-midnight-navy hover:border-signal-green transition-all cursor-pointer"
+                >
+                  <Maximize2 className="h-3.5 w-3.5" /> Fullscreen
+                </button>
+              )}
+
+              {isOnline ? (
+                <span className="flex items-center gap-1.5 rounded-pills bg-pastel-mint text-pastel-mint-text px-2.5 py-0.5 text-xs font-bold">
+                  <span className="relative flex h-2 w-2">
+                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-pastel-mint-text opacity-75" />
+                    <span className="relative inline-flex h-2 w-2 rounded-full bg-pastel-mint-text" />
+                  </span>
+                  <Wifi className="h-3.5 w-3.5 text-pastel-mint-text" /> Sync Active
+                </span>
+              ) : (
+                <span className="flex items-center gap-1.5 rounded-pills bg-pastel-yellow text-pastel-yellow-text px-2.5 py-0.5 text-xs font-bold">
+                  <WifiOff className="h-3.5 w-3.5 text-pastel-yellow-text" /> Offline
+                </span>
+              )}
+
+              <div
+                className={`flex items-center gap-1.5 rounded-pills px-3 py-1 font-bold text-xs transition-colors border ${
+                  timeLeft <= 10
+                    ? "bg-pastel-pink text-pastel-pink-text border-transparent animate-pulse"
+                    : "bg-paper-white text-steel-blue-gray border-mist-blue"
+                }`}
+              >
+                <Clock className="h-3.5 w-3.5" />
+                00:{timeLeft.toString().padStart(2, "0")}
+              </div>
+            </div>
+          </header>
+
+          <div className="h-1.5 w-full bg-frost-surface border-b border-mist-blue/20">
+            <div
+              className="h-full bg-signal-green transition-all duration-300 ease-out"
+              style={{ width: `${progressPercentage}%` }}
+            />
+          </div>
+
+          <div className="flex-1 overflow-y-auto px-6 py-6 md:px-10 md:py-8 bg-paper-white">
+            <AnimatePresence mode="wait">
+              <motion.div
+                key={`q-${currentIndex}`}
+                initial={{ opacity: 0, y: 8 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -8 }}
+                transition={{ duration: 0.2, ease: "easeOut" }}
+              >
+                <h2 className="mb-5 text-lg font-bold leading-snug text-midnight-navy md:text-xl tracking-tight">
+                  {currentQuestion.text}
+                </h2>
+
+                <div className="space-y-2.5">
+                  {currentQuestion.options.map((option: any, idx: number) => {
+                    const isSelected =
+                      (selectedOption || answers[currentQuestion.id]) ===
+                      option.optionId;
+                    return (
+                      <button
+                        key={option.optionId || idx}
+                        onClick={() => handleSelectOption(option.optionId)}
+                        className={`w-full rounded-inputs border p-3.5 text-left text-xs font-bold transition-all duration-150 cursor-pointer ${
+                          isSelected
+                            ? "border-signal-green bg-frost-surface text-midnight-navy ring-2 ring-signal-green/20"
+                            : "border-mist-blue bg-paper-white text-steel-blue-gray hover:border-mist-blue/80 hover:text-midnight-navy"
+                        }`}
+                      >
+                        <div className="flex items-center gap-2.5">
+                          <span
+                            className={`flex h-7 w-7 items-center justify-center rounded-inputs text-xs font-bold border transition-colors ${
+                              isSelected
+                                ? "bg-signal-green border-signal-green text-white"
+                                : "bg-paper-white text-steel-blue-gray border-mist-blue"
+                            }`}
+                          >
+                            {String.fromCharCode(65 + idx)}
+                          </span>
+                          {option.optionText}
+                        </div>
+                      </button>
+                    );
+                  })}
+                </div>
+              </motion.div>
+            </AnimatePresence>
+          </div>
+
+          <footer className="border-t border-mist-blue/30 bg-paper-white px-6 py-3 flex justify-between items-center">
+            <span className="text-[10px] font-medium text-steel-blue-gray">
               Question {currentIndex + 1} of {questions.length}
             </span>
 
-            {saveStatus === "saving" && (
-              <span className="text-[11px] font-bold text-steel-blue-gray">
-                Saving...
-              </span>
-            )}
-            {saveStatus === "saved" && (
-              <span className="text-[11px] font-bold text-pastel-mint-text">
-                ✓ Saved
-              </span>
-            )}
-          </div>
-
-          <div className="flex items-center gap-3.5 font-sans">
-            {isOnline ? (
-              <span className="flex items-center gap-1.5 rounded-pills bg-pastel-mint text-pastel-mint-text px-2.5 py-0.5 text-xs font-bold">
-                <span className="relative flex h-2 w-2">
-                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-pastel-mint-text opacity-75" />
-                  <span className="relative inline-flex h-2 w-2 rounded-full bg-pastel-mint-text" />
-                </span>
-                <Wifi className="h-3.5 w-3.5 text-pastel-mint-text" /> Sync
-                Active
-              </span>
-            ) : (
-              <span className="flex items-center gap-1.5 rounded-pills bg-pastel-yellow text-pastel-yellow-text px-2.5 py-0.5 text-xs font-bold">
-                <WifiOff className="h-3.5 w-3.5 text-pastel-yellow-text" />{" "}
-                Offline Mode
-              </span>
-            )}
-
-            <div
-              className={`flex items-center gap-1.5 rounded-pills px-3 py-1 font-bold text-xs transition-colors border ${
-                timeLeft <= 10
-                  ? "bg-pastel-pink text-pastel-pink-text border-transparent animate-pulse"
-                  : "bg-paper-white text-steel-blue-gray border-mist-blue"
-              }`}
+            <button
+              onClick={handleNextQuestion}
+              disabled={!selectedOption && !answers[currentQuestion?.id]}
+              className="flex items-center gap-1 rounded-buttons bg-signal-green px-4 py-2 text-xs font-bold text-white hover:bg-signal-green/90 active:scale-[0.98] transition-all duration-200 shadow-none disabled:opacity-40 cursor-pointer border-0"
             >
-              <Clock className="h-3.5 w-3.5" />
-              00:{timeLeft.toString().padStart(2, "0")}
+              {currentIndex === questions.length - 1 ? (
+                <>
+                  Submit Assessment{" "}
+                  <ChevronRight className="h-3.5 w-3.5 text-white" />
+                </>
+              ) : (
+                <>
+                  Next Question{" "}
+                  <ChevronRight className="h-3.5 w-3.5 text-white" />
+                </>
+              )}
+            </button>
+          </footer>
+        </motion.div>
+
+        {/* ─── Sidebar: Edge-AI Proctoring & Video Stream ─── */}
+        <aside className="hidden w-72 flex-col gap-4 lg:flex text-left">
+          {/* Edge-AI Webcam Card */}
+          <div className="overflow-hidden rounded-cards bg-paper-white border border-mist-blue shadow-xl">
+            <div className="p-3 border-b border-mist-blue/30 bg-frost-surface flex items-center justify-between">
+              <span className="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wider text-signal-green">
+                <Camera className="h-3.5 w-3.5 text-signal-green" />
+                AI Proctor Feed
+              </span>
+              <span
+                className={`h-2 w-2 rounded-full ${
+                  proctorStatus === "ACTIVE"
+                    ? "bg-pastel-mint-text animate-pulse"
+                    : proctorStatus === "WARNING"
+                    ? "bg-pastel-yellow-text"
+                    : "bg-pastel-pink-text"
+                }`}
+              />
             </div>
-          </div>
-        </header>
-
-        <div className="h-1.5 w-full bg-frost-surface border-b border-mist-blue/20">
-          <div
-            className="h-full bg-signal-green transition-all duration-300 ease-out"
-            style={{ width: `${progressPercentage}%` }}
-          />
-        </div>
-
-        <div className="flex-1 overflow-y-auto px-6 py-6 md:px-10 md:py-8 bg-paper-white">
-          <AnimatePresence mode="wait">
-            <motion.div
-              key={`q-${currentIndex}`}
-              initial={{ opacity: 0, y: 8 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -8 }}
-              transition={{ duration: 0.2, ease: "easeOut" }}
-            >
-              <h2 className="mb-5 text-lg font-bold leading-snug text-midnight-navy md:text-xl tracking-tight">
-                {currentQuestion.text}
-              </h2>
-
-              <div className="space-y-2.5">
-                {currentQuestion.options.map((option: any, idx: number) => {
-                  const isSelected =
-                    (selectedOption || answers[currentQuestion.id]) ===
-                    option.optionId;
-                  return (
-                    <button
-                      key={option.optionId || idx}
-                      onClick={() => handleSelectOption(option.optionId)}
-                      className={`w-full rounded-inputs border p-3.5 text-left text-xs font-bold transition-all duration-150 cursor-pointer ${
-                        isSelected
-                          ? "border-signal-green bg-frost-surface text-midnight-navy ring-2 ring-signal-green/20"
-                          : "border-mist-blue bg-paper-white text-steel-blue-gray hover:border-mist-blue/80 hover:text-midnight-navy"
-                      }`}
-                    >
-                      <div className="flex items-center gap-2.5">
-                        <span
-                          className={`flex h-7 w-7 items-center justify-center rounded-inputs text-xs font-bold border transition-colors ${
-                            isSelected
-                              ? "bg-signal-green border-signal-green text-white"
-                              : "bg-paper-white text-steel-blue-gray border-mist-blue"
-                          }`}
-                        >
-                          {String.fromCharCode(65 + idx)}
-                        </span>
-                        {option.optionText}
-                      </div>
-                    </button>
-                  );
-                })}
+            <div className="p-3 space-y-2">
+              <div className="relative aspect-video w-full overflow-hidden rounded-inputs bg-midnight-navy border border-mist-blue flex items-center justify-center">
+                <video
+                  ref={videoRef}
+                  autoPlay
+                  playsInline
+                  muted
+                  className="h-full w-full object-cover mirror"
+                />
+                <div className="absolute bottom-1.5 left-1.5 rounded-pills bg-midnight-navy/80 backdrop-blur-sm px-2 py-0.5 text-[9px] font-bold text-white flex items-center gap-1">
+                  <span
+                    className={`h-1.5 w-1.5 rounded-full ${
+                      faceStatus === "OK"
+                        ? "bg-pastel-mint-text"
+                        : "bg-pastel-pink-text"
+                    }`}
+                  />
+                  {faceStatus === "OK" ? "Face Aligned" : "Face Flagged"}
+                </div>
               </div>
-            </motion.div>
-          </AnimatePresence>
-        </div>
 
-        <footer className="border-t border-mist-blue/30 bg-paper-white px-6 py-3 flex justify-between items-center">
-          <span className="text-[10px] font-medium text-steel-blue-gray">
-            Question {currentIndex + 1} of {questions.length}
-          </span>
+              <div className="flex justify-between items-center text-[10px] pt-1">
+                <span className="text-steel-blue-gray">Integrity Status:</span>
+                <span
+                  className={`font-bold ${
+                    warningsCount === 0
+                      ? "text-pastel-mint-text"
+                      : "text-pastel-pink-text"
+                  }`}
+                >
+                  {warningsCount === 0 ? "Clean Session" : `${warningsCount} Warning(s)`}
+                </span>
+              </div>
+            </div>
+          </div>
 
-          <button
-            onClick={handleNextQuestion}
-            disabled={!selectedOption && !answers[currentQuestion?.id]}
-            className="flex items-center gap-1 rounded-buttons bg-signal-green px-4 py-2 text-xs font-bold text-white hover:bg-signal-green/90 active:scale-[0.98] transition-all duration-200 shadow-none disabled:opacity-40 cursor-pointer border-0"
-          >
-            {currentIndex === questions.length - 1 ? (
-              <>
-                Submit Assessment{" "}
-                <ChevronRight className="h-3.5 w-3.5 text-white" />
-              </>
-            ) : (
-              <>
-                Next Question{" "}
-                <ChevronRight className="h-3.5 w-3.5 text-white" />
-              </>
-            )}
-          </button>
-        </footer>
-      </motion.div>
+          {/* Active Candidate Card */}
+          <div className="overflow-hidden rounded-cards bg-paper-white border border-mist-blue shadow-xl">
+            <div className="p-4 border-b border-mist-blue/30 bg-frost-surface">
+              <span className="text-[10px] font-bold uppercase tracking-wider text-signal-green block mb-1">
+                Active Candidate
+              </span>
+              <h3 className="font-extrabold text-midnight-navy text-sm truncate font-mono">
+                {(typeof window !== "undefined"
+                  ? localStorage.getItem("dynoquizz_regNo") ||
+                    sessionStorage.getItem("dynoquizz_student_reg")
+                  : null) || "Registered Student"}
+              </h3>
+              <p className="mt-0.5 text-[10px] text-steel-blue-gray font-medium">
+                Session Code:{" "}
+                <strong className="text-midnight-navy font-bold">
+                  {testCode.toUpperCase()}
+                </strong>
+              </p>
+            </div>
+            <div className="p-3.5 space-y-2 text-xs">
+              <div className="flex justify-between items-center text-steel-blue-gray">
+                <span>Total Questions:</span>
+                <span className="font-bold text-midnight-navy">
+                  {questions.length}
+                </span>
+              </div>
+              <div className="flex justify-between items-center text-steel-blue-gray">
+                <span>Current Progress:</span>
+                <span className="font-bold text-signal-green">
+                  {currentIndex + 1} / {questions.length}
+                </span>
+              </div>
+            </div>
+          </div>
 
-      <aside className="hidden w-72 flex-col gap-4 pl-6 lg:flex text-left">
-        <div className="overflow-hidden rounded-cards bg-paper-white border border-mist-blue shadow-xl">
-          <div className="p-4 border-b border-mist-blue/30 bg-frost-surface">
-            <span className="text-[10px] font-bold uppercase tracking-wider text-signal-green block mb-1">
-              Active Candidate
-            </span>
-            <h3 className="font-extrabold text-midnight-navy text-sm truncate font-mono">
-              {(typeof window !== "undefined"
-                ? localStorage.getItem("dynoquizz_regNo") ||
-                  sessionStorage.getItem("dynoquizz_student_reg")
-                : null) || "Registered Student"}
+          <div className="rounded-cards border border-mist-blue bg-paper-white p-4 shadow-xl space-y-2">
+            <h3 className="flex items-center gap-1 font-bold text-midnight-navy text-xs">
+              <ShieldCheck className="h-3.5 w-3.5 text-signal-green" /> Proctoring Directives
             </h3>
-            <p className="mt-0.5 text-[10px] text-steel-blue-gray font-medium">
-              Session Code:{" "}
-              <strong className="text-midnight-navy font-bold">
-                {testCode.toUpperCase()}
-              </strong>
-            </p>
+            <ul className="space-y-1.5 text-[10px] font-medium text-steel-blue-gray">
+              <li className="flex items-start gap-1 leading-relaxed">
+                <div className="mt-1 h-1 w-1 rounded-full bg-signal-green shrink-0" />
+                Keep your camera enabled and face centered at all times.
+              </li>
+              <li className="flex items-start gap-1 leading-relaxed">
+                <div className="mt-1 h-1 w-1 rounded-full bg-signal-green shrink-0" />
+                Tab switching and exiting fullscreen are recorded as integrity flags.
+              </li>
+            </ul>
           </div>
-          <div className="p-3.5 space-y-2 text-xs">
-            <div className="flex justify-between items-center text-steel-blue-gray">
-              <span>Total Questions:</span>
-              <span className="font-bold text-midnight-navy">
-                {questions.length}
-              </span>
-            </div>
-            <div className="flex justify-between items-center text-steel-blue-gray">
-              <span>Current Progress:</span>
-              <span className="font-bold text-signal-green">
-                {currentIndex + 1} / {questions.length}
-              </span>
-            </div>
-          </div>
-        </div>
-
-        <div className="rounded-cards border border-mist-blue bg-paper-white p-4 shadow-xl space-y-2">
-          <h3 className="flex items-center gap-1 font-bold text-midnight-navy text-xs">
-            <ShieldCheck className="h-3.5 w-3.5 text-signal-green" /> Assessment
-            Directives
-          </h3>
-          <ul className="space-y-1.5 text-[10px] font-medium text-steel-blue-gray">
-            <li className="flex items-start gap-1 leading-relaxed">
-              <div className="mt-1 h-1 w-1 rounded-full bg-signal-green shrink-0" />
-              Select an option and click &ldquo;Next Question&rdquo; to proceed.
-            </li>
-            <li className="flex items-start gap-1 leading-relaxed">
-              <div className="mt-1 h-1 w-1 rounded-full bg-signal-green shrink-0" />
-              Questions advance automatically when the timer reaches zero.
-            </li>
-          </ul>
-        </div>
-      </aside>
+        </aside>
+      </div>
     </div>
   );
 }
