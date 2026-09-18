@@ -74,6 +74,11 @@ public class SecurityConfig {
                         // Public Auth Endpoints
                         .requestMatchers("/api/v1/auth/**").permitAll()
                         .requestMatchers("/api/v1/health").permitAll()
+
+                        // Public Quiz metadata & package endpoints for candidate links
+                        .requestMatchers(HttpMethod.GET, "/api/v1/quizzes/**").permitAll()
+                        .requestMatchers("/api/v1/quizzes/code/**").permitAll()
+
                         // Swagger / OpenAPI
                         .requestMatchers(
                                 "/v3/api-docs/**",
@@ -85,7 +90,7 @@ public class SecurityConfig {
                         .requestMatchers("/error").permitAll()
                         .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
 
-                        // Teacher-specific endpoints
+                        // Teacher-specific endpoints (including proctoring overviews)
                         .requestMatchers("/api/v1/teacher/**")
                         .hasRole("TEACHER")
 
