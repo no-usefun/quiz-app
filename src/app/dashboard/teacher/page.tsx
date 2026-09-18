@@ -12,10 +12,10 @@ import {
   FileQuestion,
   BookOpen,
   Edit2,
+  AlertCircle,
 } from "lucide-react";
 import { TopNav } from "@/components/TopNav";
 import { useSession } from "@/hooks/useSession";
-import { getStoredTests } from "@/lib/storage";
 
 const API_BASE = (
   process.env.NEXT_PUBLIC_API_URL || "http://localhost:8080"
@@ -25,23 +25,13 @@ export default function TeacherDashboard() {
   const { user } = useSession();
   const [tests, setTests] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [copiedCode, setCopiedCode] = useState<string | null>(null);
   const [mounted, setMounted] = useState(false);
 
   useEffect(() => {
     setMounted(true);
     const fetchQuizzes = async () => {
-      const localTests = getStoredTests().map((t) => ({
-        quizCode: t.testCode,
-        title: t.quizName,
-        subject: t.subject || "Computer Science",
-        subjectCode: t.subjectCode || t.testCode,
-        totalStudents: 50,
-        totalQuestions: t.questions?.length || 0,
-        overallTimerSeconds: (t.totalTimeLimitMinutes || 30) * 60,
-        status: t.status || "PUBLISHED",
-      }));
-
       try {
         const token = localStorage.getItem("dynoquizz_token");
         const res = await fetch(`${API_BASE}/api/v1/teacher/quizzes`, {
@@ -53,16 +43,20 @@ export default function TeacherDashboard() {
 
         if (res.ok) {
           const data = await res.json();
-          const backendList = Array.isArray(data) ? data : [];
-          // Merge avoiding duplicates by code
-          const seen = new Set(backendList.map((b: any) => (b.quizCode || b.testCode || "").toUpperCase()));
-          const combined = [...backendList, ...localTests.filter((l) => !seen.has(l.quizCode.toUpperCase()))];
-          setTests(combined);
+          setTests(Array.isArray(data) ? data : []);
+        } else if (res.status === 404) {
+          // Gracefully handle 404 if the user just has no quizzes yet
+          setTests([]);
         } else {
-          setTests(localTests);
+          // Throw the exact status code so we can see it
+          throw new Error(`Backend rejected with status: ${res.status}`);
         }
-      } catch (e) {
-        setTests(localTests);
+      } catch (e: any) {
+        console.error("Dashboard fetch error:", e);
+        setError(
+          `Connection failed: ${e.message}. Please check the backend console.`,
+        );
+        setTests([]);
       } finally {
         setLoading(false);
       }
@@ -77,8 +71,13 @@ export default function TeacherDashboard() {
     setTimeout(() => setCopiedCode(null), 2000);
   };
 
+  // FIX: Force the UI to only use the First Name (splits by space if it's a full name)
   const displayName =
-    user?.name || user?.fullName || user?.firstName || "Instructor";
+    user?.firstName ||
+    user?.name?.split(" ")[0] ||
+    user?.fullName?.split(" ")[0] ||
+    "Instructor";
+
   const liveCount = tests.filter(
     (t) =>
       (t.status || "").toUpperCase() === "PUBLISHED" ||
@@ -157,6 +156,18 @@ export default function TeacherDashboard() {
             {loading ? (
               <div className="rounded-[8.8px] bg-white border border-[#d1dee8] p-10 text-center text-xs text-[#78716b]">
                 Loading assessments roster...
+              </div>
+            ) : error ? (
+              <div className="rounded-[8.8px] bg-[#fbeee8] border border-[#8c381c]/30 p-10 text-center space-y-3">
+                <AlertCircle className="h-8 w-8 text-[#8c381c] mx-auto opacity-80" />
+                <div>
+                  <p className="font-bold text-[#8c381c] text-sm">
+                    Connection Error
+                  </p>
+                  <p className="text-xs text-[#8c381c] mt-0.5 font-medium">
+                    {error}
+                  </p>
+                </div>
               </div>
             ) : tests.length === 0 ? (
               <div className="rounded-[8.8px] bg-white border border-[#d1dee8] p-10 text-center space-y-3">

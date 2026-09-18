@@ -6,12 +6,11 @@ import {
   ArrowLeft,
   Copy,
   CheckCircle2,
-  Share2,
   Users,
   Clock,
   BookOpen,
   BarChart3,
-  ExternalLink,
+  AlertCircle,
 } from "lucide-react";
 import { TopNav } from "@/components/TopNav";
 import { useSession } from "@/hooks/useSession";
@@ -29,6 +28,7 @@ export default function ShareAssessmentPage({
   const { user } = useSession();
   const [quizData, setQuizData] = useState<any>(null);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [copiedLink, setCopiedLink] = useState(false);
   const [copiedCode, setCopiedCode] = useState(false);
 
@@ -46,14 +46,25 @@ export default function ShareAssessmentPage({
           },
         );
 
-        if (res.ok) {
-          const data = await res.json();
-          setQuizData(data);
-        } else {
-          setQuizData(null);
+        if (res.status === 404) {
+          throw new Error(
+            "Assessment not found in the database. Ensure it was saved correctly.",
+          );
         }
-      } catch (e) {
+
+        if (!res.ok) {
+          throw new Error(`Server returned ${res.status}`);
+        }
+
+        const data = await res.json();
+        setQuizData(data);
+      } catch (e: any) {
         console.error("Failed to load quiz package for sharing:", e);
+        setError(
+          e.message ||
+            "We couldn't retrieve the assessment details from the server. Please check your backend connection.",
+        );
+        setQuizData(null);
       } finally {
         setLoading(false);
       }
@@ -82,19 +93,44 @@ export default function ShareAssessmentPage({
     return (
       <div className="min-h-screen bg-[#f5f5f4] flex flex-col font-sans">
         <TopNav role="teacher" />
-        <main className="flex-1 flex items-center justify-center text-xs text-[#78716b]">
-          Loading assessment distribution package...
+        <main className="flex-1 flex items-center justify-center text-xs font-bold text-[#78716b]">
+          Synchronizing assessment details from server...
         </main>
       </div>
     );
   }
 
-  const title = quizData?.title || quizData?.quizName || "Assessment Session";
+  if (error || !quizData) {
+    return (
+      <div className="min-h-screen bg-[#f5f5f4] flex flex-col font-sans">
+        <TopNav role="teacher" />
+        <main className="flex-1 flex items-center justify-center p-4">
+          <div className="rounded-[8.8px] bg-[#fbeee8] border border-[#8c381c]/30 p-8 max-w-md w-full text-center space-y-4">
+            <AlertCircle className="h-10 w-10 text-[#8c381c] mx-auto opacity-80" />
+            <h2 className="text-lg font-extrabold text-[#8c381c]">
+              Connection Error
+            </h2>
+            <p className="text-xs text-[#8c381c] font-medium leading-relaxed">
+              {error}
+            </p>
+            <div className="pt-2">
+              <Link
+                href="/dashboard/teacher"
+                className="inline-flex items-center justify-center rounded-[8.8px] bg-[#8c381c] px-5 py-2.5 text-xs font-bold text-white hover:bg-[#8c381c]/90 transition-all"
+              >
+                Return to Dashboard
+              </Link>
+            </div>
+          </div>
+        </main>
+      </div>
+    );
+  }
+
+  const title = quizData.title || "Assessment Session";
   const totalQuestions =
-    quizData?.totalQuestions || quizData?.questions?.length || 0;
-  const timeLimitMins = Math.floor(
-    (quizData?.overallTimerSeconds || 3600) / 60,
-  );
+    quizData.totalQuestions || quizData.questions?.length || 0;
+  const timeLimitMins = Math.floor((quizData.overallTimerSeconds || 0) / 60);
 
   return (
     <div className="min-h-screen bg-[#f5f5f4] font-sans text-[#111111] flex flex-col">
@@ -132,11 +168,11 @@ export default function ShareAssessmentPage({
               <div className="flex flex-wrap items-center gap-4 mt-2 text-xs text-[#78716b] font-medium">
                 <span className="flex items-center gap-1">
                   <BookOpen className="h-3.5 w-3.5" />{" "}
-                  {quizData?.subject || "Computer Science"}
+                  {quizData.subject || "General Subject"}
                 </span>
                 <span className="flex items-center gap-1">
                   <Users className="h-3.5 w-3.5" />{" "}
-                  {quizData?.totalStudents || 0} Target Students
+                  {quizData.totalStudents || 0} Target Students
                 </span>
                 <span className="flex items-center gap-1">
                   <Clock className="h-3.5 w-3.5" /> {timeLimitMins} mins ·{" "}

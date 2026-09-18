@@ -98,7 +98,8 @@ export default function LiveLeaderboard({
         avatar: (r.studentName || "C").slice(0, 2).toUpperCase(),
         answered: r.totalQuestions,
         total: r.totalQuestions,
-        score: r.adjustedScore || r.rawScore || 0,
+        score: r.score || 0,
+
         timeLeft: "00:00",
         status: "submitted" as const,
         flags: [],

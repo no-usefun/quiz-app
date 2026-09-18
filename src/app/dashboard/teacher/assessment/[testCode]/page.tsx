@@ -38,8 +38,7 @@ type FlagType =
 type SortKey =
   | "rank"
   | "name"
-  | "rawScore"
-  | "adjustedScore"
+  | "score"
   | "timeTaken"
   | "flagCount";
 type SortDir = "asc" | "desc";
@@ -48,31 +47,18 @@ interface StudentRecord {
   id: number;
   name: string;
   avatar: string;
-  rawScore: number;
-  adjustedScore: number;
+  score: number;
   accuracyPercentage?: number;
-  speedBonus?: number;
-  grade: string;
   timeTaken: string;
   timeTakenSeconds?: number;
   submitted: boolean;
   flags: { type: FlagType; label: string; count: number }[];
 }
 
-function gradeStyle(grade: string) {
-  if (!grade) return "bg-pastel-mint text-pastel-mint-text";
-  const upper = grade.toUpperCase();
-  if (upper.startsWith("A")) return "bg-pastel-mint text-pastel-mint-text";
-  if (upper.startsWith("B"))
-    return "bg-pastel-lavender text-pastel-lavender-text";
-  if (upper.startsWith("C")) return "bg-pastel-yellow text-pastel-yellow-text";
-  return "bg-pastel-pink text-pastel-pink-text";
-}
 
-function avatarStyle(grade: string, flagCount: number) {
+function avatarStyle(flagCount: number) {
   if (flagCount >= 4) return "bg-pastel-pink text-pastel-pink-text";
   if (flagCount >= 2) return "bg-pastel-yellow text-pastel-yellow-text";
-  if (grade?.startsWith("A")) return "bg-pastel-mint text-pastel-mint-text";
   return "bg-frost-surface text-midnight-navy";
 }
 
@@ -121,11 +107,8 @@ function exportCSV(testCode: string, data: StudentRecord[], title: string) {
   const headers = [
     "Rank",
     "Candidate Name",
+    "Score (%)",
     "Accuracy (%)",
-    "Final Score (Speed-Weighted)",
-    "Base Score",
-    "Speed Bonus",
-    "Grade",
     "Time Taken",
     "Submitted",
     "Total Flags",
@@ -134,11 +117,8 @@ function exportCSV(testCode: string, data: StudentRecord[], title: string) {
   const rows = data.map((s, idx) => [
     idx + 1,
     s.name,
-    s.accuracyPercentage ?? `${s.rawScore}%`,
-    s.adjustedScore,
-    s.rawScore,
-    s.speedBonus ?? 0,
-    s.grade,
+    s.score,
+    s.accuracyPercentage ?? s.score,
     s.timeTaken,
     s.submitted ? "Yes" : "No",
     totalFlags(s),
@@ -239,11 +219,9 @@ export default function TeacherAssessmentPage({
           id: idx + 1,
           name: r.studentName || "Candidate",
           avatar: (r.studentName || "C").slice(0, 2).toUpperCase(),
-          rawScore: r.rawScore || 0,
-          adjustedScore: r.adjustedScore || r.rawScore || 0,
+          score: r.score || 0,
           accuracyPercentage: r.accuracyPercentage ?? (r.totalQuestions > 0 ? Math.round((r.correctCount / r.totalQuestions) * 100) : 0),
-          speedBonus: r.speedBonusTotal ?? 0,
-          grade: r.grade || "A",
+
           timeTaken: `${Math.floor((r.timeTakenTotalSeconds || 0) / 60)}m ${(r.timeTakenTotalSeconds || 0) % 60}s`,
           timeTakenSeconds: r.timeTakenTotalSeconds || 0,
           submitted: true,
@@ -331,28 +309,27 @@ export default function TeacherAssessmentPage({
   const allStudents: StudentRecord[] = assessmentData?.students || [];
   const submitted = allStudents.filter((s) => s.submitted);
   const classAvg = Math.round(
-    submitted.reduce((a, s) => a + (s.adjustedScore || 0), 0) /
+    submitted.reduce((a, s) => a + (s.score || 0), 0) /
       Math.max(1, submitted.length),
   );
   const highScore = Math.max(
-    ...(submitted.map((s) => s.adjustedScore).length > 0
-      ? submitted.map((s) => s.adjustedScore)
+    ...(submitted.map((s) => s.score).length > 0
+      ? submitted.map((s) => s.score)
       : [0]),
   );
   const flaggedCount = allStudents.filter((s) => totalFlags(s) > 0).length;
   const topThree = [...submitted]
-    .sort((a, b) => b.adjustedScore - a.adjustedScore)
+    .sort((a, b) => b.score - a.score)
     .slice(0, 3);
 
   const displayList = useMemo(() => {
     const ranked = [...allStudents]
-      .sort((a, b) => (b.adjustedScore || 0) - (a.adjustedScore || 0))
+      .sort((a, b) => (b.score || 0) - (a.score || 0))
       .map((s, i) => ({ ...s, rank: i + 1 }));
 
     const filtered = ranked.filter(
       (s) =>
-        s.name?.toLowerCase().includes(query.toLowerCase()) ||
-        s.grade?.toLowerCase().includes(query.toLowerCase()),
+        s.name?.toLowerCase().includes(query.toLowerCase()),
     );
 
     return filtered.sort((a, b) => {
@@ -360,16 +337,15 @@ export default function TeacherAssessmentPage({
       if (sortKey === "rank") cmp = a.rank - b.rank;
       else if (sortKey === "name")
         cmp = (a.name || "").localeCompare(b.name || "");
-      else if (sortKey === "rawScore")
-        cmp = (a.rawScore || 0) - (b.rawScore || 0);
-      else if (sortKey === "adjustedScore")
-        cmp = (a.adjustedScore || 0) - (b.adjustedScore || 0);
+      else if (sortKey === "score")
+        cmp = (a.score || 0) - (b.score || 0);
       else if (sortKey === "timeTaken")
         cmp = (a.timeTaken || "").localeCompare(b.timeTaken || "");
       else if (sortKey === "flagCount") cmp = totalFlags(a) - totalFlags(b);
       return sortDir === "asc" ? cmp : -cmp;
     });
   }, [allStudents, query, sortKey, sortDir]);
+
 
   function toggleSort(key: SortKey) {
     if (sortKey === key) setSortDir((d) => (d === "asc" ? "desc" : "asc"));
@@ -586,7 +562,7 @@ export default function TeacherAssessmentPage({
                       {c.icon}
                     </span>
                     <div
-                      className={`mb-2.5 flex h-9 w-9 items-center justify-center rounded-full ${avatarStyle(s.grade, flags)} text-[10px] font-bold`}
+                      className={`mb-2.5 flex h-9 w-9 items-center justify-center rounded-full ${avatarStyle(flags)} text-[10px] font-bold`}
                     >
                       {s.avatar || "ST"}
                     </div>
@@ -596,20 +572,13 @@ export default function TeacherAssessmentPage({
                     <p className="text-[10px] text-steel-blue-gray font-medium text-left">
                       Rank #{pos + 1} · {s.timeTaken || "00:00"}
                     </p>
-                    <div className="mt-3 flex items-end gap-2 text-left">
-                      <div>
-                        <p className="text-xl font-bold text-midnight-navy">
-                          {s.adjustedScore}%
-                        </p>
-                        <p className="text-[8px] text-steel-blue-gray font-bold uppercase">
-                          Adjusted
-                        </p>
-                      </div>
-                      <span
-                        className={`ml-auto inline-flex items-center rounded-pills px-2.5 py-0.5 text-[9px] font-bold ${gradeStyle(s.grade)}`}
-                      >
-                        {s.grade || "A"}
-                      </span>
+                    <div className="mt-3 text-left">
+                      <p className="text-xl font-bold text-midnight-navy">
+                        {s.score}%
+                      </p>
+                      <p className="text-[8px] text-steel-blue-gray font-bold uppercase">
+                        Score
+                      </p>
                     </div>
                   </div>
                 );
@@ -626,7 +595,7 @@ export default function TeacherAssessmentPage({
                 <Search className="pointer-events-none absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-steel-blue-gray" />
                 <input
                   type="text"
-                  placeholder="Search by name or grade…"
+                  placeholder="Search by name…"
                   value={query}
                   onChange={(e) => setQuery(e.target.value)}
                   className="w-full rounded-pills border border-mist-blue bg-paper-white py-2 pl-9 pr-4 text-xs text-midnight-navy outline-none transition-all placeholder:text-steel-blue-gray/60 focus:border-signal-green focus:ring-2 focus:ring-signal-green/20 sm:w-64"
@@ -635,7 +604,7 @@ export default function TeacherAssessmentPage({
             </div>
 
             <div className="flex-1 rounded-cards border border-mist-blue overflow-hidden bg-paper-white shadow-xl text-left">
-              <div className="grid grid-cols-[2.5rem_1fr_6rem_7rem_5rem_6rem_4rem_12rem] items-center gap-3 border-b border-mist-blue/30 bg-paper-white px-5 py-2">
+              <div className="grid grid-cols-[2.5rem_1fr_7rem_6rem_4rem_12rem] items-center gap-3 border-b border-mist-blue/30 bg-paper-white px-5 py-2">
                 <Th
                   label="#"
                   col="rank"
@@ -651,24 +620,13 @@ export default function TeacherAssessmentPage({
                   onSort={toggleSort}
                 />
                 <Th
-                  label="Raw"
-                  col="rawScore"
+                  label="Score"
+                  col="score"
                   sortKey={sortKey}
                   sortDir={sortDir}
                   onSort={toggleSort}
                   className="justify-center"
                 />
-                <Th
-                  label="Adjusted"
-                  col="adjustedScore"
-                  sortKey={sortKey}
-                  sortDir={sortDir}
-                  onSort={toggleSort}
-                  className="justify-center"
-                />
-                <span className="text-center text-[9px] font-bold uppercase tracking-wider text-steel-blue-gray">
-                  Grade
-                </span>
                 <Th
                   label="Duration"
                   col="timeTaken"
@@ -704,14 +662,14 @@ export default function TeacherAssessmentPage({
                     return (
                       <li
                         key={student.id}
-                        className="grid grid-cols-[2.5rem_1fr_6rem_7rem_5rem_6rem_4rem_12rem] items-center gap-3 px-5 py-2.5 transition-colors hover:bg-frost-surface/30"
+                        className="grid grid-cols-[2.5rem_1fr_7rem_6rem_4rem_12rem] items-center gap-3 px-5 py-2.5 transition-colors hover:bg-frost-surface/30"
                       >
                         <span className="text-xs font-bold font-mono text-steel-blue-gray">
                           {student.rank}
                         </span>
                         <div className="flex min-w-0 items-center gap-2">
                           <div
-                            className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-[10px] font-bold ${avatarStyle(student.grade, flags)}`}
+                            className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-[10px] font-bold ${avatarStyle(flags)}`}
                           >
                             {student.avatar || "ST"}
                           </div>
@@ -719,19 +677,9 @@ export default function TeacherAssessmentPage({
                             {student.name}
                           </p>
                         </div>
-                        <div className="flex justify-center text-xs font-medium text-midnight-navy">
-                          {student.rawScore}%
-                        </div>
                         <div className="flex justify-center">
                           <span className="inline-flex min-w-[3rem] items-center justify-center rounded-pills px-2.5 py-0.5 text-xs font-bold tabular-nums bg-pastel-mint text-pastel-mint-text">
-                            {student.adjustedScore}%
-                          </span>
-                        </div>
-                        <div className="flex justify-center">
-                          <span
-                            className={`inline-flex min-w-[2rem] items-center justify-center rounded-pills px-2.5 py-0.5 text-[9px] font-bold ${gradeStyle(student.grade)}`}
-                          >
-                            {student.grade || "A"}
+                            {student.score}%
                           </span>
                         </div>
                         <div className="flex justify-center">
@@ -773,6 +721,7 @@ export default function TeacherAssessmentPage({
               )}
             </div>
           </section>
+
         </div>
       </div>
     </main>
