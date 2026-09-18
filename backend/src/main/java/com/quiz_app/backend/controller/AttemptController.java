@@ -20,7 +20,9 @@ import com.quiz_app.backend.dto.attempt.LeaderboardEntryResponse;
 import com.quiz_app.backend.dto.attempt.SaveAnswerRequest;
 import com.quiz_app.backend.dto.attempt.StartAttemptRequest;
 import com.quiz_app.backend.dto.attempt.SubmitAttemptResponse;
+import com.quiz_app.backend.security.CustomUserDetails;
 import com.quiz_app.backend.service.AttemptService;
+import org.springframework.security.core.Authentication;
 
 @RestController
 @RequestMapping("/api/v1")
@@ -35,52 +37,73 @@ public class AttemptController {
     @PostMapping("/quizzes/{quizCode}/attempts")
     public ResponseEntity<AttemptResponse> startAttempt(
             @PathVariable String quizCode,
-            @RequestBody StartAttemptRequest request) {
+            @RequestBody StartAttemptRequest request,
+            Authentication authentication) {
 
-        AttemptResponse response = attemptService.startAttempt(quizCode, request);
+        CustomUserDetails userDetails = (CustomUserDetails) authentication.getPrincipal();
 
-        return ResponseEntity
-                .status(HttpStatus.CREATED)
-                .body(response);
+        AttemptResponse response = attemptService.startAttempt(
+                quizCode,
+                userDetails.getId());
+
+        return ResponseEntity.ok(response);
     }
 
     @PutMapping("/attempts/{attemptId}/answers/{questionId}")
     public ResponseEntity<AnswerResponse> saveAnswer(
             @PathVariable Long attemptId,
             @PathVariable Long questionId,
-            @RequestBody SaveAnswerRequest request) {
+            @RequestBody SaveAnswerRequest request,
+            Authentication authentication) {
+
+        CustomUserDetails userDetails = (CustomUserDetails) authentication.getPrincipal();
 
         AnswerResponse response = attemptService.saveAnswer(
                 attemptId,
                 questionId,
-                request);
+                request,
+                userDetails.getId());
 
         return ResponseEntity.ok(response);
     }
 
     @PostMapping("/attempts/{attemptId}/submit")
     public ResponseEntity<SubmitAttemptResponse> submitAttempt(
-            @PathVariable Long attemptId) {
+            @PathVariable Long attemptId,
+            Authentication authentication) {
 
-        SubmitAttemptResponse response = attemptService.submitAttempt(attemptId);
+        CustomUserDetails userDetails = (CustomUserDetails) authentication.getPrincipal();
+
+        SubmitAttemptResponse response = attemptService.submitAttempt(
+                attemptId,
+                userDetails.getId());
 
         return ResponseEntity.ok(response);
     }
 
     @GetMapping("/attempts/{attemptId}/result")
     public ResponseEntity<AttemptResultResponse> getAttemptResult(
-            @PathVariable Long attemptId) {
+            @PathVariable Long attemptId,
+            Authentication authentication) {
 
-        AttemptResultResponse response = attemptService.getAttemptResult(attemptId);
+        CustomUserDetails userDetails = (CustomUserDetails) authentication.getPrincipal();
+
+        AttemptResultResponse response = attemptService.getAttemptResult(
+                attemptId,
+                userDetails.getId());
 
         return ResponseEntity.ok(response);
     }
 
     @GetMapping("/attempts/{attemptId}/result/details")
     public ResponseEntity<List<AttemptResultDetailResponse>> getAttemptResultDetails(
-            @PathVariable Long attemptId) {
+            @PathVariable Long attemptId,
+            Authentication authentication) {
 
-        List<AttemptResultDetailResponse> response = attemptService.getAttemptResultDetails(attemptId);
+        CustomUserDetails userDetails = (CustomUserDetails) authentication.getPrincipal();
+
+        List<AttemptResultDetailResponse> response = attemptService.getAttemptResultDetails(attemptId,
+                userDetails.getId());
 
         return ResponseEntity.ok(response);
     }
