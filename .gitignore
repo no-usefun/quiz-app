@@ -1,5 +1,5 @@
 # See https://help.github.com/articles/ignoring-files/ for more about ignoring files.
-
+printf '\n# Frontend dependencies and build\nfrontend/node_modules/\nfrontend/.next/\n' >> .gitignore
 # dependencies
 /node_modules
 /.pnp
@@ -55,3 +55,5 @@ agent.md
 antigravity.md
 cloud.md
 PROJECT_MAP.md
+frontend/node_modules/
+frontend/.next/
