@@ -1,4 +1,39 @@
+# Environment variables
 .env
+.env*
+!.env.example
+
+# Maven & Java
 HELP.md
-.vscode
-target
+target/
+*.class
+*.jar
+*.war
+
+# Frontend dependencies and build
+frontend/node_modules/
+frontend/.next/
+/node_modules
+/.next/
+/out/
+/build
+/coverage
+*.tsbuildinfo
+next-env.d.ts
+
+# Misc & OS
+.DS_Store
+Thumbs.db
+*.log
+.vercel
+
+# IDE & Editor
+.vscode/
+.idea/
+*.iml
+*.ipr
+*.iws
+
+# Local scratch
+FEATURES_TRACKER.md
+ANTIGRAVITY_INSTRUCTIONS.md
