@@ -13,8 +13,6 @@ import {
   UserCheck,
 } from "lucide-react";
 
-import { getTestByCode } from "@/lib/storage";
-
 const API_BASE = (
   process.env.NEXT_PUBLIC_API_URL || "http://localhost:8080"
 ).replace(/\/+$/, "");
@@ -84,41 +82,40 @@ function JoinForm() {
     setError(null);
 
     try {
-      // 1. Verify existence of the assessment either locally or on backend
-      const localTest = getTestByCode(cleanCode);
-      let backendPackage: any = null;
+      const token = localStorage.getItem("dynoquizz_token");
 
-      try {
-        const token = localStorage.getItem("dynoquizz_token");
-        const res = await fetch(`${API_BASE}/api/v1/quizzes/code/${cleanCode}/package`, {
+      // Ping the live backend to see if this quiz exists
+      const res = await fetch(
+        `${API_BASE}/api/v1/quizzes/code/${cleanCode}/package`,
+        {
           headers: {
             ...(token ? { Authorization: `Bearer ${token}` } : {}),
             "Content-Type": "application/json",
           },
-        });
-        if (res.ok) {
-          backendPackage = await res.json();
-        }
-      } catch {
-        // Backend offline fallback
-      }
+        },
+      );
 
-      if (!localTest && !backendPackage) {
-        setError(`Assessment session code "${cleanCode}" was not found. Please verify the code.`);
+      if (res.status === 404) {
+        setError(
+          `Assessment session code "${cleanCode}" was not found. Please verify the code.`,
+        );
         setLoading(false);
         return;
       }
 
-      // 2. Validate against Whitelist if configured
-      let allowedList = localTest?.allowedRegistrationNumbers;
-      if (!allowedList || allowedList.length === 0) {
-        if (backendPackage?.allowedRegistrationNumbers && Array.isArray(backendPackage.allowedRegistrationNumbers)) {
-          allowedList = backendPackage.allowedRegistrationNumbers;
-        }
+      if (!res.ok) {
+        throw new Error(`Server returned status: ${res.status}`);
       }
 
-      if (allowedList && allowedList.length > 0) {
-        const isAuthorized = allowedList.some(
+      const backendPackage = await res.json();
+
+      // Validate against Whitelist if the backend provided one
+      if (
+        backendPackage?.allowedRegistrationNumbers &&
+        Array.isArray(backendPackage.allowedRegistrationNumbers) &&
+        backendPackage.allowedRegistrationNumbers.length > 0
+      ) {
+        const isAuthorized = backendPackage.allowedRegistrationNumbers.some(
           (r: string) => r.toUpperCase() === cleanReg,
         );
         if (!isAuthorized) {
@@ -130,14 +127,19 @@ function JoinForm() {
         }
       }
 
+      // Save Student Registration info
       if (typeof window !== "undefined") {
         localStorage.setItem("dynoquizz_regNo", cleanReg);
         sessionStorage.setItem("dynoquizz_student_reg", cleanReg);
       }
 
-      router.push(`/test/${cleanCode}`);
-    } catch {
-      setError("An error occurred while validating the assessment. Please try again.");
+      // Route directly to the new LOBBY page to initialize the attempt
+      router.push(`/test/${cleanCode}/lobby`);
+    } catch (err: any) {
+      console.error("Join validation error:", err);
+      setError(
+        "An error occurred while connecting to the assessment server. Please check your network.",
+      );
     } finally {
       setLoading(false);
     }
@@ -190,8 +192,8 @@ function JoinForm() {
           />
         </div>
         {error && (
-          <p className="flex items-center gap-1 text-xs text-pastel-pink-text mt-1 font-bold">
-            <AlertCircle className="h-3.5 w-3.5" /> {error}
+          <p className="flex items-center gap-1 text-xs text-pastel-pink-text mt-1 font-bold text-left">
+            <AlertCircle className="h-3.5 w-3.5 shrink-0" /> {error}
           </p>
         )}
       </div>
@@ -201,7 +203,7 @@ function JoinForm() {
         disabled={loading}
         className="flex w-full items-center justify-center gap-2 rounded-buttons bg-signal-green px-4 py-2.5 text-xs font-bold text-white hover:bg-signal-green/90 active:scale-[0.98] transition-all duration-200 shadow-none cursor-pointer border-0 disabled:opacity-50"
       >
-        {loading ? "Launching Assessment..." : "Start Assessment"}{" "}
+        {loading ? "Verifying Session..." : "Join Assessment Gateway"}{" "}
         <ArrowRight className="h-4 w-4" />
       </button>
     </form>
@@ -250,7 +252,7 @@ export default function JoinPage() {
 
         <Suspense
           fallback={
-            <div className="text-xs text-steel-blue-gray font-medium">
+            <div className="text-xs text-steel-blue-gray font-medium text-center">
               Loading code entry...
             </div>
           }

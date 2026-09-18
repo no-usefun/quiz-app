@@ -19,14 +19,6 @@ const API_BASE = (
   process.env.NEXT_PUBLIC_API_URL || "http://localhost:8080"
 ).replace(/\/+$/, "");
 
-function gradeBadgeClass(grade: string) {
-  if (!grade) return "bg-[#fbeee8] text-[#8c381c]";
-  const upper = grade.toUpperCase();
-  if (upper.startsWith("A")) return "bg-[#e2ede8] text-[#1d5237]";
-  if (upper.startsWith("B")) return "bg-[#ece9f3] text-[#4c3d73]";
-  if (upper.startsWith("C")) return "bg-[#f6efe1] text-[#73561a]";
-  return "bg-[#fbeee8] text-[#8c381c]";
-}
 
 export default function StudentDashboard() {
   const { user } = useSession();
@@ -40,11 +32,10 @@ export default function StudentDashboard() {
         quizName: r.quizName,
         submittedAt: r.submittedAt || "Recently",
         totalQuestions: r.totalQuestions || 0,
-        score: r.rawScore || 0,
-        adjustedScore: r.adjustedScore || r.rawScore || 0,
-        grade: r.grade || "A",
+        score: r.score || 0,
         published: true,
       }));
+
 
       try {
         const token = localStorage.getItem("dynoquizz_token");
@@ -236,21 +227,12 @@ export default function StudentDashboard() {
                             <div className="flex flex-col items-end text-[10px]">
                               <span className="font-bold text-[#1d5237]">
                                 Score:{" "}
-                                {result.score || result.adjustedScore || 0}%
-                              </span>
-                              <span className="text-[#78716b] font-bold uppercase text-[8px]">
-                                Grade {result.grade || "A"}
+                                {result.score || 0}%
                               </span>
                             </div>
-                            <span
-                              className={`inline-flex min-w-[1.8rem] items-center justify-center rounded-[8.8px] px-2 py-0.5 text-[10px] font-bold border border-[#d1dee8]/20 ${gradeBadgeClass(
-                                result.grade || "A",
-                              )}`}
-                            >
-                              {result.grade || "A"}
-                            </span>
                             <ChevronRight className="h-3.5 w-3.5 text-[#d1dee8]" />
                           </div>
+
                         </Link>
                       </li>
                     );

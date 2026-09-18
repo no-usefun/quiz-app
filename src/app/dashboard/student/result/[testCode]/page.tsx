@@ -13,7 +13,6 @@ import {
   ChevronRight,
   Lock,
   FileQuestion,
-  Sparkles,
 } from "lucide-react";
 import { Logo } from "@/components/Logo";
 import { getResultByCode, getTestByCode } from "@/lib/storage";
@@ -21,44 +20,6 @@ import { getResultByCode, getTestByCode } from "@/lib/storage";
 const API_BASE = (
   process.env.NEXT_PUBLIC_API_URL || "http://localhost:8080"
 ).replace(/\/+$/, "");
-
-function gradeColors(grade: string) {
-  if (!grade)
-    return {
-      text: "text-[#1d5237]",
-      bg: "bg-[#e2ede8]",
-      border: "border-[#d1dee8]/30",
-      ring: "#1d5237",
-    };
-  const upper = grade.toUpperCase();
-  if (upper.startsWith("A"))
-    return {
-      text: "text-[#1d5237]",
-      bg: "bg-[#e2ede8]",
-      border: "border-[#d1dee8]/30",
-      ring: "#1d5237",
-    };
-  if (upper.startsWith("B"))
-    return {
-      text: "text-[#4c3d73]",
-      bg: "bg-[#ece9f3]",
-      border: "border-[#d1dee8]/30",
-      ring: "#4c3d73",
-    };
-  if (upper.startsWith("C"))
-    return {
-      text: "text-[#73561a]",
-      bg: "bg-[#f6efe1]",
-      border: "border-[#d1dee8]/30",
-      ring: "#73561a",
-    };
-  return {
-    text: "text-[#8c381c]",
-    bg: "bg-[#fbeee8]",
-    border: "border-[#d1dee8]/30",
-    ring: "#8c381c",
-  };
-}
 
 function formatTime(s: number) {
   if (!s || s < 60) return `${s || 0}s`;
@@ -142,11 +103,12 @@ export default function StudentResultPage({
       if (localResult) {
         setResult({
           ...localResult,
-          score: localResult.rawScore,
+          score: localResult.score || 0,
           questions: localTest?.questions || [],
           published: localTest?.settings?.publishScoresImmediately ?? true,
           revealSolutions: localTest?.settings?.revealSolutions ?? true,
         });
+
       } else {
         setResult(null);
       }
@@ -274,7 +236,13 @@ export default function StudentResultPage({
     );
   }
 
-  const gc = gradeColors(result.grade || "A");
+  const gc = {
+    text: "text-[#1d5237]",
+    bg: "bg-[#e2ede8]",
+    border: "border-[#d1dee8]/30",
+    ring: "#1d5237",
+  };
+
   const questions = result.questions || testMeta?.questions || [];
 
   return (
@@ -314,17 +282,17 @@ export default function StudentResultPage({
           <div className="flex flex-col items-center gap-5 sm:flex-row sm:items-start">
             <div className="relative shrink-0">
               <ScoreRing
-                score={result.adjustedScore || result.rawScore || 0}
+                score={result.score || 0}
                 color={gc.ring}
               />
               <div className="absolute inset-0 flex flex-col items-center justify-center text-center">
                 <span
                   className={`text-2xl font-black tracking-tight tabular-nums ${gc.text}`}
                 >
-                  {result.adjustedScore || result.rawScore || 0}%
+                  {result.score || 0}%
                 </span>
                 <span className="text-[9px] font-bold text-[#78716b] uppercase tracking-wider mt-0.5">
-                  Grade
+                  Score
                 </span>
               </div>
             </div>
@@ -341,21 +309,7 @@ export default function StudentResultPage({
                 </p>
               </div>
 
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
-                <div className="rounded-[8.8px] border border-[#d1dee8] bg-white p-3 text-center shadow-sm">
-                  <div
-                    className={`mx-auto mb-1 inline-flex h-6 w-6 items-center justify-center rounded-[6px] bg-[#f5f5f4] border border-[#d1dee8] ${gc.text}`}
-                  >
-                    <Award className="h-3.5 w-3.5" />
-                  </div>
-                  <p className={`text-base font-black ${gc.text}`}>
-                    {result.grade || "A"}
-                  </p>
-                  <p className="text-[9px] text-[#78716b] font-bold uppercase tracking-wider">
-                    Grade
-                  </p>
-                </div>
-
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-2.5">
                 <div className="rounded-[8.8px] border border-[#d1dee8] bg-white p-3 text-center shadow-sm">
                   <div className="mx-auto mb-1 inline-flex h-6 w-6 items-center justify-center rounded-[6px] bg-[#f5f5f4] border border-[#d1dee8] text-[#165dfb]">
                     <CheckCircle2 className="h-3.5 w-3.5" />
@@ -369,14 +323,14 @@ export default function StudentResultPage({
                 </div>
 
                 <div className="rounded-[8.8px] border border-[#d1dee8] bg-white p-3 text-center shadow-sm">
-                  <div className="mx-auto mb-1 inline-flex h-6 w-6 items-center justify-center rounded-[6px] bg-[#f5f5f4] border border-[#d1dee8] text-[#73561a]">
-                    <Sparkles className="h-3.5 w-3.5" />
+                  <div className="mx-auto mb-1 inline-flex h-6 w-6 items-center justify-center rounded-[6px] bg-[#f5f5f4] border border-[#d1dee8] text-[#1d5237]">
+                    <Award className="h-3.5 w-3.5" />
                   </div>
                   <p className="text-base font-black text-[#111111]">
-                    +{result.speedBonusTotal ?? 0}
+                    {result.score || 0}%
                   </p>
                   <p className="text-[9px] text-[#78716b] font-bold uppercase tracking-wider">
-                    Speed Bonus
+                    Score
                   </p>
                 </div>
 
@@ -395,6 +349,7 @@ export default function StudentResultPage({
             </div>
           </div>
         </section>
+
 
         {canRevealSolutions && questions.length > 0 ? (
           <section className="space-y-2.5">

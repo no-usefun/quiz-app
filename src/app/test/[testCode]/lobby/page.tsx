@@ -56,6 +56,10 @@ function LobbyInner({ testCode }: { testCode: string }) {
   const [isDownloading, setIsDownloading] = useState(false);
   const [downloadProgress, setDownloadProgress] = useState(0);
 
+  // New states for backend attempt initialization
+  const [isStarting, setIsStarting] = useState(false);
+  const [startError, setStartError] = useState<string | null>(null);
+
   useEffect(() => {
     const cleanCode = testCode.toUpperCase();
 
@@ -94,26 +98,12 @@ function LobbyInner({ testCode }: { testCode: string }) {
             questions: data.questions || [],
           });
         } else {
-          // Fallback mock package
-          setTest({
-            testCode: cleanCode,
-            quizName: "Data Structures & Algorithms — Midterm",
-            description: "Secure proctored assessment environment.",
-            targetClass: "CS-201 Section A",
-            totalTimeLimitMinutes: 60,
-            questions: new Array(20).fill({ questionId: 1 }),
-          });
+          // Fallback mock package removed to ensure strict backend syncing
+          setTest(null);
         }
       } catch (e) {
-        console.warn("Backend offline — using fallback quiz package.");
-        setTest({
-          testCode: cleanCode,
-          quizName: "Data Structures & Algorithms — Midterm",
-          description: "Secure proctored assessment environment.",
-          targetClass: "CS-201 Section A",
-          totalTimeLimitMinutes: 60,
-          questions: new Array(20).fill({ questionId: 1 }),
-        });
+        console.warn("Backend offline.");
+        setTest(null);
       } finally {
         setLoading(false);
       }
@@ -134,7 +124,7 @@ function LobbyInner({ testCode }: { testCode: string }) {
         setIsDownloaded(true);
       }
     }
-  }, [testCode, regParam]);
+  }, [testCode, regParam, router]);
 
   const handleDownload = () => {
     setIsDownloading(true);
@@ -165,14 +155,76 @@ function LobbyInner({ testCode }: { testCode: string }) {
     }, 1500);
   };
 
-  const handleStartAssessment = () => {
+  const handleStartAssessment = async () => {
+    setIsStarting(true);
+    setStartError(null);
     const cleanCode = testCode.toUpperCase();
     const reg = registrationNumber || "CANDIDATE";
+
     if (typeof window !== "undefined") {
       localStorage.setItem("dynoquizz_regNo", reg);
       sessionStorage.setItem("dynoquizz_student_reg", reg);
     }
-    router.push(`/test/${cleanCode}`);
+
+    try {
+      const token = localStorage.getItem("dynoquizz_token");
+
+      // Extract studentId directly from the JWT token
+      let extractedStudentId = 0;
+      if (token) {
+        try {
+          const payloadBase64 = token.split(".")[1];
+          const decoded = JSON.parse(atob(payloadBase64));
+          extractedStudentId = decoded.id || decoded.userId || decoded.sub || 0;
+        } catch (e) {
+          console.warn("Failed to decode token");
+        }
+      }
+
+      // Hit the new attempts API to officially start the session
+      const res = await fetch(
+        `${API_BASE}/api/v1/quizzes/${cleanCode}/attempts`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            ...(token ? { Authorization: `Bearer ${token}` } : {}),
+          },
+          body: JSON.stringify({
+            studentId: extractedStudentId,
+          }),
+        },
+      );
+
+      if (!res.ok) {
+        const errorData = await res.json().catch(() => ({}));
+        throw new Error(
+          errorData.error ||
+            errorData.message ||
+            "Failed to initialize assessment attempt on the server.",
+        );
+      }
+
+      const data = await res.json();
+
+      // Save the attemptId in local storage so the actual test page can use it for final submission
+      if (typeof window !== "undefined") {
+        localStorage.setItem(
+          `dynoquizz_attemptId_${cleanCode}`,
+          data.attemptId.toString(),
+        );
+      }
+
+      // Route the student into the actual test arena
+      router.push(`/test/${cleanCode}`);
+    } catch (err: any) {
+      console.error("Start attempt error:", err);
+      setStartError(
+        err.message ||
+          "Could not start the assessment. Please check your connection.",
+      );
+      setIsStarting(false);
+    }
   };
 
   if (loading) {
@@ -198,7 +250,7 @@ function LobbyInner({ testCode }: { testCode: string }) {
         <p className="mt-2 text-xs text-[#78716b] leading-relaxed">
           The access code{" "}
           <span className="font-mono font-bold text-[#111111]">{testCode}</span>{" "}
-          does not exist or has been archived.
+          does not exist, has been archived, or you lack permissions.
         </p>
         <Link
           href="/join"
@@ -384,13 +436,30 @@ function LobbyInner({ testCode }: { testCode: string }) {
               </div>
             </div>
 
+            {startError && (
+              <div className="rounded-[8.8px] bg-[#fbeee8] border border-[#8c381c]/30 p-3 text-xs text-[#8c381c] font-semibold flex items-center gap-2">
+                <AlertCircle className="h-4 w-4 shrink-0" />
+                {startError}
+              </div>
+            )}
+
             <div className="space-y-2">
               <button
                 type="button"
                 onClick={handleStartAssessment}
-                className="w-full flex items-center justify-center gap-2 rounded-[8.8px] bg-[#111111] py-3.5 text-sm font-bold text-white hover:bg-[#222222] active:scale-[0.98] transition-all cursor-pointer border-0"
+                disabled={isStarting}
+                className="w-full flex items-center justify-center gap-2 rounded-[8.8px] bg-[#111111] py-3.5 text-sm font-bold text-white hover:bg-[#222222] active:scale-[0.98] transition-all cursor-pointer border-0 disabled:opacity-70"
               >
-                Start Assessment <ArrowRight className="h-4 w-4" />
+                {isStarting ? (
+                  <>
+                    <Loader2 className="h-4 w-4 animate-spin" /> Initializing
+                    Server Session...
+                  </>
+                ) : (
+                  <>
+                    Start Assessment <ArrowRight className="h-4 w-4" />
+                  </>
+                )}
               </button>
             </div>
           </motion.div>
