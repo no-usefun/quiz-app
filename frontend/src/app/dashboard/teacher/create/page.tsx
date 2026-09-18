@@ -466,7 +466,10 @@ export default function CreateAssessmentPage() {
           (q) => (q.quizId ?? q.id) !== (newQuiz.quizId ?? newQuiz.id),
         );
         deduped.unshift(newQuiz); // newest first
-        localStorage.setItem("dynoquizz_teacher_quizzes", JSON.stringify(deduped));
+        localStorage.setItem(
+          "dynoquizz_teacher_quizzes",
+          JSON.stringify(deduped),
+        );
       } catch {
         // If localStorage write fails, proceed — redirect still works
       }
