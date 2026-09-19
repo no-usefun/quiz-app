@@ -59,7 +59,12 @@ function JoinForm() {
         );
         return;
       }
-      const stored = localStorage.getItem("dynoquizz_regNo");
+      let userObj: any = null;
+      try {
+        const rawUser = localStorage.getItem("dynoquizz_user");
+        if (rawUser) userObj = JSON.parse(rawUser);
+      } catch {}
+      const stored = userObj?.registrationNo || localStorage.getItem("dynoquizz_regNo");
       if (stored) setRegistrationNo(stored);
     }
   }, [queryCode, router]);
@@ -85,16 +90,15 @@ function JoinForm() {
     try {
       const token = localStorage.getItem("dynoquizz_token");
 
+      const pkgUrl = `${API_BASE}/api/v1/quizzes/code/${cleanCode}/package`;
+
       // Ping the live backend to see if this quiz exists
-      const res = await fetch(
-        `${API_BASE}/api/v1/quizzes/code/${cleanCode}/package`,
-        {
-          headers: {
-            ...(token ? { Authorization: `Bearer ${token}` } : {}),
-            "Content-Type": "application/json",
-          },
+      const res = await fetch(pkgUrl, {
+        headers: {
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+          "Content-Type": "application/json",
         },
-      );
+      });
 
       if (res.status === 404) {
         setError(
@@ -105,27 +109,43 @@ function JoinForm() {
       }
 
       if (!res.ok) {
-        throw new Error(`Server returned status: ${res.status}`);
-      }
+        const bodyText = await res.text().catch(() => "(unreadable body)");
+        let bodyJson: any = null;
+        try {
+          bodyJson = JSON.parse(bodyText);
+        } catch {
+          /* not JSON */
+        }
+        const serverMsg =
+          bodyJson?.message ||
+          bodyJson?.error ||
+          bodyText.slice(0, 200);
 
-      const backendPackage = await res.json();
-
-      // Validate against Whitelist if the backend provided one
-      if (
-        backendPackage?.allowedRegistrationNumbers &&
-        Array.isArray(backendPackage.allowedRegistrationNumbers) &&
-        backendPackage.allowedRegistrationNumbers.length > 0
-      ) {
-        const isAuthorized = backendPackage.allowedRegistrationNumbers.some(
-          (r: string) => r.toUpperCase() === cleanReg,
-        );
-        if (!isAuthorized) {
+        if (
+          typeof serverMsg === "string" &&
+          serverMsg.toLowerCase().includes("not available to students")
+        ) {
           setError(
-            `Registration number "${cleanReg}" is not authorized for assessment session ${cleanCode}. Please contact your instructor.`,
+            "This assessment is not open yet. Ask your teacher to publish it.",
           );
           setLoading(false);
           return;
         }
+
+        if (
+          res.status === 409 &&
+          (bodyJson?.error === "QUIZ_NOT_ACTIVE" ||
+            (typeof serverMsg === "string" &&
+              serverMsg.includes("QUIZ_NOT_ACTIVE")))
+        ) {
+          setError("This assessment is not open right now.");
+          setLoading(false);
+          return;
+        }
+
+        setError(serverMsg || `Server returned status: ${res.status}`);
+        setLoading(false);
+        return;
       }
 
       // Save Student Registration info
@@ -138,9 +158,25 @@ function JoinForm() {
       router.push(`/test/${cleanCode}/lobby`);
     } catch (err: any) {
       console.error("Join validation error:", err);
-      setError(
-        "An error occurred while connecting to the assessment server. Please check your network.",
-      );
+      const msg = err.message || "";
+      if (
+        typeof msg === "string" &&
+        msg.toLowerCase().includes("not available to students")
+      ) {
+        setError(
+          "This assessment is not open yet. Ask your teacher to publish it.",
+        );
+      } else if (
+        typeof msg === "string" &&
+        msg.includes("QUIZ_NOT_ACTIVE")
+      ) {
+        setError("This assessment is not open right now.");
+      } else {
+        setError(
+          msg ||
+            "An error occurred while connecting to the assessment server. Please check your network.",
+        );
+      }
     } finally {
       setLoading(false);
     }
