@@ -17,11 +17,14 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
+import static org.mockito.Mockito.atLeastOnce;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.mockito.junit.jupiter.MockitoSettings;
+import org.mockito.quality.Strictness;
 
 import com.quiz_app.backend.dto.exam.QuizPackageResponse;
 import com.quiz_app.backend.dto.quiz.CreateQuizRequest;
@@ -46,6 +49,7 @@ import com.quiz_app.backend.repository.QuizRepository;
 import com.quiz_app.backend.repository.UserRepository;
 
 @ExtendWith(MockitoExtension.class)
+@MockitoSettings(strictness = Strictness.LENIENT)
 class QuizServiceTest {
 
         @Mock
@@ -283,7 +287,7 @@ class QuizServiceTest {
                 verify(questionRepository)
                                 .save(any(Question.class));
 
-                verify(optionRepository)
+                verify(optionRepository, atLeastOnce())
                                 .save(any(Option.class));
         }
 

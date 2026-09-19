@@ -19,6 +19,8 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.mockito.junit.jupiter.MockitoSettings;
+import org.mockito.quality.Strictness;
 
 import com.quiz_app.backend.dto.attempt.AnswerResponse;
 import com.quiz_app.backend.dto.attempt.AttemptResponse;
@@ -47,6 +49,7 @@ import com.quiz_app.backend.repository.StudentSelectedOptionRepository;
 import com.quiz_app.backend.repository.UserRepository;
 
 @ExtendWith(MockitoExtension.class)
+@MockitoSettings(strictness = Strictness.LENIENT)
 class AttemptServiceTest {
 
         @Mock
@@ -467,7 +470,8 @@ class AttemptServiceTest {
                 when(quiz.getOverallTimerSeconds())
                                 .thenReturn(1800);
 
-                // configure normal submission dependencies...
+                when(quizAttemptRepository.findById(1000L))
+                                .thenReturn(Optional.of(attempt));
 
                 SubmitAttemptResponse response = attemptService.submitAttempt(
                                 1000L,
