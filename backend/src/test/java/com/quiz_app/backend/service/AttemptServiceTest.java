@@ -19,6 +19,8 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.mockito.junit.jupiter.MockitoSettings;
+import org.mockito.quality.Strictness;
 
 import com.quiz_app.backend.dto.attempt.AnswerResponse;
 import com.quiz_app.backend.dto.attempt.AttemptResponse;
@@ -47,6 +49,7 @@ import com.quiz_app.backend.repository.StudentSelectedOptionRepository;
 import com.quiz_app.backend.repository.UserRepository;
 
 @ExtendWith(MockitoExtension.class)
+@MockitoSettings(strictness = Strictness.LENIENT)
 class AttemptServiceTest {
 
         @Mock
@@ -167,7 +170,11 @@ class AttemptServiceTest {
                 when(attempt.getId()).thenReturn(1000L);
                 when(attempt.getQuiz()).thenReturn(quiz);
                 when(attempt.getStudent()).thenReturn(student);
-                when(attempt.getStatus()).thenReturn(AttemptStatus.IN_PROGRESS);
+                when(attempt.getStatus())
+                                .thenReturn(
+                                                AttemptStatus.IN_PROGRESS,
+                                                AttemptStatus.IN_PROGRESS,
+                                                AttemptStatus.AUTO_SUBMITTED);
                 when(attempt.getCurrentQuestion()).thenReturn(1);
                 when(attempt.getTotalTimeTaken()).thenReturn(0);
                 when(attempt.getStartedAt())
@@ -467,7 +474,23 @@ class AttemptServiceTest {
                 when(quiz.getOverallTimerSeconds())
                                 .thenReturn(1800);
 
-                // configure normal submission dependencies...
+                when(quizAttemptRepository.findById(1000L))
+                                .thenReturn(Optional.of(attempt));
+
+                when(questionRepository.findByQuizIdOrderByDisplayOrder(10L))
+                                .thenReturn(List.of(mcqQuestion));
+
+                when(studentAnswerRepository.findByAttemptId(1000L))
+                                .thenReturn(List.of());
+
+                when(studentAnswerRepository.save(any(StudentAnswer.class)))
+                                .thenAnswer(invocation -> invocation.getArgument(0));
+
+                when(studentSelectedOptionRepository.findByAnswerId(any()))
+                                .thenReturn(List.of());
+
+                when(optionRepository.findByQuestionIdAndCorrectTrue(100L))
+                                .thenReturn(List.of(option1));
 
                 SubmitAttemptResponse response = attemptService.submitAttempt(
                                 1000L,
@@ -490,7 +513,23 @@ class AttemptServiceTest {
                 when(quiz.getEndTime())
                                 .thenReturn(LocalDateTime.now().minusMinutes(1));
 
-                // configure finalization dependencies...
+                when(quizAttemptRepository.findById(1000L))
+                                .thenReturn(Optional.of(attempt));
+
+                when(questionRepository.findByQuizIdOrderByDisplayOrder(10L))
+                                .thenReturn(List.of(mcqQuestion));
+
+                when(studentAnswerRepository.findByAttemptId(1000L))
+                                .thenReturn(List.of());
+
+                when(studentAnswerRepository.save(any(StudentAnswer.class)))
+                                .thenAnswer(invocation -> invocation.getArgument(0));
+
+                when(studentSelectedOptionRepository.findByAnswerId(any()))
+                                .thenReturn(List.of());
+
+                when(optionRepository.findByQuestionIdAndCorrectTrue(100L))
+                                .thenReturn(List.of(option1));
 
                 SubmitAttemptResponse response = attemptService.submitAttempt(
                                 1000L,

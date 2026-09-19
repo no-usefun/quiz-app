@@ -18,26 +18,23 @@ import com.quiz_app.backend.dto.attempt.AttemptResultDetailResponse;
 import com.quiz_app.backend.dto.attempt.AttemptResultResponse;
 import com.quiz_app.backend.dto.attempt.LeaderboardEntryResponse;
 import com.quiz_app.backend.dto.attempt.SaveAnswerRequest;
-import com.quiz_app.backend.dto.attempt.StartAttemptRequest;
 import com.quiz_app.backend.dto.attempt.SubmitAttemptRequest;
 import com.quiz_app.backend.dto.attempt.SubmitAttemptResponse;
 import com.quiz_app.backend.security.CustomUserDetails;
 import com.quiz_app.backend.service.AttemptService;
 
 @RestController
-@RequestMapping("/api/v1")
-public class AttemptController {
-
+@RequestMapping("/api/v1/student")
+public class StudentQuizController {
     private final AttemptService attemptService;
 
-    public AttemptController(AttemptService attemptService) {
+    public StudentQuizController(AttemptService attemptService) {
         this.attemptService = attemptService;
     }
 
     @PostMapping("/quizzes/{quizCode}/attempts")
     public ResponseEntity<AttemptResponse> startAttempt(
             @PathVariable String quizCode,
-            @RequestBody StartAttemptRequest request,
             Authentication authentication) {
 
         CustomUserDetails userDetails = (CustomUserDetails) authentication.getPrincipal();

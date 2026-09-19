@@ -1,17 +1,18 @@
 package com.quiz_app.backend.security;
 
 import java.io.IOException;
-import java.util.List;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
-import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.security.web.authentication.WebAuthenticationDetailsSource;
 import org.springframework.stereotype.Component;
 import org.springframework.util.StringUtils;
 import org.springframework.web.filter.OncePerRequestFilter;
+
+import com.quiz_app.backend.service.CustomUserDetailsService;
 
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
@@ -24,9 +25,14 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
     private static final Logger logger = LoggerFactory.getLogger(JwtAuthenticationFilter.class);
 
     private final JwtUtils jwtUtils;
+    private final CustomUserDetailsService userDetailsService;
 
-    public JwtAuthenticationFilter(JwtUtils jwtUtils) {
+    public JwtAuthenticationFilter(
+            JwtUtils jwtUtils,
+            CustomUserDetailsService userDetailsService) {
+
         this.jwtUtils = jwtUtils;
+        this.userDetailsService = userDetailsService;
     }
 
     @Override
@@ -41,26 +47,27 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
 
             if (jwt != null && jwtUtils.validateToken(jwt)) {
 
-                // Avoid re-authenticating an already authenticated request
-                if (SecurityContextHolder.getContext().getAuthentication() == null) {
+                if (SecurityContextHolder
+                        .getContext()
+                        .getAuthentication() == null) {
 
                     String email = jwtUtils.getEmailFromToken(jwt);
-                    String role = jwtUtils.getRoleFromToken(jwt);
 
-                    if (email != null && role != null) {
+                    if (email != null) {
+
+                        UserDetails userDetails = userDetailsService.loadUserByUsername(email);
 
                         UsernamePasswordAuthenticationToken authentication = new UsernamePasswordAuthenticationToken(
-                                email,
+                                userDetails,
                                 null,
-                                List.of(
-                                        new SimpleGrantedAuthority(
-                                                "ROLE_" + role)));
+                                userDetails.getAuthorities());
 
                         authentication.setDetails(
                                 new WebAuthenticationDetailsSource()
                                         .buildDetails(request));
 
-                        SecurityContextHolder.getContext()
+                        SecurityContextHolder
+                                .getContext()
                                 .setAuthentication(authentication);
                     }
                 }
