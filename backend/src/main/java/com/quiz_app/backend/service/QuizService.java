@@ -13,6 +13,7 @@ import com.quiz_app.backend.dto.quiz.CreateQuizRequest;
 import com.quiz_app.backend.dto.quiz.OptionRequest;
 import com.quiz_app.backend.dto.quiz.QuestionRequest;
 import com.quiz_app.backend.dto.quiz.QuizResponse;
+import com.quiz_app.backend.entity.Difficulty;
 import com.quiz_app.backend.entity.ExamState;
 import com.quiz_app.backend.entity.Option;
 import com.quiz_app.backend.entity.Question;
@@ -132,6 +133,8 @@ public class QuizService {
                 quiz = quizRepository.save(quiz);
 
                 // 6. Create questions and options
+                int questionOrder = 1;
+
                 for (QuestionRequest questionRequest : request.questions()) {
 
                         validateQuestion(questionRequest);
@@ -145,6 +148,7 @@ public class QuizService {
 
                         question.setQuestionType(questionRequest.questionType());
                         question.setMarks(questionRequest.marks());
+
                         question.setNegativeMarks(
                                         questionRequest.negativeMarks() != null
                                                         ? questionRequest.negativeMarks()
@@ -153,15 +157,23 @@ public class QuizService {
                         question.setQuestionTimerSeconds(
                                         questionRequest.questionTimerSeconds());
 
-                        question.setDifficulty(questionRequest.difficulty());
-                        question.setDisplayOrder(questionRequest.displayOrder());
+                        question.setDifficulty(
+                                        questionRequest.difficulty() != null
+                                                        ? questionRequest.difficulty()
+                                                        : Difficulty.EASY);
+
+                        // Generate question order on the backend
+                        question.setDisplayOrder(questionOrder++);
 
                         question.setCreatedAt(LocalDateTime.now());
                         question.setUpdatedAt(LocalDateTime.now());
 
                         question = questionRepository.save(question);
 
+                        // Create options
                         // 7. Create options
+                        int optionOrder = 1;
+
                         for (OptionRequest optionRequest : questionRequest.options()) {
 
                                 Option option = new Option();
@@ -170,7 +182,10 @@ public class QuizService {
                                 option.setOptionText(optionRequest.optionText());
                                 option.setOptionImage(optionRequest.optionImage());
                                 option.setCorrect(optionRequest.isCorrect());
-                                option.setOptionOrder(optionRequest.optionOrder());
+
+                                // Generate option order on the backend
+                                option.setOptionOrder((short) optionOrder++);
+
                                 option.setCreatedAt(LocalDateTime.now());
 
                                 optionRepository.save(option);
@@ -334,6 +349,10 @@ public class QuizService {
         }
 
         private void validateOption(OptionRequest request) {
+                if (request == null) {
+                        throw new BadRequestException(
+                                        "Option cannot be null");
+                }
 
                 if ((request.optionText() == null ||
                                 request.optionText().isBlank())
@@ -342,13 +361,6 @@ public class QuizService {
 
                         throw new BadRequestException(
                                         "Option must contain text or an image");
-                }
-
-                if (request.optionOrder() == null ||
-                                request.optionOrder() <= 0) {
-
-                        throw new BadRequestException(
-                                        "Option order must be greater than zero");
                 }
         }
 
