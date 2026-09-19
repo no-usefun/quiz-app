@@ -68,7 +68,29 @@ class QuizControllerTest {
                 mockMvc.perform(
                                 post("/api/v1/teacher/quizzes")
                                                 .contentType(MediaType.APPLICATION_JSON)
-                                                .content("{}")
+                                                .content("""
+                                                                {
+                                                                  "title": "Test Quiz",
+                                                                  "description": "Test Description",
+                                                                  "instructions": "Read carefully",
+                                                                  "subject": "Computer Science",
+                                                                  "subjectCode": "CS101",
+                                                                  "totalStudents": 30,
+                                                                  "overallTimerSeconds": 1800,
+                                                                  "negativeMarking": false,
+                                                                  "negativeMarks": 0,
+                                                                  "timeBonusEnabled": false,
+                                                                  "randomQuestionOrder": false,
+                                                                  "randomOptionOrder": false,
+                                                                  "allowReview": true,
+                                                                  "allowResume": true,
+                                                                  "autoSubmit": true,
+                                                                  "startTime": null,
+                                                                  "endTime": null,
+                                                                  "resultVisibility": "NONE",
+                                                                  "questions": []
+                                                                }
+                                                                """)
                                                 .principal(authentication))
                                 .andExpect(status().isCreated());
 

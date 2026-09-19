@@ -170,7 +170,11 @@ class AttemptServiceTest {
                 when(attempt.getId()).thenReturn(1000L);
                 when(attempt.getQuiz()).thenReturn(quiz);
                 when(attempt.getStudent()).thenReturn(student);
-                when(attempt.getStatus()).thenReturn(AttemptStatus.IN_PROGRESS);
+                when(attempt.getStatus())
+                                .thenReturn(
+                                                AttemptStatus.IN_PROGRESS,
+                                                AttemptStatus.IN_PROGRESS,
+                                                AttemptStatus.AUTO_SUBMITTED);
                 when(attempt.getCurrentQuestion()).thenReturn(1);
                 when(attempt.getTotalTimeTaken()).thenReturn(0);
                 when(attempt.getStartedAt())
@@ -473,6 +477,21 @@ class AttemptServiceTest {
                 when(quizAttemptRepository.findById(1000L))
                                 .thenReturn(Optional.of(attempt));
 
+                when(questionRepository.findByQuizIdOrderByDisplayOrder(10L))
+                                .thenReturn(List.of(mcqQuestion));
+
+                when(studentAnswerRepository.findByAttemptId(1000L))
+                                .thenReturn(List.of());
+
+                when(studentAnswerRepository.save(any(StudentAnswer.class)))
+                                .thenAnswer(invocation -> invocation.getArgument(0));
+
+                when(studentSelectedOptionRepository.findByAnswerId(any()))
+                                .thenReturn(List.of());
+
+                when(optionRepository.findByQuestionIdAndCorrectTrue(100L))
+                                .thenReturn(List.of(option1));
+
                 SubmitAttemptResponse response = attemptService.submitAttempt(
                                 1000L,
                                 new SubmitAttemptRequest(List.of()),
@@ -516,9 +535,6 @@ class AttemptServiceTest {
                                 1000L,
                                 new SubmitAttemptRequest(List.of()),
                                 1L);
-
-                when(quizAttemptRepository.findById(1000L))
-                                .thenReturn(Optional.of(attempt));
 
                 assertEquals(
                                 AttemptStatus.AUTO_SUBMITTED,
