@@ -41,101 +41,63 @@ export default function ShareAssessmentPage({
     const fetchQuizDetails = async () => {
       try {
         const token = localStorage.getItem("dynoquizz_token");
+        const headers = {
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+          "Content-Type": "application/json",
+        };
 
-        // ── Step 1: resolve the real access code from local cache ─────────
-        // The URL param is a numeric quizId (e.g. "4"). The backend /code/{code}/package
-        // endpoint expects the access code (e.g. "482910"). We resolve it from cache.
-        const { quizId, quizCode } = resolveQuizIdentifiers(testCode);
-        const accessCode = quizCode || testCode;
-        setResolvedCode(accessCode);
+        // 1. Fetch teacher quizzes from backend to resolve this quiz
+        let foundQuiz: any = null;
+        if (token) {
+          const teacherRes = await fetch(`${API_BASE}/api/v1/teacher/quizzes`, {
+            headers,
+          }).catch(() => null);
 
-        // Find cached quiz object if available
-        let cachedQuiz: any = null;
-        try {
-          const allKeys = Object.keys(localStorage).filter(
-            (k) => k.startsWith("dynoquizz_quizzes_") || k === "dynoquizz_teacher_quizzes",
-          );
-          for (const key of allKeys) {
-            const list: any[] = JSON.parse(localStorage.getItem(key) || "[]");
-            const found = list.find(
+          if (teacherRes && teacherRes.ok) {
+            const data = await teacherRes.json();
+            const list: any[] = Array.isArray(data)
+              ? data
+              : Array.isArray(data?.content)
+                ? data.content
+                : Array.isArray(data?.data)
+                  ? data.data
+                  : [];
+
+            foundQuiz = list.find(
               (q) =>
                 String(q.quizId ?? q.id) === String(testCode) ||
                 String(q.quizCode) === String(testCode),
             );
-            if (found) {
-              cachedQuiz = found;
-              break;
-            }
           }
-        } catch {
-          // ignore
         }
 
-        // ── Step 2: fetch the quiz package using the resolved access code ──
-        let res = await fetch(
-          `${API_BASE}/api/v1/quizzes/code/${accessCode}/package`,
-          {
-            headers: {
-              ...(token ? { Authorization: `Bearer ${token}` } : {}),
-              "Content-Type": "application/json",
-            },
-          },
+        if (foundQuiz) {
+          const code = foundQuiz.quizCode || testCode;
+          setResolvedCode(code);
+          setQuizData(foundQuiz);
+          setLoading(false);
+          return;
+        }
+
+        // 2. Fallback: fetch package by access code if not resolved in teacher list
+        const pkgRes = await fetch(
+          `${API_BASE}/api/v1/quizzes/code/${testCode}/package`,
+          { headers },
         );
 
-        if (res.status === 404 && accessCode !== testCode) {
-          // If resolved code was not found, try testCode
-          const retryRes = await fetch(
-            `${API_BASE}/api/v1/quizzes/code/${testCode}/package`,
-            {
-              headers: {
-                ...(token ? { Authorization: `Bearer ${token}` } : {}),
-                "Content-Type": "application/json",
-              },
-            },
-          );
-          if (retryRes.ok) res = retryRes;
-        }
-
-        if (res.status === 404) {
-          // Try teacher quiz endpoint with the database id
-          const teacherRes = await fetch(
-            `${API_BASE}/api/v1/teacher/quizzes/${testCode}`,
-            {
-              headers: {
-                ...(token ? { Authorization: `Bearer ${token}` } : {}),
-                "Content-Type": "application/json",
-              },
-            },
-          );
-          if (teacherRes.ok) res = teacherRes;
-        }
-
-        if (!res.ok) {
-          if (cachedQuiz) {
-            setQuizData(cachedQuiz);
-            if (cachedQuiz.quizCode || cachedQuiz.accessCode) {
-              setResolvedCode(cachedQuiz.quizCode || cachedQuiz.accessCode);
-            }
-            setLoading(false);
-            return;
+        if (pkgRes.ok) {
+          const pkgData = await pkgRes.json();
+          if (pkgData.quizCode || pkgData.accessCode) {
+            setResolvedCode(pkgData.quizCode || pkgData.accessCode);
           }
-
-          if (res.status === 404) {
-            throw new Error(
-              "Assessment not found in the database. Ensure it was saved correctly.",
-            );
-          }
-          throw new Error(`Server returned ${res.status}`);
+          setQuizData(pkgData);
+        } else {
+          throw new Error(
+            "Assessment not found on the server. Ensure it was created correctly.",
+          );
         }
-
-        const data = await res.json();
-        // If the backend response includes the quiz code, prefer it
-        if (data.quizCode || data.accessCode) {
-          setResolvedCode(data.quizCode || data.accessCode);
-        }
-        setQuizData(data);
       } catch (e: any) {
-        console.error("Failed to load quiz package for sharing:", e);
+        console.error("Failed to load quiz for sharing:", e);
         setError(
           e.message ||
             "We couldn't retrieve the assessment details from the server. Please check your backend connection.",

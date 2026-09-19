@@ -24,7 +24,7 @@ import {
   Lock,
 } from "lucide-react";
 import { Logo } from "@/components/Logo";
-import { getStoredResults, getStoredTests } from "@/lib/storage";
+import { getStoredTests } from "@/lib/storage";
 import { resolveQuizIdentifiers } from "@/lib/quizCache";
 
 const API_BASE = (
@@ -200,6 +200,10 @@ export default function TeacherAssessmentPage({
     showIntegrityFlagsToStudent: false,
   });
   const [settingsError, setSettingsError] = useState<string | null>(null);
+  const [lifecycleLoading, setLifecycleLoading] = useState(false);
+  const [lifecycleError, setLifecycleError] = useState<string | null>(null);
+  const [confirmCompleteOpen, setConfirmCompleteOpen] = useState(false);
+  const [leaderboardUnavailable, setLeaderboardUnavailable] = useState(false);
 
   useEffect(() => {
     const fetchAssessmentDetails = async () => {
@@ -215,29 +219,6 @@ export default function TeacherAssessmentPage({
             String((t as any).quizId ?? (t as any).id) === resolvedId),
       );
 
-      // Match stored submissions by the resolved access code or quizId
-      const localStudents: StudentRecord[] = getStoredResults()
-        .filter(
-          (r) =>
-            r.testCode.toUpperCase() === quizCode.toUpperCase() ||
-            (resolvedId && String((r as any).quizId) === resolvedId),
-        )
-        .map((r, idx) => ({
-          id: idx + 1,
-          name: r.studentName || "Candidate",
-          avatar: (r.studentName || "C").slice(0, 2).toUpperCase(),
-          score: r.score || 0,
-          accuracyPercentage:
-            r.accuracyPercentage ??
-            (r.totalQuestions > 0
-              ? Math.round((r.correctCount / r.totalQuestions) * 100)
-              : 0),
-          timeTaken: `${Math.floor((r.timeTakenTotalSeconds || 0) / 60)}m ${(r.timeTakenTotalSeconds || 0) % 60}s`,
-          timeTakenSeconds: r.timeTakenTotalSeconds || 0,
-          submitted: true,
-          flags: [],
-        }));
-
       try {
         const token = localStorage.getItem("dynoquizz_token");
         const headers = {
@@ -245,98 +226,134 @@ export default function TeacherAssessmentPage({
           "Content-Type": "application/json",
         };
 
-        // Use quizCode for /code/{code}/… endpoints
-        // Use resolvedId (numeric quizId) for the leaderboard if available
-        const leaderboardUrl = resolvedId
-          ? `${API_BASE}/api/v1/quizzes/${resolvedId}/leaderboard`
-          : `${API_BASE}/api/v1/quizzes/${quizCode}/leaderboard`;
+        // 1. Resolve numeric quizId by finding quiz whose quizCode equals route param in GET /teacher/quizzes
+        let numericQuizId: number | null = null;
+        let matchedQuiz: any = null;
+        const tqRes = await fetch(`${API_BASE}/api/v1/teacher/quizzes`, {
+          headers,
+        }).catch(() => null);
 
-        // Fetch Quiz details and Leaderboard simultaneously
-        const [pkgRes, lbRes] = await Promise.all([
-          fetch(`${API_BASE}/api/v1/quizzes/code/${quizCode}/package`, {
-            headers,
-          }).catch(() => null),
-          fetch(leaderboardUrl, { headers }).catch(() => null),
-        ]);
+        if (tqRes && tqRes.ok) {
+          const tqData = await tqRes.json();
+          const list: any[] = Array.isArray(tqData)
+            ? tqData
+            : Array.isArray(tqData?.content)
+              ? tqData.content
+              : Array.isArray(tqData?.data)
+                ? tqData.data
+                : [];
+          matchedQuiz = list.find(
+            (q: any) =>
+              String(q.quizCode || q.testCode || "").toUpperCase() ===
+                quizCode.toUpperCase() ||
+              String(q.quizId || q.id || "") === testCode,
+          );
+          if (matchedQuiz) {
+            numericQuizId = matchedQuiz.quizId ?? matchedQuiz.id;
+          }
+        }
+
+        if (!numericQuizId && /^\d+$/.test(testCode)) {
+          numericQuizId = Number(testCode);
+        }
+
+        // 2. Fetch package / quiz details for question roster and settings
+        const pkgRes = await fetch(
+          `${API_BASE}/api/v1/quizzes/code/${quizCode}/package`,
+          { headers },
+        ).catch(() => null);
 
         let pkgData: any = {};
         if (pkgRes && pkgRes.ok) {
           pkgData = await pkgRes.json();
-        } else {
-          // Fallback to teacher quiz endpoint by ID if /package by code was 404
+        } else if (numericQuizId) {
           const altRes = await fetch(
-            `${API_BASE}/api/v1/teacher/quizzes/${testCode}`,
+            `${API_BASE}/api/v1/teacher/quizzes/${numericQuizId}`,
             { headers },
           ).catch(() => null);
           if (altRes && altRes.ok) {
             pkgData = await altRes.json();
           }
         }
+        if (matchedQuiz) {
+          pkgData = { ...matchedQuiz, ...pkgData };
+        }
 
+        // 3. Fetch Leaderboard using numeric quizId (teacher endpoint first, fallback to student on 404)
+        // TODO(backend): Teacher leaderboard endpoint GET /api/v1/teacher/quizzes/{quizId}/leaderboard not deployed yet
         let backendStudents: StudentRecord[] = [];
-        let activeLbRes = lbRes;
-        if ((!activeLbRes || !activeLbRes.ok) && resolvedId && quizCode !== resolvedId) {
-          activeLbRes = await fetch(
-            `${API_BASE}/api/v1/quizzes/${quizCode}/leaderboard`,
+        let isLbUnavailable = false;
+
+        if (numericQuizId) {
+          let activeLbRes = await fetch(
+            `${API_BASE}/api/v1/teacher/quizzes/${numericQuizId}/leaderboard`,
             { headers },
           ).catch(() => null);
-        }
 
-        if (activeLbRes && activeLbRes.ok) {
-          const lbData = await activeLbRes.json();
-          // Extract array whether it's wrapped in a response object or root level array
-          const rawList = Array.isArray(lbData)
-            ? lbData
-            : lbData.content || lbData.leaderboard || lbData.students || [];
+          // If teacher leaderboard returns 404 (not deployed yet), try student endpoint once
+          if (activeLbRes && activeLbRes.status === 404) {
+            activeLbRes = await fetch(
+              `${API_BASE}/api/v1/student/quizzes/${numericQuizId}/leaderboard`,
+              { headers },
+            ).catch(() => null);
+          }
 
-          backendStudents = rawList.map((entry: any, idx: number) => {
-            const timeSecs = Number(
-              entry.timeTakenSeconds || entry.timeTakenTotalSeconds || 0,
-            );
-            return {
-              id: entry.attemptId || entry.id || idx + 1,
-              name:
-                entry.studentName ||
-                entry.registrationNo ||
-                entry.username ||
-                "Candidate",
-              avatar: String(
-                entry.studentName ||
+          if (activeLbRes && activeLbRes.ok) {
+            const lbData = await activeLbRes.json();
+            const rawList = Array.isArray(lbData)
+              ? lbData
+              : lbData.content || lbData.leaderboard || lbData.students || [];
+
+            backendStudents = rawList.map((entry: any, idx: number) => {
+              const timeSecs = Number(
+                entry.totalTimeTaken || entry.timeTakenSeconds || 0,
+              );
+              return {
+                id: entry.studentId || entry.rank || idx + 1,
+                name:
+                  entry.studentName ||
                   entry.registrationNo ||
                   entry.username ||
-                  "C",
-              )
-                .slice(0, 2)
-                .toUpperCase(),
-              score: Number(entry.score || entry.percentage || 0),
-              accuracyPercentage: Number(
-                entry.accuracy || entry.score || entry.percentage || 0,
-              ),
-              timeTaken: `${Math.floor(timeSecs / 60)}m ${timeSecs % 60}s`,
-              timeTakenSeconds: timeSecs,
-              submitted: true, // If they are on the leaderboard, they submitted
-              flags: Array.isArray(entry.proctoringFlags)
-                ? entry.proctoringFlags
-                : [],
-            };
-          });
+                  "Candidate",
+                avatar: String(
+                  entry.studentName ||
+                    entry.registrationNo ||
+                    entry.username ||
+                    "C",
+                )
+                  .slice(0, 2)
+                  .toUpperCase(),
+                score: Number(entry.score || entry.percentage || 0),
+                accuracyPercentage: Number(
+                  entry.accuracy || entry.score || entry.percentage || 0,
+                ),
+                timeTaken: `${Math.floor(timeSecs / 60)}m ${timeSecs % 60}s`,
+                timeTakenSeconds: timeSecs,
+                submitted: true,
+                flags: Array.isArray(entry.proctoringFlags)
+                  ? entry.proctoringFlags
+                  : [],
+              };
+            });
+          } else if (
+            !activeLbRes ||
+            activeLbRes.status === 403 ||
+            activeLbRes.status === 404
+          ) {
+            isLbUnavailable = true;
+          }
+        } else {
+          isLbUnavailable = true;
         }
 
-        if (pkgData.title || backendStudents.length > 0) {
-          const seen = new Set(
-            backendStudents.map((s) => s.name.toUpperCase()),
-          );
-          const mergedStudents = [
-            ...backendStudents,
-            ...localStudents.filter((l) => !seen.has(l.name.toUpperCase())),
-          ];
+        setLeaderboardUnavailable(isLbUnavailable);
 
+        if (pkgData.title || backendStudents.length > 0) {
           setAssessmentData({
             ...pkgData,
             title:
               pkgData.title || localTest?.quizName || `Assessment ${quizCode}`,
-            students:
-              mergedStudents.length > 0 ? mergedStudents : localStudents,
+            students: backendStudents,
           });
 
           if (pkgData.resultVisibility) {
@@ -360,7 +377,7 @@ export default function TeacherAssessmentPage({
           return;
         }
       } catch (e) {
-        console.warn("Backend assessment fetch fallback to local session:", e);
+        console.warn("Backend assessment fetch error:", e);
       }
 
       setAssessmentData({
@@ -369,13 +386,14 @@ export default function TeacherAssessmentPage({
         targetClass: localTest?.targetClass || "CS302 - 2026 Batch",
         totalStudents: 50,
         overallTimerSeconds: (localTest?.totalTimeLimitMinutes || 30) * 60,
-        students: localStudents,
+        students: [],
         settings: {
           publishScoresImmediately: true,
           revealSolutions: true,
           showIntegrityFlagsToStudent: false,
         },
       });
+      setLeaderboardUnavailable(true);
       setLoading(false);
     };
 
@@ -413,18 +431,47 @@ export default function TeacherAssessmentPage({
       }
 
       const { quizId: resolvedId, quizCode } = resolveQuizIdentifiers(testCode);
-      const settingsId = resolvedId ?? testCode;
 
-      const payload = {
-        [key]: newVal,
-        resultVisibility,
-        publishScoresImmediately: nextPub,
-        revealSolutions: nextRev,
-        showIntegrityFlagsToStudent: nextSettings.showIntegrityFlagsToStudent,
-      };
+      let numericQuizId: number | null =
+        assessmentData?.quizId ??
+        (resolvedId && /^\d+$/.test(resolvedId) ? Number(resolvedId) : null) ??
+        (/^\d+$/.test(testCode) ? Number(testCode) : null);
+
+      if (!numericQuizId) {
+        // Resolve quizId via package endpoint
+        const pkgRes = await fetch(
+          `${API_BASE}/api/v1/quizzes/code/${quizCode}/package`,
+          {
+            headers: {
+              Authorization: `Bearer ${token}`,
+              "Content-Type": "application/json",
+            },
+          },
+        ).catch(() => null);
+
+        if (pkgRes && pkgRes.ok) {
+          const pkg = await pkgRes.json();
+          if (pkg.quizId) numericQuizId = Number(pkg.quizId);
+        }
+      }
+
+      if (!numericQuizId) {
+        throw new Error("Unable to resolve numeric quiz ID for settings update.");
+      }
+
+      let payload: any = {};
+      if (key === "publishScoresImmediately" || key === "revealSolutions") {
+        payload = {
+          resultVisibility,
+        };
+      } else {
+        payload = {
+          [key]: newVal,
+        };
+      }
 
       let res = await fetch(
-        `${API_BASE}/api/v1/teacher/quizzes/${settingsId}/settings`,
+        `${API_BASE}/api/v1/teacher/quizzes/${numericQuizId}/settings`,
         {
           method: "PUT",
           headers: {
@@ -434,44 +481,6 @@ export default function TeacherAssessmentPage({
           body: JSON.stringify(payload),
         },
       );
-
-      // If PUT returned 404 or 405, try PATCH
-      if (!res.ok && res.status !== 401 && res.status !== 403) {
-        const patchRes = await fetch(
-          `${API_BASE}/api/v1/teacher/quizzes/${settingsId}/settings`,
-          {
-            method: "PATCH",
-            headers: {
-              Authorization: `Bearer ${token}`,
-              "Content-Type": "application/json",
-            },
-            body: JSON.stringify(payload),
-          },
-        );
-        if (patchRes.ok) res = patchRes;
-      }
-
-      // If still not ok and quizCode is available and different, try with quizCode
-      if (
-        !res.ok &&
-        quizCode &&
-        quizCode !== settingsId &&
-        res.status !== 401 &&
-        res.status !== 403
-      ) {
-        const codeRes = await fetch(
-          `${API_BASE}/api/v1/teacher/quizzes/${quizCode}/settings`,
-          {
-            method: "PUT",
-            headers: {
-              Authorization: `Bearer ${token}`,
-              "Content-Type": "application/json",
-            },
-            body: JSON.stringify(payload),
-          },
-        );
-        if (codeRes.ok) res = codeRes;
-      }
 
       if (!res.ok) {
         const errData = await res.json().catch(() => ({}));
@@ -501,6 +510,101 @@ export default function TeacherAssessmentPage({
         e.message || "Failed to update assessment settings on the server.",
       );
       setTimeout(() => setSettingsError(null), 4000);
+    }
+  };
+
+  const getNumericQuizId = (): number | null => {
+    const { quizId: resolvedId } = resolveQuizIdentifiers(testCode);
+    return (
+      assessmentData?.quizId ??
+      (resolvedId && /^\d+$/.test(resolvedId) ? Number(resolvedId) : null) ??
+      (/^\d+$/.test(testCode) ? Number(testCode) : null)
+    );
+  };
+
+  const handlePublishQuiz = async () => {
+    const id = getNumericQuizId();
+    if (!id) return;
+    setLifecycleLoading(true);
+    setLifecycleError(null);
+    try {
+      const token = localStorage.getItem("dynoquizz_token");
+      const res = await fetch(`${API_BASE}/api/v1/teacher/quizzes/${id}/publish`, {
+        method: "PUT",
+        headers: {
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json",
+        },
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.message || err.error || "Failed to publish assessment");
+      }
+      setAssessmentData((prev: any) => ({ ...prev, status: "PUBLISHED" }));
+    } catch (e: any) {
+      setLifecycleError(e.message);
+    } finally {
+      setLifecycleLoading(false);
+    }
+  };
+
+  const handleCompleteQuiz = async () => {
+    const id = getNumericQuizId();
+    if (!id) return;
+    setLifecycleLoading(true);
+    setLifecycleError(null);
+    try {
+      const token = localStorage.getItem("dynoquizz_token");
+      const res = await fetch(`${API_BASE}/api/v1/teacher/quizzes/${id}/complete`, {
+        method: "PUT",
+        headers: {
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json",
+        },
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.message || err.error || "Failed to complete assessment");
+      }
+      setAssessmentData((prev: any) => ({ ...prev, status: "COMPLETED" }));
+      setConfirmCompleteOpen(false);
+    } catch (e: any) {
+      setLifecycleError(e.message);
+    } finally {
+      setLifecycleLoading(false);
+    }
+  };
+
+  const handleToggleResultsPublish = async () => {
+    const id = getNumericQuizId();
+    if (!id) return;
+    setLifecycleLoading(true);
+    setLifecycleError(null);
+    const currentlyPublished = Boolean(assessmentData?.resultsPublished);
+    const endpoint = currentlyPublished
+      ? `${API_BASE}/api/v1/teacher/quizzes/${id}/results/unpublish`
+      : `${API_BASE}/api/v1/teacher/quizzes/${id}/results/publish`;
+    try {
+      const token = localStorage.getItem("dynoquizz_token");
+      const res = await fetch(endpoint, {
+        method: "PUT",
+        headers: {
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json",
+        },
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.message || err.error || "Failed to update results publication");
+      }
+      setAssessmentData((prev: any) => ({
+        ...prev,
+        resultsPublished: !currentlyPublished,
+      }));
+    } catch (e: any) {
+      setLifecycleError(e.message);
+    } finally {
+      setLifecycleLoading(false);
     }
   };
 
@@ -625,7 +729,104 @@ export default function TeacherAssessmentPage({
                 </span>
               </div>
             </div>
+
+            <div className="flex flex-wrap items-center gap-2 mt-2 sm:mt-0">
+              <span
+                className={`rounded-pills px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider ${
+                  (assessmentData?.status || "PUBLISHED").toUpperCase() ===
+                  "COMPLETED"
+                    ? "bg-[#ece9f3] text-[#4c3d73]"
+                    : (assessmentData?.status || "PUBLISHED").toUpperCase() ===
+                        "PUBLISHED"
+                      ? "bg-[#e2ede8] text-[#1d5237]"
+                      : "bg-[#f6efe1] text-[#73561a]"
+                }`}
+              >
+                {(assessmentData?.status || "PUBLISHED").toUpperCase()}
+              </span>
+
+              {(assessmentData?.status || "").toUpperCase() === "DRAFT" && (
+                <button
+                  type="button"
+                  onClick={handlePublishQuiz}
+                  disabled={lifecycleLoading}
+                  className="rounded-[8.8px] bg-[#165dfb] px-3 py-1.5 text-xs font-bold text-white hover:bg-[#165dfb]/90 transition-all cursor-pointer border-0 disabled:opacity-50"
+                >
+                  Publish Quiz
+                </button>
+              )}
+
+              {(assessmentData?.status || "").toUpperCase() === "PUBLISHED" && (
+                <button
+                  type="button"
+                  onClick={() => setConfirmCompleteOpen(true)}
+                  disabled={lifecycleLoading}
+                  className="rounded-[8.8px] bg-[#8c381c] px-3 py-1.5 text-xs font-bold text-white hover:bg-[#8c381c]/90 transition-all cursor-pointer border-0 disabled:opacity-50"
+                >
+                  Complete Quiz
+                </button>
+              )}
+
+              <button
+                type="button"
+                onClick={handleToggleResultsPublish}
+                disabled={
+                  lifecycleLoading ||
+                  (assessmentData?.status || "").toUpperCase() !== "COMPLETED"
+                }
+                className={`rounded-[8.8px] px-3 py-1.5 text-xs font-bold transition-all border-0 ${
+                  (assessmentData?.status || "").toUpperCase() !== "COMPLETED"
+                    ? "bg-[#e6e3e2]/60 text-[#78716b] cursor-not-allowed"
+                    : assessmentData?.resultsPublished
+                      ? "bg-[#8c381c] text-white hover:bg-[#8c381c]/90 cursor-pointer"
+                      : "bg-[#1d5237] text-white hover:bg-[#1d5237]/90 cursor-pointer"
+                }`}
+              >
+                {assessmentData?.resultsPublished
+                  ? "Unpublish Results"
+                  : "Publish Results"}
+              </button>
+            </div>
           </div>
+
+          {lifecycleError && (
+            <div className="flex items-center gap-2 rounded-inputs bg-pastel-pink/30 border border-pastel-pink text-pastel-pink-text px-3 py-2 text-xs font-bold">
+              <AlertTriangle className="h-3.5 w-3.5 shrink-0" />
+              <span>{lifecycleError}</span>
+            </div>
+          )}
+
+          {confirmCompleteOpen && (
+            <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
+              <div className="w-full max-w-sm rounded-[12px] bg-white p-6 shadow-xl border border-[#d1dee8] space-y-4 text-left">
+                <h3 className="text-sm font-black text-[#111111]">
+                  Complete Assessment?
+                </h3>
+                <p className="text-xs text-[#78716b] leading-relaxed font-medium">
+                  Completing this assessment closes the testing window and marks
+                  all submissions final. You can then release scorecards to
+                  students.
+                </p>
+                <div className="flex justify-end gap-2 pt-2">
+                  <button
+                    type="button"
+                    onClick={() => setConfirmCompleteOpen(false)}
+                    className="rounded-[8.8px] border border-[#d1dee8] px-3 py-1.5 text-xs font-bold text-[#78716b] hover:bg-[#f5f5f4] cursor-pointer"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleCompleteQuiz}
+                    disabled={lifecycleLoading}
+                    className="rounded-[8.8px] bg-[#8c381c] px-3 py-1.5 text-xs font-bold text-white hover:bg-[#8c381c]/90 cursor-pointer border-0"
+                  >
+                    {lifecycleLoading ? "Completing..." : "Confirm & Complete"}
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
 
           <section className="rounded-cards border border-mist-blue bg-paper-white p-4 space-y-3 shadow-sm">
             <h3 className="text-xs font-bold uppercase tracking-wider text-midnight-navy flex items-center gap-1.5 border-b border-mist-blue/30 pb-2">
@@ -848,7 +1049,13 @@ export default function TeacherAssessmentPage({
                 </span>
               </div>
 
-              {displayList.length === 0 ? (
+              {leaderboardUnavailable ? (
+                <div className="flex flex-col items-center justify-center gap-1 py-10 text-steel-blue-gray">
+                  <p className="text-xs font-medium text-steel-blue-gray">
+                    Leaderboard isn&apos;t available yet
+                  </p>
+                </div>
+              ) : displayList.length === 0 ? (
                 <div className="flex flex-col items-center justify-center gap-1 py-10 text-steel-blue-gray">
                   <Search className="h-6 w-6 text-mist-blue" />
                   <p className="text-xs">
@@ -901,7 +1108,7 @@ export default function TeacherAssessmentPage({
                         <div className="flex flex-wrap gap-1 text-left">
                           {(student.flags || []).length === 0 ? (
                             <span className="text-[10px] text-steel-blue-gray font-medium">
-                              Clean
+                              —
                             </span>
                           ) : (
                             student.flags.map((f, fi) => (

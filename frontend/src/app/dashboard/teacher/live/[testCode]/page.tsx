@@ -18,7 +18,7 @@ import {
   RefreshCw,
 } from "lucide-react";
 import { Logo } from "@/components/Logo";
-import { getStoredResults, getStoredTests } from "@/lib/storage";
+import { getStoredTests } from "@/lib/storage";
 import { resolveQuizIdentifiers } from "@/lib/quizCache";
 
 const API_BASE = (
@@ -80,6 +80,7 @@ export default function LiveLeaderboard({
   const [lastSync, setLastSync] = useState(nowTime());
   const [mounted, setMounted] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [leaderboardUnavailable, setLeaderboardUnavailable] = useState(false);
 
   const syncTelemetry = async () => {
     // The URL param may be a numeric quizId (e.g. "42") or an access code.
@@ -97,83 +98,121 @@ export default function LiveLeaderboard({
       setTestTitle(localTest.quizName);
     }
 
-    // Match stored submissions by the resolved access code
-    const localSubmissions = getStoredResults()
-      .filter(
-        (r) =>
-          r.testCode.toUpperCase() === quizCode.toUpperCase() ||
-          (resolvedId && String((r as any).quizId) === resolvedId),
-      )
-      .map((r, idx) => ({
-        id: idx + 100,
-        name: r.studentName || "Candidate",
-        avatar: (r.studentName || "C").slice(0, 2).toUpperCase(),
-        answered: r.totalQuestions,
-        total: r.totalQuestions,
-        score: r.score || 0,
-        timeLeft: "00:00",
-        status: "submitted" as const,
-        flags: [],
-      }));
-
     try {
       const token = localStorage.getItem("dynoquizz_token");
-      let res = await fetch(
+      const headers = {
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        "Content-Type": "application/json",
+      };
+
+      // 1. Resolve numeric quizId by finding quiz whose quizCode equals route param in GET /teacher/quizzes
+      let numericQuizId: number | null = null;
+      let matchedQuiz: any = null;
+      let totalQ = 20;
+
+      const tqRes = await fetch(`${API_BASE}/api/v1/teacher/quizzes`, {
+        headers,
+      }).catch(() => null);
+
+      if (tqRes && tqRes.ok) {
+        const tqData = await tqRes.json();
+        const list: any[] = Array.isArray(tqData)
+          ? tqData
+          : Array.isArray(tqData?.content)
+            ? tqData.content
+            : Array.isArray(tqData?.data)
+              ? tqData.data
+              : [];
+        matchedQuiz = list.find(
+          (q: any) =>
+            String(q.quizCode || q.testCode || "").toUpperCase() ===
+              quizCode.toUpperCase() ||
+            String(q.quizId || q.id || "") === testCode,
+        );
+        if (matchedQuiz) {
+          numericQuizId = matchedQuiz.quizId ?? matchedQuiz.id;
+          if (matchedQuiz.title || matchedQuiz.quizName) {
+            setTestTitle(matchedQuiz.title || matchedQuiz.quizName);
+          }
+          if (matchedQuiz.totalQuestions) {
+            totalQ = matchedQuiz.totalQuestions;
+          }
+        }
+      }
+
+      if (!numericQuizId && /^\d+$/.test(testCode)) {
+        numericQuizId = Number(testCode);
+      }
+
+      // Package endpoint for metadata if needed
+      const pkgRes = await fetch(
         `${API_BASE}/api/v1/quizzes/code/${quizCode}/package`,
-        {
-          headers: {
-            ...(token ? { Authorization: `Bearer ${token}` } : {}),
-            "Content-Type": "application/json",
-          },
-        },
-      );
+        { headers },
+      ).catch(() => null);
 
-      if (!res.ok && resolvedId && quizCode !== testCode) {
-        const altRes = await fetch(
-          `${API_BASE}/api/v1/quizzes/code/${testCode}/package`,
-          {
-            headers: {
-              ...(token ? { Authorization: `Bearer ${token}` } : {}),
-              "Content-Type": "application/json",
-            },
-          },
-        ).catch(() => null);
-        if (altRes && altRes.ok) res = altRes;
+      if (pkgRes && pkgRes.ok) {
+        const pkgData = await pkgRes.json();
+        setTestTitle(pkgData.title || pkgData.quizName || testTitle);
+        if (Array.isArray(pkgData.questions) && pkgData.questions.length > 0) {
+          totalQ = pkgData.questions.length;
+        } else if (pkgData.totalQuestions) {
+          totalQ = pkgData.totalQuestions;
+        }
       }
 
-      if (!res.ok) {
-        const teacherRes = await fetch(
-          `${API_BASE}/api/v1/teacher/quizzes/${resolvedId || testCode}`,
-          {
-            headers: {
-              ...(token ? { Authorization: `Bearer ${token}` } : {}),
-              "Content-Type": "application/json",
-            },
-          },
+      // 2. Fetch Leaderboard using numeric quizId (teacher endpoint first, student fallback on 404)
+      // TODO(backend): Teacher leaderboard endpoint GET /api/v1/teacher/quizzes/{quizId}/leaderboard not deployed yet
+      let backendStudents: StudentRow[] = [];
+      let isLbUnavailable = false;
+
+      if (numericQuizId) {
+        let lbRes = await fetch(
+          `${API_BASE}/api/v1/teacher/quizzes/${numericQuizId}/leaderboard`,
+          { headers },
         ).catch(() => null);
-        if (teacherRes && teacherRes.ok) res = teacherRes;
-      }
 
-      if (res.ok) {
-        const data = await res.json();
-        setTestTitle(data.title || data.quizName || testTitle);
-        const backendStudents: StudentRow[] = Array.isArray(data.students)
-          ? data.students
-          : [];
+        // If teacher leaderboard returns 404 (not deployed yet), try student endpoint once
+        if (lbRes && lbRes.status === 404) {
+          lbRes = await fetch(
+            `${API_BASE}/api/v1/student/quizzes/${numericQuizId}/leaderboard`,
+            { headers },
+          ).catch(() => null);
+        }
 
-        // Merge backend and local submissions
-        const seenNames = new Set(backendStudents.map((s) => s.name.toUpperCase()));
-        const combined = [
-          ...backendStudents,
-          ...localSubmissions.filter((l) => !seenNames.has(l.name.toUpperCase())),
-        ];
+        if (lbRes && lbRes.ok) {
+          const lbData = await lbRes.json();
+          const list: any[] = Array.isArray(lbData)
+            ? lbData
+            : Array.isArray(lbData?.content)
+              ? lbData.content
+              : [];
 
-        setStudents(combined.length > 0 ? combined : localSubmissions);
+          backendStudents = list.map((entry: any, idx: number) => {
+            const timeSecs = Number(entry.totalTimeTaken || 0);
+            const timeLabel = `${String(Math.floor(timeSecs / 60)).padStart(2, "0")}:${String(timeSecs % 60).padStart(2, "0")}`;
+            return {
+              id: entry.studentId ?? entry.rank ?? idx + 1,
+              name: entry.studentName || "Candidate",
+              avatar: String(entry.studentName || "C").slice(0, 2).toUpperCase(),
+              answered: totalQ,
+              total: totalQ,
+              score: Math.round(Number(entry.percentage ?? entry.score ?? 0)),
+              timeLeft: timeLabel,
+              status: "submitted" as const,
+              flags: [],
+            };
+          });
+        } else if (!lbRes || lbRes.status === 403 || lbRes.status === 404) {
+          isLbUnavailable = true;
+        }
       } else {
-        setStudents(localSubmissions);
+        isLbUnavailable = true;
       }
+
+      setLeaderboardUnavailable(isLbUnavailable);
+      setStudents(backendStudents);
     } catch (e) {
-      setStudents(localSubmissions);
+      setStudents([]);
     } finally {
       setLoading(false);
       setLastSync(nowTime());
@@ -360,7 +399,11 @@ export default function LiveLeaderboard({
           </div>
 
           <ul className="divide-y divide-mist-blue/30 bg-paper-white">
-            {sorted.length === 0 ? (
+            {leaderboardUnavailable ? (
+              <li className="p-8 text-center text-xs text-steel-blue-gray">
+                Leaderboard not available yet
+              </li>
+            ) : sorted.length === 0 ? (
               <li className="p-8 text-center text-xs text-steel-blue-gray">
                 No candidates currently streaming.
               </li>

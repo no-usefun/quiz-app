@@ -30,6 +30,11 @@ export default function CreateAssessmentPage() {
   const [mounted, setMounted] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [validationError, setValidationError] = useState<string | null>(null);
+  const [publishRetryData, setPublishRetryData] = useState<{
+    quizId: number;
+    quizCode: string;
+  } | null>(null);
+  const [retryingPublish, setRetryingPublish] = useState(false);
 
   useEffect(() => {
     setMounted(true);
@@ -333,18 +338,6 @@ export default function CreateAssessmentPage() {
     setValidationError(null);
 
     const token = localStorage.getItem("dynoquizz_token");
-    let tokenUserId = 0;
-    if (token) {
-      try {
-        const payloadBase64 = token.split(".")[1];
-        const decoded = JSON.parse(atob(payloadBase64));
-        tokenUserId = decoded.id || decoded.userId || decoded.sub || 0;
-      } catch (e) {
-        // ignore
-      }
-    }
-
-    const safeTeacherId = user?.id ? Number(user.id) : Number(tokenUserId);
 
     // --- FIX 1: Timestamp & Availability window ---
     const now = new Date();
@@ -370,8 +363,78 @@ export default function CreateAssessmentPage() {
       .filter((roll) => roll.length > 0);
 
     try {
+      // ── TASK 1: JWT diagnostic instrumentation ────────────────────────────
+      // Log enough to diagnose auth failures without exposing the full token.
+      if (token) {
+        const parts = token.split(".");
+        const isWellFormed = parts.length === 3;
+        let jwtPayload: any = null;
+        let isFallbackToken = false;
+        try {
+          jwtPayload = JSON.parse(atob(parts[1]));
+          // Fallback tokens (frontend-signed) use email as userId/sub and lack
+          // a numeric "id" field that Spring Boot's CustomUserDetails would have.
+          // Spring Security throws `String cannot be cast to CustomUserDetails`
+          // when the principal is such a bare-string subject.
+          isFallbackToken =
+            typeof jwtPayload?.userId === "string" &&
+            (jwtPayload?.userId?.includes("@") ?? false) &&
+            !jwtPayload?.id;
+        } catch {
+          // malformed payload segment
+        }
+        console.group("[DynoQuizz] Quiz-creation token diagnostics");
+        console.log(
+          "Token length:",
+          token.length,
+          "| First 12:",
+          token.slice(0, 12),
+          "| Last 12:",
+          token.slice(-12),
+        );
+        console.log("Well-formed JWT (3 segments):", isWellFormed);
+        if (jwtPayload) {
+          const expMs = (jwtPayload.exp || 0) * 1000;
+          const nowMs = Date.now();
+          console.log(
+            "JWT exp:",
+            new Date(expMs).toISOString(),
+            "| Current time:",
+            new Date(nowMs).toISOString(),
+            "| Expired:",
+            nowMs > expMs,
+          );
+          console.log(
+            "JWT sub/userId:",
+            jwtPayload.sub || jwtPayload.userId,
+            "| role:",
+            jwtPayload.role,
+          );
+          if (isFallbackToken) {
+            console.warn(
+              "[DynoQuizz] ⚠️  FALLBACK TOKEN DETECTED — this is a frontend-signed JWT" +
+                " (the Spring Boot backend was unreachable at login time). Spring Security" +
+                " will reject it with 'String cannot be cast to CustomUserDetails'." +
+                " The teacher must log out and log in again while the backend is running.",
+            );
+          }
+        }
+        console.groupEnd();
+      } else {
+        console.warn(
+          "[DynoQuizz] No dynoquizz_token found in localStorage before quiz creation POST.",
+        );
+      }
+      // ─────────────────────────────────────────────────────────────────────
+
+      // TODO(backend): status and allowedRolls not in CreateQuizRequest
       const payload = {
-        teacherId: Number(safeTeacherId > 0 ? safeTeacherId : 1),
+        // teacherId intentionally omitted: the OpenAPI CreateQuizRequest schema
+        // does not include it. The backend resolves the teacher from the
+        // authenticated JWT principal via Spring Security's authentication context.
+        // Sending it was a schema mismatch; the principal cast exception happens
+        // before the body is deserialized, so the field itself is not the cause
+        // of that exception, but it should still be removed per the schema.
         title: title.trim(),
         description: description.trim(),
         instructions: instructions.trim(),
@@ -391,6 +454,8 @@ export default function CreateAssessmentPage() {
         startTime: startTime.toISOString(),
         endTime: endTime.toISOString(),
 
+        // resultVisibility is already derived from the publish/solution toggles
+        // in the create UI:  BOTH | LEADERBOARD | QUESTION_WISE | NONE
         resultVisibility: resultVis,
         status: "PUBLISHED",
 
@@ -435,52 +500,87 @@ export default function CreateAssessmentPage() {
       }
 
       const data = await res.json();
+      const rawQuizId = data.quizId ?? data.id;
+      const quizCode = data.quizCode ?? data.testCode ?? String(rawQuizId);
 
-      // ── Write to the canonical roster key ────────────────────────────────
-      // The dashboard reads dynoquizz_teacher_quizzes directly from localStorage.
-      // Spread order:
-      //   1. Raw backend response first  → preserves quizId, quizCode, and any
-      //      other server-assigned fields.
-      //   2. Local payload fields on top → ensures title, subject, counts are
-      //      always populated even when the backend omits them.
-      //   3. status pinned to "PUBLISHED" last → a successful 2xx POST always
-      //      means the quiz is published, regardless of what the server echoes.
-      const newQuiz = {
-        ...data,
-        title: payload.title,
-        description: payload.description,
-        subject: payload.subject,
-        subjectCode: payload.subjectCode,
-        totalStudents: payload.totalStudents,
-        totalQuestions: payload.questions.length,
-        overallTimerSeconds: payload.overallTimerSeconds,
-        status: "PUBLISHED",
-      };
-
-      try {
-        const existing: any[] = JSON.parse(
-          localStorage.getItem("dynoquizz_teacher_quizzes") || "[]",
-        );
-        // Deduplicate: remove any stale entry with the same quizId before prepending
-        const deduped = existing.filter(
-          (q) => (q.quizId ?? q.id) !== (newQuiz.quizId ?? newQuiz.id),
-        );
-        deduped.unshift(newQuiz); // newest first
-        localStorage.setItem(
-          "dynoquizz_teacher_quizzes",
-          JSON.stringify(deduped),
-        );
-      } catch {
-        // If localStorage write fails, proceed — redirect still works
+      if (!rawQuizId) {
+        throw new Error("Created quiz response missing quizId");
       }
 
-      // Navigate strictly to /dashboard/teacher/share/${data.quizId} using the database identifier
-      router.push(`/dashboard/teacher/share/${data.quizId}`);
+      const numericQuizId = Number(rawQuizId);
+
+      // Immediately call PUT /api/v1/teacher/quizzes/{quizId}/publish (no body, empty 200)
+      try {
+        const pubRes = await fetch(
+          `${API_BASE}/api/v1/teacher/quizzes/${numericQuizId}/publish`,
+          {
+            method: "PUT",
+            headers: {
+              ...(token ? { Authorization: `Bearer ${token}` } : {}),
+            },
+          },
+        );
+
+        if (!pubRes.ok) {
+          const errData = await pubRes.json().catch(() => ({}));
+          throw new Error(
+            errData.message || errData.error || `Server status: ${pubRes.status}`,
+          );
+        }
+
+        // Redirect to /dashboard/teacher/share/<quizCode> only AFTER publish succeeds
+        router.push(`/dashboard/teacher/share/${quizCode}`);
+      } catch (pubErr: any) {
+        console.error("Failed to publish quiz immediately after creation:", pubErr);
+        setPublishRetryData({
+          quizId: numericQuizId,
+          quizCode: String(quizCode),
+        });
+        setValidationError(
+          `Quiz was created but could not be published. Retry${pubErr.message ? ` (${pubErr.message})` : ""}`,
+        );
+      }
     } catch (err: any) {
       console.error("Failed to create quiz:", err);
       setValidationError(`Failed to create assessment: ${err.message}`);
     } finally {
       setSubmitting(false);
+    }
+  };
+
+  const handleRetryPublish = async () => {
+    if (!publishRetryData) return;
+    setRetryingPublish(true);
+    const token =
+      typeof window !== "undefined"
+        ? localStorage.getItem("dynoquizz_token")
+        : null;
+
+    try {
+      const pubRes = await fetch(
+        `${API_BASE}/api/v1/teacher/quizzes/${publishRetryData.quizId}/publish`,
+        {
+          method: "PUT",
+          headers: {
+            ...(token ? { Authorization: `Bearer ${token}` } : {}),
+          },
+        },
+      );
+
+      if (!pubRes.ok) {
+        const errData = await pubRes.json().catch(() => ({}));
+        throw new Error(
+          errData.message || errData.error || `Server status: ${pubRes.status}`,
+        );
+      }
+
+      router.push(`/dashboard/teacher/share/${publishRetryData.quizCode}`);
+    } catch (err: any) {
+      setValidationError(
+        `Quiz was created but could not be published. Retry${err.message ? ` (${err.message})` : ""}`,
+      );
+    } finally {
+      setRetryingPublish(false);
     }
   };
 
@@ -531,10 +631,25 @@ export default function CreateAssessmentPage() {
         {validationError && (
           <div
             role="alert"
-            className="flex items-start gap-2.5 rounded-[10px] border border-[#8c381c]/25 bg-[#fbeee8] p-3.5 text-xs font-semibold text-[#8c381c]"
+            className="flex items-center justify-between gap-3 rounded-[10px] border border-[#8c381c]/25 bg-[#fbeee8] p-3.5 text-xs font-semibold text-[#8c381c]"
           >
-            <AlertCircle className="mt-px h-4 w-4 shrink-0" />
-            <span className="leading-relaxed">{validationError}</span>
+            <div className="flex items-start gap-2.5">
+              <AlertCircle className="mt-px h-4 w-4 shrink-0" />
+              <span className="leading-relaxed">{validationError}</span>
+            </div>
+            {publishRetryData && (
+              <button
+                type="button"
+                onClick={handleRetryPublish}
+                disabled={retryingPublish}
+                className="inline-flex items-center gap-1.5 rounded-[8px] bg-[#8c381c] px-3 py-1.5 text-xs font-bold text-white hover:bg-[#6e2b14] active:scale-[0.98] disabled:opacity-50 transition-all cursor-pointer border-0 shrink-0"
+              >
+                {retryingPublish && (
+                  <span className="h-3 w-3 animate-spin rounded-full border-2 border-white/30 border-t-white" />
+                )}
+                Retry
+              </button>
+            )}
           </div>
         )}
 
@@ -613,6 +728,9 @@ export default function CreateAssessmentPage() {
                     placeholder="Comma separated, e.g. 21BCE1001, 21BCE1002"
                     className={`${inputClass} resize-y leading-relaxed`}
                   />
+                  <p className="mt-1 text-[11px] text-[#78716b]">
+                    Leave blank to allow any student to join.
+                  </p>
                 </div>
               </div>
             </div>
