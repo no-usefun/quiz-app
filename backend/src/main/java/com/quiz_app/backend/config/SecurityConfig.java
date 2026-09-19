@@ -85,6 +85,10 @@ public class SecurityConfig {
                         .requestMatchers("/error").permitAll()
                         .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
 
+                        // student-specific endpoints
+                        .requestMatchers("/api/v1/student/**")
+                        .hasRole("STUDENT")
+
                         // Teacher-specific endpoints
                         .requestMatchers("/api/v1/teacher/**")
                         .hasRole("TEACHER")
