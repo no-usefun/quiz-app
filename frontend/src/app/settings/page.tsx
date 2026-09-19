@@ -64,6 +64,7 @@ function TextInput({
   onChange,
   icon,
   rightSlot,
+  disabled = false,
 }: {
   type?: string;
   placeholder?: string;
@@ -71,6 +72,7 @@ function TextInput({
   onChange?: (e: React.ChangeEvent<HTMLInputElement>) => void;
   icon?: React.ReactNode;
   rightSlot?: React.ReactNode;
+  disabled?: boolean;
 }) {
   return (
     <div className="relative">
@@ -84,7 +86,10 @@ function TextInput({
         placeholder={placeholder}
         value={value}
         onChange={onChange}
-        className={`w-full rounded-[8.8px] border border-[#d1dee8] bg-[#e6e3e2]/40 py-2.5 text-xs text-[#111111] outline-none transition-all placeholder:text-[#78716b]/60 focus:border-[#165dfb] focus:bg-white font-medium ${icon ? "pl-9" : "pl-3"} ${rightSlot ? "pr-9" : "pr-3"}`}
+        disabled={disabled}
+        className={`w-full rounded-[8.8px] border border-[#d1dee8] py-2.5 text-xs text-[#111111] outline-none transition-all placeholder:text-[#78716b]/60 focus:border-[#165dfb] focus:bg-white font-medium ${
+          disabled ? "bg-[#f5f5f4] cursor-not-allowed opacity-75" : "bg-[#e6e3e2]/40"
+        } ${icon ? "pl-9" : "pl-3"} ${rightSlot ? "pr-9" : "pr-3"}`}
       />
       {rightSlot && (
         <div className="absolute inset-y-0 right-0 flex items-center pr-3">
@@ -136,45 +141,77 @@ function ProfilePanel({ onSave, user }: { onSave: () => void; user: any }) {
   const [institution, setInstitution] = useState("VIT AP");
   const [program, setProgram] = useState("B.Tech Computer Science");
   const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     if (user) {
       setFullName(user.name || user.fullName || "");
       setEmail(user.email || "");
-      if (user.institution) setInstitution(user.institution);
-      if (user.program) setProgram(user.program);
+      if (user.institution || user.college) setInstitution(user.institution || user.college);
+      if (user.program || user.department) setProgram(user.program || user.department);
     }
   }, [user]);
 
   const handleSaveProfile = async () => {
     setSaving(true);
-    const updatedUser = {
-      ...(user || {}),
-      name: fullName.trim() || user?.name || "User",
-      email: email.trim() || user?.email || "",
-      institution: institution.trim(),
-      program: program.trim(),
-    };
+    setError(null);
 
-    if (typeof window !== "undefined") {
-      localStorage.setItem("dynoquizz_user", JSON.stringify(updatedUser));
-    }
+    const trimmed = fullName.trim();
+    const spaceIdx = trimmed.indexOf(" ");
+    const firstName = spaceIdx !== -1 ? trimmed.slice(0, spaceIdx) : trimmed;
+    const lastName = spaceIdx !== -1 ? trimmed.slice(spaceIdx + 1) : "";
+
+    const requestBody = {
+      firstName,
+      lastName,
+      college: institution.trim(),
+      department: program.trim(),
+    };
 
     try {
       const token = localStorage.getItem("dynoquizz_token");
-      await fetch(`${(process.env.NEXT_PUBLIC_API_URL || "http://localhost:8080").replace(/\/+$/, "")}/api/v1/user/profile`, {
-        method: "PUT",
-        headers: {
-          ...(token ? { Authorization: `Bearer ${token}` } : {}),
-          "Content-Type": "application/json",
+      const res = await fetch(
+        `${(process.env.NEXT_PUBLIC_API_URL || "http://localhost:8080").replace(/\/+$/, "")}/api/v1/user/profile`,
+        {
+          method: "PUT",
+          headers: {
+            ...(token ? { Authorization: `Bearer ${token}` } : {}),
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify(requestBody),
         },
-        body: JSON.stringify(updatedUser),
-      });
-    } catch {
-      // Offline fallback saved in localStorage
+      );
+
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.message || err.error || `Failed to update profile (${res.status})`);
+      }
+
+      const respData = await res.json().catch(() => ({}));
+      const resolvedName = respData.fullName || respData.name || trimmed || user?.name || "User";
+      const resolvedCollege = respData.college || institution.trim();
+      const resolvedDept = respData.department || program.trim();
+
+      const updatedUser = {
+        ...(user || {}),
+        name: resolvedName,
+        fullName: resolvedName,
+        email: email.trim() || user?.email || "",
+        institution: resolvedCollege,
+        program: resolvedDept,
+        college: resolvedCollege,
+        department: resolvedDept,
+      };
+
+      if (typeof window !== "undefined") {
+        localStorage.setItem("dynoquizz_user", JSON.stringify(updatedUser));
+      }
+      onSave();
+    } catch (e: any) {
+      console.error("Profile update failed:", e);
+      setError(e.message || "Failed to update profile.");
     } finally {
       setSaving(false);
-      onSave();
     }
   };
 
@@ -205,6 +242,13 @@ function ProfilePanel({ onSave, user }: { onSave: () => void; user: any }) {
 
       <div className="h-px bg-[#d1dee8]/30" />
 
+      {error && (
+        <div className="flex items-center gap-2 rounded-[8.8px] bg-[#fbeee8] border border-[#8c381c]/30 p-3 text-xs text-[#8c381c] font-semibold">
+          <AlertTriangle className="h-4 w-4 shrink-0" />
+          <span>{error}</span>
+        </div>
+      )}
+
       {/* Fields */}
       <div className="grid gap-4 sm:grid-cols-2">
         <Field label="Full Name">
@@ -215,12 +259,12 @@ function ProfilePanel({ onSave, user }: { onSave: () => void; user: any }) {
             icon={<User className="h-4 w-4" />}
           />
         </Field>
-        <Field label="Email Address" hint="Used for exam notifications and results.">
+        <Field label="Email Address" hint="Used for exam notifications and results. (Read-only)">
           <TextInput
             type="email"
             placeholder="you@university.edu"
             value={email}
-            onChange={(e) => setEmail(e.target.value)}
+            disabled={true}
             icon={<Mail className="h-4 w-4" />}
           />
         </Field>

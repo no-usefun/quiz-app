@@ -81,6 +81,7 @@ export function AuthForm({ mode = "login" }: AuthFormProps) {
   // Form Fields
   const [firstName, setFirstName] = useState("");
   const [lastName, setLastName] = useState("");
+  const [registrationNo, setRegistrationNo] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
 
@@ -116,6 +117,9 @@ export function AuthForm({ mode = "login" }: AuthFormProps) {
     if (!isLogin) {
       if (!firstName.trim()) errs.firstName = "First name is required.";
       if (!lastName.trim()) errs.lastName = "Last name is required.";
+      if (role === "student" && !registrationNo.trim()) {
+        errs.registrationNo = "Registration number is required.";
+      }
     }
 
     setValidationErrors(errs);
@@ -142,16 +146,15 @@ export function AuthForm({ mode = "login" }: AuthFormProps) {
           body: JSON.stringify({
             email,
             password,
-            role,
-            name: fullName,
           }),
         });
 
         const data = await res.json();
         if (res.ok && data.success) {
+          const userRole = (data.user?.role || role).toLowerCase();
           if (typeof window !== "undefined") {
-            const userObj = data.user || { email, role: role.toUpperCase(), name: data.user?.name || fullName };
-            localStorage.setItem("dynoquizz_role", role.toUpperCase());
+            const userObj = data.user || { email, role: userRole.toUpperCase(), name: data.user?.name || fullName };
+            localStorage.setItem("dynoquizz_role", userRole.toUpperCase());
             localStorage.setItem("dynoquizz_user", JSON.stringify(userObj));
             if (data.token) {
               localStorage.setItem("dynoquizz_token", data.token);
@@ -159,16 +162,12 @@ export function AuthForm({ mode = "login" }: AuthFormProps) {
             }
           }
           router.refresh();
-          window.location.href = role === "teacher" ? "/dashboard/teacher" : "/dashboard/student";
+          window.location.href = userRole === "teacher" ? "/dashboard/teacher" : "/dashboard/student";
         } else {
-          setError(data.error || "Login failed. Please check your credentials.");
+          setError(data.message || data.error || "Login failed. Please check your credentials.");
         }
       } catch {
-        if (typeof window !== "undefined") {
-          localStorage.setItem("dynoquizz_role", role.toUpperCase());
-          localStorage.setItem("dynoquizz_user", JSON.stringify({ email, role: role.toUpperCase(), name: fullName }));
-        }
-        window.location.href = role === "teacher" ? "/dashboard/teacher" : "/dashboard/student";
+        setError("Cannot connect to the authentication server. Please check your connection.");
       } finally {
         setLoading(false);
       }
@@ -179,37 +178,37 @@ export function AuthForm({ mode = "login" }: AuthFormProps) {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
-            name: fullName,
             firstName: firstName.trim(),
             lastName: lastName.trim(),
             email,
             password,
             role,
+            ...(role === "student" ? { registrationNo: registrationNo.trim().toUpperCase() } : {}),
           }),
         });
 
         const data = await res.json();
         if (res.ok && data.success) {
+          const userRole = (data.user?.role || role).toLowerCase();
           if (typeof window !== "undefined") {
-            const userObj = data.user || { email, name: fullName, role: role.toUpperCase() };
-            localStorage.setItem("dynoquizz_role", role.toUpperCase());
+            const userObj = data.user || { email, name: fullName, role: userRole.toUpperCase(), ...(role === "student" ? { registrationNo: registrationNo.trim().toUpperCase() } : {}) };
+            localStorage.setItem("dynoquizz_role", userRole.toUpperCase());
             localStorage.setItem("dynoquizz_user", JSON.stringify(userObj));
+            if (role === "student" && registrationNo.trim()) {
+              localStorage.setItem("dynoquizz_regNo", registrationNo.trim().toUpperCase());
+            }
             if (data.token) {
               localStorage.setItem("dynoquizz_token", data.token);
               document.cookie = `dynoquizz_token=${data.token}; path=/`;
             }
           }
           router.refresh();
-          window.location.href = role === "teacher" ? "/dashboard/teacher" : "/dashboard/student";
+          window.location.href = userRole === "teacher" ? "/dashboard/teacher" : "/dashboard/student";
         } else {
-          setError(data.error || "Failed to create account.");
+          setError(data.message || data.error || "Failed to create account.");
         }
       } catch {
-        if (typeof window !== "undefined") {
-          localStorage.setItem("dynoquizz_role", role.toUpperCase());
-          localStorage.setItem("dynoquizz_user", JSON.stringify({ email, name: fullName, role: role.toUpperCase() }));
-        }
-        window.location.href = role === "teacher" ? "/dashboard/teacher" : "/dashboard/student";
+        setError("Cannot connect to the authentication server. Please check your connection.");
       } finally {
         setLoading(false);
       }
@@ -396,6 +395,31 @@ export function AuthForm({ mode = "login" }: AuthFormProps) {
                     <p className="text-[10px] text-[#8c381c] font-bold">{validationErrors.lastName}</p>
                   )}
                 </div>
+              </motion.div>
+            )}
+
+            {/* Registration Number (Student Signup only) */}
+            {!isLogin && role === "student" && (
+              <motion.div variants={item} className="space-y-1">
+                <label className="text-[10px] font-bold uppercase tracking-wider text-[#78716b] block">
+                  Registration / Roll Number
+                </label>
+                <div className="relative">
+                  <div className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3 text-[#78716b]">
+                    <School className="h-4 w-4" />
+                  </div>
+                  <input
+                    type="text"
+                    value={registrationNo}
+                    onChange={(e) => setRegistrationNo(e.target.value.toUpperCase())}
+                    className={iconInputClass(!!validationErrors.registrationNo)}
+                    placeholder="e.g. 21BCE1024"
+                    required
+                  />
+                </div>
+                {validationErrors.registrationNo && (
+                  <p className="text-[10px] text-[#8c381c] font-bold">{validationErrors.registrationNo}</p>
+                )}
               </motion.div>
             )}
 

@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
+import { ENDPOINTS } from "@/lib/api/endpoints";
 
 const API_BASE = (
   process.env.NEXT_PUBLIC_API_URL || "http://localhost:8080"
@@ -39,7 +40,7 @@ export function useSession() {
       }
 
       // 2. Background Verification: Ping the live backend for fresh data
-      const res = await fetch(`${API_BASE}/api/v1/auth/me`, {
+      const res = await fetch(ENDPOINTS.auth.me, {
         method: "GET",
         headers: {
           Authorization: `Bearer ${token}`,
@@ -49,12 +50,20 @@ export function useSession() {
 
       if (res.ok) {
         const liveUserData = await res.json();
-        setUser(liveUserData);
+        const normalizedUser = {
+          ...liveUserData,
+          name: liveUserData.fullName || `${liveUserData.firstName || ""} ${liveUserData.lastName || ""}`.trim() || liveUserData.name,
+          institution: liveUserData.college || liveUserData.institution || "",
+          program: liveUserData.department || liveUserData.program || "",
+        };
+        setUser(normalizedUser);
 
         // Keep local cache synced with live database data
         if (typeof window !== "undefined") {
-          localStorage.setItem("dynoquizz_user", JSON.stringify(liveUserData));
-          localStorage.setItem("dynoquizz_role", liveUserData.role);
+          localStorage.setItem("dynoquizz_user", JSON.stringify(normalizedUser));
+          if (liveUserData.role) {
+            localStorage.setItem("dynoquizz_role", liveUserData.role.toUpperCase());
+          }
           if (liveUserData.registrationNo) {
             localStorage.setItem(
               "dynoquizz_regNo",
@@ -84,14 +93,12 @@ export function useSession() {
     role?: string;
   }) => {
     try {
-      const backendRole = (credentials.role || "STUDENT").toUpperCase();
-      const res = await fetch(`${API_BASE}/api/v1/auth/login`, {
+      const res = await fetch(ENDPOINTS.auth.login, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           email: credentials.email.trim(),
           password: credentials.password,
-          role: backendRole,
         }),
       });
 
@@ -101,7 +108,8 @@ export function useSession() {
         const returnedRole = (
           data.user?.role ||
           data.role ||
-          backendRole
+          credentials.role ||
+          "STUDENT"
         ).toUpperCase();
         const userObj = data.user || {
           email: credentials.email,
@@ -120,7 +128,7 @@ export function useSession() {
         return userObj;
       }
       throw new Error(
-        data.error || data.message || "Invalid email or password.",
+        data.message || data.error || "Invalid email or password.",
       );
     } catch (e: any) {
       throw new Error(e.message || "Failed to log in.");
@@ -133,21 +141,23 @@ export function useSession() {
     email: string;
     password: string;
     role?: string;
+    registrationNo?: string;
   }) => {
     try {
       const backendRole = (payload.role || "STUDENT").toUpperCase();
-      const combinedName = `${payload.firstName.trim()} ${payload.lastName.trim()}`;
 
-      const res = await fetch(`${API_BASE}/api/v1/auth/signup`, {
+      const res = await fetch(ENDPOINTS.auth.signup, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           firstName: payload.firstName.trim(),
           lastName: payload.lastName.trim(),
-          name: combinedName,
           email: payload.email.trim(),
           password: payload.password,
           role: backendRole,
+          ...(backendRole === "STUDENT" && payload.registrationNo
+            ? { registrationNo: payload.registrationNo.trim().toUpperCase() }
+            : {}),
         }),
       });
 
@@ -162,7 +172,7 @@ export function useSession() {
         const userObj = data.user || {
           email: payload.email,
           role: returnedRole,
-          name: combinedName,
+          name: `${payload.firstName.trim()} ${payload.lastName.trim()}`,
         };
 
         if (typeof window !== "undefined") {
