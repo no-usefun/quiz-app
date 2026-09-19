@@ -18,7 +18,6 @@ import com.quiz_app.backend.dto.attempt.AttemptResultDetailResponse;
 import com.quiz_app.backend.dto.attempt.AttemptResultResponse;
 import com.quiz_app.backend.dto.attempt.LeaderboardEntryResponse;
 import com.quiz_app.backend.dto.attempt.SaveAnswerRequest;
-import com.quiz_app.backend.dto.attempt.StartAttemptRequest;
 import com.quiz_app.backend.dto.attempt.SubmitAttemptRequest;
 import com.quiz_app.backend.dto.attempt.SubmitAttemptResponse;
 import com.quiz_app.backend.security.CustomUserDetails;
@@ -36,7 +35,6 @@ public class StudentQuizController {
     @PostMapping("/quizzes/{quizCode}/attempts")
     public ResponseEntity<AttemptResponse> startAttempt(
             @PathVariable String quizCode,
-            @RequestBody StartAttemptRequest request,
             Authentication authentication) {
 
         CustomUserDetails userDetails = (CustomUserDetails) authentication.getPrincipal();
