@@ -77,6 +77,7 @@ export default function TestArenaPage({
   );
   const [sessionExpired, setSessionExpired] = useState(false);
   const [deadlineNotice, setDeadlineNotice] = useState<string | null>(null);
+  const [submissionNotice, setSubmissionNotice] = useState<string | null>(null);
 
   /*
    * Load test and restore locally cached answers
@@ -175,27 +176,46 @@ export default function TestArenaPage({
   const syncAnswerToBackend = async (questionId: number, optionId: number) => {
     try {
       const token = localStorage.getItem("dynoquizz_token");
-      const attemptId = localStorage.getItem("dynoquizz_attemptId");
+      const cleanCode = testCode.toUpperCase();
+      const attemptId =
+        localStorage.getItem("dynoquizz_attemptId") ||
+        localStorage.getItem(`dynoquizz_attemptId_${cleanCode}`);
 
       if (!attemptId) {
         console.warn("No attemptId found. Cannot sync individual answer.");
         return;
       }
 
-      const res = await fetch(
-        `${API_BASE}/api/v1/attempts/${attemptId}/answers/${questionId}`,
+      const bodyPayload = JSON.stringify({
+        selectedOptionIds: [optionId],
+        responseTimeSeconds: timeTakenPerQuestion[questionId] || 0,
+      });
+
+      let res = await fetch(
+        `${API_BASE}/api/v1/student/attempts/${attemptId}/answers/${questionId}`,
         {
           method: "PUT",
           headers: {
             ...(token ? { Authorization: `Bearer ${token}` } : {}),
             "Content-Type": "application/json",
           },
-          body: JSON.stringify({
-            selectedOptionIds: [optionId],
-            responseTimeSeconds: timeTakenPerQuestion[questionId] || 0,
-          }),
+          body: bodyPayload,
         },
       );
+
+      if (res.status === 409) {
+        const errJson = await res.json().catch(() => ({}));
+        if (
+          errJson.error === "EXAM_DEADLINE_EXCEEDED" ||
+          errJson.error === "ATTEMPT_ALREADY_SUBMITTED"
+        ) {
+          setDeadlineNotice(
+            errJson.message || "Exam time limit reached or attempt submitted.",
+          );
+          finishAssessment(answers);
+          return;
+        }
+      }
 
       if (!res.ok) {
         throw new Error(`Failed to sync answer. Status: ${res.status}`);
@@ -322,29 +342,67 @@ export default function TestArenaPage({
 
     try {
       const token = localStorage.getItem("dynoquizz_token");
-      const attemptId = localStorage.getItem("dynoquizz_attemptId");
+      const cleanCode = testCode.toUpperCase();
+      const attemptId =
+        localStorage.getItem("dynoquizz_attemptId") ||
+        localStorage.getItem(`dynoquizz_attemptId_${cleanCode}`);
 
-      // Target the newly updated Submit Attempt API
-      const targetUrl = attemptId
-        ? `${API_BASE}/api/v1/attempts/${attemptId}/submit`
-        : `${API_BASE}/api/v1/student/quizzes/${testCode.toUpperCase()}/submit`; // Fallback
+      if (!attemptId) {
+        console.warn("No attemptId found. Cannot submit attempt.");
+        return;
+      }
 
-      const res = await fetch(targetUrl, {
+      // Build SubmitAttemptRequest answers array, skipping optionId === -1 (unanswered)
+      const formattedAnswers = Object.entries(latestAnswers)
+        .filter(
+          ([_, optId]) => optId !== -1 && optId !== null && optId !== undefined,
+        )
+        .map(([qId, optId]) => ({
+          questionId: Number(qId),
+          selectedOptionIds: [Number(optId)],
+          responseTimeSeconds: timeTakenPerQuestion[Number(qId)] || 0,
+        }));
+
+      console.log("[Assessment Submission] Attempt ID:", attemptId);
+      console.log(
+        "[Assessment Submission] Answers count:",
+        formattedAnswers.length,
+      );
+      console.log("[Assessment Submission] Answers payload:", formattedAnswers);
+
+      const submitBody = JSON.stringify({
+        answers: formattedAnswers,
+      });
+
+      const submitUrl = `${API_BASE}/api/v1/student/attempts/${attemptId}/submit`;
+      console.log("[Assessment Submission] POST URL:", submitUrl);
+      console.log("[Assessment Submission] Raw request body:", submitBody);
+
+      // Target the new student submit API
+      let res = await fetch(submitUrl, {
         method: "POST",
         headers: {
           ...(token ? { Authorization: `Bearer ${token}` } : {}),
           "Content-Type": "application/json",
         },
-        body: JSON.stringify({
-          timeTakenTotalSeconds: totalTimeTaken,
-          answers: latestAnswers,
-          proctoringFlags: flags,
-        }),
+        body: submitBody,
       });
+
+      console.log("[Assessment Submission] HTTP status:", res.status);
+      const rawText = await res.text();
+      console.log("[Assessment Submission] Raw response text:", rawText);
+
+      let data: any = {};
+      try {
+        data = JSON.parse(rawText);
+        console.log("[Assessment Submission] Parsed response data:", data);
+      } catch (err) {
+        console.warn("[Assessment Submission] Could not parse JSON response:", err);
+      }
 
       if (res.status === 401) {
         localStorage.setItem(
-          `dynoquizz_active_test_${testCode.toUpperCase()}`,
+          `dynoquizz_active_test_${cleanCode}`,
           JSON.stringify({
             answers: latestAnswers,
             timeTaken: timeTakenPerQuestion,
@@ -356,18 +414,27 @@ export default function TestArenaPage({
       }
 
       if (res.ok) {
-        // Clear attemptId from local storage upon successful completion
+        // Clear transient attempt & in-progress cache, but preserve attemptId for this quizCode
         localStorage.removeItem("dynoquizz_attemptId");
+        localStorage.removeItem(`dynoquizz_active_test_${cleanCode}`);
+        localStorage.setItem(
+          `dynoquizz_attemptId_${cleanCode}`,
+          String(data.attemptId || attemptId),
+        );
 
-        const data = await res.json();
         if (data.deadlineExceeded || data.error === "EXAM_DEADLINE_EXCEEDED") {
           setDeadlineNotice(
             "Assessment deadline reached on the server. Responses collected up to the cutoff were saved.",
           );
         }
+        if (data.finalScore == null || data.published === false) {
+          setSubmissionNotice(
+            "Submitted successfully. Results will be available once published.",
+          );
+        }
       }
     } catch (e) {
-      console.error("Submission failed", e);
+      console.error("[Assessment Submission] Submission failed:", e);
     }
   };
 
@@ -485,6 +552,11 @@ export default function TestArenaPage({
           {deadlineNotice && (
             <div className="rounded-inputs border border-pastel-yellow bg-pastel-yellow/20 p-3 text-xs text-pastel-yellow-text text-left font-medium">
               {deadlineNotice}
+            </div>
+          )}
+          {submissionNotice && (
+            <div className="rounded-inputs border border-mist-blue bg-frost-surface p-3 text-xs text-midnight-navy text-left font-medium">
+              {submissionNotice}
             </div>
           )}
           <div className="flex gap-2 pt-4">

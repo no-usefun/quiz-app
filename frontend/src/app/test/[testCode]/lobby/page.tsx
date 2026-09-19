@@ -59,6 +59,7 @@ function LobbyInner({ testCode }: { testCode: string }) {
   // New states for backend attempt initialization
   const [isStarting, setIsStarting] = useState(false);
   const [startError, setStartError] = useState<string | null>(null);
+  const [packageError, setPackageError] = useState<string | null>(null);
 
   useEffect(() => {
     const cleanCode = testCode.toUpperCase();
@@ -98,7 +99,23 @@ function LobbyInner({ testCode }: { testCode: string }) {
             questions: data.questions || [],
           });
         } else {
-          // Fallback mock package removed to ensure strict backend syncing
+          const errData = await res.json().catch(() => ({}));
+          const errMsg = errData.message || errData.error || "";
+          if (
+            typeof errMsg === "string" &&
+            errMsg.toLowerCase().includes("not available to students")
+          ) {
+            setPackageError(
+              "This assessment is not open yet. Ask your teacher to publish it.",
+            );
+          } else if (
+            res.status === 409 ||
+            (typeof errMsg === "string" && errMsg.includes("QUIZ_NOT_ACTIVE"))
+          ) {
+            setPackageError("This assessment is not open right now.");
+          } else if (errMsg) {
+            setPackageError(errMsg);
+          }
           setTest(null);
         }
       } catch (e) {
@@ -169,48 +186,68 @@ function LobbyInner({ testCode }: { testCode: string }) {
     try {
       const token = localStorage.getItem("dynoquizz_token");
 
-      // Extract studentId directly from the JWT token
-      let extractedStudentId = 0;
-      if (token) {
-        try {
-          const payloadBase64 = token.split(".")[1];
-          const decoded = JSON.parse(atob(payloadBase64));
-          extractedStudentId = decoded.id || decoded.userId || decoded.sub || 0;
-        } catch (e) {
-          console.warn("Failed to decode token");
-        }
-      }
-
-      // Hit the new attempts API to officially start the session
+      // Hit the student attempts API to officially start the session (no body per OpenAPI spec)
       const res = await fetch(
-        `${API_BASE}/api/v1/quizzes/${cleanCode}/attempts`,
+        `${API_BASE}/api/v1/student/quizzes/${cleanCode}/attempts`,
         {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
             ...(token ? { Authorization: `Bearer ${token}` } : {}),
           },
-          body: JSON.stringify({
-            studentId: extractedStudentId,
-          }),
         },
       );
 
       if (!res.ok) {
         const errorData = await res.json().catch(() => ({}));
+        const errorCode = errorData.error;
+        const errorMessage = errorData.message || errorCode;
+
+        // If candidate has already attempted, navigate to their result
+        if (res.status === 409 && errorCode === "ALREADY_ATTEMPTED") {
+          router.push(`/dashboard/student/result/${cleanCode}`);
+          return;
+        }
+
+        if (
+          typeof errorMessage === "string" &&
+          errorMessage.toLowerCase().includes("not available to students")
+        ) {
+          throw new Error(
+            "This assessment is not open yet. Ask your teacher to publish it.",
+          );
+        }
+
+        if (
+          res.status === 409 &&
+          (errorCode === "QUIZ_NOT_ACTIVE" ||
+            (typeof errorMessage === "string" &&
+              errorMessage.includes("QUIZ_NOT_ACTIVE")))
+        ) {
+          throw new Error("This assessment is not open right now.");
+        }
+
+        if (res.status === 403) {
+          throw new Error(
+            errorMessage || "You are not authorized to take this assessment.",
+          );
+        }
+
         throw new Error(
-          errorData.error ||
-            errorData.message ||
-            "Failed to initialize assessment attempt on the server.",
+          errorMessage || "Failed to initialize assessment attempt on the server.",
         );
       }
 
       const data = await res.json();
 
       // Save the attemptId in local storage so the actual test page can use it for final submission
-      if (typeof window !== "undefined") {
+      if (typeof window !== "undefined" && data.attemptId) {
         localStorage.setItem(
           `dynoquizz_attemptId_${cleanCode}`,
+          data.attemptId.toString(),
+        );
+        localStorage.setItem(
+          "dynoquizz_attemptId",
           data.attemptId.toString(),
         );
       }
@@ -245,12 +282,18 @@ function LobbyInner({ testCode }: { testCode: string }) {
           <AlertCircle className="h-6 w-6" />
         </div>
         <h2 className="text-lg font-bold text-[#111111]">
-          Assessment Not Found
+          Assessment Unavailable
         </h2>
         <p className="mt-2 text-xs text-[#78716b] leading-relaxed">
-          The access code{" "}
-          <span className="font-mono font-bold text-[#111111]">{testCode}</span>{" "}
-          does not exist, has been archived, or you lack permissions.
+          {packageError || (
+            <>
+              The access code{" "}
+              <span className="font-mono font-bold text-[#111111]">
+                {testCode}
+              </span>{" "}
+              does not exist, has been archived, or is not currently open.
+            </>
+          )}
         </p>
         <Link
           href="/join"

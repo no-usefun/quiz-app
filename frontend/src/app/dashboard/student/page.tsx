@@ -13,7 +13,6 @@ import {
 } from "lucide-react";
 import { TopNav } from "@/components/TopNav";
 import { useSession } from "@/hooks/useSession";
-import { getStoredResults } from "@/lib/storage";
 
 const API_BASE = (
   process.env.NEXT_PUBLIC_API_URL || "http://localhost:8080"
@@ -23,18 +22,11 @@ export default function StudentDashboard() {
   const { user } = useSession();
   const [results, setResults] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [isNotDeployed, setIsNotDeployed] = useState(false);
+  const [fetchError, setFetchError] = useState(false);
 
   useEffect(() => {
     const fetchResults = async () => {
-      const localResults = getStoredResults().map((r) => ({
-        testCode: r.testCode,
-        quizName: r.quizName,
-        submittedAt: r.submittedAt || "Recently",
-        totalQuestions: r.totalQuestions || 0,
-        score: r.score || 0,
-        published: true,
-      }));
-
       try {
         const token = localStorage.getItem("dynoquizz_token");
         const res = await fetch(`${API_BASE}/api/v1/student/results`, {
@@ -44,24 +36,67 @@ export default function StudentDashboard() {
           },
         });
 
-        if (res.ok) {
+        if (res.status === 404) {
+          setIsNotDeployed(true);
+          setResults([]);
+        } else if (res.ok) {
+          setIsNotDeployed(false);
+          setFetchError(false);
           const data = await res.json();
-          const backendList = Array.isArray(data) ? data : [];
-          const seen = new Set(
-            backendList.map((b: any) =>
-              (b.testCode || b.id || "").toUpperCase(),
-            ),
-          );
-          const combined = [
-            ...backendList,
-            ...localResults.filter((l) => !seen.has(l.testCode.toUpperCase())),
-          ];
-          setResults(combined);
+          const backendList = Array.isArray(data)
+            ? data
+            : Array.isArray(data?.content)
+              ? data.content
+              : Array.isArray(data?.results)
+                ? data.results
+                : [];
+
+          const normalizedResults = backendList.map((item: any) => ({
+            id: item.attemptId ?? item.id,
+            attemptId: item.attemptId ?? item.id,
+            quizId: item.quizId,
+            quizName:
+              item.quizTitle ||
+              item.quizName ||
+              item.title ||
+              "Assessment Session",
+            testCode:
+              item.quizCode ||
+              item.testCode ||
+              (item.quizId
+                ? String(item.quizId)
+                : item.attemptId
+                  ? String(item.attemptId)
+                  : "CODE"),
+            score:
+              item.percentage != null
+                ? Math.round(item.percentage)
+                : item.finalScore != null
+                  ? Math.round(item.finalScore)
+                  : item.score != null
+                    ? Math.round(item.score)
+                    : null,
+            submittedAt: item.submittedAt
+              ? new Date(item.submittedAt).toLocaleDateString("en-US", {
+                  month: "short",
+                  day: "numeric",
+                })
+              : "Recently",
+            totalQuestions:
+              item.totalQuestions ??
+              (item.totalMarks ? Math.round(item.totalMarks) : 0),
+            published: item.published ?? item.isPublished ?? true,
+            resultVisibility: item.resultVisibility ?? "BOTH",
+          }));
+
+          setResults(normalizedResults);
         } else {
-          setResults(localResults);
+          setFetchError(true);
+          setResults([]);
         }
       } catch (e) {
-        setResults(localResults);
+        setFetchError(true);
+        setResults([]);
       } finally {
         setLoading(false);
       }
@@ -198,6 +233,41 @@ export default function StudentDashboard() {
                   <span className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-[#d1dee8] border-t-[#165dfb]" />
                   Loading submissions...
                 </li>
+              ) : isNotDeployed ? (
+                <li className="flex flex-col items-center justify-center gap-3 p-12 text-center">
+                  <div className="flex h-12 w-12 items-center justify-center rounded-[12px] bg-[#f5f5f4] text-[#a8a29d] ring-1 ring-[#d1dee8]">
+                    <ClipboardList className="h-6 w-6" />
+                  </div>
+                  <div>
+                    <p className="text-sm font-bold text-[#111111]">
+                      Results history isn&apos;t available yet — check back soon
+                    </p>
+                    <p className="mt-1 text-xs text-[#78716b] font-medium max-w-xs mx-auto leading-relaxed">
+                      This feature is currently being updated on the server.
+                    </p>
+                  </div>
+                  <Link
+                    href="/join"
+                    className="mt-1 inline-flex items-center gap-1.5 rounded-[10px] bg-[#165dfb] px-4 py-2.5 text-xs font-bold text-white shadow-sm shadow-[#165dfb]/25 transition-all hover:bg-[#0f4fd8] hover:shadow-md border-0"
+                  >
+                    <PlayCircle className="h-3.5 w-3.5 text-white" /> Join an
+                    Assessment
+                  </Link>
+                </li>
+              ) : fetchError ? (
+                <li className="flex flex-col items-center justify-center gap-3 p-12 text-center">
+                  <div className="flex h-12 w-12 items-center justify-center rounded-[12px] bg-[#f5f5f4] text-[#a8a29d] ring-1 ring-[#d1dee8]">
+                    <ClipboardList className="h-6 w-6" />
+                  </div>
+                  <div>
+                    <p className="text-sm font-bold text-[#111111]">
+                      Unable to load results history
+                    </p>
+                    <p className="mt-1 text-xs text-[#78716b] font-medium max-w-xs mx-auto leading-relaxed">
+                      A network or server error occurred while loading results.
+                    </p>
+                  </div>
+                </li>
               ) : results.length === 0 ? (
                 <li className="flex flex-col items-center justify-center gap-3 p-12 text-center">
                   <div className="flex h-12 w-12 items-center justify-center rounded-[12px] bg-[#f5f5f4] text-[#a8a29d] ring-1 ring-[#d1dee8]">
@@ -254,9 +324,15 @@ export default function StudentDashboard() {
                           </div>
 
                           <div className="flex shrink-0 items-center gap-2">
-                            <span className="rounded-full bg-[#e2ede8] px-2.5 py-1 text-[10px] font-bold text-[#1d5237] tabular-nums">
-                              {result.score || 0}%
-                            </span>
+                            {result.score != null ? (
+                              <span className="rounded-full bg-[#e2ede8] px-2.5 py-1 text-[10px] font-bold text-[#1d5237] tabular-nums">
+                                {result.score}%
+                              </span>
+                            ) : (
+                              <span className="rounded-full bg-[#f6efe1] px-2.5 py-1 text-[10px] font-bold text-[#73561a]">
+                                Result pending
+                              </span>
+                            )}
                             <ChevronRight className="h-3.5 w-3.5 text-[#c9c5c2] transition-all group-hover:translate-x-0.5 group-hover:text-[#165dfb]" />
                           </div>
                         </Link>
@@ -294,7 +370,7 @@ export default function StudentDashboard() {
                         <div className="flex shrink-0 items-center gap-1.5">
                           <span className="inline-flex items-center gap-1 rounded-full bg-[#f6efe1] px-2.5 py-1 text-[9px] font-bold text-[#73561a]">
                             <Lock className="h-3 w-3 text-[#73561a]" />
-                            Under Review
+                            Result Pending
                           </span>
                         </div>
                       </div>

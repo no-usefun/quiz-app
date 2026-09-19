@@ -57,6 +57,13 @@ export default function TestLandingPage({
         router.push(`/login?role=student&redirect=/join/${testcode}`);
         return;
       }
+      let userObj: any = null;
+      try {
+        const rawUser = localStorage.getItem("dynoquizz_user");
+        if (rawUser) userObj = JSON.parse(rawUser);
+      } catch {}
+      const stored = userObj?.registrationNo || localStorage.getItem("dynoquizz_regNo");
+      if (stored) setRegistrationNo(stored);
     }
     const fetchQuizDetails = async () => {
       try {
@@ -75,6 +82,23 @@ export default function TestLandingPage({
           const data = await res.json();
           setQuizInfo(data);
         } else {
+          const errData = await res.json().catch(() => ({}));
+          const errMsg = errData.message || errData.error || "";
+          if (
+            typeof errMsg === "string" &&
+            errMsg.toLowerCase().includes("not available to students")
+          ) {
+            setError(
+              "This assessment is not open yet. Ask your teacher to publish it.",
+            );
+          } else if (
+            res.status === 409 ||
+            (typeof errMsg === "string" && errMsg.includes("QUIZ_NOT_ACTIVE"))
+          ) {
+            setError("This assessment is not open right now.");
+          } else if (errMsg) {
+            setError(errMsg);
+          }
           setQuizInfo({
             title: "Proctored Assessment Session",
             overallTimerSeconds: 3600,
@@ -106,33 +130,16 @@ export default function TestLandingPage({
     const cleanCode = testcode.trim().toUpperCase();
     const cleanReg = registrationNo.trim().toUpperCase();
 
-    // Check whitelist if configured
-    if (
-      quizInfo?.allowedRegistrationNumbers &&
-      Array.isArray(quizInfo.allowedRegistrationNumbers) &&
-      quizInfo.allowedRegistrationNumbers.length > 0
-    ) {
-      const isAuthorized = quizInfo.allowedRegistrationNumbers.some(
-        (r: string) => r.toUpperCase() === cleanReg,
-      );
-      if (!isAuthorized) {
-        setError(
-          `Registration number "${cleanReg}" is not authorized for assessment session ${cleanCode}. Please contact your instructor.`,
-        );
-        return;
-      }
-    }
-
     setSubmitting(true);
     setError(null);
     localStorage.setItem("dynoquizz_regNo", cleanReg);
     sessionStorage.setItem("dynoquizz_student_reg", cleanReg);
 
-    // Call the Start Attempt API
+    // Call the Start Attempt API (student endpoint, no body)
     try {
       const token = localStorage.getItem("dynoquizz_token");
       const res = await fetch(
-        `${API_BASE}/api/v1/quizzes/${cleanCode}/attempts`,
+        `${API_BASE}/api/v1/student/quizzes/${cleanCode}/attempts`,
         {
           method: "POST",
           headers: {
@@ -144,10 +151,40 @@ export default function TestLandingPage({
 
       if (!res.ok) {
         const errData = await res.json().catch(() => ({}));
+        const errorCode = errData.error;
+        const errorMessage = errData.message || errorCode;
+
+        if (res.status === 409 && errorCode === "ALREADY_ATTEMPTED") {
+          router.push(`/dashboard/student/result/${cleanCode}`);
+          return;
+        }
+
+        if (
+          typeof errorMessage === "string" &&
+          errorMessage.toLowerCase().includes("not available to students")
+        ) {
+          throw new Error(
+            "This assessment is not open yet. Ask your teacher to publish it.",
+          );
+        }
+
+        if (
+          res.status === 409 &&
+          (errorCode === "QUIZ_NOT_ACTIVE" ||
+            (typeof errorMessage === "string" &&
+              errorMessage.includes("QUIZ_NOT_ACTIVE")))
+        ) {
+          throw new Error("This assessment is not open right now.");
+        }
+
+        if (res.status === 403) {
+          throw new Error(
+            errorMessage || "You are not authorized to take this assessment.",
+          );
+        }
+
         throw new Error(
-          errData.message ||
-            errData.error ||
-            "Failed to start assessment session.",
+          errorMessage || "Failed to start assessment session.",
         );
       }
 
@@ -157,6 +194,7 @@ export default function TestLandingPage({
       const attemptId = data.attemptId || data.id;
       if (attemptId) {
         localStorage.setItem("dynoquizz_attemptId", attemptId.toString());
+        localStorage.setItem(`dynoquizz_attemptId_${cleanCode}`, attemptId.toString());
       } else {
         console.warn("Warning: No attemptId returned from server");
       }

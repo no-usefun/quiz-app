@@ -76,18 +76,148 @@ export default function StudentResultPage({
 
       try {
         const token = localStorage.getItem("dynoquizz_token");
-        const res = await fetch(
-          `${API_BASE}/api/v1/student/results/${codeUpper}`,
-          {
-            headers: {
-              ...(token ? { Authorization: `Bearer ${token}` } : {}),
-              "Content-Type": "application/json",
-            },
-          },
+        const headers = {
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+          "Content-Type": "application/json",
+        };
+
+        const storedAttemptId =
+          localStorage.getItem(`dynoquizz_attemptId_${codeUpper}`) ||
+          localStorage.getItem("dynoquizz_attemptId") ||
+          (/^\d+$/.test(codeUpper) ? codeUpper : null);
+
+        console.log(
+          `[Student Result] Looking up code: "${codeUpper}", storedAttemptId: "${storedAttemptId}"`,
         );
 
-        if (res.ok) {
-          const data = await res.json();
+        if (storedAttemptId) {
+          const attemptUrl = `${API_BASE}/api/v1/student/attempts/${storedAttemptId}/result`;
+          console.log(`[Student Result] GET ${attemptUrl}`);
+
+          // 1. Fetch Attempt Result
+          let res = await fetch(attemptUrl, { headers });
+
+          console.log(`[Student Result] Attempt result HTTP status: ${res.status}`);
+          const rawText = await res.text();
+          console.log(`[Student Result] Attempt result raw response:`, rawText);
+
+          let data: any = null;
+          try {
+            data = JSON.parse(rawText);
+          } catch {
+            // response was not JSON
+          }
+
+          if (res.ok && data) {
+            // 2. Fetch Attempt Result Details
+            const detailsUrl = `${API_BASE}/api/v1/student/attempts/${storedAttemptId}/result/details`;
+            console.log(`[Student Result] GET details: ${detailsUrl}`);
+            let detailsRes = await fetch(detailsUrl, { headers });
+            console.log(
+              `[Student Result] Details HTTP status: ${detailsRes.status}`,
+            );
+
+            let detailsList: any[] = [];
+            if (detailsRes.ok) {
+              const detailsData = await detailsRes.json();
+              if (Array.isArray(detailsData)) {
+                detailsList = detailsData;
+              }
+            }
+
+            const correctCount = detailsList.filter((d: any) => d.correct).length;
+            const totalQ =
+              detailsList.length || localTest?.questions?.length || data.totalMarks || 0;
+            const accuracy =
+              totalQ > 0
+                ? Math.round((correctCount / totalQ) * 100)
+                : data.percentage ?? 0;
+
+            const questionsMapped =
+              detailsList.length > 0
+                ? detailsList.map((d: any) => ({
+                    id: d.questionId,
+                    questionId: d.questionId,
+                    text: d.questionText,
+                    questionText: d.questionText,
+                    correctOption:
+                      d.correctOptionIds && d.correctOptionIds.length > 0
+                        ? `Option ${d.correctOptionIds.join(", ")}`
+                        : "-",
+                  }))
+                : localTest?.questions || [];
+
+            const answersMapped = detailsList.map((d: any) => ({
+              questionId: d.questionId,
+              selectedOption:
+                d.selectedOptionIds && d.selectedOptionIds.length > 0
+                  ? `Option ${d.selectedOptionIds.join(", ")}`
+                  : "Not answered",
+              correct: d.correct,
+              marksAwarded: d.marksAwarded,
+            }));
+
+            const isPub = data.published !== false && data.resultVisibility !== "NONE";
+            const canReveal =
+              isPub &&
+              (data.resultVisibility === "BOTH" ||
+                data.resultVisibility === "QUESTION_WISE");
+
+            setResult({
+              ...data,
+              score: data.percentage ?? data.finalScore ?? 0,
+              quizName:
+                data.quizTitle || localTest?.quizName || `Assessment ${codeUpper}`,
+              totalQuestions: totalQ,
+              correctCount,
+              accuracyPercentage: accuracy,
+              timeTakenTotalSeconds: data.totalTimeTaken || 0,
+              submittedAt: data.submittedAt || "Recently",
+              questions: questionsMapped,
+              answers: answersMapped,
+              published: isPub,
+              revealSolutions: canReveal,
+            });
+            setLoading(false);
+            return;
+          } else if (
+            (res.status === 400 || res.status === 403) &&
+            (data?.message?.toLowerCase().includes("not been published") ||
+              rawText.toLowerCase().includes("not been published"))
+          ) {
+            console.log(
+              "[Student Result] Result is pending publication by the instructor.",
+            );
+            let studentName = "Registered Student";
+            try {
+              const u = JSON.parse(
+                localStorage.getItem("dynoquizz_user") || "{}",
+              );
+              studentName = u.fullName || u.firstName || u.name || studentName;
+            } catch {
+              // ignore
+            }
+
+            setResult({
+              quizName: localTest?.quizName || `Assessment ${codeUpper}`,
+              published: false,
+              revealSolutions: false,
+              submittedAt: "Submitted (Pending release)",
+              studentName,
+            });
+            setLoading(false);
+            return;
+          }
+        }
+
+        // Secondary attempt: check student results by quiz code if attemptId was not found
+        const codeUrl = `${API_BASE}/api/v1/student/results/${codeUpper}`;
+        console.log(`[Student Result] Attempting code lookup: GET ${codeUrl}`);
+        const resByCode = await fetch(codeUrl, { headers });
+        console.log(`[Student Result] Code lookup status: ${resByCode.status}`);
+
+        if (resByCode.ok) {
+          const data = await resByCode.json();
           if (data) {
             setResult(data);
             setLoading(false);
@@ -95,7 +225,7 @@ export default function StudentResultPage({
           }
         }
       } catch (e) {
-        console.warn("Backend student result lookup error:", e);
+        console.warn("[Student Result] Result lookup error:", e);
       }
 
       // Check local storage for actual student submission
@@ -108,7 +238,6 @@ export default function StudentResultPage({
           published: localTest?.settings?.publishScoresImmediately ?? true,
           revealSolutions: localTest?.settings?.revealSolutions ?? true,
         });
-
       } else {
         setResult(null);
       }
@@ -172,14 +301,18 @@ export default function StudentResultPage({
 
   // Determine if scores are published by instructor
   const isPublished =
-    testMeta?.settings?.publishScoresImmediately !== undefined
-      ? testMeta.settings.publishScoresImmediately
-      : (result.published ?? result.isPublished ?? true);
+    result.published !== undefined
+      ? result.published
+      : testMeta?.settings?.publishScoresImmediately !== undefined
+        ? testMeta.settings.publishScoresImmediately
+        : (result.isPublished ?? true);
 
   const canRevealSolutions =
-    testMeta?.settings?.revealSolutions !== undefined
-      ? testMeta.settings.revealSolutions
-      : (result.revealSolutions ?? true);
+    result.revealSolutions !== undefined
+      ? result.revealSolutions
+      : testMeta?.settings?.revealSolutions !== undefined
+        ? testMeta.settings.revealSolutions
+        : true;
 
   // If scores are not released yet
   if (!isPublished) {
