@@ -16,6 +16,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import com.quiz_app.backend.dto.quiz.QuizResponse;
+import com.quiz_app.backend.dto.quiz.TeacherQuizDetailResponse;
 import com.quiz_app.backend.dto.quiz.UpdateQuizSettingsRequest;
 import com.quiz_app.backend.entity.ExamState;
 import com.quiz_app.backend.entity.Option;
@@ -538,7 +539,7 @@ public class TeacherQuizService {
                         question.setDisplayOrder(temporaryOrder--);
                 }
 
-                questionRepository.saveAll(existingQuestions);
+                questionRepository.saveAllAndFlush(existingQuestions);
 
                 Map<Long, Question> existingQuestionMap = existingQuestions.stream()
                                 .collect(Collectors.toMap(
@@ -755,7 +756,7 @@ public class TeacherQuizService {
                         option.setOptionOrder(temporaryOrder--);
                 }
 
-                optionRepository.saveAll(existingOptions);
+                optionRepository.saveAllAndFlush(existingOptions);
 
                 Map<Long, Option> existingOptionMap = existingOptions.stream()
                                 .collect(Collectors.toMap(
@@ -809,7 +810,7 @@ public class TeacherQuizService {
                         }
                 }
 
-                optionRepository.saveAll(optionsToSave);
+                optionRepository.saveAllAndFlush(existingOptions);
 
                 List<Option> finalOptions = optionRepository.findByQuestionIdOrderByOptionOrder(
                                 question.getId());
@@ -849,5 +850,97 @@ public class TeacherQuizService {
                 Quiz savedQuiz = quizRepository.save(quiz);
 
                 return toQuizResponse(savedQuiz);
+        }
+
+        @Transactional(readOnly = true)
+        public TeacherQuizDetailResponse getTeacherQuizDetail(
+                        Long quizId,
+                        Long teacherId) {
+
+                if (quizId == null) {
+                        throw new BadRequestException("Quiz ID is required");
+                }
+
+                if (teacherId == null) {
+                        throw new BadRequestException(
+                                        "Teacher authentication is required");
+                }
+
+                Quiz quiz = quizRepository.findById(quizId)
+                                .orElseThrow(() -> new ResourceNotFoundException("Quiz not found"));
+
+                if (quiz.getTeacher() == null
+                                || !quiz.getTeacher().getId().equals(teacherId)) {
+
+                        throw new BadRequestException(
+                                        "You are not authorized to view this quiz");
+                }
+
+                List<TeacherQuizDetailResponse.QuestionDetail> questions = questionRepository
+                                .findByQuizIdOrderByDisplayOrder(quizId)
+                                .stream()
+                                .map(question -> {
+
+                                        List<TeacherQuizDetailResponse.OptionDetail> options = optionRepository
+                                                        .findByQuestionIdOrderByOptionOrder(
+                                                                        question.getId())
+                                                        .stream()
+                                                        .map(option -> new TeacherQuizDetailResponse.OptionDetail(
+                                                                        option.getId(),
+                                                                        option.getOptionText(),
+                                                                        option.getOptionImage(),
+                                                                        option.isCorrect(),
+                                                                        option.getOptionOrder()))
+                                                        .toList();
+
+                                        return new TeacherQuizDetailResponse.QuestionDetail(
+                                                        question.getId(),
+                                                        question.getQuestionText(),
+                                                        question.getImageUrl(),
+                                                        question.getExplanation(),
+                                                        question.getQuestionType(),
+                                                        question.getMarks(),
+                                                        question.getNegativeMarks(),
+                                                        question.getQuestionTimerSeconds(),
+                                                        question.getDifficulty(),
+                                                        question.getDisplayOrder(),
+                                                        options);
+                                })
+                                .toList();
+
+                return new TeacherQuizDetailResponse(
+                                quiz.getId(),
+                                quiz.getQuizCode(),
+                                quiz.getTeacher().getId(),
+                                quiz.getTitle(),
+                                quiz.getDescription(),
+                                quiz.getInstructions(),
+                                quiz.getSubject(),
+                                quiz.getSubjectCode(),
+                                quiz.getTotalStudents(),
+                                quiz.getTotalQuestions(),
+                                quiz.getTotalMarks(),
+                                quiz.getOverallTimerSeconds(),
+                                quiz.isNegativeMarking(),
+                                quiz.getNegativeMarks(),
+                                quiz.isTimeBonusEnabled(),
+                                quiz.isRandomQuestionOrder(),
+                                quiz.isRandomOptionOrder(),
+                                quiz.isAllowReview(),
+                                quiz.isAllowResume(),
+                                quiz.isAutoSubmit(),
+                                quiz.getMaxTabSwitch(),
+                                quiz.getStartTime(),
+                                quiz.getEndTime(),
+                                quiz.getResultVisibility(),
+                                quiz.isResultsPublished(),
+                                quiz.getAcceptedEmailDomain(),
+                                quizAllowedStudentRepository.findByQuizId(quiz.getId())
+                                                .stream()
+                                                .map(QuizAllowedStudent::getRegistrationNumber)
+                                                .toList(),
+                                quiz.getStatus(),
+                                quiz.getExamState(),
+                                questions);
         }
 }
