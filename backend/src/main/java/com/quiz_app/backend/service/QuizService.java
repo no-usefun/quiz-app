@@ -2,6 +2,8 @@ package com.quiz_app.backend.service;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
+import java.util.ArrayList;
+import java.util.Collections;
 import java.util.concurrent.ThreadLocalRandom;
 
 import org.springframework.stereotype.Service;
@@ -18,6 +20,7 @@ import com.quiz_app.backend.entity.ExamState;
 import com.quiz_app.backend.entity.Option;
 import com.quiz_app.backend.entity.Question;
 import com.quiz_app.backend.entity.Quiz;
+import com.quiz_app.backend.entity.QuizAllowedStudent;
 import com.quiz_app.backend.entity.QuizStatus;
 import com.quiz_app.backend.entity.ResultVisibility;
 import com.quiz_app.backend.entity.User;
@@ -25,6 +28,7 @@ import com.quiz_app.backend.exception.BadRequestException;
 import com.quiz_app.backend.exception.ResourceNotFoundException;
 import com.quiz_app.backend.repository.OptionRepository;
 import com.quiz_app.backend.repository.QuestionRepository;
+import com.quiz_app.backend.repository.QuizAllowedStudentRepository;
 import com.quiz_app.backend.repository.QuizRepository;
 import com.quiz_app.backend.repository.UserRepository;
 
@@ -37,16 +41,19 @@ public class QuizService {
         private final QuestionRepository questionRepository;
         private final OptionRepository optionRepository;
         private final UserRepository userRepository;
+        private final QuizAllowedStudentRepository quizAllowedStudentRepository;
 
         public QuizService(
                         QuizRepository quizRepository,
                         QuestionRepository questionRepository,
                         OptionRepository optionRepository,
-                        UserRepository userRepository) {
+                        UserRepository userRepository,
+                        QuizAllowedStudentRepository quizAllowedStudentRepository) {
                 this.quizRepository = quizRepository;
                 this.questionRepository = questionRepository;
                 this.optionRepository = optionRepository;
                 this.userRepository = userRepository;
+                this.quizAllowedStudentRepository = quizAllowedStudentRepository;
         }
 
         @Transactional
@@ -225,6 +232,11 @@ public class QuizService {
 
                                 quiz.getResultVisibility(),
                                 quiz.isResultsPublished(),
+                                quiz.getAcceptedEmailDomain(),
+                                quizAllowedStudentRepository.findByQuizId(quiz.getId())
+                                                .stream()
+                                                .map(QuizAllowedStudent::getRegistrationNumber)
+                                                .toList(),
 
                                 quiz.getStatus(),
                                 quiz.getExamState());
@@ -391,15 +403,24 @@ public class QuizService {
                                         "Quiz is not available to students");
                 }
 
-                var questions = questionRepository
-                                .findByQuizIdOrderByDisplayOrder(quizId);
+                var questions = new ArrayList<>(
+                                questionRepository.findByQuizIdOrderByDisplayOrder(quizId));
+
+                if (quiz.isRandomQuestionOrder()) {
+                        Collections.shuffle(questions);
+                }
 
                 var questionResponses = questions.stream()
                                 .map(question -> {
 
-                                        var options = optionRepository
-                                                        .findByQuestionIdOrderByOptionOrder(
-                                                                        question.getId());
+                                        var options = new ArrayList<>(
+                                                        optionRepository
+                                                                        .findByQuestionIdOrderByOptionOrder(
+                                                                                        question.getId()));
+
+                                        if (quiz.isRandomOptionOrder()) {
+                                                Collections.shuffle(options);
+                                        }
 
                                         var optionResponses = options.stream()
                                                         .map(option -> new OptionResponse(
@@ -428,28 +449,21 @@ public class QuizService {
                                 quiz.getTitle(),
                                 quiz.getDescription(),
                                 quiz.getInstructions(),
-
                                 quiz.getSubject(),
                                 quiz.getSubjectCode(),
-
                                 quiz.getTotalStudents(),
                                 quiz.getTotalQuestions(),
                                 quiz.getTotalMarks(),
-
                                 quiz.getOverallTimerSeconds(),
-
                                 quiz.isNegativeMarking(),
                                 quiz.getNegativeMarks(),
-
                                 quiz.isRandomQuestionOrder(),
                                 quiz.isRandomOptionOrder(),
                                 quiz.isAllowReview(),
                                 quiz.isAllowResume(),
                                 quiz.isAutoSubmit(),
-
                                 quiz.getStartTime(),
                                 quiz.getEndTime(),
-
                                 questionResponses);
         }
 

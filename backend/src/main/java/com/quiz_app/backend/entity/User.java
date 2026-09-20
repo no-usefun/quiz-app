@@ -54,7 +54,7 @@ public class User {
     @Column(name = "department", length = 100)
     private String department;
 
-    @Column(name = "registration_no", unique = true, length = 30)
+    @Column(name = "registration_no", unique = true, length = 100)
     private String registrationNo;
 
     @Column(name = "profile_image")

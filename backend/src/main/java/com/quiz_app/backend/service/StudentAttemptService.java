@@ -15,6 +15,7 @@ import com.quiz_app.backend.dto.attempt.AttemptResponse;
 import com.quiz_app.backend.dto.attempt.AttemptResultDetailResponse;
 import com.quiz_app.backend.dto.attempt.AttemptResultResponse;
 import com.quiz_app.backend.dto.attempt.LeaderboardEntryResponse;
+import com.quiz_app.backend.dto.attempt.StudentSubmissionResponse;
 import com.quiz_app.backend.dto.attempt.SubmitAnswerRequest;
 import com.quiz_app.backend.dto.attempt.SubmitAttemptRequest;
 import com.quiz_app.backend.dto.attempt.SubmitAttemptResponse;
@@ -34,6 +35,7 @@ import com.quiz_app.backend.exception.ConflictException;
 import com.quiz_app.backend.exception.ResourceNotFoundException;
 import com.quiz_app.backend.repository.OptionRepository;
 import com.quiz_app.backend.repository.QuestionRepository;
+import com.quiz_app.backend.repository.QuizAllowedStudentRepository;
 import com.quiz_app.backend.repository.QuizAttemptRepository;
 import com.quiz_app.backend.repository.QuizRepository;
 import com.quiz_app.backend.repository.StudentAnswerRepository;
@@ -52,6 +54,7 @@ public class StudentAttemptService {
         private final StudentSelectedOptionRepository studentSelectedOptionRepository;
         private final QuestionRepository questionRepository;
         private final OptionRepository optionRepository;
+        private final QuizAllowedStudentRepository quizAllowedStudentRepository;
 
         public StudentAttemptService(
                         QuizAttemptRepository quizAttemptRepository, QuizRepository quizRepository,
@@ -59,7 +62,8 @@ public class StudentAttemptService {
                         StudentAnswerRepository studentAnswerRepository,
                         StudentSelectedOptionRepository studentSelectedOptionRepository,
                         QuestionRepository questionRepository,
-                        OptionRepository optionRepository) {
+                        OptionRepository optionRepository,
+                        QuizAllowedStudentRepository quizAllowedStudentRepository) {
                 this.quizAttemptRepository = quizAttemptRepository;
                 this.quizRepository = quizRepository;
                 this.userRepository = userRepository;
@@ -67,6 +71,7 @@ public class StudentAttemptService {
                 this.studentSelectedOptionRepository = studentSelectedOptionRepository;
                 this.questionRepository = questionRepository;
                 this.optionRepository = optionRepository;
+                this.quizAllowedStudentRepository = quizAllowedStudentRepository;
         }
 
         @Transactional
@@ -86,17 +91,19 @@ public class StudentAttemptService {
                 User student = userRepository.findById(studentId)
                                 .orElseThrow(() -> new ResourceNotFoundException("Student not found"));
 
-                // 2. Verify student role
-                if (!"STUDENT".equals(student.getRole().getName())) {
+                // 1. Verify student role
+                if (student.getRole() == null
+                                || !"STUDENT".equals(student.getRole().getName())) {
+
                         throw new BadRequestException(
                                         "Only a student can start a quiz");
                 }
 
-                // 3. Find quiz
+                // 2. Find quiz
                 Quiz quiz = quizRepository.findByQuizCode(quizCode)
                                 .orElseThrow(() -> new ResourceNotFoundException("Quiz not found"));
 
-                // 4. Check quiz status
+                // 3. Quiz must be published
                 if (quiz.getStatus() != QuizStatus.PUBLISHED) {
                         throw new BadRequestException(
                                         "Quiz is not available");
@@ -104,22 +111,59 @@ public class StudentAttemptService {
 
                 LocalDateTime now = LocalDateTime.now();
 
-                // 5. Check exam window
-                if (quiz.getStartTime() != null &&
-                                now.isBefore(quiz.getStartTime())) {
+                // 4. Check exam window
+                if (quiz.getStartTime() != null
+                                && now.isBefore(quiz.getStartTime())) {
 
                         throw new BadRequestException(
                                         "Quiz has not started yet");
                 }
 
-                if (quiz.getEndTime() != null &&
-                                !now.isBefore(quiz.getEndTime())) {
+                if (quiz.getEndTime() != null
+                                && !now.isBefore(quiz.getEndTime())) {
 
                         throw new BadRequestException(
                                         "Quiz has already ended");
                 }
 
-                // 6. Prevent duplicate attempt
+                // 5. Check accepted email domain
+                String acceptedDomain = quiz.getAcceptedEmailDomain();
+
+                if (acceptedDomain != null && !acceptedDomain.isBlank()) {
+
+                        String studentEmail = student.getEmail();
+
+                        if (studentEmail == null
+                                        || !studentEmail.toLowerCase()
+                                                        .endsWith(acceptedDomain.toLowerCase())) {
+
+                                throw new BadRequestException(
+                                                "Student is not eligible for this quiz");
+                        }
+                }
+
+                // 6. Check registration whitelist
+                String registrationNo = student.getRegistrationNo();
+
+                if (registrationNo != null
+                                && quizAllowedStudentRepository
+                                                .existsByQuizIdAndRegistrationNumberIgnoreCase(
+                                                                quiz.getId(),
+                                                                registrationNo)) {
+
+                        // Student explicitly allowed.
+                } else {
+
+                        boolean whitelistConfigured = quizAllowedStudentRepository
+                                        .existsByQuizId(quiz.getId());
+
+                        if (whitelistConfigured) {
+                                throw new BadRequestException(
+                                                "Student registration number is not allowed for this quiz");
+                        }
+                }
+
+                // 7. Prevent duplicate attempt
                 if (quizAttemptRepository.existsByQuizQuizCodeAndStudentId(
                                 quizCode,
                                 student.getId())) {
@@ -128,7 +172,7 @@ public class StudentAttemptService {
                                         "Student has already attempted this quiz");
                 }
 
-                // 7. Create attempt
+                // 8. Create attempt
                 QuizAttempt attempt = new QuizAttempt();
 
                 attempt.setQuiz(quiz);
@@ -139,7 +183,7 @@ public class StudentAttemptService {
                 attempt.setCurrentQuestion(1);
                 attempt.setTotalTimeTaken(0);
 
-                // Phase 2 fields — initial values only
+                // Phase 2 fields
                 attempt.setWarningsCount(0);
                 attempt.setRefreshCount(0);
                 attempt.setReconnectCount(0);
@@ -149,7 +193,7 @@ public class StudentAttemptService {
 
                 attempt = quizAttemptRepository.save(attempt);
 
-                // 8. Return safe response
+                // 9. Return safe response
                 return new AttemptResponse(
                                 attempt.getId(),
                                 quiz.getId(),
@@ -1010,5 +1054,68 @@ public class StudentAttemptService {
                 }
 
                 return !now.isBefore(deadline);
+        }
+
+        public List<StudentSubmissionResponse> getStudentSubmissions(
+                        Long studentId) {
+
+                if (studentId == null) {
+                        throw new BadRequestException(
+                                        "Student authentication is required");
+                }
+
+                List<QuizAttempt> attempts = quizAttemptRepository
+                                .findByStudentIdAndStatusInOrderBySubmittedAtDesc(
+                                                studentId,
+                                                List.of(
+                                                                AttemptStatus.SUBMITTED,
+                                                                AttemptStatus.AUTO_SUBMITTED));
+
+                return attempts.stream()
+                                .map(this::toStudentSubmissionResponse)
+                                .toList();
+        }
+
+        private StudentSubmissionResponse toStudentSubmissionResponse(
+                        QuizAttempt attempt) {
+
+                Quiz quiz = attempt.getQuiz();
+
+                boolean resultsAvailable = quiz.isResultsPublished()
+                                && quiz.getResultVisibility() != ResultVisibility.NONE;
+
+                BigDecimal finalScore = null;
+                BigDecimal totalMarks = null;
+                BigDecimal percentage = null;
+
+                if (resultsAvailable) {
+
+                        finalScore = attempt.getFinalScore();
+                        totalMarks = quiz.getTotalMarks();
+
+                        if (totalMarks != null
+                                        && totalMarks.compareTo(BigDecimal.ZERO) > 0) {
+
+                                percentage = finalScore
+                                                .multiply(BigDecimal.valueOf(100))
+                                                .divide(
+                                                                totalMarks,
+                                                                2,
+                                                                java.math.RoundingMode.HALF_UP);
+                        }
+                }
+
+                return new StudentSubmissionResponse(
+                                attempt.getId(),
+                                quiz.getId(),
+                                quiz.getTitle(),
+                                attempt.getStatus(),
+                                finalScore,
+                                totalMarks,
+                                percentage,
+                                attempt.getTotalTimeTaken(),
+                                attempt.getStartedAt(),
+                                attempt.getSubmittedAt(),
+                                resultsAvailable);
         }
 }
