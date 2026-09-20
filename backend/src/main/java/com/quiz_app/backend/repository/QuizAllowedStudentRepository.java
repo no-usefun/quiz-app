@@ -19,10 +19,6 @@ public interface QuizAllowedStudentRepository
 
     boolean existsByQuizId(Long quizId);
 
-    boolean existsByQuizIdAndRegistrationNumber(
-            Long quizId,
-            String registrationNumber);
-
     boolean existsByQuizIdAndRegistrationNumberIgnoreCase(
             Long quizId,
             String registrationNumber);

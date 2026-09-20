@@ -147,7 +147,7 @@ public class StudentAttemptService {
 
                 if (registrationNo != null
                                 && quizAllowedStudentRepository
-                                                .existsByQuizIdAndRegistrationNumber(
+                                                .existsByQuizIdAndRegistrationNumberIgnoreCase(
                                                                 quiz.getId(),
                                                                 registrationNo)) {
 
