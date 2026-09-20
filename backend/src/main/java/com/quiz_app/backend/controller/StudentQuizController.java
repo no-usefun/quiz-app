@@ -15,6 +15,7 @@ import com.quiz_app.backend.dto.attempt.AttemptResponse;
 import com.quiz_app.backend.dto.attempt.AttemptResultDetailResponse;
 import com.quiz_app.backend.dto.attempt.AttemptResultResponse;
 import com.quiz_app.backend.dto.attempt.LeaderboardEntryResponse;
+import com.quiz_app.backend.dto.attempt.StudentSubmissionResponse;
 import com.quiz_app.backend.dto.attempt.SubmitAttemptRequest;
 import com.quiz_app.backend.dto.attempt.SubmitAttemptResponse;
 import com.quiz_app.backend.security.CustomUserDetails;
@@ -111,5 +112,16 @@ public class StudentQuizController {
 
                 return ResponseEntity.ok(
                                 attemptService.getLeaderboard(quizId));
+        }
+
+        @GetMapping("/submissions")
+        public ResponseEntity<List<StudentSubmissionResponse>> getStudentSubmissions(
+                        Authentication authentication) {
+
+                CustomUserDetails userDetails = (CustomUserDetails) authentication.getPrincipal();
+
+                return ResponseEntity.ok(
+                                attemptService.getStudentSubmissions(
+                                                userDetails.getId()));
         }
 }

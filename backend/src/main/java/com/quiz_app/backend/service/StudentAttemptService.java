@@ -15,6 +15,7 @@ import com.quiz_app.backend.dto.attempt.AttemptResponse;
 import com.quiz_app.backend.dto.attempt.AttemptResultDetailResponse;
 import com.quiz_app.backend.dto.attempt.AttemptResultResponse;
 import com.quiz_app.backend.dto.attempt.LeaderboardEntryResponse;
+import com.quiz_app.backend.dto.attempt.StudentSubmissionResponse;
 import com.quiz_app.backend.dto.attempt.SubmitAnswerRequest;
 import com.quiz_app.backend.dto.attempt.SubmitAttemptRequest;
 import com.quiz_app.backend.dto.attempt.SubmitAttemptResponse;
@@ -1010,5 +1011,68 @@ public class StudentAttemptService {
                 }
 
                 return !now.isBefore(deadline);
+        }
+
+        public List<StudentSubmissionResponse> getStudentSubmissions(
+                        Long studentId) {
+
+                if (studentId == null) {
+                        throw new BadRequestException(
+                                        "Student authentication is required");
+                }
+
+                List<QuizAttempt> attempts = quizAttemptRepository
+                                .findByStudentIdAndStatusInOrderBySubmittedAtDesc(
+                                                studentId,
+                                                List.of(
+                                                                AttemptStatus.SUBMITTED,
+                                                                AttemptStatus.AUTO_SUBMITTED));
+
+                return attempts.stream()
+                                .map(this::toStudentSubmissionResponse)
+                                .toList();
+        }
+
+        private StudentSubmissionResponse toStudentSubmissionResponse(
+                        QuizAttempt attempt) {
+
+                Quiz quiz = attempt.getQuiz();
+
+                boolean resultsAvailable = quiz.isResultsPublished()
+                                && quiz.getResultVisibility() != ResultVisibility.NONE;
+
+                BigDecimal finalScore = null;
+                BigDecimal totalMarks = null;
+                BigDecimal percentage = null;
+
+                if (resultsAvailable) {
+
+                        finalScore = attempt.getFinalScore();
+                        totalMarks = quiz.getTotalMarks();
+
+                        if (totalMarks != null
+                                        && totalMarks.compareTo(BigDecimal.ZERO) > 0) {
+
+                                percentage = finalScore
+                                                .multiply(BigDecimal.valueOf(100))
+                                                .divide(
+                                                                totalMarks,
+                                                                2,
+                                                                java.math.RoundingMode.HALF_UP);
+                        }
+                }
+
+                return new StudentSubmissionResponse(
+                                attempt.getId(),
+                                quiz.getId(),
+                                quiz.getTitle(),
+                                attempt.getStatus(),
+                                finalScore,
+                                totalMarks,
+                                percentage,
+                                attempt.getTotalTimeTaken(),
+                                attempt.getStartedAt(),
+                                attempt.getSubmittedAt(),
+                                resultsAvailable);
         }
 }
