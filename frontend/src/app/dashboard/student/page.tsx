@@ -101,7 +101,7 @@ export default function StudentDashboard() {
               testCode:
                 item.quizCode ||
                 item.testCode ||
-                (item.quizId ? String(item.quizId) : "CODE"),
+                "",
               score,
               percentage: pct,
               status,
@@ -363,7 +363,7 @@ export default function StudentDashboard() {
                     return (
                       <li key={idx}>
                         <Link
-                          href={`/test/${result.testCode}`}
+                          href={result.testCode ? `/test/${result.testCode}` : "#"}
                           className="relative flex items-center justify-between gap-4 px-5 py-4 transition-colors hover:bg-[#f8fafc] group before:absolute before:inset-y-0 before:left-0 before:w-1 before:rounded-r before:bg-[#165dfb] before:opacity-0 before:transition-opacity hover:before:opacity-100"
                         >
                           <div className="flex min-w-0 flex-col gap-1">
@@ -375,9 +375,11 @@ export default function StudentDashboard() {
                                 <CalendarDays className="h-3 w-3 text-[#a8a29d]" />
                                 {result.submittedAt || "In progress"}
                               </span>
-                              <span className="font-mono font-bold tracking-wider text-[#57534e] bg-[#f5f5f4] px-1.5 py-0.5 rounded-[6px] border border-[#d1dee8]/60 shadow-xs">
-                                {result.testCode || "CODE"}
-                              </span>
+                              {result.testCode && (
+                                <span className="font-mono font-bold tracking-wider text-[#57534e] bg-[#f5f5f4] px-1.5 py-0.5 rounded-[6px] border border-[#d1dee8]/60 shadow-xs">
+                                  {result.testCode}
+                                </span>
+                              )}
                             </div>
                           </div>
                           <div className="flex shrink-0 items-center gap-2">
@@ -396,7 +398,7 @@ export default function StudentDashboard() {
                     return (
                       <li key={idx}>
                         <Link
-                          href={`/dashboard/student/result/${result.attemptId || result.testCode}`}
+                          href={result.attemptId ? `/dashboard/student/result/${result.attemptId}` : (result.testCode ? `/dashboard/student/result/${result.testCode}` : "#")}
                           className="relative flex items-center justify-between gap-4 px-5 py-4 transition-colors hover:bg-[#f8fafc] group before:absolute before:inset-y-0 before:left-0 before:w-1 before:rounded-r before:bg-[#165dfb] before:opacity-0 before:transition-opacity hover:before:opacity-100"
                         >
                           <div className="flex min-w-0 flex-col gap-1">
@@ -412,9 +414,11 @@ export default function StudentDashboard() {
                                 <Clock className="h-3 w-3 text-[#a8a29d]" />
                                 {result.totalQuestions || 0} Qs
                               </span>
-                              <span className="font-mono font-bold tracking-wider text-[#57534e] bg-[#f5f5f4] px-1.5 py-0.5 rounded-[6px] border border-[#d1dee8]/60 shadow-xs">
-                                {result.testCode || "CODE"}
-                              </span>
+                              {result.testCode && (
+                                <span className="font-mono font-bold tracking-wider text-[#57534e] bg-[#f5f5f4] px-1.5 py-0.5 rounded-[6px] border border-[#d1dee8]/60 shadow-xs">
+                                  {result.testCode}
+                                </span>
+                              )}
                             </div>
                           </div>
 
@@ -457,9 +461,11 @@ export default function StudentDashboard() {
                               <Clock className="h-3 w-3 text-[#c9c5c2]" />
                               {result.totalQuestions || 0} Qs
                             </span>
-                            <span className="font-mono font-bold tracking-wider text-[#a8a29d] bg-[#f5f5f4] px-1.5 py-0.5 rounded-[6px] border border-[#d1dee8]/60 shadow-xs">
-                              {result.testCode}
-                            </span>
+                            {result.testCode && (
+                              <span className="font-mono font-bold tracking-wider text-[#a8a29d] bg-[#f5f5f4] px-1.5 py-0.5 rounded-[6px] border border-[#d1dee8]/60 shadow-xs">
+                                {result.testCode}
+                              </span>
+                            )}
                           </div>
                         </div>
 

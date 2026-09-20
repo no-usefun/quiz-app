@@ -46,6 +46,8 @@ export const ENDPOINTS = {
       `${API_BASE}/api/v1/teacher/quizzes/${quizId}/results/unpublish`,
     settings: (quizId: number | string) =>
       `${API_BASE}/api/v1/teacher/quizzes/${quizId}/settings`,
+    quizDetail: (quizId: number | string) =>
+      `${API_BASE}/api/v1/teacher/quizzes/${quizId}`,
     leaderboard: (quizId: number | string) =>
       `${API_BASE}/api/v1/teacher/quizzes/${quizId}/leaderboard`,
   },

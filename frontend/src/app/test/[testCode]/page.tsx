@@ -155,11 +155,11 @@ export default function TestArenaPage({
           const data = await res.json();
           const normalizedQuestions = (data.questions || []).map(
             (q: any, qIdx: number) => ({
-              id: Number(q.questionId ?? q.id ?? qIdx + 1),
+              id: Number(q.questionId ?? q.id),
               text: q.questionText || `Question ${qIdx + 1}`,
-              options: (q.options || []).map((opt: any, optIdx: number) => ({
+              options: (q.options || []).map((opt: any) => ({
                 ...opt,
-                optionId: Number(opt.optionId ?? opt.id ?? optIdx + 1),
+                optionId: Number(opt.optionId ?? opt.id),
                 optionText: opt.optionText ?? opt.text ?? "",
               })),
               marks: q.marks || 4,

@@ -74,8 +74,7 @@ export default function TeacherDashboard() {
 
         const normalizedBackend = list.map((q: any) => {
           const rawQuizId = q.quizId ?? q.id;
-          const quizCode =
-            q.quizCode ?? q.testCode ?? String(rawQuizId ?? "");
+          const quizCode = q.quizCode ?? q.testCode ?? "";
           const status = (q.status ?? "DRAFT").toUpperCase();
           const examState = (q.examState ?? "WAITING").toUpperCase();
           const startTime = q.startTime ?? null;
@@ -417,7 +416,7 @@ export default function TeacherDashboard() {
             ) : (
               tests.map((test, idx) => {
                 const quizId = test.quizId;
-                const code = test.quizCode || String(quizId);
+                const code = test.quizCode || "";
                 const name = test.title || "Assessment";
                 const displayState: QuizDisplayState = test.displayState;
 
@@ -432,12 +431,12 @@ export default function TeacherDashboard() {
                       break;
                     case "Scheduled":
                     case "Live":
-                      router.push(`/dashboard/teacher/share/${code}`);
+                      if (code) router.push(`/dashboard/teacher/share/${code}`);
                       break;
                     case "Ended":
                     case "Completed":
                     case "Cancelled":
-                      router.push(`/dashboard/teacher/assessment/${code}`);
+                      if (code) router.push(`/dashboard/teacher/assessment/${code}`);
                       break;
                   }
                 };
@@ -498,26 +497,28 @@ export default function TeacherDashboard() {
                           mins
                         </span>
 
-                        <button
-                          type="button"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            copyCode(String(code));
-                          }}
-                          className="flex items-center gap-1 font-mono text-[#165dfb] hover:underline font-bold cursor-pointer bg-transparent border-0"
-                        >
-                          {copiedCode === String(code) ? (
-                            <>
-                              <CheckCircle2 className="h-3 w-3 text-[#1d5237]" />{" "}
-                              Copied
-                            </>
-                          ) : (
-                            <>
-                              <Copy className="h-3 w-3 text-[#165dfb]" />{" "}
-                              Code: {code}
-                            </>
-                          )}
-                        </button>
+                        {code && (
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              copyCode(String(code));
+                            }}
+                            className="flex items-center gap-1 font-mono text-[#165dfb] hover:underline font-bold cursor-pointer bg-transparent border-0"
+                          >
+                            {copiedCode === String(code) ? (
+                              <>
+                                <CheckCircle2 className="h-3 w-3 text-[#1d5237]" />{" "}
+                                Copied
+                              </>
+                            ) : (
+                              <>
+                                <Copy className="h-3 w-3 text-[#165dfb]" />{" "}
+                                Code: {code}
+                              </>
+                            )}
+                          </button>
+                        )}
                       </div>
                     </div>
 

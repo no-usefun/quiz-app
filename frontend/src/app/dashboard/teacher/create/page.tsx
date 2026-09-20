@@ -381,10 +381,10 @@ function CreateAssessmentContent() {
                           localOption?.id ??
                           null,
                         isCorrect: Boolean(
-                          localOption?.isCorrect ??
-                            localOption?.correct ??
+                          backendOption.correct ??
                             backendOption.isCorrect ??
-                            backendOption.correct ??
+                            localOption?.isCorrect ??
+                            localOption?.correct ??
                             false,
                         ),
                       };

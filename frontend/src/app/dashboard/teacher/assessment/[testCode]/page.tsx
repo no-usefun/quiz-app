@@ -279,24 +279,15 @@ export default function TeacherAssessmentPage({
           pkgData = { ...matchedQuiz, ...pkgData };
         }
 
-        // 3. Fetch Leaderboard using numeric quizId (teacher endpoint first, fallback to student on 404)
-        // TODO(backend): Teacher leaderboard endpoint GET /api/v1/teacher/quizzes/{quizId}/leaderboard not deployed yet
+        // 3. Fetch Leaderboard using numeric quizId (teacher endpoint only)
         let backendStudents: StudentRecord[] = [];
         let isLbUnavailable = false;
 
         if (numericQuizId) {
-          let activeLbRes = await fetch(
+          const activeLbRes = await fetch(
             `${API_BASE}/api/v1/teacher/quizzes/${numericQuizId}/leaderboard`,
             { headers },
           ).catch(() => null);
-
-          // If teacher leaderboard returns 404 (not deployed yet), try student endpoint once
-          if (activeLbRes && activeLbRes.status === 404) {
-            activeLbRes = await fetch(
-              `${API_BASE}/api/v1/student/quizzes/${numericQuizId}/leaderboard`,
-              { headers },
-            ).catch(() => null);
-          }
 
           if (activeLbRes && activeLbRes.ok) {
             const lbData = await activeLbRes.json();
