@@ -50,7 +50,7 @@ import com.quiz_app.backend.repository.UserRepository;
 
 @ExtendWith(MockitoExtension.class)
 @MockitoSettings(strictness = Strictness.LENIENT)
-class AttemptServiceTest {
+class StudentAttemptServiceTest {
 
         @Mock
         private QuizAttemptRepository quizAttemptRepository;
@@ -74,7 +74,7 @@ class AttemptServiceTest {
         private OptionRepository optionRepository;
 
         @InjectMocks
-        private AttemptService attemptService;
+        private StudentAttemptService attemptService;
 
         private User student;
         private User teacher;

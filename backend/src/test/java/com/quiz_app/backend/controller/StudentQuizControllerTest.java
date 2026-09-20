@@ -25,107 +25,107 @@ import com.quiz_app.backend.dto.attempt.SubmitAttemptResponse;
 import com.quiz_app.backend.entity.AttemptStatus;
 import com.quiz_app.backend.exception.GlobalExceptionHandler;
 import com.quiz_app.backend.security.CustomUserDetails;
-import com.quiz_app.backend.service.AttemptService;
+import com.quiz_app.backend.service.StudentAttemptService;
 
 @ExtendWith(MockitoExtension.class)
 class StudentQuizControllerTest {
 
-  @Mock
-  private AttemptService attemptService;
+    @Mock
+    private StudentAttemptService attemptService;
 
-  @Mock
-  private Authentication authentication;
+    @Mock
+    private Authentication authentication;
 
-  @Mock
-  private CustomUserDetails userDetails;
+    @Mock
+    private CustomUserDetails userDetails;
 
-  private MockMvc mockMvc;
+    private MockMvc mockMvc;
 
-  @BeforeEach
-  void setUp() {
-    mockMvc = MockMvcBuilders
-        .standaloneSetup(
-            new StudentQuizController(attemptService))
-        .setControllerAdvice(
-            new GlobalExceptionHandler())
-        .build();
+    @BeforeEach
+    void setUp() {
+        mockMvc = MockMvcBuilders
+                .standaloneSetup(
+                        new StudentQuizController(attemptService))
+                .setControllerAdvice(
+                        new GlobalExceptionHandler())
+                .build();
 
-    when(authentication.getPrincipal())
-        .thenReturn(userDetails);
+        when(authentication.getPrincipal())
+                .thenReturn(userDetails);
 
-    when(userDetails.getId())
-        .thenReturn(1L);
-  }
+        when(userDetails.getId())
+                .thenReturn(1L);
+    }
 
-  @Test
-  void startAttempt_shouldPassAuthenticatedStudentId() throws Exception {
+    @Test
+    void startAttempt_shouldPassAuthenticatedStudentId() throws Exception {
 
-    AttemptResponse response = new AttemptResponse(
-        1000L,
-        10L,
-        1L,
-        LocalDateTime.now(),
-        null,
-        AttemptStatus.IN_PROGRESS,
-        1,
-        0);
+        AttemptResponse response = new AttemptResponse(
+                1000L,
+                10L,
+                1L,
+                LocalDateTime.now(),
+                null,
+                AttemptStatus.IN_PROGRESS,
+                1,
+                0);
 
-    when(attemptService.startAttempt(
-        "123456",
-        1L))
-        .thenReturn(response);
+        when(attemptService.startAttempt(
+                "123456",
+                1L))
+                .thenReturn(response);
 
-    mockMvc.perform(
-        post("/api/v1/quizzes/123456/attempts")
-            .contentType(MediaType.APPLICATION_JSON)
-            .content("{}")
-            .principal(authentication))
-        .andExpect(status().isOk());
+        mockMvc.perform(
+                post("/api/v1/student/quizzes/123456/attempts")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{}")
+                        .principal(authentication))
+                .andExpect(status().isOk());
 
-    verify(attemptService)
-        .startAttempt("123456", 1L);
-  }
+        verify(attemptService)
+                .startAttempt("123456", 1L);
+    }
 
-  @Test
-  void submitAttempt_shouldPassAuthenticatedStudentId()
-      throws Exception {
+    @Test
+    void submitAttempt_shouldPassAuthenticatedStudentId()
+            throws Exception {
 
-    SubmitAttemptResponse response = new SubmitAttemptResponse(
-        1000L,
-        10L,
-        AttemptStatus.SUBMITTED,
-        BigDecimal.valueOf(5),
-        BigDecimal.valueOf(5),
-        100,
-        LocalDateTime.now());
+        SubmitAttemptResponse response = new SubmitAttemptResponse(
+                1000L,
+                10L,
+                AttemptStatus.SUBMITTED,
+                BigDecimal.valueOf(5),
+                BigDecimal.valueOf(5),
+                100,
+                LocalDateTime.now());
 
-    when(attemptService.submitAttempt(
-        eq(1000L),
-        any(SubmitAttemptRequest.class),
-        eq(1L)))
-        .thenReturn(response);
+        when(attemptService.submitAttempt(
+                eq(1000L),
+                any(SubmitAttemptRequest.class),
+                eq(1L)))
+                .thenReturn(response);
 
-    mockMvc.perform(
-        post("/api/v1/attempts/1000/submit")
-            .contentType(MediaType.APPLICATION_JSON)
-            .content("""
-                {
-                  "answers": [
-                    {
-                      "questionId": 100,
-                      "selectedOptionIds": [101],
-                      "responseTimeSeconds": 15
-                    }
-                  ]
-                }
-                """)
-            .principal(authentication))
-        .andExpect(status().isOk());
+        mockMvc.perform(
+                post("/api/v1/student/attempts/1000/submit")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "answers": [
+                                    {
+                                      "questionId": 100,
+                                      "selectedOptionIds": [101],
+                                      "responseTimeSeconds": 15
+                                    }
+                                  ]
+                                }
+                                """)
+                        .principal(authentication))
+                .andExpect(status().isOk());
 
-    verify(attemptService)
-        .submitAttempt(
-            eq(1000L),
-            any(SubmitAttemptRequest.class),
-            eq(1L));
-  }
+        verify(attemptService)
+                .submitAttempt(
+                        eq(1000L),
+                        any(SubmitAttemptRequest.class),
+                        eq(1L));
+    }
 }
