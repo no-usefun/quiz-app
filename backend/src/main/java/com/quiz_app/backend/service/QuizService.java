@@ -4,7 +4,10 @@ import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.LinkedHashSet;
+import java.util.Set;
 import java.util.concurrent.ThreadLocalRandom;
+import java.util.stream.Collectors;
 
 import org.springframework.stereotype.Service;
 
@@ -136,8 +139,45 @@ public class QuizService {
                 quiz.setCreatedAt(LocalDateTime.now());
                 quiz.setUpdatedAt(LocalDateTime.now());
 
+                String acceptedEmailDomain = request.acceptedEmailDomain();
+
+                if (acceptedEmailDomain != null) {
+                        acceptedEmailDomain = acceptedEmailDomain.trim().toLowerCase();
+
+                        if (!acceptedEmailDomain.isBlank()
+                                        && !acceptedEmailDomain.startsWith("@")) {
+                                throw new BadRequestException(
+                                                "Accepted email domain must start with @");
+                        }
+
+                        quiz.setAcceptedEmailDomain(
+                                        acceptedEmailDomain.isBlank()
+                                                        ? null
+                                                        : acceptedEmailDomain);
+                }
+
                 // 5. Save quiz first because questions need quiz_id
                 quiz = quizRepository.save(quiz);
+
+                if (request.allowedRegistrationNumbers() != null) {
+
+                        Set<String> registrations = request.allowedRegistrationNumbers()
+                                        .stream()
+                                        .filter(value -> value != null)
+                                        .map(String::trim)
+                                        .filter(value -> !value.isBlank())
+                                        .collect(Collectors.toCollection(LinkedHashSet::new));
+
+                        for (String registrationNumber : registrations) {
+
+                                QuizAllowedStudent allowedStudent = new QuizAllowedStudent();
+
+                                allowedStudent.setQuiz(quiz);
+                                allowedStudent.setRegistrationNumber(registrationNumber);
+
+                                quizAllowedStudentRepository.save(allowedStudent);
+                        }
+                }
 
                 // 6. Create questions and options
                 int questionOrder = 1;
