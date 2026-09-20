@@ -20,6 +20,7 @@ import com.quiz_app.backend.entity.ExamState;
 import com.quiz_app.backend.entity.Option;
 import com.quiz_app.backend.entity.Question;
 import com.quiz_app.backend.entity.Quiz;
+import com.quiz_app.backend.entity.QuizAllowedStudent;
 import com.quiz_app.backend.entity.QuizStatus;
 import com.quiz_app.backend.entity.ResultVisibility;
 import com.quiz_app.backend.entity.User;
@@ -27,6 +28,7 @@ import com.quiz_app.backend.exception.BadRequestException;
 import com.quiz_app.backend.exception.ResourceNotFoundException;
 import com.quiz_app.backend.repository.OptionRepository;
 import com.quiz_app.backend.repository.QuestionRepository;
+import com.quiz_app.backend.repository.QuizAllowedStudentRepository;
 import com.quiz_app.backend.repository.QuizRepository;
 import com.quiz_app.backend.repository.UserRepository;
 
@@ -39,16 +41,19 @@ public class QuizService {
         private final QuestionRepository questionRepository;
         private final OptionRepository optionRepository;
         private final UserRepository userRepository;
+        private final QuizAllowedStudentRepository quizAllowedStudentRepository;
 
         public QuizService(
                         QuizRepository quizRepository,
                         QuestionRepository questionRepository,
                         OptionRepository optionRepository,
-                        UserRepository userRepository) {
+                        UserRepository userRepository,
+                        QuizAllowedStudentRepository quizAllowedStudentRepository) {
                 this.quizRepository = quizRepository;
                 this.questionRepository = questionRepository;
                 this.optionRepository = optionRepository;
                 this.userRepository = userRepository;
+                this.quizAllowedStudentRepository = quizAllowedStudentRepository;
         }
 
         @Transactional
@@ -227,6 +232,11 @@ public class QuizService {
 
                                 quiz.getResultVisibility(),
                                 quiz.isResultsPublished(),
+                                quiz.getAcceptedEmailDomain(),
+                                quizAllowedStudentRepository.findByQuizId(quiz.getId())
+                                                .stream()
+                                                .map(QuizAllowedStudent::getRegistrationNumber)
+                                                .toList(),
 
                                 quiz.getStatus(),
                                 quiz.getExamState());

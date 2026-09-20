@@ -340,6 +340,11 @@ public class TeacherQuizService {
                                 quiz.getEndTime(),
                                 quiz.getResultVisibility(),
                                 quiz.isResultsPublished(),
+                                quiz.getAcceptedEmailDomain(),
+                                quizAllowedStudentRepository.findByQuizId(quiz.getId())
+                                                .stream()
+                                                .map(QuizAllowedStudent::getRegistrationNumber)
+                                                .toList(),
                                 quiz.getStatus(),
                                 quiz.getExamState());
         }
