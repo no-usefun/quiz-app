@@ -2,7 +2,13 @@ package com.quiz_app.backend.service;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
+import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
+import java.util.Set;
+import java.util.function.Function;
+import java.util.stream.Collectors;
 
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -454,11 +460,316 @@ public class TeacherQuizService {
                         quiz.setResultVisibility(request.resultVisibility());
                 }
 
+                if (request.questions() != null) {
+                        updateQuestionsAndOptions(quiz, request.questions());
+                }
+
                 quiz.setUpdatedAt(LocalDateTime.now());
 
                 Quiz savedQuiz = quizRepository.save(quiz);
 
                 return toQuizResponse(savedQuiz);
+        }
+
+        private void updateQuestionsAndOptions(
+                        Quiz quiz,
+                        List<UpdateQuizSettingsRequest.QuestionSettingsRequest> requests) {
+
+                Long quizId = quiz.getId();
+
+                List<Question> existingQuestions = questionRepository.findByQuizIdOrderByDisplayOrder(quizId);
+
+                validateQuestionRequests(requests);
+
+                /*
+                 * First move existing display orders temporarily.
+                 * This prevents unique constraint violations when, for example,
+                 * question 1 and question 2 swap positions.
+                 */
+                int temporaryOrder = -1;
+
+                for (Question question : existingQuestions) {
+                        question.setDisplayOrder(temporaryOrder--);
+                }
+
+                questionRepository.saveAll(existingQuestions);
+
+                Map<Long, Question> existingQuestionMap = existingQuestions.stream()
+                                .collect(Collectors.toMap(
+                                                Question::getId,
+                                                Function.identity()));
+
+                Set<Long> retainedQuestionIds = new HashSet<>();
+
+                List<Question> questionsToSave = new ArrayList<>();
+
+                for (UpdateQuizSettingsRequest.QuestionSettingsRequest request : requests) {
+
+                        Question question;
+
+                        if (request.questionId() == null) {
+
+                                question = new Question();
+
+                                question.setQuiz(quiz);
+                                question.setCreatedAt(LocalDateTime.now());
+
+                        } else {
+
+                                question = existingQuestionMap.get(request.questionId());
+
+                                if (question == null) {
+                                        throw new BadRequestException(
+                                                        "Question does not belong to this quiz: "
+                                                                        + request.questionId());
+                                }
+
+                                retainedQuestionIds.add(question.getId());
+                        }
+
+                        question.setQuestionText(request.questionText());
+                        question.setImageUrl(request.imageUrl());
+                        question.setExplanation(request.explanation());
+                        question.setQuestionType(request.questionType());
+                        question.setMarks(request.marks());
+                        question.setNegativeMarks(
+                                        request.negativeMarks() != null
+                                                        ? request.negativeMarks()
+                                                        : BigDecimal.ZERO);
+                        question.setQuestionTimerSeconds(
+                                        request.questionTimerSeconds());
+                        question.setDifficulty(request.difficulty());
+                        question.setDisplayOrder(request.displayOrder());
+                        question.setUpdatedAt(LocalDateTime.now());
+
+                        validateQuestionForPublish(question);
+
+                        questionsToSave.add(question);
+                }
+
+                /*
+                 * Delete questions removed from the request.
+                 */
+                for (Question existing : existingQuestions) {
+
+                        if (!retainedQuestionIds.contains(existing.getId())) {
+
+                                List<Option> options = optionRepository.findByQuestionIdOrderByOptionOrder(
+                                                existing.getId());
+
+                                optionRepository.deleteAll(options);
+                                questionRepository.delete(existing);
+                        }
+                }
+
+                List<Question> savedQuestions = questionRepository.saveAll(questionsToSave);
+
+                /*
+                 * Update options after questions have their IDs.
+                 */
+                for (int i = 0; i < requests.size(); i++) {
+
+                        UpdateQuizSettingsRequest.QuestionSettingsRequest request = requests.get(i);
+
+                        Question question = savedQuestions.get(i);
+
+                        if (request.options() == null) {
+                                throw new BadRequestException(
+                                                "Options are required for every question");
+                        }
+
+                        updateOptions(question, request.options());
+                }
+
+                /*
+                 * Recalculate quiz totals.
+                 */
+                List<Question> finalQuestions = questionRepository.findByQuizIdOrderByDisplayOrder(quizId);
+
+                BigDecimal totalMarks = finalQuestions.stream()
+                                .map(Question::getMarks)
+                                .filter(java.util.Objects::nonNull)
+                                .reduce(BigDecimal.ZERO, BigDecimal::add);
+
+                quiz.setTotalQuestions(finalQuestions.size());
+                quiz.setTotalMarks(totalMarks);
+        }
+
+        private void validateQuestionRequests(
+                        List<UpdateQuizSettingsRequest.QuestionSettingsRequest> requests) {
+
+                Set<Integer> displayOrders = new HashSet<>();
+                Set<Long> questionIds = new HashSet<>();
+
+                for (var request : requests) {
+
+                        if (request.questionType() == null) {
+                                throw new BadRequestException(
+                                                "Question type is required");
+                        }
+
+                        if (request.displayOrder() == null
+                                        || request.displayOrder() <= 0) {
+
+                                throw new BadRequestException(
+                                                "Question display order must be greater than zero");
+                        }
+
+                        if (!displayOrders.add(request.displayOrder())) {
+                                throw new BadRequestException(
+                                                "Duplicate question display order: "
+                                                                + request.displayOrder());
+                        }
+
+                        if (request.questionId() != null
+                                        && !questionIds.add(request.questionId())) {
+
+                                throw new BadRequestException(
+                                                "Duplicate question ID: "
+                                                                + request.questionId());
+                        }
+
+                        if (request.marks() == null
+                                        || request.marks().compareTo(BigDecimal.ZERO) <= 0) {
+
+                                throw new BadRequestException(
+                                                "Question marks must be greater than zero");
+                        }
+
+                        if (request.negativeMarks() != null
+                                        && request.negativeMarks()
+                                                        .compareTo(BigDecimal.ZERO) < 0) {
+
+                                throw new BadRequestException(
+                                                "Question negative marks cannot be negative");
+                        }
+                }
+        }
+
+        private void validateOptionRequests(
+                        Question question,
+                        List<UpdateQuizSettingsRequest.OptionSettingsRequest> requests) {
+
+                if (requests.isEmpty()) {
+                        throw new BadRequestException(
+                                        "Every question must contain options");
+                }
+
+                Set<Short> optionOrders = new HashSet<>();
+                Set<Long> optionIds = new HashSet<>();
+
+                for (var request : requests) {
+
+                        if (request.optionOrder() == null
+                                        || request.optionOrder() <= 0) {
+
+                                throw new BadRequestException(
+                                                "Option order must be greater than zero");
+                        }
+
+                        if (!optionOrders.add(request.optionOrder())) {
+                                throw new BadRequestException(
+                                                "Duplicate option order found");
+                        }
+
+                        if (request.optionId() != null
+                                        && !optionIds.add(request.optionId())) {
+
+                                throw new BadRequestException(
+                                                "Duplicate option ID: "
+                                                                + request.optionId());
+                        }
+
+                        if ((request.optionText() == null
+                                        || request.optionText().isBlank())
+                                        && (request.optionImage() == null
+                                                        || request.optionImage().isBlank())) {
+
+                                throw new BadRequestException(
+                                                "Every option must contain text or an image");
+                        }
+                }
+        }
+
+        private void updateOptions(
+                        Question question,
+                        List<UpdateQuizSettingsRequest.OptionSettingsRequest> requests) {
+
+                List<Option> existingOptions = optionRepository.findByQuestionIdOrderByOptionOrder(
+                                question.getId());
+
+                validateOptionRequests(question, requests);
+
+                /*
+                 * Temporarily move existing orders to avoid
+                 * unique(question_id, option_order) conflicts.
+                 */
+                short temporaryOrder = -1;
+
+                for (Option option : existingOptions) {
+                        option.setOptionOrder(temporaryOrder--);
+                }
+
+                optionRepository.saveAll(existingOptions);
+
+                Map<Long, Option> existingOptionMap = existingOptions.stream()
+                                .collect(Collectors.toMap(
+                                                Option::getId,
+                                                Function.identity()));
+
+                Set<Long> retainedOptionIds = new HashSet<>();
+
+                List<Option> optionsToSave = new ArrayList<>();
+
+                for (UpdateQuizSettingsRequest.OptionSettingsRequest request : requests) {
+
+                        Option option;
+
+                        if (request.optionId() == null) {
+
+                                option = new Option();
+
+                                option.setQuestion(question);
+                                option.setCreatedAt(LocalDateTime.now());
+
+                        } else {
+
+                                option = existingOptionMap.get(request.optionId());
+
+                                if (option == null) {
+                                        throw new BadRequestException(
+                                                        "Option does not belong to this question: "
+                                                                        + request.optionId());
+                                }
+
+                                retainedOptionIds.add(option.getId());
+                        }
+
+                        option.setOptionText(request.optionText());
+                        option.setOptionImage(request.optionImage());
+                        option.setCorrect(
+                                        Boolean.TRUE.equals(request.correct()));
+                        option.setOptionOrder(request.optionOrder());
+
+                        optionsToSave.add(option);
+                }
+
+                /*
+                 * Delete removed options.
+                 */
+                for (Option existing : existingOptions) {
+
+                        if (!retainedOptionIds.contains(existing.getId())) {
+                                optionRepository.delete(existing);
+                        }
+                }
+
+                optionRepository.saveAll(optionsToSave);
+
+                List<Option> finalOptions = optionRepository.findByQuestionIdOrderByOptionOrder(
+                                question.getId());
+
+                validateOptionsForPublish(question, finalOptions);
         }
 
         @Transactional
