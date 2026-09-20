@@ -11,12 +11,10 @@ import java.util.stream.Collectors;
 
 import org.springframework.stereotype.Service;
 
-import com.quiz_app.backend.dto.attempt.AnswerResponse;
 import com.quiz_app.backend.dto.attempt.AttemptResponse;
 import com.quiz_app.backend.dto.attempt.AttemptResultDetailResponse;
 import com.quiz_app.backend.dto.attempt.AttemptResultResponse;
 import com.quiz_app.backend.dto.attempt.LeaderboardEntryResponse;
-import com.quiz_app.backend.dto.attempt.SaveAnswerRequest;
 import com.quiz_app.backend.dto.attempt.SubmitAnswerRequest;
 import com.quiz_app.backend.dto.attempt.SubmitAttemptRequest;
 import com.quiz_app.backend.dto.attempt.SubmitAttemptResponse;
@@ -45,7 +43,7 @@ import com.quiz_app.backend.repository.UserRepository;
 import jakarta.transaction.Transactional;
 
 @Service
-public class AttemptService {
+public class StudentAttemptService {
 
         private final QuizAttemptRepository quizAttemptRepository;
         private final QuizRepository quizRepository;
@@ -55,7 +53,7 @@ public class AttemptService {
         private final QuestionRepository questionRepository;
         private final OptionRepository optionRepository;
 
-        public AttemptService(
+        public StudentAttemptService(
                         QuizAttemptRepository quizAttemptRepository, QuizRepository quizRepository,
                         UserRepository userRepository,
                         StudentAnswerRepository studentAnswerRepository,
@@ -163,138 +161,140 @@ public class AttemptService {
                                 attempt.getTotalTimeTaken());
         }
 
-        @Transactional
-        public AnswerResponse saveAnswer(
-                        Long attemptId,
-                        Long questionId,
-                        SaveAnswerRequest request,
-                        Long studentId) {
-
-                if (attemptId == null) {
-                        throw new BadRequestException("Attempt ID is required");
-                }
-
-                if (questionId == null) {
-                        throw new BadRequestException("Question ID is required");
-                }
-
-                if (request == null) {
-                        throw new BadRequestException("Answer request is required");
-                }
-
-                // 1. Find attempt
-                QuizAttempt attempt = quizAttemptRepository.findById(attemptId)
-                                .orElseThrow(() -> new ResourceNotFoundException("Attempt not found"));
-
-                if (attempt.getStudent() == null ||
-                                !attempt.getStudent().getId().equals(studentId)) {
-
-                        throw new BadRequestException(
-                                        "You are not authorized to modify this attempt");
-                }
-
-                // 2. Attempt must still be active
-                if (attempt.getStatus() != AttemptStatus.IN_PROGRESS) {
-                        throw new BadRequestException(
-                                        "Cannot modify an attempt that is not in progress");
-                }
-
-                // 3. Find question
-                Question question = questionRepository.findById(questionId)
-                                .orElseThrow(() -> new ResourceNotFoundException("Question not found"));
-
-                // 4. Question must belong to this quiz
-                if (!question.getQuiz().getId().equals(attempt.getQuiz().getId())) {
-                        throw new BadRequestException(
-                                        "Question does not belong to this quiz");
-                }
-
-                List<Long> selectedIds = request.selectedOptionIds();
-
-                if (selectedIds == null) {
-                        selectedIds = List.of();
-                }
-
-                // 5. Validate response time
-                if (request.responseTimeSeconds() != null
-                                && request.responseTimeSeconds() < 0) {
-
-                        throw new BadRequestException(
-                                        "Response time cannot be negative");
-                }
-
-                // 6. Load selected options
-                List<Option> selectedOptions = selectedIds.stream()
-                                .map(optionId -> optionRepository.findById(optionId)
-                                                .orElseThrow(() -> new ResourceNotFoundException(
-                                                                "Option not found: " + optionId)))
-                                .toList();
-
-                // 7. Every selected option must belong to this question
-                for (Option option : selectedOptions) {
-
-                        if (!option.getQuestion().getId().equals(questionId)) {
-                                throw new BadRequestException(
-                                                "Selected option does not belong to this question");
-                        }
-                }
-
-                // 8. Validate number of selections
-                validateSelectionCount(question, selectedOptions);
-
-                // 9. Find existing answer or create new one
-                StudentAnswer answer = studentAnswerRepository
-                                .findByAttemptIdAndQuestionId(
-                                                attemptId,
-                                                questionId)
-                                .orElseGet(StudentAnswer::new);
-
-                answer.setAttempt(attempt);
-                answer.setQuestion(question);
-                answer.setAnswerStatus(
-                                selectedOptions.isEmpty()
-                                                ? AnswerStatus.UNANSWERED
-                                                : AnswerStatus.ANSWERED);
-
-                // Evaluation happens during submit
-                answer.setCorrect(false);
-                answer.setMarksAwarded(BigDecimal.ZERO);
-
-                answer.setResponseTimeSeconds(
-                                request.responseTimeSeconds());
-
-                answer.setAnsweredAt(
-                                selectedOptions.isEmpty()
-                                                ? null
-                                                : LocalDateTime.now());
-
-                answer = studentAnswerRepository.save(answer);
-
-                // 10. Replace previous selections
-                studentSelectedOptionRepository.deleteByAnswerId(
-                                answer.getId());
-
-                for (Option option : selectedOptions) {
-
-                        StudentSelectedOption selectedOption = new StudentSelectedOption();
-
-                        selectedOption.setAnswer(answer);
-                        selectedOption.setOption(option);
-                        selectedOption.setCreatedAt(LocalDateTime.now());
-
-                        studentSelectedOptionRepository.save(selectedOption);
-                }
-
-                return new AnswerResponse(
-                                answer.getId(),
-                                attempt.getId(),
-                                question.getId(),
-                                selectedOptions.stream()
-                                                .map(Option::getId)
-                                                .toList(),
-                                answer.getResponseTimeSeconds(),
-                                answer.getAnsweredAt());
-        }
+        /*
+         * @Transactional
+         * public AnswerResponse saveAnswer(
+         * Long attemptId,
+         * Long questionId,
+         * SaveAnswerRequest request,
+         * Long studentId) {
+         * 
+         * if (attemptId == null) {
+         * throw new BadRequestException("Attempt ID is required");
+         * }
+         * 
+         * if (questionId == null) {
+         * throw new BadRequestException("Question ID is required");
+         * }
+         * 
+         * if (request == null) {
+         * throw new BadRequestException("Answer request is required");
+         * }
+         * 
+         * // 1. Find attempt
+         * QuizAttempt attempt = quizAttemptRepository.findById(attemptId)
+         * .orElseThrow(() -> new ResourceNotFoundException("Attempt not found"));
+         * 
+         * if (attempt.getStudent() == null ||
+         * !attempt.getStudent().getId().equals(studentId)) {
+         * 
+         * throw new BadRequestException(
+         * "You are not authorized to modify this attempt");
+         * }
+         * 
+         * // 2. Attempt must still be active
+         * if (attempt.getStatus() != AttemptStatus.IN_PROGRESS) {
+         * throw new BadRequestException(
+         * "Cannot modify an attempt that is not in progress");
+         * }
+         * 
+         * // 3. Find question
+         * Question question = questionRepository.findById(questionId)
+         * .orElseThrow(() -> new ResourceNotFoundException("Question not found"));
+         * 
+         * // 4. Question must belong to this quiz
+         * if (!question.getQuiz().getId().equals(attempt.getQuiz().getId())) {
+         * throw new BadRequestException(
+         * "Question does not belong to this quiz");
+         * }
+         * 
+         * List<Long> selectedIds = request.selectedOptionIds();
+         * 
+         * if (selectedIds == null) {
+         * selectedIds = List.of();
+         * }
+         * 
+         * // 5. Validate response time
+         * if (request.responseTimeSeconds() != null
+         * && request.responseTimeSeconds() < 0) {
+         * 
+         * throw new BadRequestException(
+         * "Response time cannot be negative");
+         * }
+         * 
+         * // 6. Load selected options
+         * List<Option> selectedOptions = selectedIds.stream()
+         * .map(optionId -> optionRepository.findById(optionId)
+         * .orElseThrow(() -> new ResourceNotFoundException(
+         * "Option not found: " + optionId)))
+         * .toList();
+         * 
+         * // 7. Every selected option must belong to this question
+         * for (Option option : selectedOptions) {
+         * 
+         * if (!option.getQuestion().getId().equals(questionId)) {
+         * throw new BadRequestException(
+         * "Selected option does not belong to this question");
+         * }
+         * }
+         * 
+         * // 8. Validate number of selections
+         * validateSelectionCount(question, selectedOptions);
+         * 
+         * // 9. Find existing answer or create new one
+         * StudentAnswer answer = studentAnswerRepository
+         * .findByAttemptIdAndQuestionId(
+         * attemptId,
+         * questionId)
+         * .orElseGet(StudentAnswer::new);
+         * 
+         * answer.setAttempt(attempt);
+         * answer.setQuestion(question);
+         * answer.setAnswerStatus(
+         * selectedOptions.isEmpty()
+         * ? AnswerStatus.UNANSWERED
+         * : AnswerStatus.ANSWERED);
+         * 
+         * // Evaluation happens during submit
+         * answer.setCorrect(false);
+         * answer.setMarksAwarded(BigDecimal.ZERO);
+         * 
+         * answer.setResponseTimeSeconds(
+         * request.responseTimeSeconds());
+         * 
+         * answer.setAnsweredAt(
+         * selectedOptions.isEmpty()
+         * ? null
+         * : LocalDateTime.now());
+         * 
+         * answer = studentAnswerRepository.save(answer);
+         * 
+         * // 10. Replace previous selections
+         * studentSelectedOptionRepository.deleteByAnswerId(
+         * answer.getId());
+         * 
+         * for (Option option : selectedOptions) {
+         * 
+         * StudentSelectedOption selectedOption = new StudentSelectedOption();
+         * 
+         * selectedOption.setAnswer(answer);
+         * selectedOption.setOption(option);
+         * selectedOption.setCreatedAt(LocalDateTime.now());
+         * 
+         * studentSelectedOptionRepository.save(selectedOption);
+         * }
+         * 
+         * return new AnswerResponse(
+         * answer.getId(),
+         * attempt.getId(),
+         * question.getId(),
+         * selectedOptions.stream()
+         * .map(Option::getId)
+         * .toList(),
+         * answer.getResponseTimeSeconds(),
+         * answer.getAnsweredAt());
+         * }
+         */
 
         private void validateSelectionCount(
                         Question question,
