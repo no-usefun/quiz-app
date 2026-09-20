@@ -115,6 +115,9 @@ public class Quiz {
     @Column(name = "results_published", nullable = false)
     private boolean resultsPublished = false;
 
+    @Column(name = "accepted_email_domain")
+    private String acceptedEmailDomain;
+
     public Quiz() {
     }
 
@@ -344,5 +347,13 @@ public class Quiz {
 
     public void setResultsPublished(boolean resultsPublished) {
         this.resultsPublished = resultsPublished;
+    }
+
+    public String getAcceptedEmailDomain() {
+        return acceptedEmailDomain;
+    }
+
+    public void setAcceptedEmailDomain(String acceptedEmailDomain) {
+        this.acceptedEmailDomain = acceptedEmailDomain;
     }
 }
