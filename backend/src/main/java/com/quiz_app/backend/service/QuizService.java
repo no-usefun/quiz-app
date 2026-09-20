@@ -2,6 +2,8 @@ package com.quiz_app.backend.service;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
+import java.util.ArrayList;
+import java.util.Collections;
 import java.util.concurrent.ThreadLocalRandom;
 
 import org.springframework.stereotype.Service;
@@ -391,15 +393,24 @@ public class QuizService {
                                         "Quiz is not available to students");
                 }
 
-                var questions = questionRepository
-                                .findByQuizIdOrderByDisplayOrder(quizId);
+                var questions = new ArrayList<>(
+                                questionRepository.findByQuizIdOrderByDisplayOrder(quizId));
+
+                if (quiz.isRandomQuestionOrder()) {
+                        Collections.shuffle(questions);
+                }
 
                 var questionResponses = questions.stream()
                                 .map(question -> {
 
-                                        var options = optionRepository
-                                                        .findByQuestionIdOrderByOptionOrder(
-                                                                        question.getId());
+                                        var options = new ArrayList<>(
+                                                        optionRepository
+                                                                        .findByQuestionIdOrderByOptionOrder(
+                                                                                        question.getId()));
+
+                                        if (quiz.isRandomOptionOrder()) {
+                                                Collections.shuffle(options);
+                                        }
 
                                         var optionResponses = options.stream()
                                                         .map(option -> new OptionResponse(
@@ -428,28 +439,21 @@ public class QuizService {
                                 quiz.getTitle(),
                                 quiz.getDescription(),
                                 quiz.getInstructions(),
-
                                 quiz.getSubject(),
                                 quiz.getSubjectCode(),
-
                                 quiz.getTotalStudents(),
                                 quiz.getTotalQuestions(),
                                 quiz.getTotalMarks(),
-
                                 quiz.getOverallTimerSeconds(),
-
                                 quiz.isNegativeMarking(),
                                 quiz.getNegativeMarks(),
-
                                 quiz.isRandomQuestionOrder(),
                                 quiz.isRandomOptionOrder(),
                                 quiz.isAllowReview(),
                                 quiz.isAllowResume(),
                                 quiz.isAutoSubmit(),
-
                                 quiz.getStartTime(),
                                 quiz.getEndTime(),
-
                                 questionResponses);
         }
 
