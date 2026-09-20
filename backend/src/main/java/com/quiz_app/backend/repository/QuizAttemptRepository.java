@@ -1,6 +1,7 @@
 package com.quiz_app.backend.repository;
 
 import java.util.List;
+import java.util.Optional;
 
 import org.springframework.data.jpa.repository.JpaRepository;
 
@@ -19,4 +20,8 @@ public interface QuizAttemptRepository
         List<QuizAttempt> findByStudentIdAndStatusInOrderBySubmittedAtDesc(
                         Long studentId,
                         List<AttemptStatus> statuses);
+
+        Optional<QuizAttempt> findByQuizQuizCodeAndStudentId(
+                        String quizCode,
+                        Long studentId);
 }

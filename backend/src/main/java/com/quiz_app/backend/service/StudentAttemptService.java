@@ -5,6 +5,7 @@ import java.time.Duration;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Collectors;
@@ -82,6 +83,8 @@ public class StudentAttemptService {
                 if (quizCode == null || quizCode.isBlank()) {
                         throw new BadRequestException("Quiz code is required");
                 }
+
+                quizCode = quizCode.trim().toUpperCase();
 
                 if (studentId == null) {
                         throw new BadRequestException(
@@ -163,13 +166,32 @@ public class StudentAttemptService {
                         }
                 }
 
-                // 7. Prevent duplicate attempt
-                if (quizAttemptRepository.existsByQuizQuizCodeAndStudentId(
+                // 7. Check for an existing attempt
+                Optional<QuizAttempt> existingAttempt = quizAttemptRepository.findByQuizQuizCodeAndStudentId(
                                 quizCode,
-                                student.getId())) {
+                                student.getId());
 
+                if (existingAttempt.isPresent()) {
+
+                        QuizAttempt attempt = existingAttempt.get();
+
+                        // An active attempt can be resumed.
+                        if (attempt.getStatus() == AttemptStatus.IN_PROGRESS) {
+
+                                return new AttemptResponse(
+                                                attempt.getId(),
+                                                quiz.getId(),
+                                                student.getId(),
+                                                attempt.getStartedAt(),
+                                                attempt.getSubmittedAt(),
+                                                attempt.getStatus(),
+                                                attempt.getCurrentQuestion(),
+                                                attempt.getTotalTimeTaken());
+                        }
+
+                        // A completed attempt cannot be started again.
                         throw new ConflictException(
-                                        "Student has already attempted this quiz");
+                                        "ATTEMPT_ALREADY_SUBMITTED");
                 }
 
                 // 8. Create attempt
