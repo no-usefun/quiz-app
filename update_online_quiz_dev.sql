@@ -30,3 +30,25 @@ CHECK (
         'BOTH'
     )
 );
+
+-- =========================================================
+-- Eligibility: Email Domain & Allowed Student Whitelist
+-- =========================================================
+
+ALTER TABLE quizzes
+    ADD COLUMN IF NOT EXISTS accepted_email_domain VARCHAR(255);
+
+ALTER TABLE users
+    ALTER COLUMN registration_no TYPE VARCHAR(100);
+
+CREATE TABLE IF NOT EXISTS quiz_allowed_students (
+    id BIGSERIAL PRIMARY KEY,
+    quiz_id BIGINT NOT NULL REFERENCES quizzes(quiz_id) ON UPDATE CASCADE ON DELETE CASCADE,
+    registration_number VARCHAR(100) NOT NULL,
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT uq_quiz_allowed_students UNIQUE (quiz_id, registration_number)
+);
+
+CREATE INDEX IF NOT EXISTS idx_quiz_allowed_students_lookup 
+    ON quiz_allowed_students(quiz_id, registration_number);
+

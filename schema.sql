@@ -21,7 +21,7 @@ CREATE TABLE users (
     phone VARCHAR(15),
     college VARCHAR(100),
     department VARCHAR(100),
-    registration_no VARCHAR(30) UNIQUE,
+    registration_no VARCHAR(100) UNIQUE,
     profile_image TEXT,
     is_verified BOOLEAN NOT NULL DEFAULT FALSE,
     is_active BOOLEAN NOT NULL DEFAULT TRUE,
@@ -59,11 +59,22 @@ CREATE TABLE quizzes (
     exam_state VARCHAR(20) NOT NULL DEFAULT 'WAITING' CHECK (exam_state IN ('WAITING', 'RUNNING', 'PAUSED', 'ENDED')),
     result_visibility VARCHAR(20) NOT NULL DEFAULT 'NONE',
     results_published BOOLEAN NOT NULL DEFAULT FALSE,
+    accepted_email_domain VARCHAR(255),
     created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     CONSTRAINT chk_quiz_time_range CHECK (end_time > start_time),
     CONSTRAINT chk_quizzes_result_visibility CHECK (result_visibility IN ('NONE', 'LEADERBOARD', 'QUESTION_WISE', 'BOTH'))
 );
+
+CREATE TABLE quiz_allowed_students (
+    id BIGSERIAL PRIMARY KEY,
+    quiz_id BIGINT NOT NULL REFERENCES quizzes(quiz_id) ON UPDATE CASCADE ON DELETE CASCADE,
+    registration_number VARCHAR(100) NOT NULL,
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT uq_quiz_allowed_students UNIQUE (quiz_id, registration_number)
+);
+
+CREATE INDEX idx_quiz_allowed_students_lookup ON quiz_allowed_students(quiz_id, registration_number);
 
 CREATE TABLE questions (
     question_id BIGSERIAL PRIMARY KEY,
