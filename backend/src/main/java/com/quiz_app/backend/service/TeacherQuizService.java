@@ -810,7 +810,7 @@ public class TeacherQuizService {
                         }
                 }
 
-                optionRepository.saveAllAndFlush(existingOptions);
+                optionRepository.saveAllAndFlush(optionsToSave);
 
                 List<Option> finalOptions = optionRepository.findByQuestionIdOrderByOptionOrder(
                                 question.getId());
