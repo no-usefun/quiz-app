@@ -74,7 +74,7 @@ class AttemptServiceTest {
         private OptionRepository optionRepository;
 
         @InjectMocks
-        private AttemptService attemptService;
+        private StudentAttemptService attemptService;
 
         private User student;
         private User teacher;
