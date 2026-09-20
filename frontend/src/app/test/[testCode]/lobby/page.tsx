@@ -39,7 +39,6 @@ function getClientAuthToken(): string | null {
     }
   }
   if (token) return token;
-  if (localStorage.getItem("dynoquizz_user")) return "session_active";
   return null;
 }
 

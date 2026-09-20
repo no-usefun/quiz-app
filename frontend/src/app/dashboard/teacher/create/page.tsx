@@ -97,9 +97,7 @@ function CreateAssessmentContent() {
 
     if (root.overallTimerSeconds || root.settings?.overallTimerSeconds) {
       const timerSecs =
-        root.overallTimerSeconds ??
-        root.settings?.overallTimerSeconds ??
-        1800;
+        root.overallTimerSeconds ?? root.settings?.overallTimerSeconds ?? 1800;
       setTimeLimit(Math.max(1, Math.round(timerSecs / 60)));
     }
 
@@ -142,7 +140,8 @@ function CreateAssessmentContent() {
     } else if (root.acceptedDomain !== undefined) {
       setAcceptedDomain(root.acceptedDomain || "");
     }
-    if (neg || root.acceptedEmailDomain || root.acceptedDomain) setShowAdvanced(true);
+    if (neg || root.acceptedEmailDomain || root.acceptedDomain)
+      setShowAdvanced(true);
 
     const findQuestions = (obj: any): any[] => {
       if (!obj || typeof obj !== "object") return [];
@@ -172,7 +171,7 @@ function CreateAssessmentContent() {
     if (rawQuestions.length > 0) {
       const mappedQuestions = rawQuestions.map((q: any, i: number) => ({
         // Preserve IDs so PUT /settings sends them back to the backend
-        questionId: q.questionId || 0,
+        questionId: q.questionId ?? q.id ?? null,
         questionText: String(q.questionText || q.text || q.prompt || ""),
         imageUrl: q.imageUrl || "",
         explanation: q.explanation || "",
@@ -187,7 +186,7 @@ function CreateAssessmentContent() {
         difficulty: q.difficulty || "MEDIUM",
         displayOrder: q.displayOrder || i + 1,
         options: (q.options || []).map((opt: any, oi: number) => ({
-          optionId: opt.optionId || 0,
+          optionId: opt.optionId ?? opt.id ?? null,
           optionText: String(opt.optionText || opt.text || ""),
           optionImage: opt.optionImage || "",
           // Backend package uses optionOrder; UI uses displayOrder
@@ -197,6 +196,8 @@ function CreateAssessmentContent() {
           isCorrect: Boolean(opt.isCorrect === true || opt.correct === true),
         })),
       }));
+      console.log("[Quiz Edit] Raw questions:", rawQuestions);
+      console.log("[Quiz Edit] Mapped questions:", mappedQuestions);
       setParsedQuestions(mappedQuestions);
     }
   };
@@ -222,7 +223,9 @@ function CreateAssessmentContent() {
           setDescription(parsed.description || "");
           setInstructions(parsed.instructions || "");
           setOverallTimerSeconds(parsed.overallTimerSeconds || 0);
-          setAcceptedDomain(parsed.acceptedEmailDomain || parsed.acceptedDomain || "");
+          setAcceptedDomain(
+            parsed.acceptedEmailDomain || parsed.acceptedDomain || "",
+          );
           if (parsed.allowedRollsText) {
             setAllowedRollsText(parsed.allowedRollsText);
           } else if (Array.isArray(parsed.allowedRolls)) {
@@ -235,7 +238,9 @@ function CreateAssessmentContent() {
             setNegativeMarks(Number(parsed.negativeMarks));
           }
           if (parsed.publishScoresImmediately !== undefined) {
-            setPublishScoresImmediately(Boolean(parsed.publishScoresImmediately));
+            setPublishScoresImmediately(
+              Boolean(parsed.publishScoresImmediately),
+            );
           }
           if (parsed.revealSolutions !== undefined) {
             setRevealSolutions(Boolean(parsed.revealSolutions));
@@ -252,12 +257,13 @@ function CreateAssessmentContent() {
           // Fallback for questions if the API /package fetch hasn't overwritten them yet
           if (parsed.questions?.length) {
             setParsedQuestions(parsed.questions);
-            console.log("[DynoQuizz] Complete draft hydrated from quiz_draft_ localStorage cache — skipping network.");
-            return;
           }
         }
       } catch (e) {
-        console.warn("[DynoQuizz] Failed to parse saved draft from localStorage:", e);
+        console.warn(
+          "[DynoQuizz] Failed to parse saved draft from localStorage:",
+          e,
+        );
       }
     }
 
@@ -282,21 +288,119 @@ function CreateAssessmentContent() {
         // Whenever we have raw questions from a package fetch, immediately check
         // localStorage for a teacher-side cache that still has isCorrect intact.
         // Returns the localStorage array when found, the packageQuestions otherwise.
-        const preferLocalStorageQuestions = (packageQuestions: any[]): any[] => {
+        const preferLocalStorageQuestions = (
+          packageQuestions: any[],
+        ): any[] => {
           const localRaw =
             localStorage.getItem(`draft_questions_${draftId}`) ||
-            (data?.quizId ? localStorage.getItem(`draft_questions_${data.quizId}`) : null) ||
-            (data?.id ? localStorage.getItem(`draft_questions_${data.id}`) : null);
-          if (localRaw) {
-            try {
-              const parsed = JSON.parse(localRaw);
-              if (Array.isArray(parsed) && parsed.length > 0) {
-                console.log("[DynoQuizz] Replacing package questions with localStorage cache (isCorrect preserved).");
-                return parsed;
-              }
-            } catch { /* ignore parse error, fall through */ }
+            (data?.quizId
+              ? localStorage.getItem(`draft_questions_${data.quizId}`)
+              : null) ||
+            (data?.id
+              ? localStorage.getItem(`draft_questions_${data.id}`)
+              : null);
+
+          if (!localRaw) {
+            return packageQuestions;
           }
-          return packageQuestions;
+
+          try {
+            const localQuestions = JSON.parse(localRaw);
+
+            if (!Array.isArray(localQuestions) || localQuestions.length === 0) {
+              return packageQuestions;
+            }
+
+            return packageQuestions.map(
+              (backendQuestion: any, questionIndex: number) => {
+                const backendQId =
+                  backendQuestion.questionId ?? backendQuestion.id ?? null;
+
+                const localQuestion =
+                  localQuestions.find(
+                    (q: any) =>
+                      backendQId != null &&
+                      (q.questionId != null || q.id != null) &&
+                      String(q.questionId ?? q.id) === String(backendQId),
+                  ) || localQuestions[questionIndex];
+
+                if (!localQuestion) {
+                  return {
+                    ...backendQuestion,
+                    questionId: backendQId,
+                    options: (backendQuestion.options || []).map(
+                      (backendOption: any, optionIndex: number) => ({
+                        ...backendOption,
+                        optionId:
+                          backendOption.optionId ?? backendOption.id ?? null,
+                        displayOrder:
+                          backendOption.optionOrder ||
+                          backendOption.displayOrder ||
+                          optionIndex + 1,
+                        isCorrect: Boolean(
+                          backendOption.isCorrect === true ||
+                            backendOption.correct === true,
+                        ),
+                      }),
+                    ),
+                  };
+                }
+
+                return {
+                  ...backendQuestion,
+                  questionId:
+                    backendQId ??
+                    localQuestion.questionId ??
+                    localQuestion.id ??
+                    null,
+                  explanation:
+                    localQuestion.explanation ??
+                    backendQuestion.explanation ??
+                    "",
+                  imageUrl:
+                    localQuestion.imageUrl ?? backendQuestion.imageUrl ?? "",
+                  options: (backendQuestion.options || []).map(
+                    (backendOption: any, optionIndex: number) => {
+                      const backendOptId =
+                        backendOption.optionId ?? backendOption.id ?? null;
+
+                      const localOption =
+                        (localQuestion.options || []).find(
+                          (opt: any) =>
+                            backendOptId != null &&
+                            (opt.optionId != null || opt.id != null) &&
+                            String(opt.optionId ?? opt.id) ===
+                              String(backendOptId),
+                        ) || (localQuestion.options || [])[optionIndex];
+
+                      return {
+                        ...backendOption,
+                        optionId:
+                          backendOptId ??
+                          localOption?.optionId ??
+                          localOption?.id ??
+                          null,
+                        isCorrect: Boolean(
+                          localOption?.isCorrect ??
+                            localOption?.correct ??
+                            backendOption.isCorrect ??
+                            backendOption.correct ??
+                            false,
+                        ),
+                      };
+                    },
+                  ),
+                };
+              },
+            );
+          } catch (error) {
+            console.warn(
+              "[DynoQuizz] Failed to merge localStorage question cache:",
+              error,
+            );
+
+            return packageQuestions;
+          }
         };
 
         // 1. Primary: GET /api/v1/teacher/quizzes/${draftId}
@@ -318,91 +422,115 @@ function CreateAssessmentContent() {
           data?.data?.questions ||
           [];
 
-        // 2a. If primary stripped questions, try GET /api/v1/quizzes/{draftId}/package first.
-        //     This endpoint is reliable because we always have the numeric draftId, and the
-        //     backend now serves it for both DRAFT and PUBLISHED quizzes.
-        if (rawQuestions.length === 0) {
-          try {
-            const pkgByIdRes = await fetch(
-              `${API_BASE}/api/v1/quizzes/${draftId}/package`,
-              {
-                headers: {
-                  "Content-Type": "application/json",
-                  ...(token ? { Authorization: `Bearer ${token}` } : {}),
-                },
-              },
-            );
-            if (pkgByIdRes.ok) {
-              const pkgByIdData = await pkgByIdRes.json();
-              console.log("Package-by-ID Payload:", pkgByIdData);
-              const pkgByIdQuestions =
-                pkgByIdData.questions ||
-                pkgByIdData.quizPackage?.questions ||
-                pkgByIdData.package?.questions ||
-                pkgByIdData.data?.questions ||
-                [];
-              // /package is student-facing and strips isCorrect.
-              // Prefer localStorage cache (saved by teacher) when available.
-              rawQuestions = preferLocalStorageQuestions(pkgByIdQuestions);
-              data = {
-                ...(data || {}),
-                ...pkgByIdData,
-                questions: rawQuestions,
-              };
-            }
-          } catch (e) {
-            console.warn("Package-by-ID fetch failed:", e);
-          }
-        }
+        // If the teacher detail endpoint already returned questions, normalize them
+        // with localStorage (for isCorrect restoration) and do not call student package endpoints.
+        if (rawQuestions.length > 0) {
+          rawQuestions = preferLocalStorageQuestions(rawQuestions);
+        } else {
+          // 2. Only use package endpoints when appropriate for published quizzes.
+          // The student-facing package endpoint is not the authoritative draft-edit endpoint
+          // and may reject DRAFT quizzes.
+          const isPublished = data?.status === "PUBLISHED";
 
-        // 2b. Secondary fallback: GET /api/v1/quizzes/code/{code}/package
-        //     Requires knowing the quiz code; works only for PUBLISHED quizzes.
-        if (rawQuestions.length === 0) {
-          try {
-            const pkgRes = await fetch(
-              `${API_BASE}/api/v1/quizzes/code/${data?.quizCode || data?.testCode || draftId}/package`,
-              {
-                headers: {
-                  "Content-Type": "application/json",
-                  ...(token ? { Authorization: `Bearer ${token}` } : {}),
+          if (isPublished) {
+            try {
+              const pkgByIdRes = await fetch(
+                `${API_BASE}/api/v1/quizzes/${draftId}/package`,
+                {
+                  headers: {
+                    "Content-Type": "application/json",
+                    ...(token ? { Authorization: `Bearer ${token}` } : {}),
+                  },
                 },
-              },
-            );
-            if (pkgRes.ok) {
-              const pkgData = await pkgRes.json();
-              console.log("Package-by-code Payload:", pkgData);
-              const pkgQuestions =
-                pkgData.questions ||
-                pkgData.quizPackage?.questions ||
-                pkgData.package?.questions ||
-                pkgData.data?.questions ||
-                [];
-              rawQuestions = preferLocalStorageQuestions(pkgQuestions);
-              data = {
-                ...(data || {}),
-                ...pkgData,
-                questions: rawQuestions,
-              };
-            } else {
-              throw new Error("Backend blocked package-by-code fetch (likely Draft status)");
+              );
+              if (pkgByIdRes.ok) {
+                const pkgByIdData = await pkgByIdRes.json();
+                console.log("Package-by-ID Payload:", pkgByIdData);
+                const pkgByIdQuestions =
+                  pkgByIdData.questions ||
+                  pkgByIdData.quizPackage?.questions ||
+                  pkgByIdData.package?.questions ||
+                  pkgByIdData.data?.questions ||
+                  [];
+                rawQuestions = preferLocalStorageQuestions(pkgByIdQuestions);
+                data = {
+                  ...(data || {}),
+                  ...pkgByIdData,
+                  questions: rawQuestions,
+                };
+              }
+            } catch (e) {
+              console.warn("Package-by-ID fetch failed:", e);
             }
-          } catch (e) {
-            // 2c. Both package endpoints failed — fall back directly to localStorage.
-            console.warn("Package fetches failed, attempting localStorage fallback...");
+
+            // Secondary fallback for published quizzes: GET /api/v1/quizzes/code/{code}/package
+            if (rawQuestions.length === 0) {
+              try {
+                const resolvedCode =
+                  data?.quizCode ||
+                  data?.testCode ||
+                  getCachedQuizzes(user?.id).find(
+                    (q: any) => String(q.quizId ?? q.id) === String(draftId),
+                  )?.quizCode ||
+                  null;
+                if (resolvedCode) {
+                  const pkgRes = await fetch(
+                    `${API_BASE}/api/v1/quizzes/code/${encodeURIComponent(resolvedCode)}/package`,
+                    {
+                      headers: {
+                        "Content-Type": "application/json",
+                        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+                      },
+                    },
+                  );
+                  if (pkgRes.ok) {
+                    const pkgData = await pkgRes.json();
+                    console.log("Package-by-code Payload:", pkgData);
+                    const pkgQuestions =
+                      pkgData.questions ||
+                      pkgData.quizPackage?.questions ||
+                      pkgData.package?.questions ||
+                      pkgData.data?.questions ||
+                      [];
+                    rawQuestions = preferLocalStorageQuestions(pkgQuestions);
+                    data = {
+                      ...(data || {}),
+                      ...pkgData,
+                      questions: rawQuestions,
+                    };
+                  }
+                }
+              } catch (e) {
+                console.warn("Package-by-code fetch failed:", e);
+              }
+            }
+          }
+
+          // Fall back directly to localStorage when not published or package endpoints did not return questions
+          if (rawQuestions.length === 0) {
             const localQuestions =
               localStorage.getItem(`draft_questions_${draftId}`) ||
-              (data?.quizId ? localStorage.getItem(`draft_questions_${data.quizId}`) : null) ||
-              (data?.id ? localStorage.getItem(`draft_questions_${data.id}`) : null);
+              (data?.quizId
+                ? localStorage.getItem(`draft_questions_${data.quizId}`)
+                : null) ||
+              (data?.id
+                ? localStorage.getItem(`draft_questions_${data.id}`)
+                : null);
             if (localQuestions) {
               try {
                 rawQuestions = JSON.parse(localQuestions);
-                console.log("Successfully restored questions from localStorage!");
+                console.log(
+                  "Successfully restored questions from localStorage!",
+                );
                 data = {
                   ...(data || {}),
                   questions: rawQuestions,
                 };
               } catch (parseErr) {
-                console.error("Failed to parse cached questions from localStorage:", parseErr);
+                console.error(
+                  "Failed to parse cached questions from localStorage:",
+                  parseErr,
+                );
               }
             }
           }
@@ -411,9 +539,12 @@ function CreateAssessmentContent() {
         // If still no questions, resolve access code from teacher quizzes roster
         if (rawQuestions.length === 0) {
           try {
-            const rosterRes = await fetch(`${API_BASE}/api/v1/teacher/quizzes`, {
-              headers,
-            });
+            const rosterRes = await fetch(
+              `${API_BASE}/api/v1/teacher/quizzes`,
+              {
+                headers,
+              },
+            );
             if (rosterRes.ok) {
               const rData = await rosterRes.json();
               const list = Array.isArray(rData)
@@ -431,14 +562,17 @@ function CreateAssessmentContent() {
               if (matched) {
                 data = { ...(matched || {}), ...(data || {}) };
                 const resolvedCode = matched.quizCode || matched.testCode;
-                if (resolvedCode) {
+                if (resolvedCode && matched.status === "PUBLISHED") {
                   const pkgRes = await fetch(
                     `${API_BASE}/api/v1/quizzes/code/${encodeURIComponent(resolvedCode)}/package`,
                     { headers },
                   );
                   if (pkgRes.ok) {
                     const pkgData = await pkgRes.json();
-                    console.log("Fallback Package from Roster Payload:", pkgData);
+                    console.log(
+                      "Fallback Package from Roster Payload:",
+                      pkgData,
+                    );
                     const rosterPkgQuestions =
                       pkgData.questions ||
                       pkgData.quizPackage?.questions ||
@@ -446,7 +580,8 @@ function CreateAssessmentContent() {
                       pkgData.data?.questions ||
                       [];
                     // /package is student-facing — prefer localStorage if available
-                    rawQuestions = preferLocalStorageQuestions(rosterPkgQuestions);
+                    rawQuestions =
+                      preferLocalStorageQuestions(rosterPkgQuestions);
                     data = {
                       ...data,
                       ...pkgData,
@@ -482,6 +617,18 @@ function CreateAssessmentContent() {
                 questions: rawQuestions,
               };
             }
+          }
+        }
+
+        if (!data) {
+          const cachedRaw = localStorage.getItem(`quiz_draft_${draftId}`);
+          if (cachedRaw) {
+            try {
+              data = JSON.parse(cachedRaw);
+              if (!rawQuestions.length && Array.isArray(data?.questions)) {
+                rawQuestions = data.questions;
+              }
+            } catch {}
           }
         }
 
@@ -832,25 +979,28 @@ function CreateAssessmentContent() {
       startTime: startTime.toISOString(),
       endTime: endTime.toISOString(),
       resultVisibility: resultVis,
-      status: "PUBLISHED",
-      allowedRolls: allowedRollsArray,
       totalStudents: allowedRollsArray.length,
-      acceptedEmailDomain: acceptedDomain.trim() === "" ? null : acceptedDomain.trim(),
-      allowedRegistrationNumbers: [],
+      acceptedEmailDomain:
+        acceptedDomain.trim() === "" ? null : acceptedDomain.trim(),
+      allowedRegistrationNumbers: allowedRollsArray,
       questions: parsedQuestions.map((q: any, index: number) => {
         const baseOption = (opt: any, optIndex: number) => ({
           optionText: String(opt.optionText).trim(),
           optionImage: opt.optionImage || "",
-          optionOrder: opt.displayOrder || opt.optionOrder || Number(optIndex + 1),
+          optionOrder:
+            opt.displayOrder || opt.optionOrder || Number(optIndex + 1),
         });
 
         return {
           // POST schema has no questionId; only include it on PUT
-          ...(forPost ? {} : { questionId: q.questionId || 0 }),
+          ...(forPost ? {} : { questionId: q.questionId ?? q.id ?? null }),
           questionText: String(q.questionText).trim(),
           imageUrl: q.imageUrl || "",
           explanation: String(q.explanation || "").trim(),
-          questionType: q.questionType === "MULTIPLE_CHOICE" ? "MCQ" : (q.questionType || "MCQ"),
+          questionType:
+            q.questionType === "MULTIPLE_CHOICE"
+              ? "MCQ"
+              : q.questionType || "MCQ",
           marks: Number(q.marks || 1),
           negativeMarks: Number(negativeMarking ? negativeMarks : 0),
           questionTimerSeconds: Number(q.questionTimerSeconds || 60),
@@ -859,9 +1009,16 @@ function CreateAssessmentContent() {
           options: q.options.map((opt: any, optIndex: number) =>
             forPost
               ? // POST expects `isCorrect`, no optionId
-                { ...baseOption(opt, optIndex), isCorrect: Boolean(opt.isCorrect) }
+                {
+                  ...baseOption(opt, optIndex),
+                  isCorrect: Boolean(opt.isCorrect),
+                }
               : // PUT expects `correct` + optionId
-                { ...baseOption(opt, optIndex), optionId: opt.optionId || 0, correct: Boolean(opt.isCorrect) }
+                {
+                  ...baseOption(opt, optIndex),
+                  optionId: opt.optionId ?? opt.id ?? null,
+                  correct: Boolean(opt.isCorrect),
+                },
           ),
         };
       }),
@@ -952,8 +1109,12 @@ function CreateAssessmentContent() {
       // Helper: persist the full state bundle so the edit page can restore
       // everything (title, subject, settings, questions with isCorrect) instantly
       // from localStorage without any network round-trips.
-      const saveFullDraftBundle = (quizId: number | string) => {
+      const saveFullDraftBundle = (
+        quizId: number | string,
+        quizCodeValue: string = "",
+      ) => {
         const fullDraftData = {
+          quizCode: quizCodeValue,
           quizId,
           title: title.trim(),
           subject: subject.trim(),
@@ -971,25 +1132,28 @@ function CreateAssessmentContent() {
           autoSubmit: true,
           publishScoresImmediately: Boolean(publishScoresImmediately),
           revealSolutions: Boolean(revealSolutions),
-          acceptedEmailDomain: acceptedDomain.trim() === "" ? null : acceptedDomain.trim(),
+          acceptedEmailDomain:
+            acceptedDomain.trim() === "" ? null : acceptedDomain.trim(),
           allowedRegistrationNumbers: [],
-          allowedRollsText: allowedRollsText,
+          allowedRollsText,
           questions: parsedQuestions,
         };
-        localStorage.setItem(`quiz_draft_${quizId}`, JSON.stringify(fullDraftData));
-        // Keep the legacy questions-only key for the preferLocalStorageQuestions helper
+
+        localStorage.setItem(
+          `quiz_draft_${quizId}`,
+          JSON.stringify(fullDraftData),
+        );
+
         if (parsedQuestions.length > 0) {
-          localStorage.setItem(`draft_questions_${quizId}`, JSON.stringify(parsedQuestions));
+          localStorage.setItem(
+            `draft_questions_${quizId}`,
+            JSON.stringify(parsedQuestions),
+          );
         }
       };
-
-      if (isEditing && draftId) {
-        saveFullDraftBundle(draftId);
-      }
-
+      // Keep the legacy questions-only key for the preferLocalStorageQuestions helper
       let rawQuizId: number | string | null = null;
       let quizCode = "";
-
       if (isEditing) {
         // ── Edit path: PUT /api/v1/teacher/quizzes/{quizId}/settings ──────────
         const settingsPayload = {
@@ -1012,29 +1176,61 @@ function CreateAssessmentContent() {
         if (!settingsRes.ok) {
           const errData = await settingsRes.json().catch(() => ({}));
           throw new Error(
-            errData.message || errData.error || `Server returned status: ${settingsRes.status}`,
+            errData.message ||
+              errData.error ||
+              `Server returned status: ${settingsRes.status}`,
           );
         }
 
         const settingsData = await settingsRes.json().catch(() => ({}));
-        rawQuizId = settingsData.quizId ?? settingsData.id ?? draftId;
-        quizCode = settingsData.quizCode ?? settingsData.testCode ?? String(rawQuizId);
 
-        // Inside the successful PUT /settings response block:
+        rawQuizId = settingsData.quizId ?? settingsData.id ?? draftId;
+
+        const cachedDraftRaw = localStorage.getItem(`quiz_draft_${draftId}`);
+
+        let cachedDraft: any = {};
+
+        try {
+          cachedDraft = cachedDraftRaw ? JSON.parse(cachedDraftRaw) : {};
+        } catch {
+          cachedDraft = {};
+        }
+
+        quizCode =
+          settingsData.quizCode ??
+          settingsData.testCode ??
+          cachedDraft.quizCode ??
+          getCachedQuizzes(user?.id).find(
+            (q: any) => String(q.quizId ?? q.id) === String(draftId),
+          )?.quizCode ??
+          "";
+
         const updatedQuizData = {
           ...settingsData,
+          quizId: rawQuizId,
+          quizCode,
           title: settingsData.title || title.trim(),
           subject: settingsData.subject || subject.trim(),
           subjectCode: settingsData.subjectCode || subjectCode.trim(),
           description: settingsData.description ?? description.trim(),
           instructions: settingsData.instructions ?? instructions.trim(),
-          overallTimerSeconds: settingsData.overallTimerSeconds ?? Math.floor(timeLimit * 60),
-          acceptedEmailDomain: settingsData.acceptedEmailDomain ?? (acceptedDomain.trim() || null),
+          overallTimerSeconds:
+            settingsData.overallTimerSeconds ?? Math.floor(timeLimit * 60),
+          acceptedEmailDomain:
+            settingsData.acceptedEmailDomain ?? (acceptedDomain.trim() || null),
           questions: parsedQuestions,
         };
-        localStorage.setItem(`quiz_draft_${draftId}`, JSON.stringify(updatedQuizData));
+
+        localStorage.setItem(
+          `quiz_draft_${draftId}`,
+          JSON.stringify(updatedQuizData),
+        );
+
         if (rawQuizId && String(rawQuizId) !== String(draftId)) {
-          localStorage.setItem(`quiz_draft_${rawQuizId}`, JSON.stringify(updatedQuizData));
+          localStorage.setItem(
+            `quiz_draft_${rawQuizId}`,
+            JSON.stringify(updatedQuizData),
+          );
         }
       } else {
         // ── Create path: POST /api/v1/teacher/quizzes ─────────────────────────
@@ -1050,22 +1246,25 @@ function CreateAssessmentContent() {
         if (!createRes.ok) {
           const errData = await createRes.json().catch(() => ({}));
           throw new Error(
-            errData.message || errData.error || `Server returned status: ${createRes.status}`,
+            errData.message ||
+              errData.error ||
+              `Server returned status: ${createRes.status}`,
           );
         }
 
         const createData = await createRes.json().catch(() => ({}));
         rawQuizId = createData.quizId ?? createData.id ?? null;
-        quizCode = createData.quizCode ?? createData.testCode ?? String(rawQuizId);
+        quizCode =
+          createData.quizCode ?? createData.testCode ?? "";
       }
 
       if (!rawQuizId) throw new Error("Quiz response missing quizId");
       const numericQuizId = Number(rawQuizId);
 
       // Persist full state bundle (metadata + questions) for instant edit hydration
-      saveFullDraftBundle(numericQuizId);
+      saveFullDraftBundle(numericQuizId, quizCode);
       if (draftId && String(draftId) !== String(numericQuizId)) {
-        saveFullDraftBundle(draftId);
+        saveFullDraftBundle(draftId, quizCode);
       }
 
       // ── Publish: PUT /api/v1/teacher/quizzes/{quizId}/publish ────────────
@@ -1083,14 +1282,19 @@ function CreateAssessmentContent() {
         if (!pubRes.ok) {
           const errData = await pubRes.json().catch(() => ({}));
           throw new Error(
-            errData.message || errData.error || `Server status: ${pubRes.status}`,
+            errData.message ||
+              errData.error ||
+              `Server status: ${pubRes.status}`,
           );
         }
 
         // Redirect to /dashboard/teacher/share/<quizCode> only AFTER publish succeeds
         router.push(`/dashboard/teacher/share/${quizCode}`);
       } catch (pubErr: any) {
-        console.error("Failed to publish quiz immediately after creation:", pubErr);
+        console.error(
+          "Failed to publish quiz immediately after creation:",
+          pubErr,
+        );
         setPublishRetryData({
           quizId: numericQuizId,
           quizCode: String(quizCode),
@@ -1125,8 +1329,12 @@ function CreateAssessmentContent() {
       const isEditing = Boolean(draftId);
 
       // Build the full state bundle for localStorage (same shape as handleSave)
-      const saveFullDraftBundle = (quizId: number | string) => {
+      const saveFullDraftBundle = (
+        quizId: number | string,
+        quizCodeValue: string = "",
+      ) => {
         const fullDraftData = {
+          quizCode: quizCodeValue,
           quizId,
           title: title.trim(),
           subject: subject.trim(),
@@ -1144,29 +1352,33 @@ function CreateAssessmentContent() {
           autoSubmit: true,
           publishScoresImmediately: Boolean(publishScoresImmediately),
           revealSolutions: Boolean(revealSolutions),
-          acceptedEmailDomain: acceptedDomain.trim() === "" ? null : acceptedDomain.trim(),
+          acceptedEmailDomain:
+            acceptedDomain.trim() === "" ? null : acceptedDomain.trim(),
           allowedRegistrationNumbers: [],
-          allowedRollsText: allowedRollsText,
+          allowedRollsText,
           questions: parsedQuestions,
         };
-        localStorage.setItem(`quiz_draft_${quizId}`, JSON.stringify(fullDraftData));
+
+        localStorage.setItem(
+          `quiz_draft_${quizId}`,
+          JSON.stringify(fullDraftData),
+        );
+
         if (parsedQuestions.length > 0) {
-          localStorage.setItem(`draft_questions_${quizId}`, JSON.stringify(parsedQuestions));
+          localStorage.setItem(
+            `draft_questions_${quizId}`,
+            JSON.stringify(parsedQuestions),
+          );
         }
       };
 
-      // Immediately cache under draftId if editing
-      if (isEditing && draftId) {
-        saveFullDraftBundle(draftId);
-      }
-
       let returnedQuizId: number | string | null = null;
+      let returnedQuizCode = "";
 
       if (isEditing) {
         // ── Edit path: PUT /api/v1/teacher/quizzes/{quizId}/settings ──────────
         const settingsPayload = {
           ...buildPayload(false), // false = PUT schema (correct + optionId)
-          status: "DRAFT",
           quizId: Number(draftId),
         };
 
@@ -1185,12 +1397,34 @@ function CreateAssessmentContent() {
         if (!settingsRes.ok) {
           const errData = await settingsRes.json().catch(() => ({}));
           throw new Error(
-            errData.message || errData.error || `Server returned status: ${settingsRes.status}`,
+            errData.message ||
+              errData.error ||
+              `Server returned status: ${settingsRes.status}`,
           );
         }
 
         const settingsData = await settingsRes.json().catch(() => ({}));
+
         returnedQuizId = settingsData.quizId ?? settingsData.id ?? draftId;
+
+        const cachedDraftRaw = localStorage.getItem(`quiz_draft_${draftId}`);
+
+        let cachedDraft: any = {};
+
+        try {
+          cachedDraft = cachedDraftRaw ? JSON.parse(cachedDraftRaw) : {};
+        } catch {
+          cachedDraft = {};
+        }
+
+        returnedQuizCode =
+          settingsData.quizCode ??
+          settingsData.testCode ??
+          cachedDraft.quizCode ??
+          getCachedQuizzes(user?.id).find(
+            (q: any) => String(q.quizId ?? q.id) === String(draftId),
+          )?.quizCode ??
+          "";
 
         // Inside the successful PUT /settings response block:
         const updatedQuizData = {
@@ -1200,20 +1434,24 @@ function CreateAssessmentContent() {
           subjectCode: settingsData.subjectCode || subjectCode.trim(),
           description: settingsData.description ?? description.trim(),
           instructions: settingsData.instructions ?? instructions.trim(),
-          overallTimerSeconds: settingsData.overallTimerSeconds ?? Math.floor(timeLimit * 60),
-          acceptedEmailDomain: settingsData.acceptedEmailDomain ?? (acceptedDomain.trim() || null),
+          overallTimerSeconds:
+            settingsData.overallTimerSeconds ?? Math.floor(timeLimit * 60),
+          acceptedEmailDomain:
+            settingsData.acceptedEmailDomain ?? (acceptedDomain.trim() || null),
           questions: parsedQuestions, // Ensures we keep the frontend's answer key intact
         };
-        localStorage.setItem(`quiz_draft_${draftId}`, JSON.stringify(updatedQuizData));
+        localStorage.setItem(
+          `quiz_draft_${draftId}`,
+          JSON.stringify(updatedQuizData),
+        );
         if (returnedQuizId && String(returnedQuizId) !== String(draftId)) {
-          localStorage.setItem(`quiz_draft_${returnedQuizId}`, JSON.stringify(updatedQuizData));
+          localStorage.setItem(
+            `quiz_draft_${returnedQuizId}`,
+            JSON.stringify(updatedQuizData),
+          );
         }
       } else {
-        // ── Create path: POST /api/v1/teacher/quizzes ─────────────────────────
-        const createPayload = {
-          ...buildPayload(true), // true = POST schema (isCorrect, no IDs)
-          status: "DRAFT",
-        };
+        const createPayload = buildPayload(true); // true = POST schema (isCorrect, no IDs)
 
         const createRes = await fetch(`${API_BASE}/api/v1/teacher/quizzes`, {
           method: "POST",
@@ -1227,17 +1465,27 @@ function CreateAssessmentContent() {
         if (!createRes.ok) {
           const errData = await createRes.json().catch(() => ({}));
           throw new Error(
-            errData.message || errData.error || `Server returned status: ${createRes.status}`,
+            errData.message ||
+              errData.error ||
+              `Server returned status: ${createRes.status}`,
           );
         }
 
         const createData = await createRes.json().catch(() => ({}));
+
         returnedQuizId = createData.quizId ?? createData.id ?? null;
+
+        returnedQuizCode = createData.quizCode ?? createData.testCode ?? "";
       }
 
       // Persist full state bundle (metadata + questions with isCorrect)
-      if (returnedQuizId) saveFullDraftBundle(returnedQuizId);
-      if (draftId && String(draftId) !== String(returnedQuizId)) saveFullDraftBundle(draftId);
+      if (returnedQuizId) {
+        saveFullDraftBundle(returnedQuizId, returnedQuizCode);
+      }
+
+      if (draftId && String(draftId) !== String(returnedQuizId)) {
+        saveFullDraftBundle(draftId, returnedQuizCode);
+      }
 
       // Draft created or updated — redirect to dashboard where it will show a Draft badge
       router.push("/dashboard/teacher");
@@ -1694,7 +1942,8 @@ function CreateAssessmentContent() {
                       className="w-full rounded-[10px] border border-[#d1dee8]/80 bg-[#fbfbfa] px-3.5 py-2.5 text-xs font-bold text-[#111111] outline-none transition-all placeholder:font-medium placeholder:text-[#a8a29d] hover:border-[#b9cbd9] focus:border-[#165dfb] focus:bg-white focus:ring-4 focus:ring-[#165dfb]/10 shadow-xs"
                     />
                     <p className="mt-1 text-[11px] text-[#78716b]">
-                      Only students with a matching email domain can join. Leave blank to allow any domain.
+                      Only students with a matching email domain can join. Leave
+                      blank to allow any domain.
                     </p>
                   </div>
                 </motion.div>
@@ -1714,7 +1963,11 @@ function CreateAssessmentContent() {
             {savingDraft && (
               <span className="h-3 w-3 animate-spin rounded-full border-2 border-[#78716b]/30 border-t-[#78716b]" />
             )}
-            {savingDraft ? "Saving..." : draftId ? "Save Changes" : "Save as Draft"}
+            {savingDraft
+              ? "Saving..."
+              : draftId
+                ? "Save Changes"
+                : "Save as Draft"}
           </button>
           <button
             type="button"
@@ -1751,4 +2004,3 @@ export default function CreateAssessmentPage() {
     </Suspense>
   );
 }
-

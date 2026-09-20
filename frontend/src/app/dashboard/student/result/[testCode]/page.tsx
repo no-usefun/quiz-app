@@ -81,10 +81,31 @@ export default function StudentResultPage({
           "Content-Type": "application/json",
         };
 
-        const storedAttemptId =
+        let storedAttemptId =
           localStorage.getItem(`dynoquizz_attemptId_${codeUpper}`) ||
           localStorage.getItem("dynoquizz_attemptId") ||
           (/^\d+$/.test(codeUpper) ? codeUpper : null);
+
+        if (!storedAttemptId) {
+          try {
+            const subsRes = await fetch(`${API_BASE}/api/v1/student/submissions`, { headers });
+            if (subsRes.ok) {
+              const subsList: any[] = await subsRes.json();
+              if (Array.isArray(subsList) && subsList.length > 0) {
+                const matched = subsList.find(
+                  (s) =>
+                    String(s.quizId) === codeUpper ||
+                    (s.quizTitle && s.quizTitle.toLowerCase().includes(codeUpper.toLowerCase()))
+                ) || subsList[0];
+                if (matched?.attemptId) {
+                  storedAttemptId = String(matched.attemptId);
+                }
+              }
+            }
+          } catch {
+            // ignore
+          }
+        }
 
         console.log(
           `[Student Result] Looking up code: "${codeUpper}", storedAttemptId: "${storedAttemptId}"`,
@@ -205,21 +226,6 @@ export default function StudentResultPage({
               submittedAt: "Submitted (Pending release)",
               studentName,
             });
-            setLoading(false);
-            return;
-          }
-        }
-
-        // Secondary attempt: check student results by quiz code if attemptId was not found
-        const codeUrl = `${API_BASE}/api/v1/student/results/${codeUpper}`;
-        console.log(`[Student Result] Attempting code lookup: GET ${codeUrl}`);
-        const resByCode = await fetch(codeUrl, { headers });
-        console.log(`[Student Result] Code lookup status: ${resByCode.status}`);
-
-        if (resByCode.ok) {
-          const data = await resByCode.json();
-          if (data) {
-            setResult(data);
             setLoading(false);
             return;
           }

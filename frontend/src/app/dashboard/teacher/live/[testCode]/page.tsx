@@ -169,23 +169,85 @@ export default function LiveLeaderboard({
 
   useEffect(() => {
     setMounted(true);
-    const { quizId: resolvedId, quizCode } = resolveQuizIdentifiers(testCode);
+    let isCancelled = false;
 
-    // Match stored tests by either access code or numeric quizId
-    const localTest = getStoredTests().find(
-      (t) =>
-        t.testCode.toUpperCase() === quizCode.toUpperCase() ||
-        (resolvedId && String((t as any).quizId ?? (t as any).id) === resolvedId),
-    );
-    if (localTest) {
-      setTestTitle(localTest.quizName);
-    } else {
-      setTestTitle(`Assessment Session (${quizCode})`);
-    }
+    const fetchLeaderboard = async () => {
+      try {
+        const token = localStorage.getItem("dynoquizz_token");
+        const headers: Record<string, string> = {
+          "Content-Type": "application/json",
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        };
 
-    setStudents(DEMO_STUDENTS);
-    setLoading(false);
-    setLastSync(nowTime());
+        const { quizId: resolvedId, quizCode } = resolveQuizIdentifiers(testCode);
+        let numericId = resolvedId;
+
+        // If numericId not resolved from local cache, query teacher quizzes to find it
+        if (!numericId) {
+          const listRes = await fetch(`${API_BASE}/api/v1/teacher/quizzes`, { headers }).catch(() => null);
+          if (listRes && listRes.ok) {
+            const list = await listRes.json();
+            const found = Array.isArray(list)
+              ? list.find((q: any) => q.quizCode === quizCode || String(q.id) === quizCode)
+              : null;
+            if (found) {
+              numericId = String(found.id);
+              if (found.title) setTestTitle(found.title);
+            }
+          }
+        }
+
+        const localTest = getStoredTests().find(
+          (t) =>
+            t.testCode.toUpperCase() === quizCode.toUpperCase() ||
+            (numericId && String((t as any).quizId ?? (t as any).id) === numericId),
+        );
+        if (localTest) {
+          setTestTitle(localTest.quizName);
+        }
+
+        if (!numericId) return;
+
+        const res = await fetch(`${API_BASE}/api/v1/teacher/quizzes/${numericId}/leaderboard`, { headers });
+        if (isCancelled) return;
+
+        if (res.ok) {
+          const data = await res.json();
+          const list = Array.isArray(data) ? data : data.content || [];
+          const mapped: StudentRow[] = list.map((entry: any, idx: number) => ({
+            id: entry.studentId || entry.rank || idx + 1,
+            name: entry.studentName || "Candidate",
+            avatar: String(entry.studentName || "C").slice(0, 2).toUpperCase(),
+            answered: Number(entry.totalMarks || 0),
+            total: Number(entry.totalMarks || 0),
+            score: Math.round(Number(entry.percentage ?? entry.score ?? 0)),
+            timeLeft: "00:00",
+            status: "submitted",
+            flags: [],
+          }));
+          setStudents(mapped);
+          setLeaderboardUnavailable(false);
+        } else if (res.status === 404) {
+          setLeaderboardUnavailable(false);
+          setStudents([]);
+        }
+      } catch {
+        // network issue
+      } finally {
+        if (!isCancelled) {
+          setLoading(false);
+          setLastSync(nowTime());
+        }
+      }
+    };
+
+    fetchLeaderboard();
+    const interval = setInterval(fetchLeaderboard, 4000);
+
+    return () => {
+      isCancelled = true;
+      clearInterval(interval);
+    };
   }, [testCode]);
 
   useEffect(() => {

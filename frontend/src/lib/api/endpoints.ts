@@ -25,9 +25,7 @@ export const ENDPOINTS = {
       `${API_BASE}/api/v1/student/attempts/${attemptId}/answers/${questionId}`,
     submitAttempt: (attemptId: number | string) =>
       `${API_BASE}/api/v1/student/attempts/${attemptId}/submit`,
-    results: `${API_BASE}/api/v1/student/results`,
-    resultByQuizCode: (quizCode: string) =>
-      `${API_BASE}/api/v1/student/results/${encodeURIComponent(quizCode)}`,
+    submissions: `${API_BASE}/api/v1/student/submissions`,
     attemptResult: (attemptId: number | string) =>
       `${API_BASE}/api/v1/student/attempts/${attemptId}/result`,
     attemptResultDetails: (attemptId: number | string) =>

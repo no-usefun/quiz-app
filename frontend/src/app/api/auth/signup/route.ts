@@ -8,7 +8,7 @@ const API_BASE = (
 
 export async function POST(request: Request) {
   try {
-    const { firstName, lastName, name, email, password, role, registrationNo } = await request.json();
+    const { firstName, lastName, name, email, password, role, registrationNo, college, department, phone } = await request.json();
     const normalizedRole = (role || "STUDENT").toUpperCase();
     const fName = firstName || name?.split(" ")[0] || "User";
     const lName = lastName || name?.split(" ").slice(1).join(" ") || "";
@@ -24,6 +24,9 @@ export async function POST(request: Request) {
           email,
           password,
           role: normalizedRole,
+          ...(college ? { college } : {}),
+          ...(department ? { department } : {}),
+          ...(phone ? { phone } : {}),
           ...(normalizedRole === "STUDENT" && registrationNo
             ? { registrationNo: registrationNo.trim().toUpperCase() }
             : {}),
@@ -73,29 +76,6 @@ export async function POST(request: Request) {
         );
       }
     } catch {
-      // Backend not running or unreachable
-      if (process.env.NEXT_PUBLIC_ALLOW_MOCK_AUTH === "true") {
-        const payload = {
-          userId: `mock-${email}`,
-          email,
-          role: normalizedRole,
-          name: name || "New User",
-          exp: Math.floor(Date.now() / 1000) + 60 * 60 * 24,
-        };
-
-        const token = `MOCK_DEV_TOKEN_${await signJWT(payload)}`;
-        const cookieStore = await cookies();
-        cookieStore.set("dynoquizz_token", token, {
-          httpOnly: false,
-          secure: false,
-          sameSite: "lax",
-          maxAge: 60 * 60 * 24,
-          path: "/",
-        });
-
-        return NextResponse.json({ success: true, token, user: payload, role: normalizedRole });
-      }
-
       return NextResponse.json(
         { success: false, error: "Cannot connect to the authentication server." },
         { status: 503 }

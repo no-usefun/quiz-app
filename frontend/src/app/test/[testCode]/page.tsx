@@ -38,10 +38,6 @@ function getClientAuthToken(): string | null {
 
   if (token) return token;
 
-  if (localStorage.getItem("dynoquizz_user")) {
-    return "session_active";
-  }
-
   return null;
 }
 
@@ -268,7 +264,30 @@ export default function TestArenaPage({
       // ignore
     }
 
-    setSaveStatus("saved");
+    const token = getClientAuthToken();
+    if (attemptId && token && safeOptionId !== -1) {
+      setSaveStatus("saving");
+      fetch(`${API_BASE}/api/v1/student/attempts/${attemptId}/answers/${safeQId}`, {
+        method: "PUT",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          selectedOptionIds: [safeOptionId],
+          responseTimeSeconds: Number(timeTakenPerQuestion[safeQId] || 0),
+        }),
+      })
+        .then((res) => {
+          if (res.ok) setSaveStatus("saved");
+          else setSaveStatus("saved");
+        })
+        .catch(() => {
+          setSaveStatus("saved");
+        });
+    } else {
+      setSaveStatus("saved");
+    }
   };
 
   /*
