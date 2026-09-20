@@ -55,7 +55,14 @@ export default function TestArenaPage({
 
   // Test data and question indexing
   const [test, setTest] = useState<any>(null);
-  const [currentIndex, setCurrentIndex] = useState(0);
+  const [currentIndex, setCurrentIndex] = useState(() => {
+    if (typeof window !== "undefined") {
+      const cleanCode = testCode.toUpperCase();
+      const savedIndex = localStorage.getItem(`exam_index_${cleanCode}`);
+      return savedIndex ? parseInt(savedIndex, 10) : 0;
+    }
+    return 0;
+  });
   const [selectedOption, setSelectedOption] = useState<number | null>(null);
 
   // Track answers as questionId -> optionId
@@ -94,6 +101,10 @@ export default function TestArenaPage({
         return;
       }
 
+      const attemptId =
+        localStorage.getItem("dynoquizz_attemptId") ||
+        localStorage.getItem(`dynoquizz_attemptId_${cleanCode}`);
+
       const cached = localStorage.getItem(`dynoquizz_active_test_${cleanCode}`);
 
       if (cached) {
@@ -101,6 +112,29 @@ export default function TestArenaPage({
           const parsed = JSON.parse(cached);
           if (parsed.answers) setAnswers(parsed.answers);
           if (parsed.timeTaken) setTimeTakenPerQuestion(parsed.timeTaken);
+        } catch {
+          // ignore
+        }
+      }
+
+      if (attemptId) {
+        try {
+          const examCached = localStorage.getItem(`exam_answers_${attemptId}`);
+          if (examCached) {
+            const parsedExam = JSON.parse(examCached);
+            const flatAnswers: Record<number, number> = {};
+            for (const [qId, optVal] of Object.entries(parsedExam)) {
+              if (Array.isArray(optVal) && optVal.length > 0) {
+                flatAnswers[Number(qId)] = Number(optVal[0]);
+              } else if (
+                typeof optVal === "number" ||
+                typeof optVal === "string"
+              ) {
+                flatAnswers[Number(qId)] = Number(optVal);
+              }
+            }
+            setAnswers((prev) => ({ ...prev, ...flatAnswers }));
+          }
         } catch {
           // ignore
         }
@@ -125,9 +159,13 @@ export default function TestArenaPage({
           const data = await res.json();
           const normalizedQuestions = (data.questions || []).map(
             (q: any, qIdx: number) => ({
-              id: q.questionId || qIdx + 1,
+              id: Number(q.questionId ?? q.id ?? qIdx + 1),
               text: q.questionText || `Question ${qIdx + 1}`,
-              options: q.options || [],
+              options: (q.options || []).map((opt: any, optIdx: number) => ({
+                ...opt,
+                optionId: Number(opt.optionId ?? opt.id ?? optIdx + 1),
+                optionText: opt.optionText ?? opt.text ?? "",
+              })),
               marks: q.marks || 4,
               negativeMarks: q.negativeMarks || (data.negativeMarking ? 1 : 0),
               questionTimerSeconds: q.questionTimerSeconds || 30,
@@ -170,78 +208,57 @@ export default function TestArenaPage({
   const progressPercentage =
     questions.length > 0 ? ((currentIndex + 1) / questions.length) * 100 : 0;
 
-  /*
-   * Sync a single selected answer to backend
-   */
-  const syncAnswerToBackend = async (questionId: number, optionId: number) => {
-    try {
-      const token = localStorage.getItem("dynoquizz_token");
-      const cleanCode = testCode.toUpperCase();
-      const attemptId =
-        localStorage.getItem("dynoquizz_attemptId") ||
-        localStorage.getItem(`dynoquizz_attemptId_${cleanCode}`);
-
-      if (!attemptId) {
-        console.warn("No attemptId found. Cannot sync individual answer.");
-        return;
-      }
-
-      const bodyPayload = JSON.stringify({
-        selectedOptionIds: [optionId],
-        responseTimeSeconds: timeTakenPerQuestion[questionId] || 0,
-      });
-
-      let res = await fetch(
-        `${API_BASE}/api/v1/student/attempts/${attemptId}/answers/${questionId}`,
-        {
-          method: "PUT",
-          headers: {
-            ...(token ? { Authorization: `Bearer ${token}` } : {}),
-            "Content-Type": "application/json",
-          },
-          body: bodyPayload,
-        },
-      );
-
-      if (res.status === 409) {
-        const errJson = await res.json().catch(() => ({}));
-        if (
-          errJson.error === "EXAM_DEADLINE_EXCEEDED" ||
-          errJson.error === "ATTEMPT_ALREADY_SUBMITTED"
-        ) {
-          setDeadlineNotice(
-            errJson.message || "Exam time limit reached or attempt submitted.",
-          );
-          finishAssessment(answers);
-          return;
-        }
-      }
-
-      if (!res.ok) {
-        throw new Error(`Failed to sync answer. Status: ${res.status}`);
-      }
-    } catch (e) {
-      console.error("Error syncing answer to backend:", e);
-      // Do not block UI. localStorage remains the fallback.
+  useEffect(() => {
+    if (currentQuestion) {
+      setSelectedOption(answers[currentQuestion.id] ?? null);
     }
-  };
+  }, [currentIndex, currentQuestion?.id, answers]);
+
+  useEffect(() => {
+    if (currentQuestion) {
+      setTimeLeft(currentQuestion.questionTimerSeconds || 30);
+    }
+  }, [currentIndex, currentQuestion?.id]);
 
   /*
-   * Select an answer
+   * Select an answer (offline-first local storage caching)
    */
-  const handleSelectOption = (optionId: number) => {
-    setSelectedOption(optionId);
+  const handleSelectOption = (optionId: number | string) => {
+    const safeOptionId = Number(optionId);
+    setSelectedOption(safeOptionId);
     if (!currentQuestion) return;
 
-    setSaveStatus("saving");
-
-    const newAnswers = { ...answers, [currentQuestion.id]: optionId };
+    const safeQId = Number(currentQuestion.id);
+    const newAnswers = { ...answers, [safeQId]: safeOptionId };
     setAnswers(newAnswers);
 
-    // Save locally as fallback
+    const cleanCode = testCode.toUpperCase();
+    const attemptId =
+      localStorage.getItem("dynoquizz_attemptId") ||
+      localStorage.getItem(`dynoquizz_attemptId_${cleanCode}`);
+
+    // Update local answers state, then sync to local storage
+    if (attemptId) {
+      try {
+        const prevExamAnswers = JSON.parse(
+          localStorage.getItem(`exam_answers_${attemptId}`) || "{}",
+        );
+        const updatedAnswers = {
+          ...prevExamAnswers,
+          [safeQId]: [safeOptionId],
+        };
+        localStorage.setItem(
+          `exam_answers_${attemptId}`,
+          JSON.stringify(updatedAnswers),
+        );
+      } catch {
+        // ignore
+      }
+    }
+
     try {
       localStorage.setItem(
-        `dynoquizz_active_test_${testCode.toUpperCase()}`,
+        `dynoquizz_active_test_${cleanCode}`,
         JSON.stringify({
           answers: newAnswers,
           timeTaken: timeTakenPerQuestion,
@@ -251,19 +268,21 @@ export default function TestArenaPage({
       // ignore
     }
 
-    // Sync with backend immediately
-    syncAnswerToBackend(currentQuestion.id, optionId).then(() => {
-      setSaveStatus("saved");
-    });
+    setSaveStatus("saved");
   };
 
   /*
    * Move to next question or submit
    */
   const advanceOrSubmit = (latestAnswers: Record<number, number>) => {
+    const cleanCode = testCode.toUpperCase();
     if (currentIndex < questions.length - 1) {
-      setCurrentIndex((prev) => prev + 1);
-      const nextQ = questions[currentIndex + 1];
+      const nextIndex = currentIndex + 1;
+      setCurrentIndex(nextIndex);
+      if (typeof window !== "undefined") {
+        localStorage.setItem(`exam_index_${cleanCode}`, nextIndex.toString());
+      }
+      const nextQ = questions[nextIndex];
       setSelectedOption(latestAnswers[nextQ?.id] ?? null);
       setTimeLeft(nextQ?.questionTimerSeconds || 30);
       setSaveStatus("idle");
@@ -279,8 +298,31 @@ export default function TestArenaPage({
     if (!selectedOption && !answers[currentQuestion?.id]) return;
 
     const chosenOption = selectedOption || answers[currentQuestion.id];
-    const newAnswers = { ...answers, [currentQuestion.id]: chosenOption };
+    const safeQId = Number(currentQuestion.id);
+    const safeOptionId = Number(chosenOption);
+    const newAnswers = { ...answers, [safeQId]: safeOptionId };
     setAnswers(newAnswers);
+
+    const cleanCode = testCode.toUpperCase();
+    const attemptId =
+      localStorage.getItem("dynoquizz_attemptId") ||
+      localStorage.getItem(`dynoquizz_attemptId_${cleanCode}`);
+
+    if (attemptId && safeOptionId !== -1) {
+      try {
+        const prevExamAnswers = JSON.parse(
+          localStorage.getItem(`exam_answers_${attemptId}`) || "{}",
+        );
+        prevExamAnswers[safeQId] = [safeOptionId];
+        localStorage.setItem(
+          `exam_answers_${attemptId}`,
+          JSON.stringify(prevExamAnswers),
+        );
+      } catch {
+        // ignore
+      }
+    }
+
     advanceOrSubmit(newAnswers);
   };
 
@@ -352,41 +394,58 @@ export default function TestArenaPage({
         return;
       }
 
-      // Build SubmitAttemptRequest answers array, skipping optionId === -1 (unanswered)
-      const formattedAnswers = Object.entries(latestAnswers)
-        .filter(
-          ([_, optId]) => optId !== -1 && optId !== null && optId !== undefined,
-        )
-        .map(([qId, optId]) => ({
-          questionId: Number(qId),
-          selectedOptionIds: [Number(optId)],
-          responseTimeSeconds: timeTakenPerQuestion[Number(qId)] || 0,
-        }));
+      const savedAnswers = JSON.parse(
+        localStorage.getItem(`exam_answers_${attemptId}`) || "{}",
+      );
+
+      // Ensure any answers captured in latestAnswers state are merged
+      if (latestAnswers) {
+        Object.entries(latestAnswers).forEach(([qId, optId]) => {
+          if (optId !== -1 && optId !== null && optId !== undefined) {
+            if (
+              !savedAnswers[qId] ||
+              (Array.isArray(savedAnswers[qId]) &&
+                savedAnswers[qId].length === 0)
+            ) {
+              savedAnswers[qId] = [Number(optId)];
+            }
+          }
+        });
+      }
+
+      // Map the dictionary/state into the exact array format the backend expects
+      const formattedAnswers = Object.keys(savedAnswers)
+        .map((qId) => {
+          const rawOpts = Array.isArray(savedAnswers[qId])
+            ? savedAnswers[qId]
+            : [savedAnswers[qId]];
+          const selectedOptionIds = rawOpts
+            .filter((id: any) => id != null && id !== -1)
+            .map(Number); // Ensure strict integer coercion
+          return {
+            questionId: Number(qId),
+            selectedOptionIds,
+            responseTimeSeconds: Number(timeTakenPerQuestion[Number(qId)] || 0),
+          };
+        })
+        .filter((a) => a.selectedOptionIds.length > 0);
+
+      const payload = { answers: formattedAnswers };
 
       console.log("[Assessment Submission] Attempt ID:", attemptId);
-      console.log(
-        "[Assessment Submission] Answers count:",
-        formattedAnswers.length,
-      );
-      console.log("[Assessment Submission] Answers payload:", formattedAnswers);
+      console.log("[Assessment Submission] Payload:", payload);
 
-      const submitBody = JSON.stringify({
-        answers: formattedAnswers,
-      });
-
-      const submitUrl = `${API_BASE}/api/v1/student/attempts/${attemptId}/submit`;
-      console.log("[Assessment Submission] POST URL:", submitUrl);
-      console.log("[Assessment Submission] Raw request body:", submitBody);
-
-      // Target the new student submit API
-      let res = await fetch(submitUrl, {
-        method: "POST",
-        headers: {
-          ...(token ? { Authorization: `Bearer ${token}` } : {}),
-          "Content-Type": "application/json",
+      const res = await fetch(
+        `${API_BASE}/api/v1/student/attempts/${attemptId}/submit`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            ...(token ? { Authorization: `Bearer ${token}` } : {}),
+          },
+          body: JSON.stringify(payload),
         },
-        body: submitBody,
-      });
+      );
 
       console.log("[Assessment Submission] HTTP status:", res.status);
       const rawText = await res.text();
@@ -395,9 +454,11 @@ export default function TestArenaPage({
       let data: any = {};
       try {
         data = JSON.parse(rawText);
-        console.log("[Assessment Submission] Parsed response data:", data);
       } catch (err) {
-        console.warn("[Assessment Submission] Could not parse JSON response:", err);
+        console.warn(
+          "[Assessment Submission] Could not parse JSON response:",
+          err,
+        );
       }
 
       if (res.status === 401) {
@@ -414,13 +475,12 @@ export default function TestArenaPage({
       }
 
       if (res.ok) {
-        // Clear transient attempt & in-progress cache, but preserve attemptId for this quizCode
+        // Clear local storage upon successful submission
+        localStorage.removeItem(`exam_answers_${attemptId}`);
         localStorage.removeItem("dynoquizz_attemptId");
         localStorage.removeItem(`dynoquizz_active_test_${cleanCode}`);
-        localStorage.setItem(
-          `dynoquizz_attemptId_${cleanCode}`,
-          String(data.attemptId || attemptId),
-        );
+        localStorage.removeItem(`exam_index_${cleanCode}`);
+        localStorage.removeItem(`dynoquizz_attemptId_${cleanCode}`);
 
         if (data.deadlineExceeded || data.error === "EXAM_DEADLINE_EXCEEDED") {
           setDeadlineNotice(
@@ -443,8 +503,31 @@ export default function TestArenaPage({
    */
   const handleTimerExpired = () => {
     const finalAns = selectedOption || answers[currentQuestion?.id] || -1;
-    const newAnswers = { ...answers, [currentQuestion?.id]: finalAns };
+    const safeQId = Number(currentQuestion?.id);
+    const safeOptionId = Number(finalAns);
+    const newAnswers = { ...answers, [safeQId]: safeOptionId };
     setAnswers(newAnswers);
+
+    const cleanCode = testCode.toUpperCase();
+    const attemptId =
+      localStorage.getItem("dynoquizz_attemptId") ||
+      localStorage.getItem(`dynoquizz_attemptId_${cleanCode}`);
+
+    if (attemptId && safeOptionId !== -1) {
+      try {
+        const prevExamAnswers = JSON.parse(
+          localStorage.getItem(`exam_answers_${attemptId}`) || "{}",
+        );
+        prevExamAnswers[safeQId] = [safeOptionId];
+        localStorage.setItem(
+          `exam_answers_${attemptId}`,
+          JSON.stringify(prevExamAnswers),
+        );
+      } catch {
+        // ignore
+      }
+    }
+
     advanceOrSubmit(newAnswers);
   };
 
@@ -478,23 +561,23 @@ export default function TestArenaPage({
   if (sessionExpired) {
     const allowResume = test?.settings?.allowResume !== false;
     return (
-      <main className="flex min-h-screen items-center justify-center bg-frost-surface text-midnight-navy p-4 font-sans selection:bg-frost-surface selection:text-signal-green">
+      <main className="flex min-h-screen items-center justify-center bg-[#f5f5f4] text-[#111111] p-4 font-sans selection:bg-[#f5f5f4] selection:text-[#165dfb]">
         <motion.div
           initial={mounted ? { opacity: 0, y: 8 } : false}
           animate={mounted ? { opacity: 1, y: 0 } : false}
-          className="w-full max-w-md rounded-cards bg-paper-white p-6 md:p-8 text-center border border-mist-blue shadow-xl space-y-4 text-left"
+          className="w-full max-w-md rounded-[14px] bg-white p-6 md:p-8 text-center border border-[#d1dee8]/70 shadow-xl space-y-4 text-left"
         >
-          <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-inputs bg-[#fbeee8] border border-[#d1dee8] text-[#8c381c]">
+          <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-[10px] bg-[#fbeee8] border border-[#d1dee8]/70 text-[#8c381c] shadow-xs">
             <AlertTriangle className="h-6 w-6 text-[#8c381c]" />
           </div>
           <div className="text-center space-y-1">
-            <span className="text-[10px] font-bold uppercase tracking-wider text-steel-blue-gray">
+            <span className="text-[10px] font-bold uppercase tracking-wider text-[#78716b]">
               Authentication Notice
             </span>
-            <h1 className="text-lg font-bold text-midnight-navy">
+            <h1 className="text-lg font-bold text-[#111111]">
               Session Expired Mid-Assessment
             </h1>
-            <p className="text-xs text-steel-blue-gray leading-relaxed font-medium">
+            <p className="text-xs text-[#78716b] leading-relaxed font-medium">
               {allowResume
                 ? "Your authentication session has expired. Your answers have been preserved in local cache. Please log in again to resume your assessment."
                 : "Your authentication session has expired. This assessment does not permit resumption."}
@@ -504,14 +587,14 @@ export default function TestArenaPage({
             {allowResume ? (
               <Link
                 href={`/login?role=student&redirect=/test/${testCode.toUpperCase()}`}
-                className="flex items-center justify-center gap-1.5 rounded-buttons bg-signal-green py-2.5 px-4 text-xs font-bold text-white hover:bg-signal-green/90 transition-all border-0 shadow-none"
+                className="flex items-center justify-center gap-1.5 rounded-[10px] bg-[#165dfb] py-2.5 px-4 text-xs font-bold text-white hover:bg-[#165dfb]/90 active:scale-[0.98] transition-all border-0 shadow-xs"
               >
                 Log In to Resume
               </Link>
             ) : (
               <Link
                 href="/dashboard/student"
-                className="flex items-center justify-center gap-1.5 rounded-buttons bg-signal-green py-2.5 px-4 text-xs font-bold text-white hover:bg-signal-green/90 transition-all border-0 shadow-none"
+                className="flex items-center justify-center gap-1.5 rounded-[10px] bg-[#165dfb] py-2.5 px-4 text-xs font-bold text-white hover:bg-[#165dfb]/90 active:scale-[0.98] transition-all border-0 shadow-xs"
               >
                 Return to Dashboard
               </Link>
@@ -527,48 +610,48 @@ export default function TestArenaPage({
    */
   if (isSubmitted) {
     return (
-      <main className="flex min-h-screen items-center justify-center bg-frost-surface text-midnight-navy p-4 font-sans selection:bg-frost-surface selection:text-signal-green">
+      <main className="flex min-h-screen items-center justify-center bg-[#f5f5f4] text-[#111111] p-4 font-sans selection:bg-[#f5f5f4] selection:text-[#165dfb]">
         <motion.div
           initial={mounted ? { opacity: 0, y: 8 } : false}
           animate={mounted ? { opacity: 1, y: 0 } : false}
           transition={{ duration: 0.25, ease: "easeOut" }}
-          className="w-full max-w-md rounded-cards bg-paper-white p-6 md:p-8 text-center border border-mist-blue shadow-xl space-y-4"
+          className="w-full max-w-md rounded-[14px] bg-white p-6 md:p-8 text-center border border-[#d1dee8]/70 shadow-xl space-y-4"
         >
-          <div className="mx-auto flex h-10 w-10 items-center justify-center rounded-inputs bg-paper-white border border-mist-blue text-signal-green shadow-none">
-            <CheckCircle2 className="h-6 w-6 text-pastel-mint-text" />
+          <div className="mx-auto flex h-10 w-10 items-center justify-center rounded-[10px] bg-[#e2ede8] border border-[#d1dee8]/70 text-[#1d5237] shadow-xs">
+            <CheckCircle2 className="h-6 w-6 text-[#1d5237]" />
           </div>
           <div>
-            <span className="text-[10px] font-bold uppercase tracking-wider text-steel-blue-gray">
+            <span className="text-[10px] font-bold uppercase tracking-wider text-[#78716b]">
               Response Recorded
             </span>
-            <h1 className="mt-0.5 text-xl font-bold text-midnight-navy">
+            <h1 className="mt-0.5 text-xl font-bold text-[#111111]">
               Assessment Submitted
             </h1>
-            <p className="mt-1 text-xs text-steel-blue-gray leading-relaxed font-medium">
+            <p className="mt-1 text-xs text-[#78716b] leading-relaxed font-medium">
               Your exam responses have been securely transmitted to the server
               for evaluation.
             </p>
           </div>
           {deadlineNotice && (
-            <div className="rounded-inputs border border-pastel-yellow bg-pastel-yellow/20 p-3 text-xs text-pastel-yellow-text text-left font-medium">
+            <div className="rounded-[10px] border border-[#73561a]/20 bg-[#f6efe1] p-3 text-xs text-[#73561a] text-left font-medium shadow-xs">
               {deadlineNotice}
             </div>
           )}
           {submissionNotice && (
-            <div className="rounded-inputs border border-mist-blue bg-frost-surface p-3 text-xs text-midnight-navy text-left font-medium">
+            <div className="rounded-[10px] border border-[#d1dee8]/70 bg-[#f5f5f4] p-3 text-xs text-[#111111] text-left font-medium shadow-xs">
               {submissionNotice}
             </div>
           )}
           <div className="flex gap-2 pt-4">
             <Link
               href={`/dashboard/student/result/${testCode.toUpperCase()}`}
-              className="flex flex-1 items-center justify-center gap-1.5 rounded-buttons bg-signal-green py-2.5 text-xs font-bold text-white hover:bg-signal-green/90 active:scale-[0.98] transition-all duration-200 shadow-none cursor-pointer border-0"
+              className="flex flex-1 items-center justify-center gap-1.5 rounded-[10px] bg-[#165dfb] py-2.5 text-xs font-bold text-white hover:bg-[#165dfb]/90 active:scale-[0.98] transition-all duration-200 shadow-xs cursor-pointer border-0"
             >
               View Scorecard <ChevronRight className="h-4 w-4 text-white" />
             </Link>
             <Link
               href="/dashboard/student"
-              className="flex items-center justify-center gap-1.5 rounded-buttons border border-mist-blue bg-white py-2.5 px-4 text-xs font-bold text-midnight-navy hover:bg-frost-surface transition-all duration-200 shadow-none cursor-pointer"
+              className="flex items-center justify-center gap-1.5 rounded-[10px] border border-[#d1dee8]/70 bg-white py-2.5 px-4 text-xs font-bold text-[#111111] hover:bg-[#f5f5f4] active:scale-[0.98] transition-all duration-200 shadow-xs cursor-pointer"
             >
               Dashboard
             </Link>
@@ -584,12 +667,12 @@ export default function TestArenaPage({
   if (!test || questions.length === 0) {
     return (
       <main className="flex min-h-screen items-center justify-center bg-[#f5f5f4] text-[#111111] p-4 font-sans">
-        <div className="w-full max-w-md rounded-[8.8px] bg-white p-8 text-center border border-[#d1dee8] shadow-sm space-y-4">
-          <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-[8.8px] bg-[#f5f5f4] border border-[#d1dee8] text-[#78716b]">
+        <div className="w-full max-w-md rounded-[14px] bg-white p-8 text-center border border-[#d1dee8]/70 shadow-xl space-y-4">
+          <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-[10px] bg-[#fbeee8] border border-[#d1dee8]/70 text-[#8c381c] shadow-xs">
             <AlertTriangle className="h-6 w-6 text-[#8c381c]" />
           </div>
           <div className="space-y-1">
-            <h1 className="text-xl font-black text-[#111111]">
+            <h1 className="text-xl font-bold text-[#111111]">
               Assessment Session Not Found
             </h1>
             <p className="text-xs text-[#78716b] leading-relaxed font-medium">
@@ -600,7 +683,7 @@ export default function TestArenaPage({
           </div>
           <Link
             href="/dashboard/student"
-            className="flex w-full items-center justify-center gap-1.5 rounded-[8.8px] bg-[#165dfb] py-2.5 text-xs font-bold text-white hover:bg-[#165dfb]/90 transition-all border-0"
+            className="flex w-full items-center justify-center gap-1.5 rounded-[10px] bg-[#165dfb] py-2.5 text-xs font-bold text-white hover:bg-[#165dfb]/90 active:scale-[0.98] transition-all border-0 shadow-xs"
           >
             Back to Dashboard
           </Link>
@@ -613,53 +696,53 @@ export default function TestArenaPage({
    * Main assessment UI
    */
   return (
-    <div className="flex min-h-screen bg-frost-surface text-midnight-navy p-4 md:p-6 font-sans selection:bg-frost-surface selection:text-signal-green">
+    <div className="flex min-h-screen bg-[#f5f5f4] text-[#111111] p-4 md:p-6 font-sans selection:bg-[#f5f5f4] selection:text-[#165dfb]">
       <motion.div
         initial={mounted ? { opacity: 0, y: 8 } : false}
         animate={mounted ? { opacity: 1, y: 0 } : false}
         transition={{ duration: 0.25, ease: "easeOut" }}
-        className="flex flex-1 flex-col rounded-cards bg-paper-white overflow-hidden border border-mist-blue shadow-xl text-left"
+        className="flex flex-1 flex-col rounded-[14px] bg-white overflow-hidden border border-[#d1dee8]/70 shadow-sm text-left"
       >
-        <header className="flex flex-wrap items-center justify-between bg-paper-white px-6 py-4 gap-3 border-b border-mist-blue/30">
+        <header className="flex flex-wrap items-center justify-between bg-white px-6 py-4 gap-3 border-b border-[#d1dee8]/50">
           <div className="flex items-center gap-3.5">
-            <span className="rounded-pills bg-frost-surface px-3 py-0.5 text-xs font-bold text-signal-green font-mono border border-mist-blue/30 shadow-none">
+            <span className="rounded-full bg-[#f5f5f4] px-3 py-1 text-xs font-bold text-[#165dfb] font-mono border border-[#d1dee8]/70 shadow-xs">
               {testCode.toUpperCase()}
             </span>
-            <span className="text-xs font-bold text-steel-blue-gray">
+            <span className="text-xs font-bold text-[#78716b]">
               Question {currentIndex + 1} of {questions.length}
             </span>
             {saveStatus === "saving" && (
-              <span className="text-[11px] font-bold text-steel-blue-gray">
+              <span className="text-[11px] font-bold text-[#78716b]">
                 Saving...
               </span>
             )}
             {saveStatus === "saved" && (
-              <span className="text-[11px] font-bold text-pastel-mint-text">
+              <span className="text-[11px] font-bold text-[#1d5237]">
                 ✓ Saved
               </span>
             )}
           </div>
           <div className="flex items-center gap-3.5 font-sans">
             {isOnline ? (
-              <span className="flex items-center gap-1.5 rounded-pills bg-pastel-mint text-pastel-mint-text px-2.5 py-0.5 text-xs font-bold">
+              <span className="flex items-center gap-1.5 rounded-full bg-[#e2ede8] text-[#1d5237] border border-[#1d5237]/20 px-2.5 py-0.5 text-xs font-bold shadow-xs">
                 <span className="relative flex h-2 w-2">
-                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-pastel-mint-text opacity-75" />
-                  <span className="relative inline-flex h-2 w-2 rounded-full bg-pastel-mint-text" />
+                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-[#1d5237] opacity-75" />
+                  <span className="relative inline-flex h-2 w-2 rounded-full bg-[#1d5237]" />
                 </span>
-                <Wifi className="h-3.5 w-3.5 text-pastel-mint-text" /> Sync
+                <Wifi className="h-3.5 w-3.5 text-[#1d5237]" /> Sync
                 Active
               </span>
             ) : (
-              <span className="flex items-center gap-1.5 rounded-pills bg-pastel-yellow text-pastel-yellow-text px-2.5 py-0.5 text-xs font-bold">
-                <WifiOff className="h-3.5 w-3.5 text-pastel-yellow-text" />{" "}
+              <span className="flex items-center gap-1.5 rounded-full bg-[#f6efe1] text-[#73561a] border border-[#73561a]/20 px-2.5 py-0.5 text-xs font-bold shadow-xs">
+                <WifiOff className="h-3.5 w-3.5 text-[#73561a]" />{" "}
                 Offline Mode
               </span>
             )}
             <div
-              className={`flex items-center gap-1.5 rounded-pills px-3 py-1 font-bold text-xs transition-colors border ${
+              className={`flex items-center gap-1.5 rounded-full px-3 py-1 font-bold text-xs transition-colors border shadow-xs ${
                 timeLeft <= 10
-                  ? "bg-pastel-pink text-pastel-pink-text border-transparent animate-pulse"
-                  : "bg-paper-white text-steel-blue-gray border-mist-blue"
+                  ? "bg-[#fbeee8] text-[#8c381c] border-[#8c381c]/30 animate-pulse"
+                  : "bg-[#f5f5f4] text-[#78716b] border-[#d1dee8]/70"
               }`}
             >
               <Clock className="h-3.5 w-3.5" />
@@ -668,14 +751,14 @@ export default function TestArenaPage({
           </div>
         </header>
 
-        <div className="h-1.5 w-full bg-frost-surface border-b border-mist-blue/20">
+        <div className="h-1.5 w-full bg-[#e6e3e2]/40 border-b border-[#d1dee8]/30">
           <div
-            className="h-full bg-signal-green transition-all duration-300 ease-out"
+            className="h-full bg-[#165dfb] transition-all duration-300 ease-out"
             style={{ width: `${progressPercentage}%` }}
           />
         </div>
 
-        <div className="flex-1 overflow-y-auto px-6 py-6 md:px-10 md:py-8 bg-paper-white">
+        <div className="flex-1 overflow-y-auto px-6 py-6 md:px-10 md:py-8 bg-white">
           <AnimatePresence mode="wait">
             <motion.div
               key={`q-${currentIndex}`}
@@ -684,30 +767,31 @@ export default function TestArenaPage({
               exit={{ opacity: 0, y: -8 }}
               transition={{ duration: 0.2, ease: "easeOut" }}
             >
-              <h2 className="mb-5 text-lg font-bold leading-snug text-midnight-navy md:text-xl tracking-tight">
+              <h2 className="mb-5 text-lg font-bold leading-snug text-[#111111] md:text-xl tracking-tight">
                 {currentQuestion.text}
               </h2>
               <div className="space-y-2.5">
                 {currentQuestion.options.map((option: any, idx: number) => {
+                  const optId = Number(option.optionId ?? option.id ?? idx + 1);
                   const isSelected =
-                    (selectedOption || answers[currentQuestion.id]) ===
-                    option.optionId;
+                    Number(selectedOption ?? answers[currentQuestion.id]) ===
+                    optId;
                   return (
                     <button
-                      key={option.optionId || idx}
-                      onClick={() => handleSelectOption(option.optionId)}
-                      className={`w-full rounded-inputs border p-3.5 text-left text-xs font-bold transition-all duration-150 cursor-pointer ${
+                      key={optId || idx}
+                      onClick={() => handleSelectOption(optId)}
+                      className={`w-full rounded-[10px] border p-3.5 text-left text-xs font-bold transition-all duration-150 cursor-pointer shadow-xs ${
                         isSelected
-                          ? "border-signal-green bg-frost-surface text-midnight-navy ring-2 ring-signal-green/20"
-                          : "border-mist-blue bg-paper-white text-steel-blue-gray hover:border-mist-blue/80 hover:text-midnight-navy"
+                          ? "border-[#165dfb] bg-[#165dfb]/5 text-[#111111] ring-2 ring-[#165dfb]/20"
+                          : "border-[#d1dee8]/70 bg-white text-[#78716b] hover:border-[#165dfb]/40 hover:text-[#111111] hover:shadow-sm"
                       }`}
                     >
                       <div className="flex items-center gap-2.5">
                         <span
-                          className={`flex h-7 w-7 items-center justify-center rounded-inputs text-xs font-bold border transition-colors ${
+                          className={`flex h-7 w-7 items-center justify-center rounded-[8px] text-xs font-bold border transition-colors shadow-xs ${
                             isSelected
-                              ? "bg-signal-green border-signal-green text-white"
-                              : "bg-paper-white text-steel-blue-gray border-mist-blue"
+                              ? "bg-[#165dfb] border-[#165dfb] text-white"
+                              : "bg-[#f5f5f4] text-[#78716b] border-[#d1dee8]/70"
                           }`}
                         >
                           {String.fromCharCode(65 + idx)}
@@ -722,14 +806,14 @@ export default function TestArenaPage({
           </AnimatePresence>
         </div>
 
-        <footer className="border-t border-mist-blue/30 bg-paper-white px-6 py-3 flex justify-between items-center">
-          <span className="text-[10px] font-medium text-steel-blue-gray">
+        <footer className="border-t border-[#d1dee8]/50 bg-white px-6 py-3.5 flex justify-between items-center">
+          <span className="text-[10px] font-medium text-[#78716b]">
             Question {currentIndex + 1} of {questions.length}
           </span>
           <button
             onClick={handleNextQuestion}
             disabled={!selectedOption && !answers[currentQuestion?.id]}
-            className="flex items-center gap-1 rounded-buttons bg-signal-green px-4 py-2 text-xs font-bold text-white hover:bg-signal-green/90 active:scale-[0.98] transition-all duration-200 shadow-none disabled:opacity-40 cursor-pointer border-0"
+            className="flex items-center gap-1 rounded-[10px] bg-[#165dfb] px-4 py-2 text-xs font-bold text-white hover:bg-[#165dfb]/90 active:scale-[0.98] transition-all duration-200 shadow-xs disabled:opacity-40 cursor-pointer border-0"
           >
             {currentIndex === questions.length - 1 ? (
               <>
@@ -747,52 +831,52 @@ export default function TestArenaPage({
       </motion.div>
 
       <aside className="hidden w-72 flex-col gap-4 pl-6 lg:flex text-left">
-        <div className="overflow-hidden rounded-cards bg-paper-white border border-mist-blue shadow-xl">
-          <div className="p-4 border-b border-mist-blue/30 bg-frost-surface">
-            <span className="text-[10px] font-bold uppercase tracking-wider text-signal-green block mb-1">
+        <div className="overflow-hidden rounded-[14px] bg-white border border-[#d1dee8]/70 shadow-sm">
+          <div className="p-4 border-b border-[#d1dee8]/50 bg-[#f5f5f4]">
+            <span className="text-[10px] font-bold uppercase tracking-wider text-[#165dfb] block mb-1">
               Active Candidate
             </span>
-            <h3 className="font-extrabold text-midnight-navy text-sm truncate font-mono">
+            <h3 className="font-bold text-[#111111] text-sm truncate font-mono">
               {(typeof window !== "undefined"
                 ? localStorage.getItem("dynoquizz_regNo") ||
                   sessionStorage.getItem("dynoquizz_student_reg")
                 : null) || "Registered Student"}
             </h3>
-            <p className="mt-0.5 text-[10px] text-steel-blue-gray font-medium">
+            <p className="mt-0.5 text-[10px] text-[#78716b] font-medium">
               Session Code:{" "}
-              <strong className="text-midnight-navy font-bold">
+              <strong className="text-[#111111] font-bold">
                 {testCode.toUpperCase()}
               </strong>
             </p>
           </div>
           <div className="p-3.5 space-y-2 text-xs">
-            <div className="flex justify-between items-center text-steel-blue-gray">
+            <div className="flex justify-between items-center text-[#78716b]">
               <span>Total Questions:</span>
-              <span className="font-bold text-midnight-navy">
+              <span className="font-bold text-[#111111]">
                 {questions.length}
               </span>
             </div>
-            <div className="flex justify-between items-center text-steel-blue-gray">
+            <div className="flex justify-between items-center text-[#78716b]">
               <span>Current Progress:</span>
-              <span className="font-bold text-signal-green">
+              <span className="font-bold text-[#165dfb]">
                 {currentIndex + 1} / {questions.length}
               </span>
             </div>
           </div>
         </div>
 
-        <div className="rounded-cards border border-mist-blue bg-paper-white p-4 shadow-xl space-y-2">
-          <h3 className="flex items-center gap-1 font-bold text-midnight-navy text-xs">
-            <ShieldCheck className="h-3.5 w-3.5 text-signal-green" /> Assessment
+        <div className="rounded-[14px] border border-[#d1dee8]/70 bg-white p-4 shadow-sm space-y-2">
+          <h3 className="flex items-center gap-1.5 font-bold text-[#111111] text-xs">
+            <ShieldCheck className="h-3.5 w-3.5 text-[#165dfb]" /> Assessment
             Directives
           </h3>
-          <ul className="space-y-1.5 text-[10px] font-medium text-steel-blue-gray">
+          <ul className="space-y-1.5 text-[10px] font-medium text-[#78716b]">
             <li className="flex items-start gap-1 leading-relaxed">
-              <div className="mt-1 h-1 w-1 rounded-full bg-signal-green shrink-0" />
+              <div className="mt-1 h-1 w-1 rounded-full bg-[#165dfb] shrink-0" />
               Select an option and click &ldquo;Next Question&rdquo; to proceed.
             </li>
             <li className="flex items-start gap-1 leading-relaxed">
-              <div className="mt-1 h-1 w-1 rounded-full bg-signal-green shrink-0" />
+              <div className="mt-1 h-1 w-1 rounded-full bg-[#165dfb] shrink-0" />
               Questions advance automatically when the timer reaches zero.
             </li>
           </ul>

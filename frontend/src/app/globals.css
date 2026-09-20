@@ -9,7 +9,6 @@
   -moz-user-select: none;
   -ms-user-select: none;
   user-select: none;
-  box-shadow: none !important; /* STRICTLY NO SHADOWS on any elements globally */
 }
 
 /* Allow text selection inside form inputs and textareas */
@@ -107,12 +106,13 @@ textarea {
   --color-blue-700: var(--color-cobalt-stamp);
   --color-blue-50: var(--color-chalk);
 
-  /* Set exact 8.8px corners across all tailwind rounded definitions */
-  --radius-cards: 8.8px;
-  --radius-inputs: 8.8px;
-  --radius-buttons: 8.8px;
-  --radius-pill: 8.8px;
-  --radius-nav: 8.8px;
+  /* Unified radius scales */
+  --radius-cards: 14px;
+  --radius-inputs: 10px;
+  --radius-buttons: 10px;
+  --radius-pill: 9999px;
+  --radius-pills: 9999px;
+  --radius-nav: 10px;
 
   --color-pastel-mint: var(--pastel-mint);
   --color-pastel-mint-text: var(--pastel-mint-text);
@@ -123,13 +123,12 @@ textarea {
   --color-pastel-lavender: var(--pastel-lavender);
   --color-pastel-lavender-text: var(--pastel-lavender-text);
 
-  /* Remove shadows globally from tailwind styles */
-  --shadow-card: none;
-  --shadow-btn: none;
-  --shadow-xl: none;
-  --shadow-lg: none;
-  --shadow-md: none;
-  --shadow-sm: none;
+  /* Modern subtle shadow scale */
+  --shadow-xs: 0 1px 2px 0 rgba(16, 24, 40, 0.04);
+  --shadow-sm: 0 1px 3px 0 rgba(16, 24, 40, 0.06), 0 1px 2px -1px rgba(16, 24, 40, 0.04);
+  --shadow-md: 0 4px 8px -2px rgba(16, 24, 40, 0.08), 0 2px 4px -2px rgba(16, 24, 40, 0.04);
+  --shadow-lg: 0 12px 16px -4px rgba(16, 24, 40, 0.08), 0 4px 6px -2px rgba(16, 24, 40, 0.03);
+  --shadow-xl: 0 20px 24px -4px rgba(16, 24, 40, 0.08), 0 8px 8px -4px rgba(16, 24, 40, 0.03);
 
   --font-sans: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
 }

@@ -684,10 +684,10 @@ export default function TeacherAssessmentPage({
 
           <button
             onClick={handleExport}
-            className={`flex items-center gap-2 rounded-buttons px-4 py-2 text-xs font-bold transition-all duration-200 active:scale-[0.98] border-0 shadow-sm cursor-pointer ${
+            className={`flex items-center gap-2 rounded-[10px] px-4 py-2 text-xs font-bold transition-all duration-200 active:scale-[0.98] border-0 shadow-xs cursor-pointer ${
               exported
                 ? "bg-pastel-mint text-pastel-mint-text"
-                : "bg-signal-green text-white hover:bg-signal-green/90"
+                : "bg-signal-green text-white hover:bg-signal-green/90 shadow-sm"
             }`}
           >
             {exported ? (
@@ -724,7 +724,7 @@ export default function TeacherAssessmentPage({
                   )}{" "}
                   min
                 </span>
-                <span className="rounded-pills bg-frost-surface px-2.5 py-0.5 font-mono text-[9px] font-bold text-signal-green border border-mist-blue/30">
+                <span className="rounded-full bg-frost-surface px-2.5 py-0.5 font-mono text-[9px] font-bold text-signal-green border border-mist-blue/30 shadow-xs">
                   {testCode}
                 </span>
               </div>
@@ -732,7 +732,7 @@ export default function TeacherAssessmentPage({
 
             <div className="flex flex-wrap items-center gap-2 mt-2 sm:mt-0">
               <span
-                className={`rounded-pills px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider ${
+                className={`rounded-full px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider ${
                   (assessmentData?.status || "PUBLISHED").toUpperCase() ===
                   "COMPLETED"
                     ? "bg-[#ece9f3] text-[#4c3d73]"
@@ -750,7 +750,7 @@ export default function TeacherAssessmentPage({
                   type="button"
                   onClick={handlePublishQuiz}
                   disabled={lifecycleLoading}
-                  className="rounded-[8.8px] bg-[#165dfb] px-3 py-1.5 text-xs font-bold text-white hover:bg-[#165dfb]/90 transition-all cursor-pointer border-0 disabled:opacity-50"
+                  className="rounded-[10px] bg-[#165dfb] px-3.5 py-1.5 text-xs font-bold text-white hover:bg-[#0f4fd8] active:scale-[0.98] transition-all cursor-pointer border-0 disabled:opacity-50 shadow-xs"
                 >
                   Publish Quiz
                 </button>
@@ -761,7 +761,7 @@ export default function TeacherAssessmentPage({
                   type="button"
                   onClick={() => setConfirmCompleteOpen(true)}
                   disabled={lifecycleLoading}
-                  className="rounded-[8.8px] bg-[#8c381c] px-3 py-1.5 text-xs font-bold text-white hover:bg-[#8c381c]/90 transition-all cursor-pointer border-0 disabled:opacity-50"
+                  className="rounded-[10px] bg-[#8c381c] px-3.5 py-1.5 text-xs font-bold text-white hover:bg-[#6e2b14] active:scale-[0.98] transition-all cursor-pointer border-0 disabled:opacity-50 shadow-xs"
                 >
                   Complete Quiz
                 </button>
@@ -774,12 +774,12 @@ export default function TeacherAssessmentPage({
                   lifecycleLoading ||
                   (assessmentData?.status || "").toUpperCase() !== "COMPLETED"
                 }
-                className={`rounded-[8.8px] px-3 py-1.5 text-xs font-bold transition-all border-0 ${
+                className={`rounded-[10px] px-3.5 py-1.5 text-xs font-bold transition-all border-0 shadow-xs active:scale-[0.98] ${
                   (assessmentData?.status || "").toUpperCase() !== "COMPLETED"
                     ? "bg-[#e6e3e2]/60 text-[#78716b] cursor-not-allowed"
                     : assessmentData?.resultsPublished
-                      ? "bg-[#8c381c] text-white hover:bg-[#8c381c]/90 cursor-pointer"
-                      : "bg-[#1d5237] text-white hover:bg-[#1d5237]/90 cursor-pointer"
+                      ? "bg-[#8c381c] text-white hover:bg-[#6e2b14] cursor-pointer"
+                      : "bg-[#1d5237] text-white hover:bg-[#153e2a] cursor-pointer"
                 }`}
               >
                 {assessmentData?.resultsPublished
@@ -790,15 +790,15 @@ export default function TeacherAssessmentPage({
           </div>
 
           {lifecycleError && (
-            <div className="flex items-center gap-2 rounded-inputs bg-pastel-pink/30 border border-pastel-pink text-pastel-pink-text px-3 py-2 text-xs font-bold">
+            <div className="flex items-center gap-2 rounded-[10px] bg-pastel-pink/30 border border-pastel-pink text-pastel-pink-text px-3.5 py-2 text-xs font-bold shadow-xs">
               <AlertTriangle className="h-3.5 w-3.5 shrink-0" />
               <span>{lifecycleError}</span>
             </div>
           )}
 
           {confirmCompleteOpen && (
-            <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
-              <div className="w-full max-w-sm rounded-[12px] bg-white p-6 shadow-xl border border-[#d1dee8] space-y-4 text-left">
+            <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4">
+              <div className="w-full max-w-sm rounded-[14px] bg-white p-6 shadow-2xl border border-[#d1dee8]/80 space-y-4 text-left animate-in fade-in zoom-in-95 duration-150">
                 <h3 className="text-sm font-black text-[#111111]">
                   Complete Assessment?
                 </h3>
@@ -811,7 +811,7 @@ export default function TeacherAssessmentPage({
                   <button
                     type="button"
                     onClick={() => setConfirmCompleteOpen(false)}
-                    className="rounded-[8.8px] border border-[#d1dee8] px-3 py-1.5 text-xs font-bold text-[#78716b] hover:bg-[#f5f5f4] cursor-pointer"
+                    className="rounded-[10px] border border-[#d1dee8]/80 bg-white px-3.5 py-1.5 text-xs font-bold text-[#78716b] hover:bg-[#f5f5f4] hover:border-[#b9cbd9] shadow-xs cursor-pointer transition-all"
                   >
                     Cancel
                   </button>
@@ -819,7 +819,7 @@ export default function TeacherAssessmentPage({
                     type="button"
                     onClick={handleCompleteQuiz}
                     disabled={lifecycleLoading}
-                    className="rounded-[8.8px] bg-[#8c381c] px-3 py-1.5 text-xs font-bold text-white hover:bg-[#8c381c]/90 cursor-pointer border-0"
+                    className="rounded-[10px] bg-[#8c381c] px-3.5 py-1.5 text-xs font-bold text-white hover:bg-[#6e2b14] active:scale-[0.98] shadow-xs cursor-pointer border-0 transition-all"
                   >
                     {lifecycleLoading ? "Completing..." : "Confirm & Complete"}
                   </button>
@@ -828,14 +828,14 @@ export default function TeacherAssessmentPage({
             </div>
           )}
 
-          <section className="rounded-cards border border-mist-blue bg-paper-white p-4 space-y-3 shadow-sm">
-            <h3 className="text-xs font-bold uppercase tracking-wider text-midnight-navy flex items-center gap-1.5 border-b border-mist-blue/30 pb-2">
+          <section className="rounded-[14px] border border-[#d1dee8]/70 bg-paper-white p-4 space-y-3 shadow-sm">
+            <h3 className="text-xs font-bold uppercase tracking-wider text-midnight-navy flex items-center gap-1.5 border-b border-[#d1dee8]/40 pb-2">
               <Lock className="h-3.5 w-3.5 text-signal-green" /> Teacher Control
               Panel (Dynamic Settings)
             </h3>
 
             {settingsError && (
-              <div className="flex items-center gap-2 rounded-inputs bg-pastel-pink/30 border border-pastel-pink text-pastel-pink-text px-3 py-2 text-xs font-bold">
+              <div className="flex items-center gap-2 rounded-[10px] bg-pastel-pink/30 border border-pastel-pink text-pastel-pink-text px-3.5 py-2 text-xs font-bold shadow-xs">
                 <AlertTriangle className="h-3.5 w-3.5 shrink-0" />
                 <span>{settingsError}</span>
               </div>
@@ -868,10 +868,10 @@ export default function TeacherAssessmentPage({
                     onClick={() =>
                       handleToggleSetting(item.key as keyof typeof testSettings)
                     }
-                    className={`flex items-start justify-between gap-3 rounded-inputs border p-3 text-left transition-all duration-150 active:scale-[0.98] cursor-pointer ${
+                    className={`flex items-start justify-between gap-3 rounded-[10px] border p-3 text-left transition-all duration-150 active:scale-[0.98] cursor-pointer shadow-xs ${
                       active
                         ? "border-signal-green bg-frost-surface text-midnight-navy ring-2 ring-signal-green/20"
-                        : "border-mist-blue bg-paper-white text-steel-blue-gray hover:border-mist-blue/80"
+                        : "border-[#d1dee8]/80 bg-paper-white text-steel-blue-gray hover:border-[#b9cbd9]"
                     }`}
                   >
                     <div className="text-left">
@@ -888,7 +888,7 @@ export default function TeacherAssessmentPage({
                       }`}
                     >
                       <span
-                        className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform duration-150 ${
+                        className={`inline-block h-4 w-4 transform rounded-full bg-white shadow-xs transition-transform duration-150 ${
                           active ? "translate-x-4" : "translate-x-0"
                         }`}
                       />
@@ -926,9 +926,9 @@ export default function TeacherAssessmentPage({
             ].map((stat) => (
               <div
                 key={stat.label}
-                className="flex items-center gap-3 rounded-cards border border-mist-blue bg-paper-white p-4 shadow-sm"
+                className="flex items-center gap-3 rounded-[14px] border border-[#d1dee8]/70 bg-paper-white p-4 shadow-sm hover:shadow-md transition-all duration-200"
               >
-                <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-inputs bg-frost-surface text-signal-green border border-mist-blue/20">
+                <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-[10px] bg-frost-surface text-signal-green border border-mist-blue/20 shadow-xs">
                   {stat.icon}
                 </div>
                 <div className="text-left">
@@ -957,13 +957,13 @@ export default function TeacherAssessmentPage({
                 return (
                   <div
                     key={s.id || pos}
-                    className="relative overflow-hidden rounded-cards border border-mist-blue bg-paper-white p-4 shadow-sm"
+                    className="relative overflow-hidden rounded-[14px] border border-[#d1dee8]/70 bg-paper-white p-4 shadow-sm hover:shadow-md transition-all duration-200"
                   >
                     <span className="absolute right-3.5 top-3.5 text-lg">
                       {c.icon}
                     </span>
                     <div
-                      className={`mb-2.5 flex h-9 w-9 items-center justify-center rounded-full ${avatarStyle(flags)} text-[10px] font-bold`}
+                      className={`mb-2.5 flex h-9 w-9 items-center justify-center rounded-full ${avatarStyle(flags)} text-[10px] font-bold shadow-xs`}
                     >
                       {s.avatar || "ST"}
                     </div>
@@ -999,13 +999,13 @@ export default function TeacherAssessmentPage({
                   placeholder="Search by name…"
                   value={query}
                   onChange={(e) => setQuery(e.target.value)}
-                  className="w-full rounded-pills border border-mist-blue bg-paper-white py-2 pl-9 pr-4 text-xs text-midnight-navy outline-none transition-all placeholder:text-steel-blue-gray/60 focus:border-signal-green focus:ring-2 focus:ring-signal-green/20 sm:w-64"
+                  className="w-full rounded-[10px] border border-[#d1dee8]/80 bg-paper-white py-2 pl-9 pr-4 text-xs font-medium text-midnight-navy outline-none transition-all placeholder:text-steel-blue-gray/60 focus:border-signal-green focus:ring-2 focus:ring-signal-green/20 shadow-xs sm:w-64"
                 />
               </div>
             </div>
 
-            <div className="flex-1 rounded-cards border border-mist-blue overflow-hidden bg-paper-white shadow-xl text-left">
-              <div className="grid grid-cols-[2.5rem_1fr_7rem_6rem_4rem_12rem] items-center gap-3 border-b border-mist-blue/30 bg-paper-white px-5 py-2">
+            <div className="flex-1 rounded-[14px] border border-[#d1dee8]/70 overflow-hidden bg-paper-white shadow-sm text-left">
+              <div className="grid grid-cols-[2.5rem_1fr_7rem_6rem_4rem_12rem] items-center gap-3 border-b border-[#d1dee8]/40 bg-paper-white px-5 py-2.5">
                 <Th
                   label="#"
                   col="rank"
@@ -1063,20 +1063,20 @@ export default function TeacherAssessmentPage({
                   </p>
                 </div>
               ) : (
-                <ul className="divide-y divide-mist-blue/30 bg-paper-white">
+                <ul className="divide-y divide-[#d1dee8]/30 bg-paper-white">
                   {displayList.map((student) => {
                     const flags = totalFlags(student);
                     return (
                       <li
                         key={student.id}
-                        className="grid grid-cols-[2.5rem_1fr_7rem_6rem_4rem_12rem] items-center gap-3 px-5 py-2.5 transition-colors hover:bg-frost-surface/30"
+                        className="grid grid-cols-[2.5rem_1fr_7rem_6rem_4rem_12rem] items-center gap-3 px-5 py-2.5 transition-colors hover:bg-frost-surface/40"
                       >
                         <span className="text-xs font-bold font-mono text-steel-blue-gray">
                           {student.rank}
                         </span>
                         <div className="flex min-w-0 items-center gap-2">
                           <div
-                            className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-[10px] font-bold ${avatarStyle(flags)}`}
+                            className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-[10px] font-bold ${avatarStyle(flags)} shadow-xs`}
                           >
                             {student.avatar || "ST"}
                           </div>
@@ -1085,7 +1085,7 @@ export default function TeacherAssessmentPage({
                           </p>
                         </div>
                         <div className="flex justify-center">
-                          <span className="inline-flex min-w-[3rem] items-center justify-center rounded-pills px-2.5 py-0.5 text-xs font-bold tabular-nums bg-pastel-mint text-pastel-mint-text">
+                          <span className="inline-flex min-w-[3rem] items-center justify-center rounded-full px-2.5 py-0.5 text-xs font-bold tabular-nums bg-pastel-mint text-pastel-mint-text shadow-xs">
                             {student.score}%
                           </span>
                         </div>
@@ -1114,7 +1114,7 @@ export default function TeacherAssessmentPage({
                             student.flags.map((f, fi) => (
                               <span
                                 key={fi}
-                                className={`flex items-center gap-1 rounded-pills px-2 py-0.5 text-[9px] font-bold ${flagChipStyle(f.type)}`}
+                                className={`flex items-center gap-1 rounded-full px-2 py-0.5 text-[9px] font-bold ${flagChipStyle(f.type)} shadow-xs`}
                               >
                                 {flagIcon(f.type)} {f.label} ×{f.count}
                               </span>

@@ -15,16 +15,40 @@ export function useSession() {
 
   const fetchSession = async () => {
     try {
-      const token =
+      const rawToken =
         typeof window !== "undefined"
-          ? localStorage.getItem("dynoquizz_token")
+          ? localStorage.getItem("dynoquizz_token") || localStorage.getItem("token")
           : null;
       const storedUser =
         typeof window !== "undefined"
           ? localStorage.getItem("dynoquizz_user")
           : null;
 
-      // 1. Optimistic Load: Instantly load cached user to prevent UI lag
+      // 1. Aggressive Token Pre-Validation: Guard against undefined, null, or empty strings
+      if (!rawToken || rawToken === "undefined" || rawToken === "null" || rawToken.trim() === "") {
+        if (typeof window !== "undefined") {
+          localStorage.removeItem("dynoquizz_token");
+          localStorage.removeItem("token");
+        }
+        setUser(null);
+        setLoading(false);
+        return; // DO NOT FIRE THE FETCH
+      }
+
+      // 2. Sanitize the Valid Token: Strip accidental surrounding quotes
+      const cleanToken = rawToken.replace(/^["']|["']$/g, "").trim();
+
+      if (!cleanToken || cleanToken === "undefined" || cleanToken === "null") {
+        if (typeof window !== "undefined") {
+          localStorage.removeItem("dynoquizz_token");
+          localStorage.removeItem("token");
+        }
+        setUser(null);
+        setLoading(false);
+        return; // DO NOT FIRE THE FETCH
+      }
+
+      // 3. Optimistic Load: Instantly load cached user to prevent UI lag
       if (storedUser) {
         try {
           setUser(JSON.parse(storedUser));
@@ -33,18 +57,12 @@ export function useSession() {
         }
       }
 
-      if (!token) {
-        setUser(null);
-        setLoading(false);
-        return;
-      }
-
-      // 2. Background Verification: Ping the live backend for fresh data
+      // 4. Background Verification: Ping the live backend for fresh data
       const res = await fetch(ENDPOINTS.auth.me, {
         method: "GET",
         headers: {
-          Authorization: `Bearer ${token}`,
-          "Content-Type": "application/json",
+          Authorization: `Bearer ${cleanToken}`,
+          Accept: "application/json",
         },
       });
 
@@ -71,8 +89,8 @@ export function useSession() {
             );
           }
         }
-      } else if (res.status === 401 || res.status === 403) {
-        // 3. Security: If token is rejected by backend, clear session
+      } else if (res.status === 401 || res.status === 403 || res.status === 400) {
+        // 5. Security: If token is rejected by backend, clear session
         await logout();
       }
     } catch (err) {

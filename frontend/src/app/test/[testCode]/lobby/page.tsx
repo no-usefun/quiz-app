@@ -60,6 +60,7 @@ function LobbyInner({ testCode }: { testCode: string }) {
   const [isStarting, setIsStarting] = useState(false);
   const [startError, setStartError] = useState<string | null>(null);
   const [packageError, setPackageError] = useState<string | null>(null);
+  const [hasExistingAttempt, setHasExistingAttempt] = useState(false);
 
   useEffect(() => {
     const cleanCode = testCode.toUpperCase();
@@ -69,6 +70,13 @@ function LobbyInner({ testCode }: { testCode: string }) {
       if (!token) {
         router.push(`/login?role=student&redirect=/test/${cleanCode}/lobby`);
         return;
+      }
+      const existingAttempt = localStorage.getItem(
+        `dynoquizz_attemptId_${cleanCode}`,
+      );
+      if (existingAttempt) {
+        setHasExistingAttempt(true);
+        setIsDownloaded(true);
       }
     }
 
@@ -87,6 +95,18 @@ function LobbyInner({ testCode }: { testCode: string }) {
 
         if (res.ok) {
           const data = await res.json();
+          // Normalize the package response to the shapes the UI expects:
+          // • backend returns questionType:"MCQ" but UI checks for "MULTIPLE_CHOICE"
+          // • backend uses optionOrder; UI relies on displayOrder for sort order
+          const normalizedQuestions = (data.questions || []).map((q: any) => ({
+            ...q,
+            questionType:
+              q.questionType === "MCQ" ? "MULTIPLE_CHOICE" : q.questionType,
+            options: (q.options || []).map((opt: any) => ({
+              ...opt,
+              displayOrder: opt.optionOrder ?? opt.displayOrder,
+            })),
+          }));
           setTest({
             testCode: cleanCode,
             quizName: data.title || data.quizName || "Assessment Session",
@@ -96,7 +116,7 @@ function LobbyInner({ testCode }: { testCode: string }) {
             totalTimeLimitMinutes: Math.floor(
               (data.overallTimerSeconds || 3600) / 60,
             ),
-            questions: data.questions || [],
+            questions: normalizedQuestions,
           });
         } else {
           const errData = await res.json().catch(() => ({}));
@@ -173,9 +193,20 @@ function LobbyInner({ testCode }: { testCode: string }) {
   };
 
   const handleStartAssessment = async () => {
+    const cleanCode = testCode.toUpperCase();
+    const existingAttempt =
+      typeof window !== "undefined"
+        ? localStorage.getItem(`dynoquizz_attemptId_${cleanCode}`)
+        : null;
+
+    if (existingAttempt) {
+      // Bypass API call and resume directly
+      router.push(`/test/${cleanCode}`);
+      return;
+    }
+
     setIsStarting(true);
     setStartError(null);
-    const cleanCode = testCode.toUpperCase();
     const reg = registrationNumber || "CANDIDATE";
 
     if (typeof window !== "undefined") {
@@ -277,14 +308,14 @@ function LobbyInner({ testCode }: { testCode: string }) {
 
   if (!test) {
     return (
-      <div className="mx-auto max-w-md rounded-[8.8px] border border-[#d1dee8] bg-white p-8 text-center">
-        <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-[8.8px] bg-[#fbeee8] text-[#8c381c]">
+      <div className="mx-auto max-w-md rounded-[14px] border border-[#d1dee8]/70 bg-white p-8 text-center shadow-sm">
+        <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-[12px] bg-[#fbeee8] text-[#8c381c] shadow-xs">
           <AlertCircle className="h-6 w-6" />
         </div>
         <h2 className="text-lg font-bold text-[#111111]">
           Assessment Unavailable
         </h2>
-        <p className="mt-2 text-xs text-[#78716b] leading-relaxed">
+        <p className="mt-2 text-xs text-[#78716b] leading-relaxed font-medium">
           {packageError || (
             <>
               The access code{" "}
@@ -297,7 +328,7 @@ function LobbyInner({ testCode }: { testCode: string }) {
         </p>
         <Link
           href="/join"
-          className="mt-6 inline-flex items-center gap-2 rounded-[8.8px] bg-[#111111] px-5 py-2.5 text-xs font-bold text-white hover:bg-[#222222] transition-colors"
+          className="mt-6 inline-flex items-center gap-2 rounded-[10px] bg-[#111111] px-5 py-2.5 text-xs font-bold text-white hover:bg-[#222222] active:scale-[0.98] shadow-sm transition-all"
         >
           <ArrowLeft className="h-3.5 w-3.5" /> Return to Join Gateway
         </Link>
@@ -310,9 +341,9 @@ function LobbyInner({ testCode }: { testCode: string }) {
       <div className="mb-4 flex items-center justify-between">
         <Link
           href="/join"
-          className="inline-flex items-center gap-1.5 text-xs font-bold text-[#78716b] hover:text-[#111111] transition-colors"
+          className="inline-flex items-center gap-1.5 text-xs font-bold text-[#78716b] hover:text-[#111111] transition-colors group"
         >
-          <ArrowLeft className="h-3.5 w-3.5" /> Back to Gateway
+          <ArrowLeft className="h-3.5 w-3.5 transition-transform group-hover:-translate-x-0.5" /> Back to Gateway
         </Link>
         <div className="flex items-center gap-2">
           <span className="flex h-2 w-2 rounded-full bg-[#165dfb] animate-pulse" />
@@ -322,10 +353,10 @@ function LobbyInner({ testCode }: { testCode: string }) {
         </div>
       </div>
 
-      <div className="rounded-[8.8px] border border-[#d1dee8] bg-white p-6 md:p-8 space-y-6">
-        <div className="border-b border-[#d1dee8] pb-6">
+      <div className="rounded-[16px] border border-[#d1dee8]/70 bg-white p-6 md:p-8 space-y-6 shadow-xl">
+        <div className="border-b border-[#d1dee8]/50 pb-6">
           <div className="flex flex-wrap items-center justify-between gap-2 mb-2">
-            <span className="rounded-[8.8px] bg-[#165dfb] px-3 py-1 text-[10px] font-bold uppercase tracking-widest text-white">
+            <span className="rounded-full bg-[#165dfb] px-3 py-1 text-[10px] font-bold uppercase tracking-widest text-white shadow-xs">
               {test.testCode}
             </span>
             <span className="text-xs font-semibold text-[#78716b]">
@@ -340,13 +371,13 @@ function LobbyInner({ testCode }: { testCode: string }) {
             {test.quizName}
           </h1>
 
-          <p className="mt-2 text-xs text-[#78716b] leading-relaxed">
+          <p className="mt-2 text-xs text-[#78716b] leading-relaxed font-medium">
             {test.description}
           </p>
         </div>
 
         <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-          <div className="rounded-[8.8px] border border-[#d1dee8] bg-[#f5f5f4] p-3">
+          <div className="rounded-[12px] border border-[#d1dee8]/70 bg-[#f5f5f4]/60 p-3.5 shadow-xs">
             <div className="flex items-center gap-2 text-xs text-[#78716b] font-medium">
               <FileQuestion className="h-3.5 w-3.5 text-[#165dfb]" /> Questions
             </div>
@@ -355,7 +386,7 @@ function LobbyInner({ testCode }: { testCode: string }) {
             </p>
           </div>
 
-          <div className="rounded-[8.8px] border border-[#d1dee8] bg-[#f5f5f4] p-3">
+          <div className="rounded-[12px] border border-[#d1dee8]/70 bg-[#f5f5f4]/60 p-3.5 shadow-xs">
             <div className="flex items-center gap-2 text-xs text-[#78716b] font-medium">
               <Clock className="h-3.5 w-3.5 text-[#165dfb]" /> Time Limit
             </div>
@@ -364,7 +395,7 @@ function LobbyInner({ testCode }: { testCode: string }) {
             </p>
           </div>
 
-          <div className="rounded-[8.8px] border border-[#d1dee8] bg-[#f5f5f4] p-3 col-span-2 sm:col-span-1">
+          <div className="rounded-[12px] border border-[#d1dee8]/70 bg-[#f5f5f4]/60 p-3.5 col-span-2 sm:col-span-1 shadow-xs">
             <div className="flex items-center gap-2 text-xs text-[#78716b] font-medium">
               <User className="h-3.5 w-3.5 text-[#165dfb]" /> Candidate Reg
             </div>
@@ -380,18 +411,18 @@ function LobbyInner({ testCode }: { testCode: string }) {
             animate={{ opacity: 1, y: 0 }}
             className="space-y-5"
           >
-            <div className="rounded-[8.8px] border border-[#d1dee8] bg-[#f5f5f4] p-4 text-xs text-[#78716b] space-y-2">
+            <div className="rounded-[12px] border border-[#d1dee8]/70 bg-[#f5f5f4]/60 p-4 text-xs text-[#78716b] space-y-2 shadow-xs">
               <div className="flex items-center gap-2 font-bold text-[#111111]">
                 <ShieldCheck className="h-4 w-4 text-[#165dfb]" />
                 Zero-Latency Offline Assessment Architecture
               </div>
-              <p className="leading-relaxed">
+              <p className="leading-relaxed font-medium">
                 To guarantee zero exam disruption during network drops, all
                 assessment assets are cached locally before starting.
               </p>
             </div>
 
-            <div className="space-y-2 text-xs text-[#78716b]">
+            <div className="space-y-2 text-xs text-[#78716b] font-medium">
               <div className="flex items-center gap-2">
                 <Check className="h-3.5 w-3.5 text-[#165dfb]" />
                 <span>AES-256 client-side payload encryption</span>
@@ -424,7 +455,7 @@ function LobbyInner({ testCode }: { testCode: string }) {
               <button
                 type="button"
                 onClick={handleDownload}
-                className="w-full flex items-center justify-center gap-2 rounded-[8.8px] bg-[#165dfb] py-3 text-sm font-bold text-white hover:bg-[#165dfb]/90 active:scale-[0.98] transition-all cursor-pointer border-0"
+                className="w-full flex items-center justify-center gap-2 rounded-[10px] bg-[#165dfb] py-3 text-sm font-bold text-white hover:bg-[#0f4fd8] active:scale-[0.98] shadow-sm shadow-[#165dfb]/25 hover:shadow-md transition-all cursor-pointer border-0"
               >
                 <Download className="h-4 w-4" /> Download Assessment Package
               </button>
@@ -438,14 +469,14 @@ function LobbyInner({ testCode }: { testCode: string }) {
             animate={{ opacity: 1, scale: 1 }}
             className="space-y-6"
           >
-            <div className="rounded-[8.8px] bg-[#e7f7ef] border border-[#1d5237]/20 p-4 text-xs text-[#1d5237]">
+            <div className="rounded-[12px] bg-[#e7f7ef] border border-[#1d5237]/20 p-4 text-xs text-[#1d5237] shadow-xs">
               <div className="flex items-start gap-3">
                 <CheckCircle2 className="h-5 w-5 shrink-0 mt-0.5 text-[#1d5237]" />
                 <div className="space-y-1">
                   <p className="font-bold text-sm">
                     Package Verified &amp; Ready
                   </p>
-                  <p className="leading-relaxed opacity-90">
+                  <p className="leading-relaxed opacity-90 font-medium">
                     All questions are cached. You can complete this exam
                     securely.
                   </p>
@@ -453,23 +484,23 @@ function LobbyInner({ testCode }: { testCode: string }) {
               </div>
             </div>
 
-            <div className="rounded-[8.8px] border border-[#d1dee8] bg-[#f5f5f4] p-5 space-y-3 text-left">
-              <div className="flex items-center justify-between border-b border-[#d1dee8] pb-3">
+            <div className="rounded-[12px] border border-[#d1dee8]/70 bg-[#f5f5f4]/60 p-5 space-y-3 text-left shadow-xs">
+              <div className="flex items-center justify-between border-b border-[#d1dee8]/50 pb-3">
                 <span className="text-xs font-bold text-[#111111] uppercase tracking-wider flex items-center gap-1.5">
                   <Lock className="h-3.5 w-3.5 text-[#165dfb]" /> Candidate
                   Ready Room
                 </span>
-                <span className="rounded-[8.8px] bg-white px-2.5 py-0.5 text-[10px] font-bold text-[#165dfb] border border-[#d1dee8]">
+                <span className="rounded-full bg-white px-2.5 py-0.5 text-[10px] font-bold text-[#165dfb] border border-[#d1dee8]/80 shadow-xs">
                   READY
                 </span>
               </div>
 
               <div className="space-y-2 text-xs text-[#78716b]">
                 <p className="font-semibold text-[#111111]">Directives:</p>
-                <ul className="list-disc pl-4 space-y-1">
+                <ul className="list-disc pl-4 space-y-1 font-medium">
                   <li>
-                    The timer starts immediately once you click "Start
-                    Assessment".
+                    The timer starts immediately once you click &ldquo;Start
+                    Assessment&rdquo;.
                   </li>
                   <li>
                     Your answers are automatically saved locally and
@@ -480,7 +511,7 @@ function LobbyInner({ testCode }: { testCode: string }) {
             </div>
 
             {startError && (
-              <div className="rounded-[8.8px] bg-[#fbeee8] border border-[#8c381c]/30 p-3 text-xs text-[#8c381c] font-semibold flex items-center gap-2">
+              <div className="rounded-[10px] bg-[#fbeee8] border border-[#8c381c]/30 p-3 text-xs text-[#8c381c] font-semibold flex items-center gap-2 shadow-xs">
                 <AlertCircle className="h-4 w-4 shrink-0" />
                 {startError}
               </div>
@@ -491,7 +522,7 @@ function LobbyInner({ testCode }: { testCode: string }) {
                 type="button"
                 onClick={handleStartAssessment}
                 disabled={isStarting}
-                className="w-full flex items-center justify-center gap-2 rounded-[8.8px] bg-[#111111] py-3.5 text-sm font-bold text-white hover:bg-[#222222] active:scale-[0.98] transition-all cursor-pointer border-0 disabled:opacity-70"
+                className="w-full flex items-center justify-center gap-2 rounded-[10px] bg-[#111111] py-3.5 text-sm font-bold text-white hover:bg-[#222222] active:scale-[0.98] shadow-sm hover:shadow-md transition-all cursor-pointer border-0 disabled:opacity-70"
               >
                 {isStarting ? (
                   <>
@@ -500,7 +531,10 @@ function LobbyInner({ testCode }: { testCode: string }) {
                   </>
                 ) : (
                   <>
-                    Start Assessment <ArrowRight className="h-4 w-4" />
+                    {hasExistingAttempt
+                      ? "Resume Assessment"
+                      : "Start Assessment"}{" "}
+                    <ArrowRight className="h-4 w-4" />
                   </>
                 )}
               </button>
@@ -521,12 +555,12 @@ export default function AssessmentLobbyPage({
 
   return (
     <div className="min-h-screen bg-[#f5f5f4] flex flex-col font-sans selection:bg-[#e6e3e2] selection:text-[#165dfb]">
-      <header className="sticky top-0 z-40 w-full border-b border-[#d1dee8] bg-white/95 backdrop-blur-sm px-4 md:px-8 py-3">
+      <header className="sticky top-0 z-40 w-full border-b border-[#d1dee8]/70 bg-white/95 backdrop-blur-sm px-4 md:px-8 py-3">
         <div className="mx-auto flex max-w-[1400px] items-center justify-between">
           <Logo />
           <Link
             href="/dashboard/student"
-            className="rounded-[8.8px] border border-[#d1dee8] bg-[#f5f5f4] px-3 py-1.5 text-xs font-bold text-[#78716b] hover:bg-[#e6e3e2] hover:text-[#111111] transition-colors"
+            className="rounded-[10px] border border-[#d1dee8]/80 bg-[#f5f5f4] px-3.5 py-1.5 text-xs font-bold text-[#78716b] hover:bg-[#e6e3e2] hover:border-[#b9cbd9] hover:text-[#111111] shadow-xs active:scale-95 transition-all"
           >
             Dashboard
           </Link>

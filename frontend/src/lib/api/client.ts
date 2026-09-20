@@ -16,19 +16,23 @@ export class ApiClientError extends Error {
 
 export function getAuthToken(): string | null {
   if (typeof window === "undefined") return null;
-  let token = localStorage.getItem("dynoquizz_token");
-  if (!token) {
+  let token = localStorage.getItem("dynoquizz_token") || localStorage.getItem("token");
+  if (!token || token === "undefined" || token === "null" || !token.trim()) {
     const match = document.cookie.match(/(?:^|;\s*)dynoquizz_token=([^;]+)/);
-    if (match) {
+    if (match && match[1] && match[1] !== "undefined" && match[1] !== "null") {
       token = match[1];
       try {
         localStorage.setItem("dynoquizz_token", token);
       } catch {
         // ignore
       }
+    } else {
+      return null;
     }
   }
-  return token;
+  const clean = token ? token.replace(/^["']|["']$/g, "").trim() : null;
+  if (!clean || clean === "undefined" || clean === "null") return null;
+  return clean;
 }
 
 export interface RequestOptions extends RequestInit {

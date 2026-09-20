@@ -201,7 +201,7 @@ function JoinForm() {
             }}
             placeholder="e.g. 849201"
             maxLength={10}
-            className="w-full rounded-inputs border border-mist-blue bg-frost-surface py-3.5 pl-10 pr-3 text-center font-mono text-xl font-black tracking-[0.2em] text-midnight-navy outline-none transition-all placeholder:font-sans placeholder:text-xs placeholder:font-medium placeholder:tracking-normal placeholder:text-steel-blue-gray/50 hover:border-mist-blue/70 focus:border-signal-green focus:bg-white focus:ring-4 focus:ring-signal-green/15"
+            className="w-full rounded-[10px] border border-mist-blue/80 bg-frost-surface py-3.5 pl-10 pr-3 text-center font-mono text-xl font-black tracking-[0.2em] text-midnight-navy outline-none transition-all placeholder:font-sans placeholder:text-xs placeholder:font-medium placeholder:tracking-normal placeholder:text-steel-blue-gray/50 hover:border-mist-blue focus:border-signal-green focus:bg-white focus:ring-4 focus:ring-signal-green/15 shadow-xs"
             required
           />
         </div>
@@ -227,7 +227,7 @@ function JoinForm() {
             }}
             placeholder="e.g. 21BCE1024"
             maxLength={20}
-            className="w-full rounded-inputs border border-mist-blue bg-frost-surface py-3 pl-10 pr-3 text-xs font-bold uppercase text-midnight-navy outline-none transition-all placeholder:text-steel-blue-gray/50 hover:border-mist-blue/70 focus:border-signal-green focus:bg-white focus:ring-4 focus:ring-signal-green/15"
+            className="w-full rounded-[10px] border border-mist-blue/80 bg-frost-surface py-3 pl-10 pr-3 text-xs font-bold uppercase text-midnight-navy outline-none transition-all placeholder:text-steel-blue-gray/50 hover:border-mist-blue focus:border-signal-green focus:bg-white focus:ring-4 focus:ring-signal-green/15 shadow-xs"
             required
           />
         </div>
@@ -236,7 +236,7 @@ function JoinForm() {
       {error && (
         <div
           role="alert"
-          className="flex items-start gap-2.5 rounded-inputs border border-pastel-pink-text/25 bg-pastel-pink/20 p-3 text-left"
+          className="flex items-start gap-2.5 rounded-[10px] border border-pastel-pink-text/25 bg-pastel-pink/20 p-3 text-left shadow-xs"
         >
           <AlertCircle className="h-4 w-4 shrink-0 mt-px text-pastel-pink-text" />
           <p className="text-xs font-bold leading-relaxed text-pastel-pink-text">
@@ -248,7 +248,7 @@ function JoinForm() {
       <button
         type="submit"
         disabled={loading}
-        className="group flex w-full items-center justify-center gap-2 rounded-buttons bg-signal-green px-4 py-3 text-xs font-bold text-white shadow-lg shadow-signal-green/25 transition-all duration-200 hover:bg-signal-green/90 hover:shadow-signal-green/35 active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-60 disabled:shadow-none cursor-pointer border-0"
+        className="group flex w-full items-center justify-center gap-2 rounded-[10px] bg-signal-green px-4 py-3 text-xs font-bold text-white shadow-sm shadow-signal-green/25 transition-all duration-200 hover:bg-signal-green/90 hover:shadow-md active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-60 disabled:shadow-none cursor-pointer border-0"
       >
         {loading ? (
           <>
@@ -283,7 +283,7 @@ export default function JoinPage() {
         }}
       />
 
-      <span className="absolute left-1/2 top-6 z-10 -translate-x-1/2 rounded-full bg-white/90 px-4 py-1.5 text-sm font-bold tracking-tight text-midnight-navy shadow-sm ring-1 ring-black/5 backdrop-blur">
+      <span className="absolute left-1/2 top-6 z-10 -translate-x-1/2 rounded-full bg-white/90 px-4 py-1.5 text-sm font-bold tracking-tight text-midnight-navy shadow-xs ring-1 ring-black/5 backdrop-blur">
         Quizly
       </span>
 
@@ -291,7 +291,7 @@ export default function JoinPage() {
         initial={mounted ? { opacity: 0, y: 8 } : false}
         animate={mounted ? { opacity: 1, y: 0 } : false}
         transition={{ duration: 0.25, ease: "easeOut" }}
-        className="relative w-full max-w-md rounded-cards bg-paper-white p-6 md:p-8 border border-mist-blue shadow-[0_18px_50px_-20px_rgba(15,23,42,0.18)] text-left"
+        className="relative w-full max-w-md rounded-[16px] bg-paper-white p-6 md:p-8 border border-mist-blue/70 shadow-xl text-left"
       >
         <div className="flex justify-start mb-6 text-left">
           <Link
@@ -309,7 +309,7 @@ export default function JoinPage() {
               aria-hidden
               className="absolute inset-0 rounded-2xl bg-signal-green/25 blur-lg animate-pulse"
             />
-            <div className="relative flex h-14 w-14 items-center justify-center rounded-2xl bg-gradient-to-br from-signal-green to-[#0e7a53] text-white shadow-lg shadow-signal-green/30 ring-1 ring-signal-green/20">
+            <div className="relative flex h-14 w-14 items-center justify-center rounded-2xl bg-gradient-to-br from-signal-green to-[#0e7a53] text-white shadow-md shadow-signal-green/30 ring-1 ring-signal-green/20">
               <ShieldCheck className="h-6 w-6 text-white" />
             </div>
           </div>

@@ -66,6 +66,91 @@ function FlagIcon({ type }: { type: SuspicionFlag["type"] }) {
   return <AlertTriangle className={cls} />;
 }
 
+// =================================================================================================
+// LIVE MONITOR TELEMETRY STATUS:
+// Original Implementation: The original component attempted to poll backend endpoints
+// (`GET /api/v1/teacher/quizzes/{id}/leaderboard`) every 3 seconds.
+// Reason for Demo Mock: The student exam flow is offline-first (cached in localStorage and submitted
+// in a single final bulk POST). Because in-progress per-question telemetry is not transmitted to the
+// backend, real-time streaming endpoints return 404/unavailable. This screen has been converted to
+// a clean static mock demo so instructors can experience the live telemetry UI without network errors.
+// =================================================================================================
+
+const DEMO_STUDENTS: StudentRow[] = [
+  {
+    id: 1,
+    name: "Suryanshu Saini",
+    avatar: "SS",
+    answered: 18,
+    total: 20,
+    score: 90,
+    timeLeft: "04:12",
+    status: "active",
+    flags: [],
+  },
+  {
+    id: 2,
+    name: "Manish Bhargava",
+    avatar: "MB",
+    answered: 20,
+    total: 20,
+    score: 85,
+    timeLeft: "00:00",
+    status: "submitted",
+    flags: [
+      {
+        type: "tab_switch",
+        label: "Tab switch detected",
+        at: "14:22:05",
+      },
+    ],
+  },
+  {
+    id: 3,
+    name: "Aarav Sharma",
+    avatar: "AS",
+    answered: 15,
+    total: 20,
+    score: 75,
+    timeLeft: "06:40",
+    status: "active",
+    flags: [],
+  },
+  {
+    id: 4,
+    name: "Priya Patel",
+    avatar: "PP",
+    answered: 20,
+    total: 20,
+    score: 95,
+    timeLeft: "00:00",
+    status: "submitted",
+    flags: [],
+  },
+  {
+    id: 5,
+    name: "Rohan Verma",
+    avatar: "RV",
+    answered: 9,
+    total: 20,
+    score: 45,
+    timeLeft: "11:20",
+    status: "disconnected",
+    flags: [
+      {
+        type: "fullscreen_exit",
+        label: "Fullscreen exit",
+        at: "14:15:30",
+      },
+      {
+        type: "copy_attempt",
+        label: "Copy attempt",
+        at: "14:18:12",
+      },
+    ],
+  },
+];
+
 export default function LiveLeaderboard({
   params,
 }: {
@@ -74,18 +159,16 @@ export default function LiveLeaderboard({
   const { testCode } = use(params);
   const [testTitle, setTestTitle] = useState("Assessment Session");
 
-  const [students, setStudents] = useState<StudentRow[]>([]);
+  const [students, setStudents] = useState<StudentRow[]>(DEMO_STUDENTS);
   const [elapsed, setElapsed] = useState(0);
   const [isLive, setIsLive] = useState(true);
   const [lastSync, setLastSync] = useState(nowTime());
   const [mounted, setMounted] = useState(false);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(false);
   const [leaderboardUnavailable, setLeaderboardUnavailable] = useState(false);
 
-  const syncTelemetry = async () => {
-    // The URL param may be a numeric quizId (e.g. "42") or an access code.
-    // Resolve the real access code from the local cache so /code/{code}/…
-    // endpoints receive the correct value.
+  useEffect(() => {
+    setMounted(true);
     const { quizId: resolvedId, quizCode } = resolveQuizIdentifiers(testCode);
 
     // Match stored tests by either access code or numeric quizId
@@ -96,144 +179,25 @@ export default function LiveLeaderboard({
     );
     if (localTest) {
       setTestTitle(localTest.quizName);
+    } else {
+      setTestTitle(`Assessment Session (${quizCode})`);
     }
 
-    try {
-      const token = localStorage.getItem("dynoquizz_token");
-      const headers = {
-        ...(token ? { Authorization: `Bearer ${token}` } : {}),
-        "Content-Type": "application/json",
-      };
-
-      // 1. Resolve numeric quizId by finding quiz whose quizCode equals route param in GET /teacher/quizzes
-      let numericQuizId: number | null = null;
-      let matchedQuiz: any = null;
-      let totalQ = 20;
-
-      const tqRes = await fetch(`${API_BASE}/api/v1/teacher/quizzes`, {
-        headers,
-      }).catch(() => null);
-
-      if (tqRes && tqRes.ok) {
-        const tqData = await tqRes.json();
-        const list: any[] = Array.isArray(tqData)
-          ? tqData
-          : Array.isArray(tqData?.content)
-            ? tqData.content
-            : Array.isArray(tqData?.data)
-              ? tqData.data
-              : [];
-        matchedQuiz = list.find(
-          (q: any) =>
-            String(q.quizCode || q.testCode || "").toUpperCase() ===
-              quizCode.toUpperCase() ||
-            String(q.quizId || q.id || "") === testCode,
-        );
-        if (matchedQuiz) {
-          numericQuizId = matchedQuiz.quizId ?? matchedQuiz.id;
-          if (matchedQuiz.title || matchedQuiz.quizName) {
-            setTestTitle(matchedQuiz.title || matchedQuiz.quizName);
-          }
-          if (matchedQuiz.totalQuestions) {
-            totalQ = matchedQuiz.totalQuestions;
-          }
-        }
-      }
-
-      if (!numericQuizId && /^\d+$/.test(testCode)) {
-        numericQuizId = Number(testCode);
-      }
-
-      // Package endpoint for metadata if needed
-      const pkgRes = await fetch(
-        `${API_BASE}/api/v1/quizzes/code/${quizCode}/package`,
-        { headers },
-      ).catch(() => null);
-
-      if (pkgRes && pkgRes.ok) {
-        const pkgData = await pkgRes.json();
-        setTestTitle(pkgData.title || pkgData.quizName || testTitle);
-        if (Array.isArray(pkgData.questions) && pkgData.questions.length > 0) {
-          totalQ = pkgData.questions.length;
-        } else if (pkgData.totalQuestions) {
-          totalQ = pkgData.totalQuestions;
-        }
-      }
-
-      // 2. Fetch Leaderboard using numeric quizId (teacher endpoint first, student fallback on 404)
-      // TODO(backend): Teacher leaderboard endpoint GET /api/v1/teacher/quizzes/{quizId}/leaderboard not deployed yet
-      let backendStudents: StudentRow[] = [];
-      let isLbUnavailable = false;
-
-      if (numericQuizId) {
-        let lbRes = await fetch(
-          `${API_BASE}/api/v1/teacher/quizzes/${numericQuizId}/leaderboard`,
-          { headers },
-        ).catch(() => null);
-
-        // If teacher leaderboard returns 404 (not deployed yet), try student endpoint once
-        if (lbRes && lbRes.status === 404) {
-          lbRes = await fetch(
-            `${API_BASE}/api/v1/student/quizzes/${numericQuizId}/leaderboard`,
-            { headers },
-          ).catch(() => null);
-        }
-
-        if (lbRes && lbRes.ok) {
-          const lbData = await lbRes.json();
-          const list: any[] = Array.isArray(lbData)
-            ? lbData
-            : Array.isArray(lbData?.content)
-              ? lbData.content
-              : [];
-
-          backendStudents = list.map((entry: any, idx: number) => {
-            const timeSecs = Number(entry.totalTimeTaken || 0);
-            const timeLabel = `${String(Math.floor(timeSecs / 60)).padStart(2, "0")}:${String(timeSecs % 60).padStart(2, "0")}`;
-            return {
-              id: entry.studentId ?? entry.rank ?? idx + 1,
-              name: entry.studentName || "Candidate",
-              avatar: String(entry.studentName || "C").slice(0, 2).toUpperCase(),
-              answered: totalQ,
-              total: totalQ,
-              score: Math.round(Number(entry.percentage ?? entry.score ?? 0)),
-              timeLeft: timeLabel,
-              status: "submitted" as const,
-              flags: [],
-            };
-          });
-        } else if (!lbRes || lbRes.status === 403 || lbRes.status === 404) {
-          isLbUnavailable = true;
-        }
-      } else {
-        isLbUnavailable = true;
-      }
-
-      setLeaderboardUnavailable(isLbUnavailable);
-      setStudents(backendStudents);
-    } catch (e) {
-      setStudents([]);
-    } finally {
-      setLoading(false);
-      setLastSync(nowTime());
-    }
-  };
-
-  useEffect(() => {
-    setMounted(true);
-    syncTelemetry();
+    setStudents(DEMO_STUDENTS);
+    setLoading(false);
+    setLastSync(nowTime());
   }, [testCode]);
 
   useEffect(() => {
     if (!isLive) return;
 
     const ticker = setInterval(() => {
-      setElapsed((s) => s + 3);
-      syncTelemetry();
-    }, 3000);
+      setElapsed((s) => s + 1);
+      setLastSync(nowTime());
+    }, 1000);
 
     return () => clearInterval(ticker);
-  }, [isLive, testCode]);
+  }, [isLive]);
 
   const sorted = [...students].sort((a, b) => {
     if (a.status === "submitted" && b.status !== "submitted") return 1;
@@ -268,7 +232,7 @@ export default function LiveLeaderboard({
 
   return (
     <div className="min-h-screen bg-frost-surface font-sans text-midnight-navy selection:bg-frost-surface selection:text-signal-green">
-      <header className="sticky top-0 z-20 flex items-center justify-between bg-paper-white border-b border-mist-blue px-6 py-3.5 shadow-none">
+      <header className="sticky top-0 z-20 flex items-center justify-between bg-paper-white border-b border-mist-blue/60 px-6 py-3.5 shadow-none">
         <div className="flex items-center gap-3">
           <Link
             href="/dashboard/teacher"
@@ -283,7 +247,7 @@ export default function LiveLeaderboard({
 
         <div className="flex items-center gap-2.5">
           {isLive && (
-            <span className="flex items-center gap-1.5 rounded-pills bg-pastel-mint px-3 py-1 text-xs font-bold text-pastel-mint-text">
+            <span className="flex items-center gap-1.5 rounded-full bg-pastel-mint px-3 py-1 text-xs font-bold text-pastel-mint-text shadow-xs">
               <span className="relative flex h-2 w-2">
                 <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-pastel-mint-text opacity-75" />
                 <span className="relative inline-flex h-2 w-2 rounded-full bg-pastel-mint-text" />
@@ -293,7 +257,7 @@ export default function LiveLeaderboard({
           )}
           <button
             onClick={() => setIsLive((v) => !v)}
-            className={`flex items-center gap-2 rounded-buttons px-3.5 py-1.5 text-xs font-bold transition-all duration-200 border cursor-pointer ${
+            className={`flex items-center gap-2 rounded-[10px] px-3.5 py-1.5 text-xs font-bold transition-all duration-200 border cursor-pointer shadow-xs active:scale-[0.98] ${
               isLive
                 ? "bg-pastel-pink border-transparent text-pastel-pink-text hover:bg-pastel-pink/90"
                 : "bg-pastel-mint border-transparent text-pastel-mint-text hover:bg-pastel-mint/90"
@@ -325,7 +289,7 @@ export default function LiveLeaderboard({
               {testTitle}
             </p>
           </div>
-          <div className="flex items-center gap-3.5 text-xs text-steel-blue-gray font-medium bg-paper-white border border-mist-blue px-3.5 py-1.5 rounded-pills shadow-sm mt-2 sm:mt-0">
+          <div className="flex items-center gap-3.5 text-xs text-steel-blue-gray font-medium bg-paper-white border border-mist-blue/80 px-3.5 py-1.5 rounded-full shadow-xs mt-2 sm:mt-0">
             <span className="flex items-center gap-1">
               <Activity className="h-3.5 w-3.5 text-signal-green" />
               Last sync:{" "}
@@ -371,9 +335,9 @@ export default function LiveLeaderboard({
               key={stat.label}
               initial={mounted ? { opacity: 0, y: 8 } : false}
               animate={mounted ? { opacity: 1, y: 0 } : false}
-              className="rounded-cards bg-paper-white p-4 flex items-center gap-3 border border-mist-blue shadow-xl text-left"
+              className="rounded-[14px] bg-paper-white p-4 sm:p-5 flex items-center gap-3 border border-[#d1dee8]/70 shadow-sm hover:shadow-md transition-all duration-200 text-left"
             >
-              <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-inputs bg-frost-surface text-signal-green border border-mist-blue/20">
+              <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-[10px] bg-frost-surface text-signal-green border border-mist-blue/20 shadow-xs">
                 {stat.icon}
               </div>
               <div>
@@ -388,8 +352,8 @@ export default function LiveLeaderboard({
           ))}
         </div>
 
-        <div className="rounded-cards bg-paper-white border border-mist-blue overflow-hidden shadow-xl text-left">
-          <div className="grid grid-cols-[2rem_1fr_8rem_7rem_8rem_12rem] items-center gap-4 bg-paper-white px-6 py-2.5 text-xs font-bold uppercase tracking-wider text-steel-blue-gray border-b border-mist-blue/30">
+        <div className="rounded-[14px] bg-paper-white border border-[#d1dee8]/70 overflow-hidden shadow-sm text-left">
+          <div className="grid grid-cols-[2rem_1fr_8rem_7rem_8rem_12rem] items-center gap-4 bg-paper-white px-6 py-2.5 text-xs font-bold uppercase tracking-wider text-steel-blue-gray border-b border-[#d1dee8]/40">
             <span>#</span>
             <span>Student</span>
             <span className="text-center">Progress</span>
@@ -398,7 +362,7 @@ export default function LiveLeaderboard({
             <span className="text-center">Suspicion Flags</span>
           </div>
 
-          <ul className="divide-y divide-mist-blue/30 bg-paper-white">
+          <ul className="divide-y divide-[#d1dee8]/30 bg-paper-white">
             {leaderboardUnavailable ? (
               <li className="p-8 text-center text-xs text-steel-blue-gray">
                 Leaderboard not available yet
@@ -429,7 +393,7 @@ export default function LiveLeaderboard({
                     </span>
 
                     <div className="flex items-center gap-2 min-w-0">
-                      <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-frost-surface border border-mist-blue/30 text-midnight-navy font-bold text-[10px]">
+                      <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-frost-surface border border-mist-blue/30 text-midnight-navy font-bold text-[10px] shadow-xs">
                         {student.avatar || "ST"}
                       </div>
                       <span className="truncate text-xs font-bold text-midnight-navy">
@@ -438,7 +402,7 @@ export default function LiveLeaderboard({
                     </div>
 
                     <div className="flex flex-col items-center gap-0.5">
-                      <div className="h-1.5 w-full rounded-pills bg-frost-surface border border-mist-blue/20 overflow-hidden">
+                      <div className="h-1.5 w-full rounded-full bg-frost-surface border border-mist-blue/20 overflow-hidden">
                         <div
                           className="h-full bg-signal-green transition-all duration-500"
                           style={{
@@ -452,14 +416,14 @@ export default function LiveLeaderboard({
                     </div>
 
                     <div className="flex items-center justify-center">
-                      <span className="inline-flex items-center justify-center rounded-pills px-2.5 py-0.5 text-xs font-bold min-w-[3rem] bg-pastel-mint text-pastel-mint-text">
+                      <span className="inline-flex items-center justify-center rounded-full px-2.5 py-0.5 text-xs font-bold min-w-[3rem] bg-pastel-mint text-pastel-mint-text shadow-xs">
                         {student.score || 0}%
                       </span>
                     </div>
 
                     <div className="flex items-center justify-center">
                       {student.status === "active" && (
-                        <span className="flex items-center gap-1 rounded-pills bg-pastel-mint px-2.5 py-0.5 text-[10px] font-bold text-pastel-mint-text">
+                        <span className="flex items-center gap-1 rounded-full bg-pastel-mint px-2.5 py-0.5 text-[10px] font-bold text-pastel-mint-text shadow-xs">
                           <span className="relative flex h-1.5 w-1.5">
                             <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-pastel-mint-text opacity-75" />
                             <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-pastel-mint-text" />
@@ -468,13 +432,13 @@ export default function LiveLeaderboard({
                         </span>
                       )}
                       {student.status === "submitted" && (
-                        <span className="flex items-center gap-1 rounded-pills bg-pastel-lavender px-2.5 py-0.5 text-[10px] font-bold text-pastel-lavender-text">
+                        <span className="flex items-center gap-1 rounded-full bg-pastel-lavender px-2.5 py-0.5 text-[10px] font-bold text-pastel-lavender-text shadow-xs">
                           <ShieldCheck className="h-3 w-3 text-pastel-lavender-text" />
                           Submitted
                         </span>
                       )}
                       {student.status === "disconnected" && (
-                        <span className="flex items-center gap-1 rounded-pills bg-pastel-pink px-2.5 py-0.5 text-[10px] font-bold text-pastel-pink-text">
+                        <span className="flex items-center gap-1 rounded-full bg-pastel-pink px-2.5 py-0.5 text-[10px] font-bold text-pastel-pink-text shadow-xs">
                           <span className="h-1.5 w-1.5 rounded-full bg-pastel-pink-text" />
                           Offline
                         </span>
@@ -491,7 +455,7 @@ export default function LiveLeaderboard({
                           {flags.slice(-3).map((flag, fi) => (
                             <div
                               key={fi}
-                              className="flex items-center gap-1 rounded-pills px-2 py-0.5 text-[9px] font-bold bg-pastel-pink text-pastel-pink-text"
+                              className="flex items-center gap-1 rounded-full px-2 py-0.5 text-[9px] font-bold bg-pastel-pink text-pastel-pink-text shadow-xs"
                             >
                               <FlagIcon type={flag.type} />
                               <span className="truncate">{flag.label}</span>

@@ -87,7 +87,7 @@ export default function IdentityVerificationPage({
   };
 
   const primaryBtn =
-    "flex w-full items-center justify-center gap-2 rounded-buttons bg-signal-green hover:bg-signal-green/90 py-3 text-xs font-semibold text-white active:scale-[0.98] transition-all duration-200 shadow-none disabled:opacity-40 cursor-pointer border-0";
+    "flex w-full items-center justify-center gap-2 rounded-[10px] bg-signal-green hover:bg-signal-green/90 py-3 text-xs font-bold text-white shadow-sm shadow-signal-green/25 hover:shadow-md active:scale-[0.98] transition-all duration-200 disabled:opacity-40 cursor-pointer border-0";
 
   return (
     <main className="flex min-h-screen items-center justify-center bg-frost-surface text-midnight-navy p-4 font-sans selection:bg-frost-surface selection:text-signal-green">
@@ -95,18 +95,18 @@ export default function IdentityVerificationPage({
         initial={mounted ? { opacity: 0, y: 8 } : false}
         animate={mounted ? { opacity: 1, y: 0 } : false}
         transition={{ duration: 0.25, ease: "easeOut" }}
-        className="w-full max-w-md rounded-cards bg-paper-white p-6 md:p-8 text-center border border-mist-blue shadow-xl relative overflow-hidden text-left"
+        className="w-full max-w-md rounded-[16px] bg-paper-white p-6 md:p-8 text-center border border-mist-blue/70 shadow-xl relative overflow-hidden text-left"
       >
         <div className="mb-5 flex items-center justify-between border-b border-mist-blue/30 pb-3">
           <div className="flex items-center gap-2">
-            <div className="flex h-8 w-8 items-center justify-center rounded-nav bg-signal-green text-white shadow-none">
+            <div className="flex h-8 w-8 items-center justify-center rounded-[8px] bg-signal-green text-white shadow-xs">
               <ShieldCheck className="h-4 w-4 text-white" />
             </div>
             <span className="text-xs font-bold tracking-tight text-midnight-navy">
               Candidate Verification
             </span>
           </div>
-          <span className="text-[10px] font-bold text-steel-blue-gray bg-frost-surface px-2.5 py-0.5 rounded-pills border border-mist-blue/30 font-mono">
+          <span className="text-[10px] font-bold text-steel-blue-gray bg-frost-surface px-2.5 py-0.5 rounded-full border border-mist-blue/30 font-mono shadow-xs">
             {testCode.toUpperCase()}
           </span>
         </div>
@@ -134,7 +134,7 @@ export default function IdentityVerificationPage({
                 type="text"
                 value={sessionCode}
                 onChange={(e) => setSessionCode(e.target.value.toUpperCase())}
-                className="w-full rounded-inputs border border-mist-blue bg-frost-surface py-3 pl-9 pr-3 text-xs font-bold text-midnight-navy outline-none font-mono tracking-widest uppercase"
+                className="w-full rounded-[10px] border border-mist-blue/80 bg-frost-surface py-3 pl-9 pr-3 text-xs font-bold text-midnight-navy outline-none font-mono tracking-widest uppercase focus:border-signal-green focus:bg-white focus:ring-4 focus:ring-signal-green/15 shadow-xs"
                 required
               />
             </div>
@@ -156,7 +156,7 @@ export default function IdentityVerificationPage({
                   setError(null);
                 }}
                 placeholder="e.g. 21BCE1024"
-                className="w-full rounded-inputs border border-mist-blue bg-frost-surface py-3 pl-9 pr-3 text-xs font-bold text-midnight-navy outline-none uppercase placeholder:text-steel-blue-gray/60 focus:border-signal-green focus:ring-2 focus:ring-signal-green/20"
+                className="w-full rounded-[10px] border border-mist-blue/80 bg-frost-surface py-3 pl-9 pr-3 text-xs font-bold text-midnight-navy outline-none uppercase placeholder:text-steel-blue-gray/60 focus:border-signal-green focus:bg-white focus:ring-4 focus:ring-signal-green/15 shadow-xs"
                 required
               />
             </div>

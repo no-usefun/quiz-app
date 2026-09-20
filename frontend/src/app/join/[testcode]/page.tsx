@@ -45,24 +45,34 @@ export default function TestLandingPage({
   const [mounted, setMounted] = useState(false);
   const [quizInfo, setQuizInfo] = useState<any>(null);
   const [registrationNo, setRegistrationNo] = useState("");
+  const [hasExistingAttempt, setHasExistingAttempt] = useState(false);
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     setMounted(true);
+    const cleanCode = testcode.trim().toUpperCase();
+
     if (typeof window !== "undefined") {
       const token = getClientAuthToken();
       if (!token) {
         router.push(`/login?role=student&redirect=/join/${testcode}`);
         return;
       }
+      const existingAttempt = localStorage.getItem(
+        `dynoquizz_attemptId_${cleanCode}`,
+      );
+      if (existingAttempt) {
+        setHasExistingAttempt(true);
+      }
       let userObj: any = null;
       try {
         const rawUser = localStorage.getItem("dynoquizz_user");
         if (rawUser) userObj = JSON.parse(rawUser);
       } catch {}
-      const stored = userObj?.registrationNo || localStorage.getItem("dynoquizz_regNo");
+      const stored =
+        userObj?.registrationNo || localStorage.getItem("dynoquizz_regNo");
       if (stored) setRegistrationNo(stored);
     }
     const fetchQuizDetails = async () => {
@@ -122,12 +132,24 @@ export default function TestLandingPage({
 
   const handleStartExam = async (e: React.FormEvent) => {
     e.preventDefault();
+    const cleanCode = testcode.trim().toUpperCase();
+
+    const existingAttempt =
+      typeof window !== "undefined"
+        ? localStorage.getItem(`dynoquizz_attemptId_${cleanCode}`)
+        : null;
+
+    if (existingAttempt) {
+      // Bypass API call and resume directly
+      router.push(`/test/${cleanCode}`);
+      return;
+    }
+
     if (!registrationNo.trim()) {
       setError("Please enter your registered roll / registration number.");
       return;
     }
 
-    const cleanCode = testcode.trim().toUpperCase();
     const cleanReg = registrationNo.trim().toUpperCase();
 
     setSubmitting(true);
@@ -234,17 +256,17 @@ export default function TestLandingPage({
         initial={mounted ? { opacity: 0, y: 8 } : false}
         animate={mounted ? { opacity: 1, y: 0 } : false}
         transition={{ duration: 0.25, ease: "easeOut" }}
-        className="w-full max-w-xl rounded-cards bg-paper-white p-6 md:p-8 border border-mist-blue shadow-xl text-left"
+        className="w-full max-w-xl rounded-[16px] bg-paper-white p-6 md:p-8 border border-mist-blue/70 shadow-xl text-left"
       >
         <Link
           href="/join"
-          className="inline-flex items-center text-xs font-bold text-steel-blue-gray hover:text-midnight-navy transition-colors mb-5"
+          className="inline-flex items-center text-xs font-bold text-steel-blue-gray hover:text-midnight-navy transition-colors mb-5 group"
         >
-          <ArrowLeft className="mr-1.5 h-3.5 w-3.5" /> Change Access Code
+          <ArrowLeft className="mr-1.5 h-3.5 w-3.5 transition-transform duration-200 group-hover:-translate-x-0.5" /> Change Access Code
         </Link>
 
         <div className="mb-5 text-left">
-          <span className="inline-flex items-center gap-1 rounded-pills bg-pastel-mint text-pastel-mint-text px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wider mb-2">
+          <span className="inline-flex items-center gap-1 rounded-full bg-pastel-mint text-pastel-mint-text px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wider mb-2 shadow-xs">
             <CheckCircle2 className="h-3.5 w-3.5 text-pastel-mint-text" />{" "}
             Assessment Found
           </span>
@@ -258,8 +280,8 @@ export default function TestLandingPage({
         </div>
 
         <div className="grid grid-cols-2 gap-3 mb-6 text-left">
-          <div className="rounded-inputs border border-mist-blue bg-paper-white p-3.5 flex items-center gap-3">
-            <div className="flex h-9 w-9 items-center justify-center rounded-inputs bg-frost-surface text-signal-green border border-mist-blue/30 shadow-none">
+          <div className="rounded-[12px] border border-mist-blue/70 bg-paper-white p-3.5 flex items-center gap-3 shadow-xs">
+            <div className="flex h-9 w-9 items-center justify-center rounded-[10px] bg-frost-surface text-signal-green border border-mist-blue/30 shadow-xs">
               <Clock className="h-4 w-4" />
             </div>
             <div>
@@ -271,8 +293,8 @@ export default function TestLandingPage({
               </p>
             </div>
           </div>
-          <div className="rounded-inputs border border-mist-blue bg-paper-white p-3.5 flex items-center gap-3">
-            <div className="flex h-9 w-9 items-center justify-center rounded-inputs bg-pastel-mint text-pastel-mint-text border border-mist-blue/35 shadow-none">
+          <div className="rounded-[12px] border border-mist-blue/70 bg-paper-white p-3.5 flex items-center gap-3 shadow-xs">
+            <div className="flex h-9 w-9 items-center justify-center rounded-[10px] bg-pastel-mint text-pastel-mint-text border border-mist-blue/35 shadow-xs">
               <CheckCircle2 className="h-4 w-4" />
             </div>
             <div>
@@ -303,7 +325,7 @@ export default function TestLandingPage({
                   setError(null);
                 }}
                 placeholder="e.g. 21BCE1024"
-                className="w-full rounded-inputs border border-mist-blue bg-frost-surface py-3 pl-9 pr-3 text-xs font-bold text-midnight-navy outline-none transition-all placeholder:text-steel-blue-gray/60 focus:border-signal-green focus:ring-2 focus:ring-signal-green/20 uppercase"
+                className="w-full rounded-[10px] border border-mist-blue/80 bg-frost-surface py-3 pl-9 pr-3 text-xs font-bold text-midnight-navy outline-none transition-all placeholder:text-steel-blue-gray/60 focus:border-signal-green focus:bg-white focus:ring-4 focus:ring-signal-green/15 uppercase shadow-xs"
                 required
               />
             </div>
@@ -317,9 +339,13 @@ export default function TestLandingPage({
           <button
             type="submit"
             disabled={submitting}
-            className="flex w-full items-center justify-center gap-2 rounded-buttons bg-signal-green px-4 py-3 text-xs font-bold text-white hover:bg-signal-green/90 active:scale-[0.98] transition-all duration-200 shadow-none cursor-pointer border-0 disabled:opacity-50"
+            className="flex w-full items-center justify-center gap-2 rounded-[10px] bg-signal-green px-4 py-3 text-xs font-bold text-white hover:bg-signal-green/90 active:scale-[0.98] transition-all duration-200 shadow-sm shadow-signal-green/25 hover:shadow-md cursor-pointer border-0 disabled:opacity-50"
           >
-            {submitting ? "Launching..." : "Start Assessment"}{" "}
+            {submitting
+              ? "Launching..."
+              : hasExistingAttempt
+                ? "Resume Assessment"
+                : "Start Assessment"}{" "}
             <PlayCircle className="h-4 w-4 text-white" />
           </button>
         </form>

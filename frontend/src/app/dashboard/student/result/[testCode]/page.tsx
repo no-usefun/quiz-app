@@ -262,9 +262,9 @@ export default function StudentResultPage({
         <motion.div
           initial={mounted ? { opacity: 0, y: 8 } : false}
           animate={mounted ? { opacity: 1, y: 0 } : false}
-          className="w-full max-w-md rounded-[8.8px] bg-white p-8 text-center border border-[#d1dee8] shadow-sm space-y-4 text-left"
+          className="w-full max-w-md rounded-[14px] bg-white p-8 text-center border border-[#d1dee8]/70 shadow-sm space-y-4 text-left"
         >
-          <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-[8.8px] bg-[#f5f5f4] border border-[#d1dee8] text-[#78716b]">
+          <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-[12px] bg-[#f5f5f4] border border-[#d1dee8]/80 text-[#78716b] shadow-xs">
             <FileQuestion className="h-6 w-6" />
           </div>
           <div className="text-center space-y-1">
@@ -283,13 +283,13 @@ export default function StudentResultPage({
           <div className="pt-2 flex flex-col gap-2">
             <Link
               href="/join"
-              className="flex w-full items-center justify-center gap-1.5 rounded-[8.8px] bg-[#165dfb] py-2.5 text-xs font-bold text-white hover:bg-[#165dfb]/90 transition-all border-0"
+              className="flex w-full items-center justify-center gap-1.5 rounded-[10px] bg-[#165dfb] py-2.5 text-xs font-bold text-white hover:bg-[#0f4fd8] active:scale-[0.98] shadow-sm shadow-[#165dfb]/20 transition-all border-0"
             >
               Take Assessment <ChevronRight className="h-3.5 w-3.5 text-white" />
             </Link>
             <Link
               href="/dashboard/student"
-              className="flex w-full items-center justify-center gap-1.5 rounded-[8.8px] bg-[#f5f5f4] py-2.5 text-xs font-bold text-[#111111] hover:bg-[#e6e3e2] transition-all border border-[#d1dee8]"
+              className="flex w-full items-center justify-center gap-1.5 rounded-[10px] bg-[#f5f5f4] py-2.5 text-xs font-bold text-[#111111] hover:bg-[#e6e3e2] hover:border-[#b9cbd9] active:scale-[0.98] shadow-xs transition-all border border-[#d1dee8]/80"
             >
               Return to Dashboard
             </Link>
@@ -322,13 +322,13 @@ export default function StudentResultPage({
           initial={mounted ? { opacity: 0, y: 8 } : false}
           animate={mounted ? { opacity: 1, y: 0 } : false}
           transition={{ duration: 0.25, ease: "easeOut" }}
-          className="w-full max-w-md rounded-[12px] bg-white p-8 text-center border border-[#d1dee8] shadow-sm space-y-5 text-left"
+          className="w-full max-w-md rounded-[14px] bg-white p-8 text-center border border-[#d1dee8]/70 shadow-sm space-y-5 text-left"
         >
-          <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-[#fbeee8] border border-[#8c381c]/30 text-[#8c381c]">
+          <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-[#fbeee8] border border-[#8c381c]/30 text-[#8c381c] shadow-xs">
             <Lock className="h-6 w-6" />
           </div>
           <div className="text-center space-y-1.5">
-            <span className="inline-flex items-center gap-1 rounded-full bg-[#f5f5f4] border border-[#d1dee8] px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wider text-[#78716b]">
+            <span className="inline-flex items-center gap-1 rounded-full bg-[#f5f5f4] border border-[#d1dee8]/80 px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wider text-[#78716b] shadow-xs">
               Pending Instructor Release
             </span>
             <h1 className="text-xl font-black text-[#111111]">
@@ -342,7 +342,7 @@ export default function StudentResultPage({
             </p>
           </div>
 
-          <div className="rounded-[8.8px] bg-[#f5f5f4] border border-[#d1dee8] p-3 text-xs space-y-1.5 font-medium text-[#78716b]">
+          <div className="rounded-[10px] bg-[#f5f5f4] border border-[#d1dee8]/80 p-3.5 text-xs space-y-1.5 font-medium text-[#78716b] shadow-xs">
             <div className="flex justify-between">
               <span>Session Code:</span>
               <strong className="font-mono text-[#111111]">{testCode?.toUpperCase()}</strong>
@@ -359,7 +359,7 @@ export default function StudentResultPage({
 
           <Link
             href="/dashboard/student"
-            className="flex w-full items-center justify-center gap-1.5 rounded-[8.8px] bg-[#111111] py-2.5 text-xs font-bold text-white hover:bg-[#111111]/90 active:scale-[0.98] transition-all border-0"
+            className="flex w-full items-center justify-center gap-1.5 rounded-[10px] bg-[#111111] py-2.5 text-xs font-bold text-white hover:bg-[#222222] active:scale-[0.98] shadow-sm transition-all border-0"
           >
             Return to Student Dashboard{" "}
             <ChevronRight className="h-3.5 w-3.5 text-white" />
@@ -380,7 +380,7 @@ export default function StudentResultPage({
 
   return (
     <div className="min-h-screen bg-[#f5f5f4] font-sans text-[#111111] selection:bg-[#e6e3e2] selection:text-[#165dfb]">
-      <nav className="sticky top-0 z-20 flex items-center justify-between bg-white border-b border-[#d1dee8] px-6 py-4">
+      <nav className="sticky top-0 z-20 flex items-center justify-between bg-white border-b border-[#d1dee8]/70 px-6 py-4">
         <div className="flex items-center gap-3">
           <Link
             href="/dashboard/student"
@@ -392,7 +392,7 @@ export default function StudentResultPage({
           <span className="text-[#d1dee8]">|</span>
           <Logo />
         </div>
-        <span className="rounded-full bg-[#f5f5f4] border border-[#d1dee8] px-3 py-1 font-mono text-xs font-bold text-[#111111]">
+        <span className="rounded-full bg-[#f5f5f4] border border-[#d1dee8]/80 px-3 py-1 font-mono text-xs font-bold text-[#111111] shadow-xs">
           {testCode.toUpperCase()}
         </span>
       </nav>
@@ -411,7 +411,7 @@ export default function StudentResultPage({
           </p>
         </section>
 
-        <section className="rounded-[8.8px] bg-white p-6 border border-[#d1dee8] shadow-sm">
+        <section className="rounded-[14px] bg-white p-6 border border-[#d1dee8]/70 shadow-sm">
           <div className="flex flex-col items-center gap-5 sm:flex-row sm:items-start">
             <div className="relative shrink-0">
               <ScoreRing
@@ -443,8 +443,8 @@ export default function StudentResultPage({
               </div>
 
               <div className="grid grid-cols-2 sm:grid-cols-3 gap-2.5">
-                <div className="rounded-[8.8px] border border-[#d1dee8] bg-white p-3 text-center shadow-sm">
-                  <div className="mx-auto mb-1 inline-flex h-6 w-6 items-center justify-center rounded-[6px] bg-[#f5f5f4] border border-[#d1dee8] text-[#165dfb]">
+                <div className="rounded-[12px] border border-[#d1dee8]/70 bg-white p-3 text-center shadow-xs">
+                  <div className="mx-auto mb-1 inline-flex h-6 w-6 items-center justify-center rounded-[8px] bg-[#f5f5f4] border border-[#d1dee8]/70 text-[#165dfb] shadow-xs">
                     <CheckCircle2 className="h-3.5 w-3.5" />
                   </div>
                   <p className="text-base font-black text-[#111111]">
@@ -455,8 +455,8 @@ export default function StudentResultPage({
                   </p>
                 </div>
 
-                <div className="rounded-[8.8px] border border-[#d1dee8] bg-white p-3 text-center shadow-sm">
-                  <div className="mx-auto mb-1 inline-flex h-6 w-6 items-center justify-center rounded-[6px] bg-[#f5f5f4] border border-[#d1dee8] text-[#1d5237]">
+                <div className="rounded-[12px] border border-[#d1dee8]/70 bg-white p-3 text-center shadow-xs">
+                  <div className="mx-auto mb-1 inline-flex h-6 w-6 items-center justify-center rounded-[8px] bg-[#f5f5f4] border border-[#d1dee8]/70 text-[#1d5237] shadow-xs">
                     <Award className="h-3.5 w-3.5" />
                   </div>
                   <p className="text-base font-black text-[#111111]">
@@ -467,8 +467,8 @@ export default function StudentResultPage({
                   </p>
                 </div>
 
-                <div className="rounded-[8.8px] border border-[#d1dee8] bg-white p-3 text-center shadow-sm">
-                  <div className="mx-auto mb-1 inline-flex h-6 w-6 items-center justify-center rounded-[6px] bg-[#f5f5f4] border border-[#d1dee8] text-[#111111]">
+                <div className="rounded-[12px] border border-[#d1dee8]/70 bg-white p-3 text-center shadow-xs">
+                  <div className="mx-auto mb-1 inline-flex h-6 w-6 items-center justify-center rounded-[8px] bg-[#f5f5f4] border border-[#d1dee8]/70 text-[#111111] shadow-xs">
                     <Clock className="h-3.5 w-3.5" />
                   </div>
                   <p className="text-base font-black text-[#111111]">
@@ -483,13 +483,12 @@ export default function StudentResultPage({
           </div>
         </section>
 
-
         {canRevealSolutions && questions.length > 0 ? (
           <section className="space-y-2.5">
             <h2 className="text-xs font-bold text-[#111111] uppercase tracking-wider">
               Question Breakdown &amp; Solutions
             </h2>
-            <div className="rounded-[8.8px] bg-white border border-[#d1dee8] overflow-hidden divide-y divide-[#d1dee8] shadow-sm">
+            <div className="rounded-[14px] bg-white border border-[#d1dee8]/70 overflow-hidden divide-y divide-[#d1dee8]/40 shadow-sm">
               {questions.map((q: any, idx: number) => {
                 const studentAns = result.answers?.find(
                   (a: any) =>
@@ -499,24 +498,24 @@ export default function StudentResultPage({
                   studentAns?.selectedOption === q.correctOption;
 
                 return (
-                  <div key={idx} className="p-4 space-y-2.5 text-xs">
+                  <div key={idx} className="p-4 sm:p-5 space-y-2.5 text-xs">
                     <div className="flex items-start justify-between gap-2">
                       <p className="font-bold text-[#111111] leading-snug">
                         {idx + 1}. {q.text || q.questionText}
                       </p>
                       {isCorrect ? (
-                        <span className="inline-flex items-center gap-1 rounded-full bg-[#e2ede8] text-[#1d5237] px-2 py-0.5 text-[10px] font-bold shrink-0">
+                        <span className="inline-flex items-center gap-1 rounded-full bg-[#e2ede8] text-[#1d5237] px-2.5 py-0.5 text-[10px] font-bold shrink-0 shadow-xs">
                           <CheckCircle2 className="h-3 w-3" /> Correct
                         </span>
                       ) : (
-                        <span className="inline-flex items-center gap-1 rounded-full bg-[#fbeee8] text-[#8c381c] px-2 py-0.5 text-[10px] font-bold shrink-0">
+                        <span className="inline-flex items-center gap-1 rounded-full bg-[#fbeee8] text-[#8c381c] px-2.5 py-0.5 text-[10px] font-bold shrink-0 shadow-xs">
                           <XCircle className="h-3 w-3" /> Incorrect
                         </span>
                       )}
                     </div>
 
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-[11px]">
-                      <div className="rounded-[6px] bg-[#f5f5f4] p-2 border border-[#d1dee8]">
+                      <div className="rounded-[10px] bg-[#f5f5f4] p-2.5 border border-[#d1dee8]/80 shadow-xs">
                         <span className="text-[#78716b] block text-[9px] uppercase font-bold">
                           Your Answer:
                         </span>
@@ -524,7 +523,7 @@ export default function StudentResultPage({
                           {studentAns?.selectedOption || "Not answered"}
                         </span>
                       </div>
-                      <div className="rounded-[6px] bg-[#e2ede8]/60 p-2 border border-[#1d5237]/20">
+                      <div className="rounded-[10px] bg-[#e2ede8]/60 p-2.5 border border-[#1d5237]/20 shadow-xs">
                         <span className="text-[#1d5237] block text-[9px] uppercase font-bold">
                           Correct Answer:
                         </span>
@@ -539,9 +538,9 @@ export default function StudentResultPage({
             </div>
           </section>
         ) : (
-          <section className="rounded-[8.8px] bg-white border border-[#d1dee8] p-4 shadow-sm flex items-center justify-between">
+          <section className="rounded-[14px] bg-white border border-[#d1dee8]/70 p-5 shadow-sm flex items-center justify-between">
             <div className="flex items-center gap-3">
-              <div className="flex h-10 w-10 items-center justify-center rounded-[8.8px] bg-[#f5f5f4] border border-[#d1dee8] text-[#78716b]">
+              <div className="flex h-10 w-10 items-center justify-center rounded-[10px] bg-[#f5f5f4] border border-[#d1dee8]/70 text-[#78716b] shadow-xs">
                 <FileQuestion className="h-5 w-5" />
               </div>
               <div>
@@ -559,7 +558,7 @@ export default function StudentResultPage({
         <section className="flex justify-end pt-2">
           <Link
             href="/dashboard/student"
-            className="flex items-center gap-1.5 rounded-[8.8px] bg-[#165dfb] px-5 py-2.5 text-xs font-bold text-white hover:bg-[#165dfb]/90 active:scale-[0.98] transition-all border-0 shadow-sm"
+            className="flex items-center gap-1.5 rounded-[10px] bg-[#165dfb] px-5 py-2.5 text-xs font-bold text-white hover:bg-[#0f4fd8] active:scale-[0.98] transition-all border-0 shadow-sm shadow-[#165dfb]/20"
           >
             Return to Dashboard <ChevronRight className="h-4 w-4 text-white" />
           </Link>

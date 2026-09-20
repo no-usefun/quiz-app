@@ -7,11 +7,11 @@ import { motion } from "framer-motion";
 import {
   Plus,
   Users,
-  BarChart3,
   Copy,
   CheckCircle2,
   FileQuestion,
   BookOpen,
+  Settings,
 } from "lucide-react";
 import { TopNav } from "@/components/TopNav";
 import { useSession } from "@/hooks/useSession";
@@ -272,6 +272,7 @@ export default function TeacherDashboard() {
     }
   };
 
+
   const displayName =
     user?.firstName ||
     user?.name?.split(" ")[0] ||
@@ -324,7 +325,7 @@ export default function TeacherDashboard() {
 
           <Link
             href="/dashboard/teacher/create"
-            className="inline-flex items-center justify-center gap-1.5 rounded-[8.8px] bg-[#165dfb] px-4 py-2.5 text-xs font-bold text-white hover:bg-[#165dfb]/90 active:scale-[0.98] transition-all border-0 shadow-none"
+            className="inline-flex items-center justify-center gap-1.5 rounded-[10px] bg-[#165dfb] px-4 py-2.5 text-xs font-bold text-white hover:bg-[#0f4fd8] shadow-sm shadow-[#165dfb]/20 active:scale-[0.98] transition-all"
           >
             <Plus className="h-4 w-4 text-white" />
             Create Assessment
@@ -332,7 +333,7 @@ export default function TeacherDashboard() {
         </section>
 
         <section className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-          <div className="rounded-[8.8px] border border-[#d1dee8] bg-white p-4">
+          <div className="rounded-[14px] border border-[#d1dee8]/70 bg-white p-4 sm:p-5 shadow-sm hover:shadow-md transition-all duration-200">
             <span className="text-[10px] font-bold uppercase tracking-wider text-[#78716b]">
               Total Assessments
             </span>
@@ -340,7 +341,7 @@ export default function TeacherDashboard() {
               {loading ? "..." : tests.length}
             </p>
           </div>
-          <div className="rounded-[8.8px] border border-[#d1dee8] bg-white p-4">
+          <div className="rounded-[14px] border border-[#d1dee8]/70 bg-white p-4 sm:p-5 shadow-sm hover:shadow-md transition-all duration-200">
             <span className="text-[10px] font-bold uppercase tracking-wider text-[#1d5237]">
               Live Sessions
             </span>
@@ -348,7 +349,7 @@ export default function TeacherDashboard() {
               {loading ? "..." : liveCount}
             </p>
           </div>
-          <div className="rounded-[8.8px] border border-[#d1dee8] bg-white p-4">
+          <div className="rounded-[14px] border border-[#d1dee8]/70 bg-white p-4 sm:p-5 shadow-sm hover:shadow-md transition-all duration-200">
             <span className="text-[10px] font-bold uppercase tracking-wider text-[#92400e]">
               Draft Assessments
             </span>
@@ -356,7 +357,7 @@ export default function TeacherDashboard() {
               {loading ? "..." : draftCount}
             </p>
           </div>
-          <div className="rounded-[8.8px] border border-[#d1dee8] bg-white p-4">
+          <div className="rounded-[14px] border border-[#d1dee8]/70 bg-white p-4 sm:p-5 shadow-sm hover:shadow-md transition-all duration-200">
             <span className="text-[10px] font-bold uppercase tracking-wider text-[#6b21a8]">
               Completed
             </span>
@@ -378,23 +379,23 @@ export default function TeacherDashboard() {
 
           <div className="grid gap-3.5">
             {loading ? (
-              <div className="rounded-[8.8px] bg-white border border-[#d1dee8] p-10 text-center text-xs text-[#78716b]">
+              <div className="rounded-[14px] bg-white border border-[#d1dee8]/70 p-10 text-center text-xs text-[#78716b] shadow-sm">
                 Loading assessments roster...
               </div>
             ) : fetchError ? (
-              <div className="rounded-[8.8px] bg-[#fbeee8] border border-[#8c381c]/30 p-8 text-center space-y-3">
+              <div className="rounded-[14px] bg-[#fbeee8] border border-[#8c381c]/30 p-8 text-center space-y-3 shadow-sm">
                 <p className="font-bold text-[#8c381c] text-sm">{fetchError}</p>
                 <button
                   type="button"
                   onClick={fetchQuizzes}
-                  className="inline-flex items-center gap-1.5 rounded-[8.8px] bg-[#8c381c] px-4 py-2 text-xs font-bold text-white hover:bg-[#8c381c]/90 transition-all cursor-pointer border-0"
+                  className="inline-flex items-center gap-1.5 rounded-[10px] bg-[#8c381c] px-4 py-2 text-xs font-bold text-white hover:bg-[#8c381c]/90 shadow-xs active:scale-[0.98] transition-all cursor-pointer border-0"
                 >
                   Retry Loading
                 </button>
               </div>
             ) : tests.length === 0 ? (
-              <div className="rounded-[8.8px] bg-white border border-[#d1dee8] p-10 text-center space-y-3">
-                <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-[8.8px] bg-[#f5f5f4] text-[#78716b] border border-[#d1dee8]">
+              <div className="rounded-[14px] bg-white border border-[#d1dee8]/70 p-10 text-center space-y-3 shadow-sm">
+                <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-[12px] bg-[#f5f5f4] text-[#78716b] border border-[#d1dee8]/70">
                   <FileQuestion className="h-6 w-6 text-[#78716b]" />
                 </div>
                 <div>
@@ -408,7 +409,7 @@ export default function TeacherDashboard() {
                 </div>
                 <Link
                   href="/dashboard/teacher/create"
-                  className="inline-flex items-center gap-1.5 rounded-[8.8px] bg-[#165dfb] px-4 py-2 text-xs font-bold text-white hover:bg-[#165dfb]/90 transition-all border-0"
+                  className="inline-flex items-center gap-1.5 rounded-[10px] bg-[#165dfb] px-4 py-2 text-xs font-bold text-white hover:bg-[#0f4fd8] shadow-sm shadow-[#165dfb]/20 active:scale-[0.98] transition-all"
                 >
                   <Plus className="h-3.5 w-3.5 text-white" /> Create Assessment
                 </Link>
@@ -420,17 +421,18 @@ export default function TeacherDashboard() {
                 const name = test.title || "Assessment";
                 const displayState: QuizDisplayState = test.displayState;
 
-                // The whole card is clickable and goes to the state's primary page
+                // The whole card is clickable and goes to the state's primary page.
+                // Draft cards have no navigation destination — only the explicit
+                // "Publish" button (inside the stopPropagation wrapper) should act.
                 const handleCardClick = () => {
                   switch (displayState) {
                     case "Draft":
-                      handlePublishQuiz(quizId);
+                      // Do nothing: publishing is only triggered by the explicit
+                      // "Publish" button inside the action buttons area.
                       break;
                     case "Scheduled":
-                      router.push(`/dashboard/teacher/share/${code}`);
-                      break;
                     case "Live":
-                      router.push(`/dashboard/teacher/live/${code}`);
+                      router.push(`/dashboard/teacher/share/${code}`);
                       break;
                     case "Ended":
                     case "Completed":
@@ -456,12 +458,12 @@ export default function TeacherDashboard() {
                       duration: 0.2,
                       ease: "easeOut",
                     }}
-                    className="flex flex-col rounded-[8.8px] bg-white border border-[#d1dee8] p-4 sm:flex-row sm:items-center sm:justify-between gap-4 hover:border-[#165dfb]/40 transition-all duration-200 cursor-pointer"
+                    className="flex flex-col rounded-[14px] bg-white border border-[#d1dee8]/70 p-4 sm:p-5 sm:flex-row sm:items-center sm:justify-between gap-4 shadow-sm hover:border-[#165dfb]/40 hover:shadow-md hover:-translate-y-[1px] transition-all duration-200 cursor-pointer"
                   >
-                    <div className="min-w-0 space-y-1">
+                    <div className="min-w-0 space-y-1.5">
                       <div className="flex items-center gap-2">
                         <span
-                          className={`flex items-center gap-1.5 rounded-[8.8px] px-2.5 py-0.5 text-[9px] font-bold ${getBadgeStyle(
+                          className={`flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-[9px] font-bold ${getBadgeStyle(
                             displayState,
                           )}`}
                         >
@@ -524,20 +526,30 @@ export default function TeacherDashboard() {
                       onClick={(e) => e.stopPropagation()}
                     >
                       {displayState === "Draft" && (
-                        <button
-                          type="button"
-                          onClick={() => handlePublishQuiz(quizId)}
-                          disabled={actionLoading}
-                          className="flex items-center gap-1 rounded-[8.8px] bg-[#165dfb] px-3.5 py-1.5 text-xs font-bold text-white hover:bg-[#165dfb]/90 active:scale-[0.98] transition-all border-0 cursor-pointer disabled:opacity-50"
-                        >
-                          Publish
-                        </button>
+                        <>
+                          <Link
+                            href={`/dashboard/teacher/create?draftId=${test.quizId || (test as any).id || quizId}`}
+                            className="flex items-center gap-1 rounded-[10px] border border-[#d1dee8]/80 bg-white px-3 py-1.5 text-xs font-bold text-[#111111] hover:bg-[#f5f5f4] hover:border-[#b9cbd9] shadow-xs active:scale-[0.98] transition-all cursor-pointer"
+                          >
+                            <Settings className="h-3 w-3 text-[#78716b]" />
+                            Edit Draft
+                          </Link>
+                          <button
+                            type="button"
+                            onClick={() => handlePublishQuiz(quizId)}
+                            disabled={actionLoading}
+                            className="flex items-center gap-1 rounded-[10px] bg-[#165dfb] px-3.5 py-1.5 text-xs font-bold text-white hover:bg-[#0f4fd8] shadow-xs active:scale-[0.98] transition-all border-0 cursor-pointer disabled:opacity-50"
+                          >
+                            Publish
+                          </button>
+                        </>
                       )}
+
 
                       {displayState === "Scheduled" && (
                         <Link
                           href={`/dashboard/teacher/share/${code}`}
-                          className="flex items-center gap-1 rounded-[8.8px] border border-[#d1dee8] bg-[#f5f5f4] px-3 py-1.5 text-xs font-bold text-[#111111] hover:bg-[#e6e3e2] active:scale-[0.98] transition-all cursor-pointer"
+                          className="flex items-center gap-1 rounded-[10px] border border-[#d1dee8]/80 bg-[#f5f5f4] px-3 py-1.5 text-xs font-bold text-[#111111] hover:bg-[#e6e3e2] hover:border-[#b9cbd9] shadow-xs active:scale-[0.98] transition-all cursor-pointer"
                         >
                           Share
                         </Link>
@@ -546,14 +558,8 @@ export default function TeacherDashboard() {
                       {displayState === "Live" && (
                         <>
                           <Link
-                            href={`/dashboard/teacher/live/${code}`}
-                            className="flex items-center gap-1 rounded-[8.8px] bg-[#165dfb] px-3 py-1.5 text-xs font-bold text-white hover:bg-[#165dfb]/90 active:scale-[0.98] transition-all border-0 cursor-pointer"
-                          >
-                            <BarChart3 className="h-3 w-3 text-white" /> Live Monitor
-                          </Link>
-                          <Link
                             href={`/dashboard/teacher/share/${code}`}
-                            className="flex items-center gap-1 rounded-[8.8px] border border-[#d1dee8] bg-[#f5f5f4] px-3 py-1.5 text-xs font-bold text-[#111111] hover:bg-[#e6e3e2] active:scale-[0.98] transition-all cursor-pointer"
+                            className="flex items-center gap-1 rounded-[10px] border border-[#d1dee8]/80 bg-[#f5f5f4] px-3 py-1.5 text-xs font-bold text-[#111111] hover:bg-[#e6e3e2] hover:border-[#b9cbd9] shadow-xs active:scale-[0.98] transition-all cursor-pointer"
                           >
                             Share
                           </Link>
@@ -567,7 +573,7 @@ export default function TeacherDashboard() {
                               })
                             }
                             disabled={actionLoading}
-                            className="flex items-center gap-1 rounded-[8.8px] border border-[#8c381c]/30 bg-[#fbeee8] px-3 py-1.5 text-xs font-bold text-[#8c381c] hover:bg-[#8c381c]/10 active:scale-[0.98] transition-all cursor-pointer disabled:opacity-50"
+                            className="flex items-center gap-1 rounded-[10px] border border-[#8c381c]/30 bg-[#fbeee8] px-3 py-1.5 text-xs font-bold text-[#8c381c] hover:bg-[#8c381c]/15 shadow-xs active:scale-[0.98] transition-all cursor-pointer disabled:opacity-50"
                           >
                             End Quiz
                           </button>
@@ -580,7 +586,7 @@ export default function TeacherDashboard() {
                         <>
                           <Link
                             href={`/dashboard/teacher/assessment/${code}`}
-                            className="flex items-center gap-1 rounded-[8.8px] border border-[#d1dee8] bg-white px-3 py-1.5 text-xs font-bold text-[#111111] hover:bg-[#f5f5f4] active:scale-[0.98] transition-all cursor-pointer"
+                            className="flex items-center gap-1 rounded-[10px] border border-[#d1dee8]/80 bg-white px-3 py-1.5 text-xs font-bold text-[#111111] hover:bg-[#f5f5f4] hover:border-[#b9cbd9] shadow-xs active:scale-[0.98] transition-all cursor-pointer"
                           >
                             Results & Leaderboard
                           </Link>
@@ -596,7 +602,7 @@ export default function TeacherDashboard() {
                                 })
                               }
                               disabled={actionLoading}
-                              className="flex items-center gap-1 rounded-[8.8px] border border-[#8c381c]/30 bg-[#fbeee8] px-3 py-1.5 text-xs font-bold text-[#8c381c] hover:bg-[#8c381c]/10 active:scale-[0.98] transition-all cursor-pointer disabled:opacity-50"
+                              className="flex items-center gap-1 rounded-[10px] border border-[#8c381c]/30 bg-[#fbeee8] px-3 py-1.5 text-xs font-bold text-[#8c381c] hover:bg-[#8c381c]/15 shadow-xs active:scale-[0.98] transition-all cursor-pointer disabled:opacity-50"
                             >
                               End Quiz
                             </button>
@@ -618,7 +624,7 @@ export default function TeacherDashboard() {
                                     ? "End quiz before publishing results"
                                     : "Publish Results"
                                 }
-                                className="flex items-center gap-1 rounded-[8.8px] bg-[#1d5237] px-3 py-1.5 text-xs font-bold text-white hover:bg-[#1d5237]/90 active:scale-[0.98] transition-all border-0 cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
+                                className="flex items-center gap-1 rounded-[10px] bg-[#1d5237] px-3 py-1.5 text-xs font-bold text-white hover:bg-[#153e2a] shadow-xs active:scale-[0.98] transition-all border-0 cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
                               >
                                 Publish Results
                               </button>
@@ -627,7 +633,7 @@ export default function TeacherDashboard() {
                                 type="button"
                                 disabled={actionLoading}
                                 onClick={() => handleUnpublishResults(quizId)}
-                                className="flex items-center gap-1 rounded-[8.8px] border border-[#d1dee8] bg-white px-3 py-1.5 text-xs font-bold text-[#78716b] hover:bg-[#f5f5f4] active:scale-[0.98] transition-all cursor-pointer disabled:opacity-50"
+                                className="flex items-center gap-1 rounded-[10px] border border-[#d1dee8]/80 bg-white px-3 py-1.5 text-xs font-bold text-[#78716b] hover:bg-[#f5f5f4] hover:border-[#b9cbd9] shadow-xs active:scale-[0.98] transition-all cursor-pointer disabled:opacity-50"
                               >
                                 Unpublish Results
                               </button>
@@ -646,8 +652,8 @@ export default function TeacherDashboard() {
 
       {/* Confirmation modal for End Assessment */}
       {quizToEnd && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-midnight-navy/40 backdrop-blur-sm p-4 text-left">
-          <div className="w-full max-w-sm rounded-[14px] border border-[#d1dee8] bg-white p-6 shadow-2xl space-y-4">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4 text-left">
+          <div className="w-full max-w-sm rounded-[14px] border border-[#d1dee8]/80 bg-white p-6 shadow-2xl space-y-4 animate-in fade-in zoom-in-95 duration-150">
             <h3 className="text-base font-extrabold text-[#111111]">
               End Assessment?
             </h3>
@@ -669,7 +675,7 @@ export default function TeacherDashboard() {
                   setActionError(null);
                 }}
                 disabled={actionLoading}
-                className="rounded-[8.8px] border border-[#d1dee8] px-3.5 py-1.5 text-xs font-bold text-[#78716b] hover:bg-[#f5f5f4] transition-all disabled:opacity-50 cursor-pointer"
+                className="rounded-[10px] border border-[#d1dee8]/80 bg-white px-3.5 py-1.5 text-xs font-bold text-[#78716b] hover:bg-[#f5f5f4] hover:border-[#b9cbd9] shadow-xs transition-all disabled:opacity-50 cursor-pointer"
               >
                 Cancel
               </button>
@@ -677,7 +683,7 @@ export default function TeacherDashboard() {
                 type="button"
                 onClick={confirmEndQuiz}
                 disabled={actionLoading}
-                className="inline-flex items-center gap-1.5 rounded-[8.8px] bg-[#8c381c] px-3.5 py-1.5 text-xs font-bold text-white hover:bg-[#6e2b14] active:scale-[0.98] transition-all disabled:opacity-50 cursor-pointer border-0"
+                className="inline-flex items-center gap-1.5 rounded-[10px] bg-[#8c381c] px-3.5 py-1.5 text-xs font-bold text-white hover:bg-[#6e2b14] shadow-xs active:scale-[0.98] transition-all disabled:opacity-50 cursor-pointer border-0"
               >
                 {actionLoading && (
                   <span className="h-3 w-3 animate-spin rounded-full border-2 border-white/30 border-t-white" />
@@ -691,3 +697,4 @@ export default function TeacherDashboard() {
     </div>
   );
 }
+

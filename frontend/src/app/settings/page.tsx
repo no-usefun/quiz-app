@@ -87,7 +87,7 @@ function TextInput({
         value={value}
         onChange={onChange}
         disabled={disabled}
-        className={`w-full rounded-[8.8px] border border-[#d1dee8] py-2.5 text-xs text-[#111111] outline-none transition-all placeholder:text-[#78716b]/60 focus:border-[#165dfb] focus:bg-white font-medium ${
+        className={`w-full rounded-[10px] border border-[#d1dee8]/70 py-2.5 text-xs text-[#111111] outline-none transition-all placeholder:text-[#78716b]/60 focus:border-[#165dfb] focus:ring-4 focus:ring-[#165dfb]/10 focus:bg-white font-medium shadow-xs ${
           disabled ? "bg-[#f5f5f4] cursor-not-allowed opacity-75" : "bg-[#e6e3e2]/40"
         } ${icon ? "pl-9" : "pl-3"} ${rightSlot ? "pr-9" : "pr-3"}`}
       />
@@ -111,7 +111,7 @@ function Toggle({
 }) {
   const [on, setOn] = useState(defaultChecked);
   return (
-    <div className="flex items-start justify-between gap-4 rounded-[8.8px] border border-[#d1dee8] bg-[#e6e3e2]/40 px-4 py-3.5 transition-colors">
+    <div className="flex items-start justify-between gap-4 rounded-[10px] border border-[#d1dee8]/70 bg-[#e6e3e2]/40 px-4 py-3.5 transition-colors shadow-xs">
       <div className="flex-1 min-w-0 text-left">
         <p className="text-xs font-bold text-[#111111]">{label}</p>
         {description && (
@@ -222,10 +222,10 @@ function ProfilePanel({ onSave, user }: { onSave: () => void; user: any }) {
       {/* Avatar */}
       <div className="flex items-center gap-3.5 text-left">
         <div className="relative">
-          <div className="flex h-14 w-14 items-center justify-center rounded-full bg-[#165dfb] text-lg font-bold text-white shadow-none">
+          <div className="flex h-14 w-14 items-center justify-center rounded-full bg-[#165dfb] text-lg font-bold text-white shadow-xs">
             {initial}
           </div>
-          <button className="absolute -bottom-0.5 -right-0.5 flex h-5 w-5 items-center justify-center rounded-full bg-[#f5f5f4] border border-[#d1dee8] text-[#78716b] shadow-none cursor-pointer">
+          <button className="absolute -bottom-0.5 -right-0.5 flex h-5 w-5 items-center justify-center rounded-full bg-[#f5f5f4] border border-[#d1dee8]/70 text-[#78716b] shadow-xs cursor-pointer">
             <User className="h-3 w-3 text-[#78716b]" />
           </button>
         </div>
@@ -243,7 +243,7 @@ function ProfilePanel({ onSave, user }: { onSave: () => void; user: any }) {
       <div className="h-px bg-[#d1dee8]/30" />
 
       {error && (
-        <div className="flex items-center gap-2 rounded-[8.8px] bg-[#fbeee8] border border-[#8c381c]/30 p-3 text-xs text-[#8c381c] font-semibold">
+        <div className="flex items-center gap-2 rounded-[10px] bg-[#fbeee8] border border-[#8c381c]/30 p-3 text-xs text-[#8c381c] font-semibold shadow-xs">
           <AlertTriangle className="h-4 w-4 shrink-0" />
           <span>{error}</span>
         </div>
@@ -288,7 +288,7 @@ function ProfilePanel({ onSave, user }: { onSave: () => void; user: any }) {
         <button
           onClick={handleSaveProfile}
           disabled={saving}
-          className="flex items-center gap-1.5 rounded-[8.8px] bg-[#165dfb] px-4 py-2 text-xs font-bold text-white hover:bg-[#165dfb]/90 transition-all cursor-pointer border-0 disabled:opacity-50"
+          className="flex items-center gap-1.5 rounded-[10px] bg-[#165dfb] px-4 py-2 text-xs font-bold text-white hover:bg-[#165dfb]/90 active:scale-[0.98] transition-all cursor-pointer border-0 shadow-xs disabled:opacity-50"
         >
           <Save className="h-3.5 w-3.5" />
           {saving ? "Saving..." : "Save Changes"}
@@ -352,10 +352,10 @@ function PreferencesPanel({ onSave }: { onSave: () => void }) {
                 key={t.id}
                 type="button"
                 onClick={() => setTheme(t.id)}
-                className={`flex flex-col items-center gap-1.5 rounded-[8.8px] border py-3 text-xs font-bold transition-all duration-150 cursor-pointer ${
+                className={`flex flex-col items-center gap-1.5 rounded-[10px] border py-3 text-xs font-bold transition-all duration-150 cursor-pointer shadow-xs active:scale-[0.98] ${
                   isActive
-                    ? "border-[#165dfb] bg-[#e6e3e2]/40 text-[#165dfb]"
-                    : "border-[#d1dee8] bg-white text-[#78716b] hover:border-[#d1dee8]/70 hover:text-[#111111]"
+                    ? "border-[#165dfb] bg-[#165dfb]/5 text-[#165dfb] ring-2 ring-[#165dfb]/20"
+                    : "border-[#d1dee8]/70 bg-white text-[#78716b] hover:border-[#165dfb]/40 hover:text-[#111111]"
                 }`}
               >
                 {t.icon}
@@ -369,7 +369,7 @@ function PreferencesPanel({ onSave }: { onSave: () => void }) {
       <div className="flex justify-end pt-2">
         <button
           onClick={onSave}
-          className="flex items-center gap-1.5 rounded-[8.8px] bg-[#165dfb] px-4 py-2 text-xs font-bold text-white hover:bg-[#165dfb]/90 transition-all cursor-pointer border-0"
+          className="flex items-center gap-1.5 rounded-[10px] bg-[#165dfb] px-4 py-2 text-xs font-bold text-white hover:bg-[#165dfb]/90 active:scale-[0.98] transition-all cursor-pointer border-0 shadow-xs"
         >
           <Save className="h-3.5 w-3.5" />
           Save Preferences
@@ -449,14 +449,14 @@ function SecurityPanel({ onSave }: { onSave: () => void }) {
         <h3 className="mb-2.5 text-[10px] font-bold uppercase tracking-wider text-[#78716b] text-left">
           Two-Factor Authentication
         </h3>
-        <div className="flex items-center justify-between rounded-[8.8px] border border-[#d1dee8] bg-[#e6e3e2]/40 p-3.5 text-left">
+        <div className="flex items-center justify-between rounded-[10px] border border-[#d1dee8]/70 bg-[#e6e3e2]/40 p-3.5 text-left shadow-xs">
           <div>
             <p className="text-xs font-bold text-[#111111]">Authenticator App</p>
             <p className="mt-0.5 text-[10px] text-[#78716b] font-medium">
               Use Google Authenticator or Authy to generate one-time codes.
             </p>
           </div>
-          <button className="flex items-center gap-1.5 rounded-[8.8px] border border-[#d1dee8] bg-white px-3.5 py-1.5 text-xs font-bold text-[#111111] hover:bg-[#e6e3e2] active:scale-[0.98] transition-all cursor-pointer">
+          <button className="flex items-center gap-1.5 rounded-[10px] border border-[#d1dee8]/70 bg-white px-3.5 py-1.5 text-xs font-bold text-[#111111] hover:bg-[#e6e3e2] active:scale-[0.98] transition-all cursor-pointer shadow-xs">
             Set up <ChevronRight className="h-3 w-3 text-[#78716b]" />
           </button>
         </div>
@@ -465,7 +465,7 @@ function SecurityPanel({ onSave }: { onSave: () => void }) {
       <div className="flex justify-end pt-2">
         <button
           onClick={onSave}
-          className="flex items-center gap-1.5 rounded-[8.8px] bg-[#165dfb] px-4 py-2 text-xs font-bold text-white hover:bg-[#165dfb]/90 transition-all cursor-pointer border-0"
+          className="flex items-center gap-1.5 rounded-[10px] bg-[#165dfb] px-4 py-2 text-xs font-bold text-white hover:bg-[#165dfb]/90 active:scale-[0.98] transition-all cursor-pointer border-0 shadow-xs"
         >
           <Save className="h-3.5 w-3.5" />
           Update Password
@@ -484,9 +484,9 @@ function DangerPanel() {
   return (
     <div className="space-y-4">
       {/* Sign out all devices */}
-      <div className="flex items-start justify-between gap-4 rounded-[8.8px] border border-[#73561a]/20 bg-[#f6efe1] p-4 text-left">
+      <div className="flex items-start justify-between gap-4 rounded-[10px] border border-[#73561a]/20 bg-[#f6efe1] p-4 text-left shadow-xs">
         <div className="flex gap-2.5">
-          <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-[8.8px] bg-white text-[#73561a] border border-[#d1dee8]/30">
+          <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-[8px] bg-white text-[#73561a] border border-[#d1dee8]/70 shadow-xs">
             <LogOut className="h-4 w-4" />
           </div>
           <div>
@@ -498,16 +498,16 @@ function DangerPanel() {
         </div>
         <button
           onClick={logout}
-          className="shrink-0 rounded-[8.8px] border border-[#73561a]/30 bg-white px-3 py-1 text-[10px] font-bold text-[#73561a] hover:bg-[#f6efe1]/30 transition-colors cursor-pointer"
+          className="shrink-0 rounded-[10px] border border-[#73561a]/30 bg-white px-3 py-1.5 text-[10px] font-bold text-[#73561a] hover:bg-[#f6efe1]/30 active:scale-[0.98] transition-all cursor-pointer shadow-xs"
         >
           Sign out all
         </button>
       </div>
 
       {/* Delete account */}
-      <div className="rounded-[8.8px] border border-[#8c381c]/20 bg-[#fbeee8] p-4 text-left">
+      <div className="rounded-[10px] border border-[#8c381c]/20 bg-[#fbeee8] p-4 text-left shadow-xs">
         <div className="mb-3 flex gap-2.5">
-          <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-[8.8px] bg-white text-[#8c381c] border border-[#d1dee8]/30">
+          <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-[8px] bg-white text-[#8c381c] border border-[#d1dee8]/70 shadow-xs">
             <Trash2 className="h-4 w-4" />
           </div>
           <div>
@@ -521,7 +521,7 @@ function DangerPanel() {
         <div className="space-y-2">
           <label className="block text-[10px] font-bold text-[#8c381c]">
             Type{" "}
-            <span className="rounded bg-white px-1 py-0.5 font-mono text-[#8c381c]">
+            <span className="rounded-[6px] bg-white px-1.5 py-0.5 font-mono text-[#8c381c] border border-[#8c381c]/20">
               {CONFIRM_PHRASE}
             </span>{" "}
             to confirm:
@@ -531,17 +531,17 @@ function DangerPanel() {
             value={confirmText}
             onChange={(e) => setConfirmText(e.target.value)}
             placeholder={CONFIRM_PHRASE}
-            className="w-full rounded-[8.8px] border border-[#8c381c]/30 bg-white px-3 py-2 text-xs text-[#8c381c] outline-none transition-colors placeholder:text-[#8c381c]/40 focus:border-[#8c381c]/75 font-medium"
+            className="w-full rounded-[10px] border border-[#8c381c]/30 bg-white px-3 py-2 text-xs text-[#8c381c] outline-none transition-colors placeholder:text-[#8c381c]/40 focus:border-[#8c381c]/75 font-medium shadow-xs"
           />
           <button
             disabled={!ready}
-            className={`flex w-full items-center justify-center gap-1.5 rounded-[8.8px] px-4 py-2 text-xs font-bold transition-all duration-200 cursor-pointer border-0 ${
+            className={`flex w-full items-center justify-center gap-1.5 rounded-[10px] px-4 py-2.5 text-xs font-bold transition-all duration-200 cursor-pointer border-0 shadow-xs active:scale-[0.98] ${
               ready
-                ? "bg-[#fbeee8] text-[#8c381c] hover:bg-[#fbeee8]/90 hover:text-white"
+                ? "bg-[#8c381c] text-white hover:bg-[#8c381c]/90"
                 : "cursor-not-allowed bg-[#fbeee8]/50 text-[#8c381c]/50"
             }`}
           >
-            <AlertTriangle className="h-4 w-4 animate-pulse" />
+            <AlertTriangle className="h-4 w-4" />
             Permanently Delete My Account
           </button>
         </div>
@@ -571,7 +571,7 @@ export default function SettingsPage() {
   return (
     <div className="min-h-screen bg-[#f5f5f4] font-sans text-[#111111] flex overflow-hidden">
       {/* Left Sidebar Navigation */}
-      <aside className="w-64 bg-[#f5f5f4] border-r border-[#d1dee8] flex flex-col shrink-0">
+      <aside className="w-64 bg-[#f5f5f4] border-r border-[#d1dee8]/70 flex flex-col shrink-0">
         {/* Header Logo */}
         <div className="p-6 border-b border-[#d1dee8]/50">
           <Logo />
@@ -581,14 +581,14 @@ export default function SettingsPage() {
         <nav className="flex-1 p-4 space-y-1 text-left">
           <Link
             href={dashboardHref}
-            className="flex items-center gap-2.5 rounded-[8.8px] px-3.5 py-2.5 text-xs font-bold text-[#78716b] hover:bg-[#e6e3e2] hover:text-[#111111] transition-all"
+            className="flex items-center gap-2.5 rounded-[10px] px-3.5 py-2.5 text-xs font-bold text-[#78716b] hover:bg-[#e6e3e2] hover:text-[#111111] active:scale-[0.98] transition-all"
           >
             <LayoutDashboard className="h-4 w-4 text-[#78716b]" />
             Dashboard
           </Link>
           <Link
             href="/settings"
-            className="flex items-center gap-2.5 rounded-[8.8px] px-3.5 py-2.5 text-xs font-bold bg-[#165dfb] text-white transition-all border-0"
+            className="flex items-center gap-2.5 rounded-[10px] px-3.5 py-2.5 text-xs font-bold bg-[#165dfb] text-white shadow-xs transition-all border-0"
           >
             <SettingsIcon className="h-4 w-4 text-white" />
             Settings
@@ -598,7 +598,7 @@ export default function SettingsPage() {
         {/* User Card & Sign Out bottom */}
         <div className="p-4 border-t border-[#d1dee8]/50 text-left space-y-3">
           <div className="flex items-center gap-2.5 px-2.5 py-1">
-            <div className="flex h-8 w-8 items-center justify-center rounded-full bg-[#e6e3e2] border border-[#d1dee8] text-xs font-bold text-[#111111]">
+            <div className="flex h-8 w-8 items-center justify-center rounded-full bg-[#e6e3e2] border border-[#d1dee8]/70 text-xs font-bold text-[#111111]">
               {user?.name ? user.name.charAt(0).toUpperCase() : "U"}
             </div>
             <div className="min-w-0">
@@ -609,7 +609,7 @@ export default function SettingsPage() {
           <button
             type="button"
             onClick={logout}
-            className="w-full flex items-center justify-center gap-2 rounded-[8.8px] border border-[#d1dee8] bg-white py-2 text-xs font-bold text-[#8c381c] hover:bg-[#fbeee8] transition-all cursor-pointer"
+            className="w-full flex items-center justify-center gap-2 rounded-[10px] border border-[#d1dee8]/70 bg-white py-2 text-xs font-bold text-[#8c381c] hover:bg-[#fbeee8] active:scale-[0.98] transition-all cursor-pointer shadow-xs"
           >
             <LogOut className="h-3.5 w-3.5 text-[#8c381c]" />
             Sign Out
@@ -625,7 +625,7 @@ export default function SettingsPage() {
             <span className="text-xs font-bold uppercase tracking-widest text-[#78716b]">
               Account Center
             </span>
-            <h1 className="mt-0.5 text-2xl font-extrabold tracking-tight text-[#111111] -tracking-wide">
+            <h1 className="mt-0.5 text-2xl font-extrabold tracking-tight text-[#111111]">
               Settings
             </h1>
             <p className="mt-0.5 text-xs text-[#78716b] font-medium">
@@ -635,7 +635,7 @@ export default function SettingsPage() {
 
           {/* Save toast */}
           {saved && (
-            <span className="flex items-center gap-1 rounded-[8.8px] bg-[#e2ede8] px-2.5 py-1 text-xs font-bold text-[#1d5237] border border-[#d1dee8] shadow-none animate-bounce">
+            <span className="flex items-center gap-1.5 rounded-full bg-[#e2ede8] px-3 py-1 text-xs font-bold text-[#1d5237] border border-[#1d5237]/20 shadow-xs animate-bounce">
               <CheckCircle2 className="h-3.5 w-3.5 text-[#1d5237]" /> Saved!
             </span>
           )}
@@ -644,16 +644,16 @@ export default function SettingsPage() {
         {/* Tab layout */}
         <div className="flex flex-col gap-5 lg:flex-row items-start">
           {/* Sidebar tabs */}
-          <nav className="flex shrink-0 gap-1 overflow-x-auto rounded-[8.8px] bg-[#e6e3e2]/40 p-1.5 border border-[#d1dee8] lg:w-44 lg:flex-col lg:overflow-x-visible">
+          <nav className="flex shrink-0 gap-1 overflow-x-auto rounded-[12px] bg-[#e6e3e2]/40 p-1.5 border border-[#d1dee8]/70 lg:w-44 lg:flex-col lg:overflow-x-visible shadow-xs">
             {TABS.map(({ id, label, icon: Icon }) => (
               <button
                 key={id}
                 onClick={() => setActiveTab(id)}
-                className={`flex min-w-max items-center gap-2 rounded-[8.8px] px-3 py-2 text-xs font-bold transition-all duration-150 lg:w-full cursor-pointer border-0 ${
+                className={`flex min-w-max items-center gap-2 rounded-[10px] px-3 py-2 text-xs font-bold transition-all duration-150 lg:w-full cursor-pointer border-0 active:scale-[0.98] ${
                   activeTab === id
                     ? id === "danger"
-                      ? "bg-[#fbeee8] text-[#8c381c]"
-                      : "bg-[#165dfb] text-white"
+                      ? "bg-[#fbeee8] text-[#8c381c] shadow-xs"
+                      : "bg-[#165dfb] text-white shadow-xs"
                     : id === "danger"
                     ? "text-[#8c381c] hover:bg-[#fbeee8]/40 bg-transparent"
                     : "text-[#78716b] hover:bg-[#e6e3e2] hover:text-[#111111] bg-transparent"
@@ -666,7 +666,7 @@ export default function SettingsPage() {
           </nav>
 
           {/* Panel */}
-          <div className="flex-1 w-full rounded-[8.8px] bg-white p-5 border border-[#d1dee8]">
+          <div className="flex-1 w-full rounded-[14px] bg-white p-6 border border-[#d1dee8]/70 shadow-sm">
             <AnimatePresence mode="wait">
               <motion.div
                 key={activeTab}
