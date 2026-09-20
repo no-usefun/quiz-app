@@ -22,7 +22,8 @@ public record UpdateQuizSettingsRequest(
                 LocalDateTime startTime,
                 LocalDateTime endTime,
                 ResultVisibility resultVisibility,
-
+                String acceptedEmailDomain,
+                List<String> allowedRegistrationNumbers,
                 List<QuestionSettingsRequest> questions) {
 
         public record QuestionSettingsRequest(

@@ -4,8 +4,10 @@ import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.HashSet;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Collectors;
@@ -19,11 +21,13 @@ import com.quiz_app.backend.entity.ExamState;
 import com.quiz_app.backend.entity.Option;
 import com.quiz_app.backend.entity.Question;
 import com.quiz_app.backend.entity.Quiz;
+import com.quiz_app.backend.entity.QuizAllowedStudent;
 import com.quiz_app.backend.entity.QuizStatus;
 import com.quiz_app.backend.exception.BadRequestException;
 import com.quiz_app.backend.exception.ResourceNotFoundException;
 import com.quiz_app.backend.repository.OptionRepository;
 import com.quiz_app.backend.repository.QuestionRepository;
+import com.quiz_app.backend.repository.QuizAllowedStudentRepository;
 import com.quiz_app.backend.repository.QuizRepository;
 
 @Service
@@ -33,12 +37,14 @@ public class TeacherQuizService {
         private final QuizRepository quizRepository;
         private final QuestionRepository questionRepository;
         private final OptionRepository optionRepository;
+        private final QuizAllowedStudentRepository quizAllowedStudentRepository;
 
         public TeacherQuizService(QuizRepository quizRepository, QuestionRepository questionRepository,
-                        OptionRepository optionRepository) {
+                        OptionRepository optionRepository, QuizAllowedStudentRepository quizAllowedStudentRepository) {
                 this.quizRepository = quizRepository;
                 this.questionRepository = questionRepository;
                 this.optionRepository = optionRepository;
+                this.quizAllowedStudentRepository = quizAllowedStudentRepository;
         }
 
         @Transactional
@@ -464,6 +470,41 @@ public class TeacherQuizService {
                         updateQuestionsAndOptions(quiz, request.questions());
                 }
 
+                if (request.acceptedEmailDomain() != null) {
+
+                        String domain = request.acceptedEmailDomain().trim().toLowerCase();
+
+                        if (!domain.isBlank() && !domain.startsWith("@")) {
+                                throw new BadRequestException(
+                                                "Accepted email domain must start with @");
+                        }
+
+                        quiz.setAcceptedEmailDomain(
+                                        domain.isBlank() ? null : domain);
+                }
+
+                if (request.allowedRegistrationNumbers() != null) {
+
+                        quizAllowedStudentRepository.deleteByQuizId(quizId);
+
+                        Set<String> registrations = request.allowedRegistrationNumbers()
+                                        .stream()
+                                        .filter(Objects::nonNull)
+                                        .map(String::trim)
+                                        .filter(value -> !value.isBlank())
+                                        .collect(Collectors.toCollection(LinkedHashSet::new));
+
+                        for (String registrationNumber : registrations) {
+
+                                QuizAllowedStudent allowedStudent = new QuizAllowedStudent();
+
+                                allowedStudent.setQuiz(quiz);
+                                allowedStudent.setRegistrationNumber(registrationNumber);
+
+                                quizAllowedStudentRepository.save(allowedStudent);
+                        }
+                }
+
                 quiz.setUpdatedAt(LocalDateTime.now());
 
                 Quiz savedQuiz = quizRepository.save(quiz);
@@ -647,7 +688,6 @@ public class TeacherQuizService {
         }
 
         private void validateOptionRequests(
-                        Question question,
                         List<UpdateQuizSettingsRequest.OptionSettingsRequest> requests) {
 
                 if (requests.isEmpty()) {
@@ -698,7 +738,7 @@ public class TeacherQuizService {
                 List<Option> existingOptions = optionRepository.findByQuestionIdOrderByOptionOrder(
                                 question.getId());
 
-                validateOptionRequests(question, requests);
+                validateOptionRequests(requests);
 
                 /*
                  * Temporarily move existing orders to avoid
