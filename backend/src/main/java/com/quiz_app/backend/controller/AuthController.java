@@ -3,6 +3,7 @@ package com.quiz_app.backend.controller;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
+import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -48,13 +49,13 @@ public class AuthController {
     @Operation(summary = "Get current user", description = "Returns the profile of the currently authenticated user.")
     @GetMapping("/me")
     public ResponseEntity<UserSummaryResponse> getCurrentUser(
-            @AuthenticationPrincipal String email) {
+            @AuthenticationPrincipal UserDetails userDetails) {
 
-        if (email == null || email.isBlank()) {
+        if (userDetails == null) {
             throw new BadRequestException("No authenticated user found");
         }
 
-        UserSummaryResponse response = authService.getCurrentUser(email);
+        UserSummaryResponse response = authService.getCurrentUser(userDetails.getUsername());
 
         return ResponseEntity.ok(response);
     }
