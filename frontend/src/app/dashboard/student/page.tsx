@@ -76,32 +76,37 @@ export default function StudentDashboard() {
                   : [];
 
           const normalizedResults = backendList.map((item: any) => {
+            const finalScore =
+              item.finalScore != null ? Number(item.finalScore) : null;
+
+            const totalMarks =
+              item.totalMarks != null ? Number(item.totalMarks) : null;
+
             const pct =
-              item.percentage != null ? Math.round(item.percentage) : null;
-            const score =
-              pct != null
-                ? pct
-                : item.finalScore != null
-                  ? Math.round(item.finalScore)
+              item.percentage != null
+                ? Number(item.percentage)
+                : finalScore != null && totalMarks != null && totalMarks > 0
+                  ? (finalScore / totalMarks) * 100
                   : null;
+
+            const score =
+              pct != null && Number.isFinite(pct) ? Math.round(pct) : null;
 
             const status: string = item.status || "COMPLETED";
             const isInProgress = status === "IN_PROGRESS";
-            const resultsAvailable = Boolean(item.resultsAvailable);
-
+            const resultsAvailable = item.resultsAvailable === true;
             return {
               id: item.attemptId ?? item.id,
               attemptId: item.attemptId ?? item.id,
               quizId: item.quizId,
+              finalScore,
+              totalMarks,
               quizName:
                 item.quizTitle ||
                 item.quizName ||
                 item.title ||
                 "Assessment Session",
-              testCode:
-                item.quizCode ||
-                item.testCode ||
-                "",
+              testCode: item.quizCode || item.testCode || "",
               score,
               percentage: pct,
               status,
@@ -345,7 +350,9 @@ export default function StudentDashboard() {
                       No assessments taken yet
                     </p>
                     <p className="mt-1 text-xs text-[#78716b] font-medium max-w-xs mx-auto leading-relaxed">
-                      Your recent assessments will appear here. Join your first assessment using the session code provided by your instructor.
+                      Your recent assessments will appear here. Join your first
+                      assessment using the session code provided by your
+                      instructor.
                     </p>
                   </div>
                   <Link
@@ -363,7 +370,9 @@ export default function StudentDashboard() {
                     return (
                       <li key={idx}>
                         <Link
-                          href={result.testCode ? `/test/${result.testCode}` : "#"}
+                          href={
+                            result.testCode ? `/test/${result.testCode}` : "#"
+                          }
                           className="relative flex items-center justify-between gap-4 px-5 py-4 transition-colors hover:bg-[#f8fafc] group before:absolute before:inset-y-0 before:left-0 before:w-1 before:rounded-r before:bg-[#165dfb] before:opacity-0 before:transition-opacity hover:before:opacity-100"
                         >
                           <div className="flex min-w-0 flex-col gap-1">
@@ -398,7 +407,13 @@ export default function StudentDashboard() {
                     return (
                       <li key={idx}>
                         <Link
-                          href={result.attemptId ? `/dashboard/student/result/${result.attemptId}` : (result.testCode ? `/dashboard/student/result/${result.testCode}` : "#")}
+                          href={
+                            result.attemptId
+                              ? `/dashboard/student/result/${result.attemptId}`
+                              : result.testCode
+                                ? `/dashboard/student/result/${result.testCode}`
+                                : "#"
+                          }
                           className="relative flex items-center justify-between gap-4 px-5 py-4 transition-colors hover:bg-[#f8fafc] group before:absolute before:inset-y-0 before:left-0 before:w-1 before:rounded-r before:bg-[#165dfb] before:opacity-0 before:transition-opacity hover:before:opacity-100"
                         >
                           <div className="flex min-w-0 flex-col gap-1">
