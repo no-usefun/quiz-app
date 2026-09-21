@@ -90,13 +90,15 @@ public class StudentAttemptService {
                         Long studentId) {
 
                 if (quizCode == null || quizCode.isBlank()) {
-                        throw new BadRequestException("Quiz code is required");
+                        throw new BadRequestException("QUIZ_CODE_REQUIRED",
+                                        "Quiz code is required");
                 }
 
                 quizCode = quizCode.trim().toUpperCase();
 
                 if (studentId == null) {
                         throw new BadRequestException(
+                                        "STUDENT_AUTHENTICATION_REQUIRED",
                                         "Student authentication is required");
                 }
 
@@ -108,6 +110,7 @@ public class StudentAttemptService {
                                 || !"STUDENT".equals(student.getRole().getName())) {
 
                         throw new BadRequestException(
+                                        "INVALID_STUDENT_ROLE",
                                         "Only a student can start a quiz");
                 }
 
@@ -155,6 +158,7 @@ public class StudentAttemptService {
                                                         .endsWith(acceptedDomain.toLowerCase())) {
 
                                 throw new BadRequestException(
+                                                "STUDENT_NOT_ELIGIBLE",
                                                 "Student is not eligible for this quiz");
                         }
                 }
@@ -176,6 +180,7 @@ public class StudentAttemptService {
 
                         if (whitelistConfigured) {
                                 throw new BadRequestException(
+                                                "STUDENT_REGISTRATION_NOT_ALLOWED",
                                                 "Student registration number is not allowed for this quiz");
                         }
                 }
@@ -253,6 +258,7 @@ public class StudentAttemptService {
 
                                 if (count > 1) {
                                         throw new BadRequestException(
+                                                        "MULTIPLE_OPTIONS_NOT_ALLOWED",
                                                         "Only one option can be selected");
                                 }
                         }
@@ -268,7 +274,8 @@ public class StudentAttemptService {
                         Long attemptId) {
 
                 if (attemptId == null) {
-                        throw new BadRequestException("Attempt ID is required");
+                        throw new BadRequestException("ATTEMPT_ID_REQUIRED",
+                                        "Attempt ID is required");
                 }
 
                 QuizAttempt attempt = quizAttemptRepository.findById(attemptId)
@@ -290,16 +297,19 @@ public class StudentAttemptService {
                         Long studentId) {
 
                 if (attemptId == null) {
-                        throw new BadRequestException("Attempt ID is required");
+                        throw new BadRequestException("ATTEMPT_ID_REQUIRED",
+                                        "Attempt ID is required");
                 }
 
                 if (request == null) {
                         throw new BadRequestException(
+                                        "SUBMISSION_REQUEST_REQUIRED",
                                         "Submission request is required");
                 }
 
                 if (studentId == null) {
                         throw new BadRequestException(
+                                        "STUDENT_AUTHENTICATION_REQUIRED",
                                         "Student authentication is required");
                 }
 
@@ -313,12 +323,14 @@ public class StudentAttemptService {
                 if (attempt.getStudent() == null
                                 || !attempt.getStudent().getId().equals(studentId)) {
 
-                        throw new BadRequestException(
+                        throw new AccessDeniedApplicationException(
+                                        "ATTEMPT_NOT_OWNED",
                                         "You are not authorized to submit this attempt");
                 }
 
                 if (attempt.getStatus() != AttemptStatus.IN_PROGRESS) {
                         throw new ConflictException(
+                                        "ATTEMPT_ALREADY_SUBMITTED",
                                         "Attempt has already been submitted");
                 }
 
@@ -386,6 +398,7 @@ public class StudentAttemptService {
 
                         if (submittedAnswer.questionId() == null) {
                                 throw new BadRequestException(
+                                                "QUESTION_ID_REQUIRED",
                                                 "Question ID is required");
                         }
 
@@ -393,6 +406,7 @@ public class StudentAttemptService {
 
                         if (question == null) {
                                 throw new BadRequestException(
+                                                "QUESTION_NOT_IN_QUIZ",
                                                 "Question does not belong to this quiz: "
                                                                 + submittedAnswer.questionId());
                         }
@@ -407,6 +421,7 @@ public class StudentAttemptService {
                                         && submittedAnswer.responseTimeSeconds() < 0) {
 
                                 throw new BadRequestException(
+                                                "INVALID_RESPONSE_TIME",
                                                 "Response time cannot be negative");
                         }
 
@@ -502,24 +517,28 @@ public class StudentAttemptService {
                         AttemptStatus finalStatus) {
 
                 if (attempt == null) {
-                        throw new BadRequestException("Attempt is required");
+                        throw new BadRequestException("ATTEMPT_REQUIRED",
+                                        "Attempt is required");
                 }
 
                 if (finalStatus != AttemptStatus.SUBMITTED
                                 && finalStatus != AttemptStatus.AUTO_SUBMITTED) {
                         throw new BadRequestException(
+                                        "INVALID_FINAL_ATTEMPT_STATUS",
                                         "Invalid final attempt status");
                 }
 
                 if (attempt.getStatus() != AttemptStatus.IN_PROGRESS) {
-                        throw new BadRequestException(
+                        throw new ConflictException(
+                                        "ATTEMPT_ALREADY_SUBMITTED",
                                         "Attempt has already been submitted");
                 }
 
                 Quiz quiz = attempt.getQuiz();
 
                 if (quiz == null) {
-                        throw new BadRequestException(
+                        throw new ResourceNotFoundException(
+                                        "QUIZ_NOT_FOUND",
                                         "Quiz associated with attempt was not found");
                 }
 
@@ -533,6 +552,7 @@ public class StudentAttemptService {
 
                 if (questions == null || questions.isEmpty()) {
                         throw new BadRequestException(
+                                        "QUIZ_HAS_NO_QUESTIONS",
                                         "Quiz does not contain any questions");
                 }
 
@@ -715,14 +735,15 @@ public class StudentAttemptService {
                         Long studentId) {
 
                 if (attemptId == null) {
-                        throw new BadRequestException("Attempt ID is required");
+                        throw new BadRequestException("ATTEMPT_ID_REQUIRED",
+                                        "Attempt ID is required");
                 }
 
                 QuizAttempt attempt = quizAttemptRepository.findById(attemptId)
                                 .orElseThrow(() -> {
                                         throw new AccessDeniedApplicationException(
                                                         "ATTEMPT_NOT_OWNED",
-                                                        "You are not authorized to access this attempt");
+                                                        "You are not authorized to view this result");
                                 });
 
                 if (attempt.getStudent() == null ||
@@ -738,6 +759,7 @@ public class StudentAttemptService {
                                 && attempt.getStatus() != AttemptStatus.AUTO_SUBMITTED) {
 
                         throw new BadRequestException(
+                                        "ATTEMPT_NOT_SUBMITTED",
                                         "Result is available only after submission");
                 }
 
@@ -776,14 +798,15 @@ public class StudentAttemptService {
                         Long studentId) {
 
                 if (attemptId == null) {
-                        throw new BadRequestException("Attempt ID is required");
+                        throw new BadRequestException("ATTEMPT_ID_REQUIRED",
+                                        "Attempt ID is required");
                 }
 
                 QuizAttempt attempt = quizAttemptRepository.findById(attemptId)
                                 .orElseThrow(() -> {
                                         throw new AccessDeniedApplicationException(
                                                         "ATTEMPT_NOT_OWNED",
-                                                        "You are not authorized to access this attempt");
+                                                        "You are not authorized to view this result");
                                 });
 
                 if (attempt.getStudent() == null ||
@@ -799,6 +822,7 @@ public class StudentAttemptService {
                                 && attempt.getStatus() != AttemptStatus.AUTO_SUBMITTED) {
 
                         throw new BadRequestException(
+                                        "ATTEMPT_NOT_SUBMITTED",
                                         "Result is available only after submission");
                 }
 
@@ -811,6 +835,7 @@ public class StudentAttemptService {
                                 && quiz.getResultVisibility() != ResultVisibility.BOTH) {
 
                         throw new BadRequestException(
+                                        "RESULT_DETAILS_NOT_AVAILABLE",
                                         "Question-wise results are not available");
                 }
 
@@ -906,6 +931,7 @@ public class StudentAttemptService {
                                 && quiz.getResultVisibility() != ResultVisibility.BOTH) {
 
                         throw new BadRequestException(
+                                        "LEADERBOARD_NOT_AVAILABLE",
                                         "Leaderboard is not available");
                 }
 
@@ -980,6 +1006,7 @@ public class StudentAttemptService {
 
                 if (studentId == null) {
                         throw new BadRequestException(
+                                        "STUDENT_AUTHENTICATION_REQUIRED",
                                         "Student authentication is required");
                 }
 
