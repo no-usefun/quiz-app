@@ -18,6 +18,7 @@ import com.quiz_app.backend.dto.attempt.LeaderboardEntryResponse;
 import com.quiz_app.backend.dto.attempt.StudentSubmissionResponse;
 import com.quiz_app.backend.dto.attempt.SubmitAttemptRequest;
 import com.quiz_app.backend.dto.attempt.SubmitAttemptResponse;
+import com.quiz_app.backend.dto.quiz.QuizAvailabilityResponse;
 import com.quiz_app.backend.security.CustomUserDetails;
 import com.quiz_app.backend.service.StudentAttemptService;
 
@@ -89,10 +90,11 @@ public class StudentQuizController {
 
         @GetMapping("/quizzes/{quizId}/leaderboard")
         public ResponseEntity<List<LeaderboardEntryResponse>> getLeaderboard(
-                        @PathVariable Long quizId) {
-
+                        @PathVariable Long quizId, Authentication authentication) {
+                CustomUserDetails userDetails = (CustomUserDetails) authentication.getPrincipal();
                 return ResponseEntity.ok(
-                                attemptService.getLeaderboard(quizId));
+                                attemptService.getLeaderboard(quizId,
+                                                userDetails.getId()));
         }
 
         @GetMapping("/submissions")
@@ -104,5 +106,19 @@ public class StudentQuizController {
                 return ResponseEntity.ok(
                                 attemptService.getStudentSubmissions(
                                                 userDetails.getId()));
+        }
+
+        @GetMapping("/quizzes/{quizCode}/availability")
+        public ResponseEntity<QuizAvailabilityResponse> getQuizAvailability(
+                        @PathVariable String quizCode,
+                        Authentication authentication) {
+
+                CustomUserDetails userDetails = (CustomUserDetails) authentication.getPrincipal();
+
+                QuizAvailabilityResponse response = attemptService.getQuizAvailability(
+                                quizCode,
+                                userDetails.getId());
+
+                return ResponseEntity.ok(response);
         }
 }

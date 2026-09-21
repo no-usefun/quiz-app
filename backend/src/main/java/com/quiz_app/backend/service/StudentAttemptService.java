@@ -23,12 +23,14 @@ import com.quiz_app.backend.dto.attempt.StudentSubmissionResponse;
 import com.quiz_app.backend.dto.attempt.SubmitAnswerRequest;
 import com.quiz_app.backend.dto.attempt.SubmitAttemptRequest;
 import com.quiz_app.backend.dto.attempt.SubmitAttemptResponse;
+import com.quiz_app.backend.dto.quiz.QuizAvailabilityResponse;
 import com.quiz_app.backend.entity.AnswerStatus;
 import com.quiz_app.backend.entity.AttemptStatus;
 import com.quiz_app.backend.entity.Option;
 import com.quiz_app.backend.entity.Question;
 import com.quiz_app.backend.entity.Quiz;
 import com.quiz_app.backend.entity.QuizAttempt;
+import com.quiz_app.backend.entity.QuizAvailabilityStatus;
 import com.quiz_app.backend.entity.QuizStatus;
 import com.quiz_app.backend.entity.ResultVisibility;
 import com.quiz_app.backend.entity.StudentAnswer;
@@ -271,7 +273,25 @@ public class StudentAttemptService {
 
         @Transactional
         public SubmitAttemptResponse autoSubmitAttempt(
-                        Long attemptId) {
+                        Long attemptId, Long studentId) {
+
+                if (studentId == null) {
+                        throw new BadRequestException(
+                                        "STUDENT_AUTHENTICATION_REQUIRED",
+                                        "Student authentication is required");
+                }
+
+                User student = userRepository.findById(studentId)
+                                .orElseThrow(() -> new ResourceNotFoundException("Student not found"));
+
+                // 1. Verify student role
+                if (student.getRole() == null
+                                || !"STUDENT".equals(student.getRole().getName())) {
+
+                        throw new BadRequestException(
+                                        "INVALID_STUDENT_ROLE",
+                                        "Only a student can start a quiz");
+                }
 
                 if (attemptId == null) {
                         throw new BadRequestException("ATTEMPT_ID_REQUIRED",
@@ -910,7 +930,25 @@ public class StudentAttemptService {
                 return result;
         }
 
-        public List<LeaderboardEntryResponse> getLeaderboard(Long quizId) {
+        public List<LeaderboardEntryResponse> getLeaderboard(Long quizId, Long studentId) {
+
+                if (studentId == null) {
+                        throw new BadRequestException(
+                                        "STUDENT_AUTHENTICATION_REQUIRED",
+                                        "Student authentication is required");
+                }
+
+                User student = userRepository.findById(studentId)
+                                .orElseThrow(() -> new ResourceNotFoundException("Student not found"));
+
+                // 1. Verify student role
+                if (student.getRole() == null
+                                || !"STUDENT".equals(student.getRole().getName())) {
+
+                        throw new BadRequestException(
+                                        "INVALID_STUDENT_ROLE",
+                                        "Only a student can start a quiz");
+                }
 
                 if (quizId == null) {
                         throw new BadRequestException("Quiz ID is required");
@@ -1058,5 +1096,84 @@ public class StudentAttemptService {
                                 attempt.getStartedAt(),
                                 attempt.getSubmittedAt(),
                                 resultsAvailable);
+        }
+
+        public QuizAvailabilityResponse getQuizAvailability(String quizCode, Long studentId) {
+
+                String normalizedCode = quizCode == null
+                                ? null
+                                : quizCode.trim().toUpperCase();
+
+                Optional<Quiz> quizOptional = quizRepository.findByQuizCode(normalizedCode);
+
+                if (studentId == null) {
+                        throw new BadRequestException(
+                                        "STUDENT_AUTHENTICATION_REQUIRED",
+                                        "Student authentication is required");
+                }
+
+                User student = userRepository.findById(studentId)
+                                .orElseThrow(() -> new ResourceNotFoundException("Student not found"));
+
+                // 1. Verify student role
+                if (student.getRole() == null
+                                || !"STUDENT".equals(student.getRole().getName())) {
+
+                        throw new BadRequestException(
+                                        "INVALID_STUDENT_ROLE",
+                                        "Only a student can start a quiz");
+                }
+
+                if (quizOptional.isEmpty()) {
+                        return new QuizAvailabilityResponse(
+                                        normalizedCode,
+                                        false,
+                                        QuizAvailabilityStatus.NOT_FOUND,
+                                        null,
+                                        null);
+                }
+
+                Quiz quiz = quizOptional.get();
+
+                if (quiz.getStatus() != QuizStatus.PUBLISHED) {
+                        return buildAvailabilityResponse(
+                                        quiz,
+                                        QuizAvailabilityStatus.NOT_PUBLISHED,
+                                        false);
+                }
+
+                LocalDateTime now = LocalDateTime.now(clock.withZone(QUIZ_TIMEZONE));
+
+                if (now.isBefore(quiz.getStartTime())) {
+                        return buildAvailabilityResponse(
+                                        quiz,
+                                        QuizAvailabilityStatus.NOT_STARTED,
+                                        false);
+                }
+
+                if (!now.isBefore(quiz.getEndTime())) {
+                        return buildAvailabilityResponse(
+                                        quiz,
+                                        QuizAvailabilityStatus.ENDED,
+                                        false);
+                }
+
+                return buildAvailabilityResponse(
+                                quiz,
+                                QuizAvailabilityStatus.LIVE,
+                                true);
+        }
+
+        private QuizAvailabilityResponse buildAvailabilityResponse(
+                        Quiz quiz,
+                        QuizAvailabilityStatus status,
+                        boolean available) {
+
+                return new QuizAvailabilityResponse(
+                                quiz.getQuizCode(),
+                                available,
+                                status,
+                                quiz.getStartTime(),
+                                quiz.getEndTime());
         }
 }
