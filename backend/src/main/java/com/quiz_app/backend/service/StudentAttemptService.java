@@ -133,6 +133,7 @@ public class StudentAttemptService {
                 LocalDateTime now = LocalDateTime.now(clock.withZone(QUIZ_TIMEZONE));
 
                 // 4. Check exam window
+
                 if (quiz.getStartTime() != null
                                 && now.isBefore(quiz.getStartTime())) {
 
@@ -304,6 +305,13 @@ public class StudentAttemptService {
                                                         "ATTEMPT_NOT_OWNED",
                                                         "You are not authorized to access this attempt");
                                 });
+
+                if (attempt.getStudent() == null || !attempt.getStudent().getId().equals(studentId)) {
+
+                        throw new AccessDeniedApplicationException(
+                                        "ATTEMPT_NOT_OWNED",
+                                        "You are not authorized to access this attempt");
+                }
 
                 return finalizeAttempt(
                                 attempt,
@@ -1110,18 +1118,6 @@ public class StudentAttemptService {
                         throw new BadRequestException(
                                         "STUDENT_AUTHENTICATION_REQUIRED",
                                         "Student authentication is required");
-                }
-
-                User student = userRepository.findById(studentId)
-                                .orElseThrow(() -> new ResourceNotFoundException("Student not found"));
-
-                // 1. Verify student role
-                if (student.getRole() == null
-                                || !"STUDENT".equals(student.getRole().getName())) {
-
-                        throw new BadRequestException(
-                                        "INVALID_STUDENT_ROLE",
-                                        "Only a student can start a quiz");
                 }
 
                 if (quizOptional.isEmpty()) {
