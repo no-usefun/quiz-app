@@ -43,8 +43,14 @@ interface StudentRecord {
   id: number;
   name: string;
   avatar: string;
+  /** Percentage used for ranking/sorting and percentage display. */
   score: number;
-  accuracyPercentage?: number;
+  /** Raw marks obtained by the student. */
+  finalScore: number;
+  /** Maximum marks available for the quiz/result. */
+  totalMarks: number;
+  /** Canonical percentage returned by the backend, when available. */
+  percentage: number;
   timeTaken: string;
   timeTakenSeconds?: number;
   submitted: boolean;
@@ -75,6 +81,19 @@ function totalFlags(s: StudentRecord) {
   return (s.flags || []).reduce((sum, f) => sum + f.count, 0);
 }
 
+function numericValue(value: unknown, fallback = 0): number {
+  const n = Number(value);
+  return Number.isFinite(n) ? n : fallback;
+}
+
+function formatPercentage(value: number): string {
+  return Number.isInteger(value) ? String(value) : value.toFixed(2);
+}
+
+function formatMarks(value: number): string {
+  return Number.isInteger(value) ? String(value) : value.toFixed(2);
+}
+
 function podiumRingColor(pos: number) {
   if (pos === 0)
     return {
@@ -102,8 +121,8 @@ function exportCSV(testCode: string, data: StudentRecord[], title: string) {
   const headers = [
     "Rank",
     "Candidate Name",
-    "Score (%)",
-    "Accuracy (%)",
+    "Score (Marks)",
+    "Percentage (%)",
     "Time Taken",
     "Submitted",
     "Total Flags",
@@ -112,8 +131,8 @@ function exportCSV(testCode: string, data: StudentRecord[], title: string) {
   const rows = data.map((s, idx) => [
     idx + 1,
     s.name,
-    s.score,
-    s.accuracyPercentage ?? s.score,
+    `${s.finalScore} / ${s.totalMarks}`,
+    s.percentage,
     s.timeTaken,
     s.submitted ? "Yes" : "No",
     totalFlags(s),
@@ -296,11 +315,42 @@ export default function TeacherAssessmentPage({
               : lbData.content || lbData.leaderboard || lbData.students || [];
 
             backendStudents = rawList.map((entry: any, idx: number) => {
-              const timeSecs = Number(
-                entry.totalTimeTaken || entry.timeTakenSeconds || 0,
+              const timeSecs = numericValue(
+                entry.totalTimeTaken ?? entry.timeTakenSeconds,
+                0,
               );
+
+              // Backend result contract:
+              // finalScore = marks obtained
+              // totalMarks = maximum marks
+              // percentage = (finalScore / totalMarks) * 100
+              //
+              // Keep the backend percentage as the canonical ranking/display
+              // value. If an older leaderboard response does not provide it,
+              // derive it from the raw marks without treating finalScore as
+              // a percentage.
+              const finalScore = numericValue(
+                entry.finalScore ?? entry.score,
+                0,
+              );
+              const totalMarks = numericValue(
+                entry.totalMarks ?? pkgData.totalMarks,
+                0,
+              );
+
+              const calculatedPercentage =
+                totalMarks > 0 ? (finalScore / totalMarks) * 100 : 0;
+
+              const percentage = numericValue(
+                entry.percentage,
+                calculatedPercentage,
+              );
+
               return {
-                id: entry.studentId || entry.rank || idx + 1,
+                id: numericValue(
+                  entry.studentId ?? entry.attemptId ?? entry.rank,
+                  idx + 1,
+                ),
                 name:
                   entry.studentName ||
                   entry.registrationNo ||
@@ -314,13 +364,18 @@ export default function TeacherAssessmentPage({
                 )
                   .slice(0, 2)
                   .toUpperCase(),
-                score: Number(entry.score || entry.percentage || 0),
-                accuracyPercentage: Number(
-                  entry.accuracy || entry.score || entry.percentage || 0,
-                ),
+                score: percentage,
+                finalScore,
+                totalMarks,
+                percentage,
                 timeTaken: `${Math.floor(timeSecs / 60)}m ${timeSecs % 60}s`,
                 timeTakenSeconds: timeSecs,
-                submitted: true,
+                submitted:
+                  String(entry.status || "SUBMITTED").toUpperCase() ===
+                    "SUBMITTED" ||
+                  String(entry.status || "SUBMITTED").toUpperCase() ===
+                    "COMPLETED" ||
+                  entry.submitted !== false,
                 flags: Array.isArray(entry.proctoringFlags)
                   ? entry.proctoringFlags
                   : [],
@@ -344,6 +399,14 @@ export default function TeacherAssessmentPage({
             ...pkgData,
             title:
               pkgData.title || localTest?.quizName || `Assessment ${quizCode}`,
+            // Preserve an explicit backend publication state when available.
+            // The results publish/unpublish endpoint remains the source of
+            // truth for changing this value.
+            resultsPublished: Boolean(
+              pkgData.resultsPublished ??
+              matchedQuiz?.resultsPublished ??
+              false,
+            ),
             students: backendStudents,
           });
 
@@ -447,7 +510,9 @@ export default function TeacherAssessmentPage({
       }
 
       if (!numericQuizId) {
-        throw new Error("Unable to resolve numeric quiz ID for settings update.");
+        throw new Error(
+          "Unable to resolve numeric quiz ID for settings update.",
+        );
       }
 
       let payload: any = {};
@@ -520,16 +585,21 @@ export default function TeacherAssessmentPage({
     setLifecycleError(null);
     try {
       const token = localStorage.getItem("dynoquizz_token");
-      const res = await fetch(`${API_BASE}/api/v1/teacher/quizzes/${id}/publish`, {
-        method: "PUT",
-        headers: {
-          Authorization: `Bearer ${token}`,
-          "Content-Type": "application/json",
+      const res = await fetch(
+        `${API_BASE}/api/v1/teacher/quizzes/${id}/publish`,
+        {
+          method: "PUT",
+          headers: {
+            Authorization: `Bearer ${token}`,
+            "Content-Type": "application/json",
+          },
         },
-      });
+      );
       if (!res.ok) {
         const err = await res.json().catch(() => ({}));
-        throw new Error(err.message || err.error || "Failed to publish assessment");
+        throw new Error(
+          err.message || err.error || "Failed to publish assessment",
+        );
       }
       setAssessmentData((prev: any) => ({ ...prev, status: "PUBLISHED" }));
     } catch (e: any) {
@@ -546,16 +616,21 @@ export default function TeacherAssessmentPage({
     setLifecycleError(null);
     try {
       const token = localStorage.getItem("dynoquizz_token");
-      const res = await fetch(`${API_BASE}/api/v1/teacher/quizzes/${id}/complete`, {
-        method: "PUT",
-        headers: {
-          Authorization: `Bearer ${token}`,
-          "Content-Type": "application/json",
+      const res = await fetch(
+        `${API_BASE}/api/v1/teacher/quizzes/${id}/complete`,
+        {
+          method: "PUT",
+          headers: {
+            Authorization: `Bearer ${token}`,
+            "Content-Type": "application/json",
+          },
         },
-      });
+      );
       if (!res.ok) {
         const err = await res.json().catch(() => ({}));
-        throw new Error(err.message || err.error || "Failed to complete assessment");
+        throw new Error(
+          err.message || err.error || "Failed to complete assessment",
+        );
       }
       setAssessmentData((prev: any) => ({ ...prev, status: "COMPLETED" }));
       setConfirmCompleteOpen(false);
@@ -586,11 +661,18 @@ export default function TeacherAssessmentPage({
       });
       if (!res.ok) {
         const err = await res.json().catch(() => ({}));
-        throw new Error(err.message || err.error || "Failed to update results publication");
+        throw new Error(
+          err.message || err.error || "Failed to update results publication",
+        );
       }
+      const updated = await res.json().catch(() => null);
+
       setAssessmentData((prev: any) => ({
         ...prev,
-        resultsPublished: !currentlyPublished,
+        resultsPublished:
+          typeof updated?.resultsPublished === "boolean"
+            ? updated.resultsPublished
+            : !currentlyPublished,
       }));
     } catch (e: any) {
       setLifecycleError(e.message);
@@ -601,21 +683,25 @@ export default function TeacherAssessmentPage({
 
   const allStudents: StudentRecord[] = assessmentData?.students || [];
   const submitted = allStudents.filter((s) => s.submitted);
-  const classAvg = Math.round(
-    submitted.reduce((a, s) => a + (s.score || 0), 0) /
-      Math.max(1, submitted.length),
-  );
+  const classAvg =
+    submitted.length > 0
+      ? submitted.reduce((sum, student) => sum + student.percentage, 0) /
+        submitted.length
+      : 0;
+
   const highScore = Math.max(
-    ...(submitted.map((s) => s.score).length > 0
-      ? submitted.map((s) => s.score)
+    ...(submitted.length > 0
+      ? submitted.map((student) => student.percentage)
       : [0]),
   );
   const flaggedCount = allStudents.filter((s) => totalFlags(s) > 0).length;
-  const topThree = [...submitted].sort((a, b) => b.score - a.score).slice(0, 3);
+  const topThree = [...submitted]
+    .sort((a, b) => b.percentage - a.percentage)
+    .slice(0, 3);
 
   const displayList = useMemo(() => {
     const ranked = [...allStudents]
-      .sort((a, b) => (b.score || 0) - (a.score || 0))
+      .sort((a, b) => (b.percentage || 0) - (a.percentage || 0))
       .map((s, i) => ({ ...s, rank: i + 1 }));
 
     const filtered = ranked.filter((s) =>
@@ -627,7 +713,8 @@ export default function TeacherAssessmentPage({
       if (sortKey === "rank") cmp = a.rank - b.rank;
       else if (sortKey === "name")
         cmp = (a.name || "").localeCompare(b.name || "");
-      else if (sortKey === "score") cmp = (a.score || 0) - (b.score || 0);
+      else if (sortKey === "score")
+        cmp = (a.percentage || 0) - (b.percentage || 0);
       else if (sortKey === "timeTaken")
         cmp = (a.timeTakenSeconds || 0) - (b.timeTakenSeconds || 0);
       else if (sortKey === "flagCount") cmp = totalFlags(a) - totalFlags(b);
@@ -900,12 +987,12 @@ export default function TeacherAssessmentPage({
               {
                 icon: <TrendingUp className="h-4 w-4 text-pastel-mint-text" />,
                 label: "Class Avg",
-                value: `${classAvg}%`,
+                value: `${formatPercentage(classAvg)}%`,
               },
               {
                 icon: <Award className="h-4 w-4 text-signal-green" />,
                 label: "High Score",
-                value: `${highScore}%`,
+                value: `${formatPercentage(highScore)}%`,
               },
               {
                 icon: (
@@ -966,7 +1053,11 @@ export default function TeacherAssessmentPage({
                     </p>
                     <div className="mt-3 text-left">
                       <p className="text-xl font-bold text-midnight-navy">
-                        {s.score}%
+                        {formatMarks(s.finalScore)} /{" "}
+                        {formatMarks(s.totalMarks)}
+                      </p>
+                      <p className="text-[10px] font-bold text-signal-green">
+                        {formatPercentage(s.percentage)}%
                       </p>
                       <p className="text-[8px] text-steel-blue-gray font-bold uppercase">
                         Score
@@ -1012,7 +1103,7 @@ export default function TeacherAssessmentPage({
                   onSort={toggleSort}
                 />
                 <Th
-                  label="Score"
+                  label="Score / %"
                   col="score"
                   sortKey={sortKey}
                   sortDir={sortDir}
@@ -1075,9 +1166,13 @@ export default function TeacherAssessmentPage({
                             {student.name}
                           </p>
                         </div>
-                        <div className="flex justify-center">
-                          <span className="inline-flex min-w-[3rem] items-center justify-center rounded-full px-2.5 py-0.5 text-xs font-bold tabular-nums bg-pastel-mint text-pastel-mint-text shadow-xs">
-                            {student.score}%
+                        <div className="flex flex-col items-center justify-center leading-tight">
+                          <span className="text-xs font-bold tabular-nums text-midnight-navy">
+                            {formatMarks(student.finalScore)} /{" "}
+                            {formatMarks(student.totalMarks)}
+                          </span>
+                          <span className="text-[9px] font-bold tabular-nums text-signal-green">
+                            {formatPercentage(student.percentage)}%
                           </span>
                         </div>
                         <div className="flex justify-center">

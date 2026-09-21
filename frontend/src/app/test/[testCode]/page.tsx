@@ -62,7 +62,7 @@ export default function TestArenaPage({
   const [selectedOption, setSelectedOption] = useState<number | null>(null);
 
   // Track answers as questionId -> optionId
-  const [answers, setAnswers] = useState<Record<number, number>>({});
+  const [answers, setAnswers] = useState<Record<number, number | null>>({});
 
   const [timeTakenPerQuestion, setTimeTakenPerQuestion] = useState<
     Record<number, number>
@@ -75,9 +75,7 @@ export default function TestArenaPage({
 
   const { flags } = useProctoring();
 
-  const [saveStatus, setSaveStatus] = useState<"idle" | "saving" | "saved">(
-    "idle",
-  );
+  const [saveStatus, setSaveStatus] = useState<"idle" | "saved">("idle");
   const [sessionExpired, setSessionExpired] = useState(false);
   const [deadlineNotice, setDeadlineNotice] = useState<string | null>(null);
   const [submissionNotice, setSubmissionNotice] = useState<string | null>(null);
@@ -97,10 +95,6 @@ export default function TestArenaPage({
         return;
       }
 
-      const attemptId =
-        localStorage.getItem("dynoquizz_attemptId") ||
-        localStorage.getItem(`dynoquizz_attemptId_${cleanCode}`);
-
       const cached = localStorage.getItem(`dynoquizz_active_test_${cleanCode}`);
 
       if (cached) {
@@ -113,28 +107,8 @@ export default function TestArenaPage({
         }
       }
 
-      if (attemptId) {
-        try {
-          const examCached = localStorage.getItem(`exam_answers_${attemptId}`);
-          if (examCached) {
-            const parsedExam = JSON.parse(examCached);
-            const flatAnswers: Record<number, number> = {};
-            for (const [qId, optVal] of Object.entries(parsedExam)) {
-              if (Array.isArray(optVal) && optVal.length > 0) {
-                flatAnswers[Number(qId)] = Number(optVal[0]);
-              } else if (
-                typeof optVal === "number" ||
-                typeof optVal === "string"
-              ) {
-                flatAnswers[Number(qId)] = Number(optVal);
-              }
-            }
-            setAnswers((prev) => ({ ...prev, ...flatAnswers }));
-          }
-        } catch {
-          // ignore
-        }
-      }
+      // Answers are restored only from the local assessment state above.
+      // The current backend does not expose an incremental answer-save endpoint.
     }
 
     const loadTest = async () => {
@@ -216,94 +190,86 @@ export default function TestArenaPage({
     }
   }, [currentIndex, currentQuestion?.id]);
 
-  /*
-   * Select an answer (offline-first local storage caching)
-   */
-  const handleSelectOption = (optionId: number | string) => {
-    const safeOptionId = Number(optionId);
-    setSelectedOption(safeOptionId);
-    if (!currentQuestion) return;
-
-    const safeQId = Number(currentQuestion.id);
-    const newAnswers = { ...answers, [safeQId]: safeOptionId };
-    setAnswers(newAnswers);
-
+  const persistLocalAnswerState = (
+    nextAnswers: Record<number, number | null>,
+    nextTimeTaken: Record<number, number>,
+  ) => {
     const cleanCode = testCode.toUpperCase();
-    const attemptId =
-      localStorage.getItem("dynoquizz_attemptId") ||
-      localStorage.getItem(`dynoquizz_attemptId_${cleanCode}`);
-
-    // Update local answers state, then sync to local storage
-    if (attemptId) {
-      try {
-        const prevExamAnswers = JSON.parse(
-          localStorage.getItem(`exam_answers_${attemptId}`) || "{}",
-        );
-        const updatedAnswers = {
-          ...prevExamAnswers,
-          [safeQId]: [safeOptionId],
-        };
-        localStorage.setItem(
-          `exam_answers_${attemptId}`,
-          JSON.stringify(updatedAnswers),
-        );
-      } catch {
-        // ignore
-      }
-    }
 
     try {
       localStorage.setItem(
         `dynoquizz_active_test_${cleanCode}`,
         JSON.stringify({
-          answers: newAnswers,
-          timeTaken: timeTakenPerQuestion,
+          answers: nextAnswers,
+          timeTaken: nextTimeTaken,
+          lastUpdated: Date.now(),
         }),
       );
     } catch {
-      // ignore
+      // ignore localStorage failures
+    }
+  };
+
+  /*
+   * Select an answer.
+   *
+   * Answers are kept locally during the assessment. The current backend
+   * accepts the complete answer sheet only when the attempt is submitted.
+   */
+  const handleSelectOption = (optionId: number | string) => {
+    if (!currentQuestion) return;
+
+    const safeQuestionId = Number(currentQuestion.id);
+    const safeOptionId = Number(optionId);
+
+    if (
+      !Number.isFinite(safeQuestionId) ||
+      safeQuestionId <= 0 ||
+      !Number.isFinite(safeOptionId) ||
+      safeOptionId <= 0
+    ) {
+      console.warn("[Assessment] Ignoring invalid question/option ID:", {
+        questionId: currentQuestion.id,
+        optionId,
+      });
+      return;
     }
 
-    const token = getClientAuthToken();
-    if (attemptId && token && safeOptionId !== -1) {
-      setSaveStatus("saving");
-      fetch(`${API_BASE}/api/v1/student/attempts/${attemptId}/answers/${safeQId}`, {
-        method: "PUT",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify({
-          selectedOptionIds: [safeOptionId],
-          responseTimeSeconds: Number(timeTakenPerQuestion[safeQId] || 0),
-        }),
-      })
-        .then((res) => {
-          if (res.ok) setSaveStatus("saved");
-          else setSaveStatus("saved");
-        })
-        .catch(() => {
-          setSaveStatus("saved");
-        });
-    } else {
-      setSaveStatus("saved");
-    }
+    const nextAnswers: Record<number, number | null> = {
+      ...answers,
+      [safeQuestionId]: safeOptionId,
+    };
+
+    setSelectedOption(safeOptionId);
+    setAnswers(nextAnswers);
+    setSaveStatus("saved");
+    persistLocalAnswerState(nextAnswers, timeTakenPerQuestion);
   };
 
   /*
    * Move to next question or submit
    */
-  const advanceOrSubmit = (latestAnswers: Record<number, number>) => {
+  const advanceOrSubmit = (latestAnswers: Record<number, number | null>) => {
     const cleanCode = testCode.toUpperCase();
+
+    persistLocalAnswerState(latestAnswers, timeTakenPerQuestion);
+
     if (currentIndex < questions.length - 1) {
       const nextIndex = currentIndex + 1;
+
       setCurrentIndex(nextIndex);
+
       if (typeof window !== "undefined") {
         localStorage.setItem(`exam_index_${cleanCode}`, nextIndex.toString());
       }
-      const nextQ = questions[nextIndex];
-      setSelectedOption(latestAnswers[nextQ?.id] ?? null);
-      setTimeLeft(nextQ?.questionTimerSeconds || 30);
+
+      const nextQuestion = questions[nextIndex];
+
+      setSelectedOption(
+        nextQuestion ? (latestAnswers[Number(nextQuestion.id)] ?? null) : null,
+      );
+
+      setTimeLeft(nextQuestion?.questionTimerSeconds || 30);
       setSaveStatus("idle");
     } else {
       finishAssessment(latestAnswers);
@@ -311,38 +277,34 @@ export default function TestArenaPage({
   };
 
   /*
-   * Handle Next Question
+   * Handle Next Question.
+   *
+   * Unanswered questions can be skipped. They are submitted as
+   * selectedOptionIds: [].
    */
   const handleNextQuestion = () => {
-    if (!selectedOption && !answers[currentQuestion?.id]) return;
+    if (!currentQuestion) return;
 
-    const chosenOption = selectedOption || answers[currentQuestion.id];
-    const safeQId = Number(currentQuestion.id);
-    const safeOptionId = Number(chosenOption);
-    const newAnswers = { ...answers, [safeQId]: safeOptionId };
-    setAnswers(newAnswers);
+    const questionId = Number(currentQuestion.id);
 
-    const cleanCode = testCode.toUpperCase();
-    const attemptId =
-      localStorage.getItem("dynoquizz_attemptId") ||
-      localStorage.getItem(`dynoquizz_attemptId_${cleanCode}`);
-
-    if (attemptId && safeOptionId !== -1) {
-      try {
-        const prevExamAnswers = JSON.parse(
-          localStorage.getItem(`exam_answers_${attemptId}`) || "{}",
-        );
-        prevExamAnswers[safeQId] = [safeOptionId];
-        localStorage.setItem(
-          `exam_answers_${attemptId}`,
-          JSON.stringify(prevExamAnswers),
-        );
-      } catch {
-        // ignore
-      }
+    if (!Number.isFinite(questionId) || questionId <= 0) {
+      console.warn(
+        "[Assessment] Invalid current question ID:",
+        currentQuestion,
+      );
+      return;
     }
 
-    advanceOrSubmit(newAnswers);
+    const latestAnswers: Record<number, number | null> = {
+      ...answers,
+      [questionId]:
+        selectedOption !== null && selectedOption !== undefined
+          ? Number(selectedOption)
+          : (answers[questionId] ?? null),
+    };
+
+    setAnswers(latestAnswers);
+    advanceOrSubmit(latestAnswers);
   };
 
   /*
@@ -383,73 +345,72 @@ export default function TestArenaPage({
   /*
    * Submit assessment
    */
-  const finishAssessment = async (latestAnswers: Record<number, number>) => {
+  const finishAssessment = async (
+    latestAnswers: Record<number, number | null>,
+  ) => {
     if (isSubmitted || !test) return;
 
     setIsSubmitted(true);
 
-    try {
-      localStorage.removeItem(
-        `dynoquizz_active_test_${testCode.toUpperCase()}`,
-      );
-    } catch {
-      // ignore
-    }
+    const cleanCode = testCode.toUpperCase();
 
-    let totalTimeTaken = 0;
-    Object.values(timeTakenPerQuestion).forEach((t) => {
-      totalTimeTaken += t;
-    });
+    // Keep local answers until the backend confirms the final submission.
+    persistLocalAnswerState(latestAnswers, timeTakenPerQuestion);
 
     try {
-      const token = localStorage.getItem("dynoquizz_token");
-      const cleanCode = testCode.toUpperCase();
+      const token = getClientAuthToken();
       const attemptId =
         localStorage.getItem("dynoquizz_attemptId") ||
         localStorage.getItem(`dynoquizz_attemptId_${cleanCode}`);
 
       if (!attemptId) {
         console.warn("No attemptId found. Cannot submit attempt.");
+        setIsSubmitted(false);
+        setSubmissionNotice(
+          "Your attempt session is missing. Your answers remain stored locally.",
+        );
         return;
       }
 
-      const savedAnswers = JSON.parse(
-        localStorage.getItem(`exam_answers_${attemptId}`) || "{}",
-      );
+      // Build the payload from the authoritative backend quiz package.
+      // Never create questionId/optionId values such as 0.
+      const completeAnswers: Array<{
+        questionId: number;
+        selectedOptionIds: number[];
+        responseTimeSeconds: number;
+      }> = [];
 
-      // Ensure any answers captured in latestAnswers state are merged
-      if (latestAnswers) {
-        Object.entries(latestAnswers).forEach(([qId, optId]) => {
-          if (optId !== -1 && optId !== null && optId !== undefined) {
-            if (
-              !savedAnswers[qId] ||
-              (Array.isArray(savedAnswers[qId]) &&
-                savedAnswers[qId].length === 0)
-            ) {
-              savedAnswers[qId] = [Number(optId)];
-            }
-          }
+      for (const question of questions) {
+        const questionId = Number(question.id);
+
+        if (!Number.isFinite(questionId) || questionId <= 0) {
+          console.error(
+            "[Assessment Submission] Invalid backend question ID:",
+            question,
+          );
+          continue;
+        }
+
+        const selectedOptionId = latestAnswers[questionId];
+
+        const selectedOptionIds =
+          selectedOptionId !== null &&
+          selectedOptionId !== undefined &&
+          Number.isFinite(Number(selectedOptionId)) &&
+          Number(selectedOptionId) > 0
+            ? [Number(selectedOptionId)]
+            : [];
+
+        completeAnswers.push({
+          questionId,
+          selectedOptionIds,
+          responseTimeSeconds: Number(timeTakenPerQuestion[questionId] || 0),
         });
       }
 
-      // Map the dictionary/state into the exact array format the backend expects
-      const formattedAnswers = Object.keys(savedAnswers)
-        .map((qId) => {
-          const rawOpts = Array.isArray(savedAnswers[qId])
-            ? savedAnswers[qId]
-            : [savedAnswers[qId]];
-          const selectedOptionIds = rawOpts
-            .filter((id: any) => id != null && id !== -1)
-            .map(Number); // Ensure strict integer coercion
-          return {
-            questionId: Number(qId),
-            selectedOptionIds,
-            responseTimeSeconds: Number(timeTakenPerQuestion[Number(qId)] || 0),
-          };
-        })
-        .filter((a) => a.selectedOptionIds.length > 0);
-
-      const payload = { answers: formattedAnswers };
+      const payload = {
+        answers: completeAnswers,
+      };
 
       console.log("[Assessment Submission] Attempt ID:", attemptId);
       console.log("[Assessment Submission] Payload:", payload);
@@ -467,10 +428,13 @@ export default function TestArenaPage({
       );
 
       console.log("[Assessment Submission] HTTP status:", res.status);
+
       const rawText = await res.text();
+
       console.log("[Assessment Submission] Raw response text:", rawText);
 
       let data: any = {};
+
       try {
         data = JSON.parse(rawText);
       } catch (err) {
@@ -481,24 +445,16 @@ export default function TestArenaPage({
       }
 
       if (res.status === 401) {
-        localStorage.setItem(
-          `dynoquizz_active_test_${cleanCode}`,
-          JSON.stringify({
-            answers: latestAnswers,
-            timeTaken: timeTakenPerQuestion,
-          }),
-        );
+        persistLocalAnswerState(latestAnswers, timeTakenPerQuestion);
         setIsSubmitted(false);
         setSessionExpired(true);
         return;
       }
 
       if (res.ok) {
-        // Clear local storage upon successful submission
-        localStorage.removeItem(`exam_answers_${attemptId}`);
-        localStorage.removeItem("dynoquizz_attemptId");
         localStorage.removeItem(`dynoquizz_active_test_${cleanCode}`);
         localStorage.removeItem(`exam_index_${cleanCode}`);
+        localStorage.removeItem("dynoquizz_attemptId");
         localStorage.removeItem(`dynoquizz_attemptId_${cleanCode}`);
 
         if (data.deadlineExceeded || data.error === "EXAM_DEADLINE_EXCEEDED") {
@@ -506,14 +462,25 @@ export default function TestArenaPage({
             "Assessment deadline reached on the server. Responses collected up to the cutoff were saved.",
           );
         }
+
         if (data.finalScore == null || data.published === false) {
           setSubmissionNotice(
             "Submitted successfully. Results will be available once published.",
           );
         }
+      } else {
+        setIsSubmitted(false);
+        setSubmissionNotice(
+          data?.message ||
+            "Submission failed. Your answers remain stored locally. Please try again.",
+        );
       }
     } catch (e) {
       console.error("[Assessment Submission] Submission failed:", e);
+      setIsSubmitted(false);
+      setSubmissionNotice(
+        "Submission failed because the server could not be reached. Your answers remain stored locally. Please try again.",
+      );
     }
   };
 
@@ -521,33 +488,35 @@ export default function TestArenaPage({
    * Handle timer expiration
    */
   const handleTimerExpired = () => {
-    const finalAns = selectedOption || answers[currentQuestion?.id] || -1;
-    const safeQId = Number(currentQuestion?.id);
-    const safeOptionId = Number(finalAns);
-    const newAnswers = { ...answers, [safeQId]: safeOptionId };
-    setAnswers(newAnswers);
+    if (!currentQuestion) return;
 
-    const cleanCode = testCode.toUpperCase();
-    const attemptId =
-      localStorage.getItem("dynoquizz_attemptId") ||
-      localStorage.getItem(`dynoquizz_attemptId_${cleanCode}`);
+    const questionId = Number(currentQuestion.id);
 
-    if (attemptId && safeOptionId !== -1) {
-      try {
-        const prevExamAnswers = JSON.parse(
-          localStorage.getItem(`exam_answers_${attemptId}`) || "{}",
-        );
-        prevExamAnswers[safeQId] = [safeOptionId];
-        localStorage.setItem(
-          `exam_answers_${attemptId}`,
-          JSON.stringify(prevExamAnswers),
-        );
-      } catch {
-        // ignore
-      }
+    if (!Number.isFinite(questionId) || questionId <= 0) {
+      console.warn(
+        "[Assessment] Invalid question ID during timer expiry:",
+        currentQuestion,
+      );
+      return;
     }
 
-    advanceOrSubmit(newAnswers);
+    const currentAnswer =
+      selectedOption !== null && selectedOption !== undefined
+        ? Number(selectedOption)
+        : (answers[questionId] ?? null);
+
+    const latestAnswers: Record<number, number | null> = {
+      ...answers,
+      [questionId]:
+        currentAnswer !== null &&
+        Number.isFinite(Number(currentAnswer)) &&
+        Number(currentAnswer) > 0
+          ? Number(currentAnswer)
+          : null,
+    };
+
+    setAnswers(latestAnswers);
+    advanceOrSubmit(latestAnswers);
   };
 
   /*
@@ -730,14 +699,9 @@ export default function TestArenaPage({
             <span className="text-xs font-bold text-[#78716b]">
               Question {currentIndex + 1} of {questions.length}
             </span>
-            {saveStatus === "saving" && (
-              <span className="text-[11px] font-bold text-[#78716b]">
-                Saving...
-              </span>
-            )}
             {saveStatus === "saved" && (
               <span className="text-[11px] font-bold text-[#1d5237]">
-                ✓ Saved
+                ✓ Stored locally
               </span>
             )}
           </div>
@@ -748,13 +712,12 @@ export default function TestArenaPage({
                   <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-[#1d5237] opacity-75" />
                   <span className="relative inline-flex h-2 w-2 rounded-full bg-[#1d5237]" />
                 </span>
-                <Wifi className="h-3.5 w-3.5 text-[#1d5237]" /> Sync
+                <Wifi className="h-3.5 w-3.5 text-[#1d5237]" /> Local Save
                 Active
               </span>
             ) : (
               <span className="flex items-center gap-1.5 rounded-full bg-[#f6efe1] text-[#73561a] border border-[#73561a]/20 px-2.5 py-0.5 text-xs font-bold shadow-xs">
-                <WifiOff className="h-3.5 w-3.5 text-[#73561a]" />{" "}
-                Offline Mode
+                <WifiOff className="h-3.5 w-3.5 text-[#73561a]" /> Offline Mode
               </span>
             )}
             <div
@@ -791,7 +754,7 @@ export default function TestArenaPage({
               </h2>
               <div className="space-y-2.5">
                 {currentQuestion.options.map((option: any, idx: number) => {
-                  const optId = Number(option.optionId ?? option.id ?? idx + 1);
+                  const optId = Number(option.optionId ?? option.id);
                   const isSelected =
                     Number(selectedOption ?? answers[currentQuestion.id]) ===
                     optId;
@@ -831,7 +794,7 @@ export default function TestArenaPage({
           </span>
           <button
             onClick={handleNextQuestion}
-            disabled={!selectedOption && !answers[currentQuestion?.id]}
+            disabled={false}
             className="flex items-center gap-1 rounded-[10px] bg-[#165dfb] px-4 py-2 text-xs font-bold text-white hover:bg-[#165dfb]/90 active:scale-[0.98] transition-all duration-200 shadow-xs disabled:opacity-40 cursor-pointer border-0"
           >
             {currentIndex === questions.length - 1 ? (
@@ -892,7 +855,8 @@ export default function TestArenaPage({
           <ul className="space-y-1.5 text-[10px] font-medium text-[#78716b]">
             <li className="flex items-start gap-1 leading-relaxed">
               <div className="mt-1 h-1 w-1 rounded-full bg-[#165dfb] shrink-0" />
-              Select an option and click &ldquo;Next Question&rdquo; to proceed.
+              Select an option if you want to answer it. Unanswered questions
+              can be skipped.
             </li>
             <li className="flex items-start gap-1 leading-relaxed">
               <div className="mt-1 h-1 w-1 rounded-full bg-[#165dfb] shrink-0" />

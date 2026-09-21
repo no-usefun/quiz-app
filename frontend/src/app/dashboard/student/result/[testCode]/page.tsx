@@ -26,6 +26,16 @@ function formatTime(s: number) {
   return `${Math.floor(s / 60)}m ${s % 60}s`;
 }
 
+function formatNumber(value: unknown, fallback = 0): number {
+  const n = Number(value);
+  return Number.isFinite(n) ? n : fallback;
+}
+
+function formatDisplayNumber(value: unknown): string {
+  const n = formatNumber(value);
+  return Number.isInteger(n) ? String(n) : n.toFixed(2);
+}
+
 function ScoreRing({ score, color }: { score: number; color: string }) {
   const r = 80;
   const circ = 2 * Math.PI * r;
@@ -88,15 +98,22 @@ export default function StudentResultPage({
 
         if (!storedAttemptId) {
           try {
-            const subsRes = await fetch(`${API_BASE}/api/v1/student/submissions`, { headers });
+            const subsRes = await fetch(
+              `${API_BASE}/api/v1/student/submissions`,
+              { headers },
+            );
             if (subsRes.ok) {
               const subsList: any[] = await subsRes.json();
               if (Array.isArray(subsList) && subsList.length > 0) {
-                const matched = subsList.find(
-                  (s) =>
-                    String(s.quizId) === codeUpper ||
-                    (s.quizTitle && s.quizTitle.toLowerCase().includes(codeUpper.toLowerCase()))
-                ) || subsList[0];
+                const matched =
+                  subsList.find(
+                    (s) =>
+                      String(s.quizId) === codeUpper ||
+                      (s.quizTitle &&
+                        s.quizTitle
+                          .toLowerCase()
+                          .includes(codeUpper.toLowerCase())),
+                  ) || subsList[0];
                 if (matched?.attemptId) {
                   storedAttemptId = String(matched.attemptId);
                 }
@@ -118,7 +135,9 @@ export default function StudentResultPage({
           // 1. Fetch Attempt Result
           let res = await fetch(attemptUrl, { headers });
 
-          console.log(`[Student Result] Attempt result HTTP status: ${res.status}`);
+          console.log(
+            `[Student Result] Attempt result HTTP status: ${res.status}`,
+          );
           const rawText = await res.text();
           console.log(`[Student Result] Attempt result raw response:`, rawText);
 
@@ -146,13 +165,18 @@ export default function StudentResultPage({
               }
             }
 
-            const correctCount = detailsList.filter((d: any) => d.correct).length;
+            const correctCount = detailsList.filter(
+              (d: any) => d.correct,
+            ).length;
             const totalQ =
-              detailsList.length || localTest?.questions?.length || data.totalMarks || 0;
+              detailsList.length ||
+              localTest?.questions?.length ||
+              data.totalMarks ||
+              0;
             const accuracy =
               totalQ > 0
                 ? Math.round((correctCount / totalQ) * 100)
-                : data.percentage ?? 0;
+                : (data.percentage ?? 0);
 
             const questionsMapped =
               detailsList.length > 0
@@ -178,25 +202,43 @@ export default function StudentResultPage({
               marksAwarded: d.marksAwarded,
             }));
 
-            const isPub = data.published !== false && data.resultVisibility !== "NONE";
+            // The backend's resultsAvailable flag is the source of truth.
+            // A SUBMITTED attempt does not mean its result has been released.
+            const resultsAvailable = data.resultsAvailable === true;
+
             const canReveal =
-              isPub &&
+              resultsAvailable &&
               (data.resultVisibility === "BOTH" ||
                 data.resultVisibility === "QUESTION_WISE");
 
+            const finalScore = formatNumber(data.finalScore, 0);
+            const totalMarks = formatNumber(data.totalMarks, 0);
+            const backendPercentage =
+              data.percentage !== null && data.percentage !== undefined
+                ? formatNumber(data.percentage, 0)
+                : totalMarks > 0
+                  ? (finalScore / totalMarks) * 100
+                  : 0;
+
             setResult({
               ...data,
-              score: data.percentage ?? data.finalScore ?? 0,
+              finalScore,
+              totalMarks,
+              percentage: backendPercentage,
+              score: backendPercentage,
               quizName:
-                data.quizTitle || localTest?.quizName || `Assessment ${codeUpper}`,
+                data.quizTitle ||
+                localTest?.quizName ||
+                `Assessment ${codeUpper}`,
               totalQuestions: totalQ,
               correctCount,
               accuracyPercentage: accuracy,
-              timeTakenTotalSeconds: data.totalTimeTaken || 0,
+              timeTakenTotalSeconds: formatNumber(data.totalTimeTaken, 0),
               submittedAt: data.submittedAt || "Recently",
               questions: questionsMapped,
               answers: answersMapped,
-              published: isPub,
+              published: resultsAvailable,
+              resultsAvailable,
               revealSolutions: canReveal,
             });
             setLoading(false);
@@ -222,6 +264,7 @@ export default function StudentResultPage({
             setResult({
               quizName: localTest?.quizName || `Assessment ${codeUpper}`,
               published: false,
+              resultsAvailable: false,
               revealSolutions: false,
               submittedAt: "Submitted (Pending release)",
               studentName,
@@ -235,14 +278,25 @@ export default function StudentResultPage({
       }
 
       // Check local storage for actual student submission
-      const localResult = getResultByCode(codeUpper);
+      // Check local storage for actual student submission
+      const localResult = getResultByCode(codeUpper) as any;
+
       if (localResult) {
         setResult({
           ...localResult,
-          score: localResult.score || 0,
+          finalScore: formatNumber(localResult.finalScore, 0),
+          totalMarks: formatNumber(localResult.totalMarks, 0),
+          percentage: formatNumber(
+            localResult.percentage ?? localResult.score,
+            0,
+          ),
+          score: formatNumber(localResult.percentage ?? localResult.score, 0),
           questions: localTest?.questions || [],
-          published: localTest?.settings?.publishScoresImmediately ?? true,
-          revealSolutions: localTest?.settings?.revealSolutions ?? true,
+          published: localResult.resultsAvailable === true,
+          resultsAvailable: localResult.resultsAvailable === true,
+          revealSolutions:
+            localResult.resultsAvailable === true &&
+            localTest?.settings?.revealSolutions === true,
         });
       } else {
         setResult(null);
@@ -291,7 +345,8 @@ export default function StudentResultPage({
               href="/join"
               className="flex w-full items-center justify-center gap-1.5 rounded-[10px] bg-[#165dfb] py-2.5 text-xs font-bold text-white hover:bg-[#0f4fd8] active:scale-[0.98] shadow-sm shadow-[#165dfb]/20 transition-all border-0"
             >
-              Take Assessment <ChevronRight className="h-3.5 w-3.5 text-white" />
+              Take Assessment{" "}
+              <ChevronRight className="h-3.5 w-3.5 text-white" />
             </Link>
             <Link
               href="/dashboard/student"
@@ -305,20 +360,10 @@ export default function StudentResultPage({
     );
   }
 
-  // Determine if scores are published by instructor
-  const isPublished =
-    result.published !== undefined
-      ? result.published
-      : testMeta?.settings?.publishScoresImmediately !== undefined
-        ? testMeta.settings.publishScoresImmediately
-        : (result.isPublished ?? true);
+  // Backend is authoritative for result release.
+  const isPublished = result.resultsAvailable === true;
 
-  const canRevealSolutions =
-    result.revealSolutions !== undefined
-      ? result.revealSolutions
-      : testMeta?.settings?.revealSolutions !== undefined
-        ? testMeta.settings.revealSolutions
-        : true;
+  const canRevealSolutions = isPublished && result.revealSolutions === true;
 
   // If scores are not released yet
   if (!isPublished) {
@@ -343,23 +388,29 @@ export default function StudentResultPage({
             <p className="text-xs text-[#78716b] leading-relaxed font-medium">
               Your responses for{" "}
               <strong>&ldquo;{result.quizName || testCode}&rdquo;</strong> have
-              been permanently recorded. Detailed scorecards, accuracy grades, and
-              solutions will be displayed once published by your instructor.
+              been permanently recorded. Your score and detailed result will be
+              displayed once your instructor publishes the results.
             </p>
           </div>
 
           <div className="rounded-[10px] bg-[#f5f5f4] border border-[#d1dee8]/80 p-3.5 text-xs space-y-1.5 font-medium text-[#78716b] shadow-xs">
             <div className="flex justify-between">
               <span>Session Code:</span>
-              <strong className="font-mono text-[#111111]">{testCode?.toUpperCase()}</strong>
+              <strong className="font-mono text-[#111111]">
+                {testCode?.toUpperCase()}
+              </strong>
             </div>
             <div className="flex justify-between">
               <span>Candidate:</span>
-              <strong className="text-[#111111]">{result.studentName || "Registered Student"}</strong>
+              <strong className="text-[#111111]">
+                {result.studentName || "Registered Student"}
+              </strong>
             </div>
             <div className="flex justify-between">
               <span>Submitted At:</span>
-              <strong className="text-[#111111]">{result.submittedAt || "Recently"}</strong>
+              <strong className="text-[#111111]">
+                {result.submittedAt || "Recently"}
+              </strong>
             </div>
           </div>
 
@@ -412,26 +463,23 @@ export default function StudentResultPage({
             {result.quizName || "Assessment Results"}
           </h1>
           <p className="mt-0.5 text-xs text-[#78716b] font-medium flex items-center gap-2">
-            <CalendarDays className="h-3.5 w-3.5 text-[#78716b]" />{" "}
-            Submitted: {result.submittedAt || "Recently"}
+            <CalendarDays className="h-3.5 w-3.5 text-[#78716b]" /> Submitted:{" "}
+            {result.submittedAt || "Recently"}
           </p>
         </section>
 
         <section className="rounded-[14px] bg-white p-6 border border-[#d1dee8]/70 shadow-sm">
           <div className="flex flex-col items-center gap-5 sm:flex-row sm:items-start">
             <div className="relative shrink-0">
-              <ScoreRing
-                score={result.score || 0}
-                color={gc.ring}
-              />
+              <ScoreRing score={result.score || 0} color={gc.ring} />
               <div className="absolute inset-0 flex flex-col items-center justify-center text-center">
                 <span
                   className={`text-2xl font-black tracking-tight tabular-nums ${gc.text}`}
                 >
-                  {result.score || 0}%
+                  {formatDisplayNumber(result.percentage)}%
                 </span>
                 <span className="text-[9px] font-bold text-[#78716b] uppercase tracking-wider mt-0.5">
-                  Score
+                  Percentage
                 </span>
               </div>
             </div>
@@ -454,7 +502,13 @@ export default function StudentResultPage({
                     <CheckCircle2 className="h-3.5 w-3.5" />
                   </div>
                   <p className="text-base font-black text-[#111111]">
-                    {result.accuracyPercentage ?? (result.totalQuestions > 0 ? Math.round((result.correctCount / result.totalQuestions) * 100) : 0)}%
+                    {result.accuracyPercentage ??
+                      (result.totalQuestions > 0
+                        ? Math.round(
+                            (result.correctCount / result.totalQuestions) * 100,
+                          )
+                        : 0)}
+                    %
                   </p>
                   <p className="text-[9px] text-[#78716b] font-bold uppercase tracking-wider">
                     Accuracy
@@ -466,7 +520,8 @@ export default function StudentResultPage({
                     <Award className="h-3.5 w-3.5" />
                   </div>
                   <p className="text-base font-black text-[#111111]">
-                    {result.score || 0}%
+                    {formatDisplayNumber(result.finalScore)} /{" "}
+                    {formatDisplayNumber(result.totalMarks)}
                   </p>
                   <p className="text-[9px] text-[#78716b] font-bold uppercase tracking-wider">
                     Score
@@ -478,7 +533,7 @@ export default function StudentResultPage({
                     <Clock className="h-3.5 w-3.5" />
                   </div>
                   <p className="text-base font-black text-[#111111]">
-                    {formatTime(result.timeTakenTotalSeconds || 120)}
+                    {formatTime(result.timeTakenTotalSeconds || 0)}
                   </p>
                   <p className="text-[9px] text-[#78716b] font-bold uppercase tracking-wider">
                     Total Time
@@ -498,7 +553,8 @@ export default function StudentResultPage({
               {questions.map((q: any, idx: number) => {
                 const studentAns = result.answers?.find(
                   (a: any) =>
-                    a.questionId === (q.id || idx + 1) || a.questionText === q.text,
+                    a.questionId === (q.id || idx + 1) ||
+                    a.questionText === q.text,
                 );
                 const isCorrect =
                   studentAns?.selectedOption === q.correctOption;
@@ -554,7 +610,8 @@ export default function StudentResultPage({
                   Question Solutions Locked
                 </h3>
                 <p className="text-[10px] text-[#78716b] font-medium">
-                  Detailed answer keys and explanations have been disabled by the instructor.
+                  Detailed answer keys and explanations have been disabled by
+                  the instructor.
                 </p>
               </div>
             </div>
