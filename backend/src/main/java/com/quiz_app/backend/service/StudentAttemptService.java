@@ -750,6 +750,7 @@ public class StudentAttemptService {
                                 !attempt.getStudent().getId().equals(studentId)) {
 
                         throw new BadRequestException(
+                                        "ATTEMPT_NOT_OWNED",
                                         "You are not authorized to view this result");
                 }
 
@@ -813,6 +814,7 @@ public class StudentAttemptService {
                                 !attempt.getStudent().getId().equals(studentId)) {
 
                         throw new BadRequestException(
+                                        "ATTEMPT_NOT_OWNED",
                                         "You are not authorized to view this result");
                 }
 
