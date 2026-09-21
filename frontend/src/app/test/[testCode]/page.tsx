@@ -53,6 +53,7 @@ export default function TestArenaPage({
   const [test, setTest] = useState<any>(null);
   const [isLoadingTest, setIsLoadingTest] = useState(true);
   const [testLoadError, setTestLoadError] = useState<string | null>(null);
+
   const [currentIndex, setCurrentIndex] = useState(() => {
     if (typeof window !== "undefined") {
       const cleanCode = testCode.toUpperCase();
@@ -61,6 +62,7 @@ export default function TestArenaPage({
     }
     return 0;
   });
+
   const [selectedOption, setSelectedOption] = useState<number | null>(null);
 
   // Track answers as questionId -> optionId
@@ -72,6 +74,20 @@ export default function TestArenaPage({
 
   const [timeLeft, setTimeLeft] = useState(30);
   const [isSubmitted, setIsSubmitted] = useState(false);
+
+  /*
+   * Authoritative attempt ID returned by the backend after submission.
+   *
+   * IMPORTANT:
+   * testCode != quizId != attemptId
+   *
+   * The result page expects attemptId, so after successful submission
+   * we store the backend-returned attemptId here.
+   */
+  const [submittedAttemptId, setSubmittedAttemptId] = useState<string | null>(
+    null,
+  );
+
   const [mounted, setMounted] = useState(false);
   const [isOnline, setIsOnline] = useState(true);
 
@@ -137,8 +153,14 @@ export default function TestArenaPage({
       if (cached) {
         try {
           const parsed = JSON.parse(cached);
-          if (parsed.answers) setAnswers(parsed.answers);
-          if (parsed.timeTaken) setTimeTakenPerQuestion(parsed.timeTaken);
+
+          if (parsed.answers) {
+            setAnswers(parsed.answers);
+          }
+
+          if (parsed.timeTaken) {
+            setTimeTakenPerQuestion(parsed.timeTaken);
+          }
         } catch {
           // Ignore malformed local answer state.
         }
@@ -281,6 +303,7 @@ export default function TestArenaPage({
 
     return () => {
       cancelled = true;
+
       window.removeEventListener("online", handleOnline);
       window.removeEventListener("offline", handleOffline);
     };
@@ -288,6 +311,7 @@ export default function TestArenaPage({
 
   const questions = test?.questions || [];
   const currentQuestion = questions[currentIndex];
+
   const progressPercentage =
     questions.length > 0 ? ((currentIndex + 1) / questions.length) * 100 : 0;
 
@@ -345,6 +369,7 @@ export default function TestArenaPage({
         questionId: currentQuestion.id,
         optionId,
       });
+
       return;
     }
 
@@ -356,6 +381,7 @@ export default function TestArenaPage({
     setSelectedOption(safeOptionId);
     setAnswers(nextAnswers);
     setSaveStatus("saved");
+
     persistLocalAnswerState(nextAnswers, timeTakenPerQuestion);
   };
 
@@ -405,6 +431,7 @@ export default function TestArenaPage({
         "[Assessment] Invalid current question ID:",
         currentQuestion,
       );
+
       return;
     }
 
@@ -425,6 +452,7 @@ export default function TestArenaPage({
    */
   useEffect(() => {
     const cleanCode = testCode.toUpperCase();
+
     const flushActiveState = () => {
       try {
         localStorage.setItem(
@@ -441,15 +469,19 @@ export default function TestArenaPage({
     };
 
     const handleVisibilityChange = () => {
-      if (document.visibilityState === "hidden") flushActiveState();
+      if (document.visibilityState === "hidden") {
+        flushActiveState();
+      }
     };
 
     document.addEventListener("visibilitychange", handleVisibilityChange);
+
     window.addEventListener("pagehide", flushActiveState);
     window.addEventListener("beforeunload", flushActiveState);
 
     return () => {
       document.removeEventListener("visibilitychange", handleVisibilityChange);
+
       window.removeEventListener("pagehide", flushActiveState);
       window.removeEventListener("beforeunload", flushActiveState);
     };
@@ -472,16 +504,20 @@ export default function TestArenaPage({
 
     try {
       const token = getClientAuthToken();
+
       const attemptId =
         localStorage.getItem(`dynoquizz_attemptId_${cleanCode}`) ||
         localStorage.getItem("dynoquizz_attemptId");
 
       if (!attemptId) {
         console.warn("No attemptId found. Cannot submit attempt.");
+
         setIsSubmitted(false);
+
         setSubmissionNotice(
           "Your attempt session is missing. Your answers remain stored locally.",
         );
+
         return;
       }
 
@@ -501,6 +537,7 @@ export default function TestArenaPage({
             "[Assessment Submission] Invalid backend question ID:",
             question,
           );
+
           continue;
         }
 
@@ -526,6 +563,7 @@ export default function TestArenaPage({
       };
 
       console.log("[Assessment Submission] Attempt ID:", attemptId);
+
       console.log("[Assessment Submission] Payload:", payload);
 
       const res = await fetch(
@@ -559,16 +597,84 @@ export default function TestArenaPage({
 
       if (res.status === 401) {
         persistLocalAnswerState(latestAnswers, timeTakenPerQuestion);
+
         setIsSubmitted(false);
         setSessionExpired(true);
+
         return;
       }
 
       if (res.ok) {
+        /*
+         * IMPORTANT:
+         *
+         * The backend response is authoritative.
+         *
+         * We must NOT use:
+         *   testCode
+         *   quizId
+         *   or any inferred value
+         *
+         * as the result-page identifier.
+         *
+         * The result endpoint expects:
+         *
+         *   /api/v1/student/attempts/{attemptId}/result
+         *
+         * Therefore use the attemptId returned by the submission API.
+         */
+        const returnedAttemptId = data?.attemptId;
+
+        if (
+          returnedAttemptId === undefined ||
+          returnedAttemptId === null ||
+          String(returnedAttemptId).trim() === ""
+        ) {
+          console.error(
+            "[Assessment Submission] Backend submission succeeded but did not return attemptId:",
+            data,
+          );
+
+          setIsSubmitted(false);
+
+          setSubmissionNotice(
+            "Your submission was received, but the attempt ID was not returned. Please contact the administrator before leaving this page.",
+          );
+
+          return;
+        }
+
+        const authoritativeAttemptId = String(returnedAttemptId);
+
+        /*
+         * Keep the authoritative attempt ID in React state so the
+         * scorecard button routes to the correct result.
+         */
+        setSubmittedAttemptId(authoritativeAttemptId);
+
+        /*
+         * Preserve the submitted attempt ID in localStorage as a
+         * safety fallback if the result page is refreshed.
+         */
+        localStorage.setItem(
+          `dynoquizz_submittedAttemptId_${cleanCode}`,
+          authoritativeAttemptId,
+        );
+
+        localStorage.setItem(
+          "dynoquizz_submittedAttemptId",
+          authoritativeAttemptId,
+        );
+
+        /*
+         * Remove only the active exam state.
+         *
+         * Do NOT remove the attempt ID here because the result
+         * page may still need it during the transition.
+         */
         localStorage.removeItem(`dynoquizz_active_test_${cleanCode}`);
+
         localStorage.removeItem(`exam_index_${cleanCode}`);
-        localStorage.removeItem("dynoquizz_attemptId");
-        localStorage.removeItem(`dynoquizz_attemptId_${cleanCode}`);
 
         if (data.deadlineExceeded || data.error === "EXAM_DEADLINE_EXCEEDED") {
           setDeadlineNotice(
@@ -583,6 +689,7 @@ export default function TestArenaPage({
         }
       } else {
         setIsSubmitted(false);
+
         setSubmissionNotice(
           data?.message ||
             "Submission failed. Your answers remain stored locally. Please try again.",
@@ -590,7 +697,9 @@ export default function TestArenaPage({
       }
     } catch (e) {
       console.error("[Assessment Submission] Submission failed:", e);
+
       setIsSubmitted(false);
+
       setSubmissionNotice(
         "Submission failed because the server could not be reached. Your answers remain stored locally. Please try again.",
       );
@@ -610,6 +719,7 @@ export default function TestArenaPage({
         "[Assessment] Invalid question ID during timer expiry:",
         currentQuestion,
       );
+
       return;
     }
 
@@ -636,7 +746,9 @@ export default function TestArenaPage({
    * Question timer
    */
   useEffect(() => {
-    if (isSubmitted || questions.length === 0 || !currentQuestion) return;
+    if (isSubmitted || questions.length === 0 || !currentQuestion) {
+      return;
+    }
 
     const timer = setInterval(() => {
       setTimeTakenPerQuestion((prev) => ({
@@ -647,8 +759,10 @@ export default function TestArenaPage({
       setTimeLeft((prev) => {
         if (prev <= 1) {
           handleTimerExpired();
+
           return currentQuestion.questionTimerSeconds || 30;
         }
+
         return prev - 1;
       });
     }, 1000);
@@ -661,6 +775,7 @@ export default function TestArenaPage({
    */
   if (sessionExpired) {
     const allowResume = test?.settings?.allowResume !== false;
+
     return (
       <main className="flex min-h-screen items-center justify-center bg-[#f5f5f4] text-[#111111] p-4 font-sans selection:bg-[#f5f5f4] selection:text-[#165dfb]">
         <motion.div
@@ -671,19 +786,23 @@ export default function TestArenaPage({
           <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-[10px] bg-[#fbeee8] border border-[#d1dee8]/70 text-[#8c381c] shadow-xs">
             <AlertTriangle className="h-6 w-6 text-[#8c381c]" />
           </div>
+
           <div className="text-center space-y-1">
             <span className="text-[10px] font-bold uppercase tracking-wider text-[#78716b]">
               Authentication Notice
             </span>
+
             <h1 className="text-lg font-bold text-[#111111]">
               Session Expired Mid-Assessment
             </h1>
+
             <p className="text-xs text-[#78716b] leading-relaxed font-medium">
               {allowResume
                 ? "Your authentication session has expired. Your answers have been preserved in local cache. Please log in again to resume your assessment."
                 : "Your authentication session has expired. This assessment does not permit resumption."}
             </p>
           </div>
+
           <div className="pt-2 flex flex-col gap-2">
             {allowResume ? (
               <Link
@@ -721,35 +840,46 @@ export default function TestArenaPage({
           <div className="mx-auto flex h-10 w-10 items-center justify-center rounded-[10px] bg-[#e2ede8] border border-[#d1dee8]/70 text-[#1d5237] shadow-xs">
             <CheckCircle2 className="h-6 w-6 text-[#1d5237]" />
           </div>
+
           <div>
             <span className="text-[10px] font-bold uppercase tracking-wider text-[#78716b]">
               Response Recorded
             </span>
+
             <h1 className="mt-0.5 text-xl font-bold text-[#111111]">
               Assessment Submitted
             </h1>
+
             <p className="mt-1 text-xs text-[#78716b] leading-relaxed font-medium">
               Your exam responses have been securely transmitted to the server
               for evaluation.
             </p>
           </div>
+
           {deadlineNotice && (
             <div className="rounded-[10px] border border-[#73561a]/20 bg-[#f6efe1] p-3 text-xs text-[#73561a] text-left font-medium shadow-xs">
               {deadlineNotice}
             </div>
           )}
+
           {submissionNotice && (
             <div className="rounded-[10px] border border-[#d1dee8]/70 bg-[#f5f5f4] p-3 text-xs text-[#111111] text-left font-medium shadow-xs">
               {submissionNotice}
             </div>
           )}
+
           <div className="flex gap-2 pt-4">
             <Link
-              href={`/dashboard/student/result/${testCode.toUpperCase()}`}
+              href={
+                submittedAttemptId
+                  ? `/dashboard/student/result/${submittedAttemptId}`
+                  : "/dashboard/student"
+              }
               className="flex flex-1 items-center justify-center gap-1.5 rounded-[10px] bg-[#165dfb] py-2.5 text-xs font-bold text-white hover:bg-[#165dfb]/90 active:scale-[0.98] transition-all duration-200 shadow-xs cursor-pointer border-0"
             >
               View Scorecard <ChevronRight className="h-4 w-4 text-white" />
             </Link>
+
             <Link
               href="/dashboard/student"
               className="flex items-center justify-center gap-1.5 rounded-[10px] border border-[#d1dee8]/70 bg-white py-2.5 px-4 text-xs font-bold text-[#111111] hover:bg-[#f5f5f4] active:scale-[0.98] transition-all duration-200 shadow-xs cursor-pointer"
@@ -776,10 +906,12 @@ export default function TestArenaPage({
           <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-[10px] bg-[#f5f5f4] border border-[#d1dee8]/70 text-[#165dfb] shadow-xs">
             <Clock className="h-6 w-6 animate-pulse" />
           </div>
+
           <div className="space-y-1">
             <h1 className="text-xl font-bold text-[#111111]">
               Loading Assessment
             </h1>
+
             <p className="text-xs text-[#78716b] leading-relaxed font-medium">
               Preparing your secure assessment package. Please wait.
             </p>
@@ -796,14 +928,17 @@ export default function TestArenaPage({
           <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-[10px] bg-[#fbeee8] border border-[#d1dee8]/70 text-[#8c381c] shadow-xs">
             <AlertTriangle className="h-6 w-6 text-[#8c381c]" />
           </div>
+
           <div className="space-y-1">
             <h1 className="text-xl font-bold text-[#111111]">
               Assessment Could Not Be Loaded
             </h1>
+
             <p className="text-xs text-[#78716b] leading-relaxed font-medium">
               {testLoadError}
             </p>
           </div>
+
           <Link
             href={`/test/${testCode.toUpperCase()}/lobby`}
             className="flex w-full items-center justify-center gap-1.5 rounded-[10px] bg-[#165dfb] py-2.5 text-xs font-bold text-white hover:bg-[#165dfb]/90 active:scale-[0.98] transition-all border-0 shadow-xs"
@@ -822,16 +957,19 @@ export default function TestArenaPage({
           <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-[10px] bg-[#fbeee8] border border-[#d1dee8]/70 text-[#8c381c] shadow-xs">
             <AlertTriangle className="h-6 w-6 text-[#8c381c]" />
           </div>
+
           <div className="space-y-1">
             <h1 className="text-xl font-bold text-[#111111]">
               Assessment Session Not Found
             </h1>
+
             <p className="text-xs text-[#78716b] leading-relaxed font-medium">
               No valid questions were found for session code{" "}
               <strong>&ldquo;{testCode?.toUpperCase()}&rdquo;</strong>. Please
               return to the lobby and try again.
             </p>
           </div>
+
           <Link
             href={`/test/${testCode.toUpperCase()}/lobby`}
             className="flex w-full items-center justify-center gap-1.5 rounded-[10px] bg-[#165dfb] py-2.5 text-xs font-bold text-white hover:bg-[#165dfb]/90 active:scale-[0.98] transition-all border-0 shadow-xs"
@@ -859,15 +997,18 @@ export default function TestArenaPage({
             <span className="rounded-full bg-[#f5f5f4] px-3 py-1 text-xs font-bold text-[#165dfb] font-mono border border-[#d1dee8]/70 shadow-xs">
               {testCode.toUpperCase()}
             </span>
+
             <span className="text-xs font-bold text-[#78716b]">
               Question {currentIndex + 1} of {questions.length}
             </span>
+
             {saveStatus === "saved" && (
               <span className="text-[11px] font-bold text-[#1d5237]">
                 ✓ Stored locally
               </span>
             )}
           </div>
+
           <div className="flex items-center gap-3.5 font-sans">
             {isOnline ? (
               <span className="flex items-center gap-1.5 rounded-full bg-[#e2ede8] text-[#1d5237] border border-[#1d5237]/20 px-2.5 py-0.5 text-xs font-bold shadow-xs">
@@ -875,14 +1016,16 @@ export default function TestArenaPage({
                   <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-[#1d5237] opacity-75" />
                   <span className="relative inline-flex h-2 w-2 rounded-full bg-[#1d5237]" />
                 </span>
-                <Wifi className="h-3.5 w-3.5 text-[#1d5237]" /> Local Save
-                Active
+                <Wifi className="h-3.5 w-3.5 text-[#1d5237]" />
+                Local Save Active
               </span>
             ) : (
               <span className="flex items-center gap-1.5 rounded-full bg-[#f6efe1] text-[#73561a] border border-[#73561a]/20 px-2.5 py-0.5 text-xs font-bold shadow-xs">
-                <WifiOff className="h-3.5 w-3.5 text-[#73561a]" /> Offline Mode
+                <WifiOff className="h-3.5 w-3.5 text-[#73561a]" />
+                Offline Mode
               </span>
             )}
+
             <div
               className={`flex items-center gap-1.5 rounded-full px-3 py-1 font-bold text-xs transition-colors border shadow-xs ${
                 timeLeft <= 10
@@ -915,12 +1058,15 @@ export default function TestArenaPage({
               <h2 className="mb-5 text-lg font-bold leading-snug text-[#111111] md:text-xl tracking-tight">
                 {currentQuestion.text}
               </h2>
+
               <div className="space-y-2.5">
                 {currentQuestion.options.map((option: any, idx: number) => {
                   const optId = Number(option.optionId ?? option.id);
+
                   const isSelected =
                     Number(selectedOption ?? answers[currentQuestion.id]) ===
                     optId;
+
                   return (
                     <button
                       key={optId || idx}
@@ -941,6 +1087,7 @@ export default function TestArenaPage({
                         >
                           {String.fromCharCode(65 + idx)}
                         </span>
+
                         {option.optionText}
                       </div>
                     </button>
@@ -955,6 +1102,7 @@ export default function TestArenaPage({
           <span className="text-[10px] font-medium text-[#78716b]">
             Question {currentIndex + 1} of {questions.length}
           </span>
+
           <button
             onClick={handleNextQuestion}
             disabled={false}
@@ -981,12 +1129,14 @@ export default function TestArenaPage({
             <span className="text-[10px] font-bold uppercase tracking-wider text-[#165dfb] block mb-1">
               Active Candidate
             </span>
+
             <h3 className="font-bold text-[#111111] text-sm truncate font-mono">
               {(typeof window !== "undefined"
                 ? localStorage.getItem("dynoquizz_regNo") ||
                   sessionStorage.getItem("dynoquizz_student_reg")
                 : null) || "Registered Student"}
             </h3>
+
             <p className="mt-0.5 text-[10px] text-[#78716b] font-medium">
               Session Code:{" "}
               <strong className="text-[#111111] font-bold">
@@ -994,15 +1144,19 @@ export default function TestArenaPage({
               </strong>
             </p>
           </div>
+
           <div className="p-3.5 space-y-2 text-xs">
             <div className="flex justify-between items-center text-[#78716b]">
               <span>Total Questions:</span>
+
               <span className="font-bold text-[#111111]">
                 {questions.length}
               </span>
             </div>
+
             <div className="flex justify-between items-center text-[#78716b]">
               <span>Current Progress:</span>
+
               <span className="font-bold text-[#165dfb]">
                 {currentIndex + 1} / {questions.length}
               </span>
@@ -1012,15 +1166,17 @@ export default function TestArenaPage({
 
         <div className="rounded-[14px] border border-[#d1dee8]/70 bg-white p-4 shadow-sm space-y-2">
           <h3 className="flex items-center gap-1.5 font-bold text-[#111111] text-xs">
-            <ShieldCheck className="h-3.5 w-3.5 text-[#165dfb]" /> Assessment
-            Directives
+            <ShieldCheck className="h-3.5 w-3.5 text-[#165dfb]" />
+            Assessment Directives
           </h3>
+
           <ul className="space-y-1.5 text-[10px] font-medium text-[#78716b]">
             <li className="flex items-start gap-1 leading-relaxed">
               <div className="mt-1 h-1 w-1 rounded-full bg-[#165dfb] shrink-0" />
               Select an option if you want to answer it. Unanswered questions
               can be skipped.
             </li>
+
             <li className="flex items-start gap-1 leading-relaxed">
               <div className="mt-1 h-1 w-1 rounded-full bg-[#165dfb] shrink-0" />
               Questions advance automatically when the timer reaches zero.
