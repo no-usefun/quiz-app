@@ -27,6 +27,7 @@ import com.quiz_app.backend.entity.Quiz;
 import com.quiz_app.backend.entity.QuizAllowedStudent;
 import com.quiz_app.backend.entity.QuizAttempt;
 import com.quiz_app.backend.entity.QuizStatus;
+import com.quiz_app.backend.exception.AccessDeniedApplicationException;
 import com.quiz_app.backend.exception.BadRequestException;
 import com.quiz_app.backend.exception.ResourceNotFoundException;
 import com.quiz_app.backend.repository.OptionRepository;
@@ -64,8 +65,8 @@ public class TeacherQuizService {
                 if (quiz.getTeacher() == null ||
                                 !quiz.getTeacher().getId().equals(teacherId)) {
 
-                        throw new BadRequestException(
-                                        "You are not authorized to publish results for this quiz");
+                        throw new AccessDeniedApplicationException(
+                                        "You do not have permission to publish results for this quiz");
                 }
 
                 if (quiz.getStatus() != QuizStatus.COMPLETED) {
@@ -87,8 +88,8 @@ public class TeacherQuizService {
                 if (quiz.getTeacher() == null ||
                                 !quiz.getTeacher().getId().equals(teacherId)) {
 
-                        throw new BadRequestException(
-                                        "You are not authorized to publish results for this quiz");
+                        throw new AccessDeniedApplicationException(
+                                        "You do not have permission to publish results for this quiz");
                 }
 
                 if (quiz.getStatus() != QuizStatus.COMPLETED) {
@@ -119,8 +120,8 @@ public class TeacherQuizService {
                 if (quiz.getTeacher() == null ||
                                 !quiz.getTeacher().getId().equals(teacherId)) {
 
-                        throw new BadRequestException(
-                                        "You are not authorized to publish this quiz");
+                        throw new AccessDeniedApplicationException(
+                                        "You do not have permission to publish this quiz");
                 }
 
                 // Only drafts can be published
@@ -395,8 +396,8 @@ public class TeacherQuizService {
                 if (quiz.getTeacher() == null ||
                                 !quiz.getTeacher().getId().equals(teacherId)) {
 
-                        throw new BadRequestException(
-                                        "You are not authorized to update this quiz");
+                        throw new AccessDeniedApplicationException(
+                                        "You do not have permission to update this quiz");
                 }
 
                 if (quiz.getStatus() != QuizStatus.DRAFT) {
@@ -853,8 +854,8 @@ public class TeacherQuizService {
 
                 if (quiz.getTeacher() == null
                                 || !quiz.getTeacher().getId().equals(teacherId)) {
-                        throw new BadRequestException(
-                                        "You are not authorized to complete this quiz");
+                        throw new AccessDeniedApplicationException(
+                                        "You do not have permission to complete this quiz");
                 }
 
                 if (quiz.getStatus() != QuizStatus.PUBLISHED) {
@@ -891,8 +892,8 @@ public class TeacherQuizService {
                 if (quiz.getTeacher() == null
                                 || !quiz.getTeacher().getId().equals(teacherId)) {
 
-                        throw new BadRequestException(
-                                        "You are not authorized to view this quiz");
+                        throw new AccessDeniedApplicationException(
+                                        "You do not have permission to view this quiz");
                 }
 
                 List<TeacherQuizDetailResponse.QuestionDetail> questions = questionRepository
@@ -974,7 +975,7 @@ public class TeacherQuizService {
 
                 if (quiz.getTeacher() == null
                                 || !quiz.getTeacher().getId().equals(teacherId)) {
-                        throw new BadRequestException("You are not authorized to view this leaderboard");
+                        throw new AccessDeniedApplicationException("Valid teaacher Id required");
                 }
 
                 List<QuizAttempt> attempts = quizAttemptRepository.findByQuizId(quizId);
