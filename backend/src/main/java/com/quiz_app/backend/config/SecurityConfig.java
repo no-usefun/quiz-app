@@ -73,9 +73,9 @@ public class SecurityConfig {
 
                         // Public Auth Endpoints
                         .requestMatchers("/api/v1/auth/login",
-                                "/api/v1/auth/register")
+                                "/api/v1/auth/signup", "/",
+                                "/api/v1/health")
                         .permitAll()
-                        .requestMatchers("/api/v1/health").permitAll()
                         // Swagger / OpenAPI
                         .requestMatchers(
                                 "/v3/api-docs/**",

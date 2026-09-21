@@ -11,6 +11,7 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
+import com.quiz_app.backend.dto.attempt.LeaderboardEntryResponse;
 import com.quiz_app.backend.dto.quiz.QuizResponse;
 import com.quiz_app.backend.dto.quiz.TeacherQuizDetailResponse;
 import com.quiz_app.backend.dto.quiz.UpdateQuizSettingsRequest;
@@ -123,5 +124,16 @@ public class TeacherQuizController {
                                 teacherQuizService.getTeacherQuizDetail(
                                                 quizId,
                                                 userDetails.getId()));
+        }
+
+        @GetMapping("/quizzes/{quizId}/leaderboard")
+        public ResponseEntity<List<LeaderboardEntryResponse>> getLeaderboard(
+                        @PathVariable Long quizId,
+                        Authentication authentication) {
+
+                CustomUserDetails userDetails = (CustomUserDetails) authentication.getPrincipal();
+
+                return ResponseEntity.ok(
+                                teacherQuizService.getLeaderboard(quizId, userDetails.getId()));
         }
 }
