@@ -289,11 +289,14 @@ function LobbyInner({ testCode }: { testCode: string }) {
           },
         );
 
-        const errorData = await attemptRes.json().catch(() => ({}));
+        // Read the response body exactly once.
+        // Calling attemptRes.json() a second time causes:
+        // "Failed to execute 'json' on 'Response': body stream already read"
+        const attemptData = await attemptRes.json().catch(() => ({}));
 
         if (!attemptRes.ok) {
-          const errorCode = errorData.error;
-          const errorMessage = errorData.message || errorCode;
+          const errorCode = attemptData.error;
+          const errorMessage = attemptData.message || errorCode;
 
           if (attemptRes.status === 409 && errorCode === "ALREADY_ATTEMPTED") {
             throw new Error("This assessment has already been submitted.");
@@ -334,8 +337,6 @@ function LobbyInner({ testCode }: { testCode: string }) {
               "Failed to initialize assessment attempt on the server.",
           );
         }
-
-        const attemptData = await attemptRes.json();
 
         if (!attemptData.attemptId) {
           throw new Error(

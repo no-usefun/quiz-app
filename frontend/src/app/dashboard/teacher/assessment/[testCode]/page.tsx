@@ -276,22 +276,25 @@ export default function TeacherAssessmentPage({
           numericQuizId = Number(testCode);
         }
 
-        // 2. Fetch package / quiz details for question roster and settings
-        const pkgRes = await fetch(
-          `${API_BASE}/api/v1/quizzes/code/${quizCode}/package`,
-          { headers },
-        ).catch(() => null);
+        // 2. Fetch teacher-side quiz details.
+        // IMPORTANT:
+        // Do NOT call /api/v1/quizzes/code/{quizCode}/package here.
+        // That is the student package endpoint and intentionally rejects
+        // completed/non-published quizzes with HTTP 400.
+        //
+        // Teacher details are available through:
+        // GET /api/v1/teacher/quizzes/{quizId}
 
         let pkgData: any = {};
-        if (pkgRes && pkgRes.ok) {
-          pkgData = await pkgRes.json();
-        } else if (numericQuizId) {
-          const altRes = await fetch(
+
+        if (numericQuizId) {
+          const teacherDetailRes = await fetch(
             `${API_BASE}/api/v1/teacher/quizzes/${numericQuizId}`,
             { headers },
           ).catch(() => null);
-          if (altRes && altRes.ok) {
-            pkgData = await altRes.json();
+
+          if (teacherDetailRes && teacherDetailRes.ok) {
+            pkgData = await teacherDetailRes.json();
           }
         }
         if (matchedQuiz) {

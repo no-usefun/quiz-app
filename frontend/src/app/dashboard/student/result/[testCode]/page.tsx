@@ -119,24 +119,35 @@ export default function StudentResultPage({
           // The details endpoint may legitimately return 400 when the
           // instructor has not enabled question-wise result visibility.
           // The summary result remains authoritative in that case.
-          const detailsUrl = `${API_BASE}/api/v1/student/attempts/${attemptId}/result/details`;
-          console.log(`[Student Result] GET details: ${detailsUrl}`);
-
-          const detailsRes = await fetch(detailsUrl, { headers });
-          console.log(
-            `[Student Result] Details HTTP status: ${detailsRes.status}`,
-          );
+          // Question-wise details are only available when the backend releases
+          // question-wise results. The current AttemptResultResponse does not expose
+          // resultVisibility, so do not make a speculative /result/details request.
+          //
+          // The summary /result response is authoritative and is sufficient for the
+          // scorecard when solutions are locked.
 
           let detailsList: any[] = [];
 
-          if (detailsRes.ok) {
-            try {
-              const detailsData = await detailsRes.json();
-              if (Array.isArray(detailsData)) {
-                detailsList = detailsData;
+          const resultVisibility = data.resultVisibility;
+
+          const questionWiseResultsEnabled =
+            resultVisibility === "BOTH" || resultVisibility === "QUESTION_WISE";
+
+          if (questionWiseResultsEnabled) {
+            const detailsUrl = `${API_BASE}/api/v1/student/attempts/${attemptId}/result/details`;
+
+            const detailsRes = await fetch(detailsUrl, { headers });
+
+            if (detailsRes.ok) {
+              try {
+                const detailsData = await detailsRes.json();
+
+                if (Array.isArray(detailsData)) {
+                  detailsList = detailsData;
+                }
+              } catch {
+                // Summary result remains usable if details cannot be parsed.
               }
-            } catch {
-              // Ignore malformed/non-JSON details response. The summary is still usable.
             }
           }
 
