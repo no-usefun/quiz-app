@@ -993,23 +993,6 @@ public class StudentAttemptService {
                         }
                 }
 
-                if (resultsAvailable) {
-
-                        finalScore = attempt.getFinalScore();
-                        totalMarks = quiz.getTotalMarks();
-
-                        if (totalMarks != null
-                                        && totalMarks.compareTo(BigDecimal.ZERO) > 0) {
-
-                                percentage = finalScore
-                                                .multiply(BigDecimal.valueOf(100))
-                                                .divide(
-                                                                totalMarks,
-                                                                2,
-                                                                java.math.RoundingMode.HALF_UP);
-                        }
-                }
-
                 return new StudentSubmissionResponse(
                                 attempt.getId(),
                                 quiz.getId(),
