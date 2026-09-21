@@ -147,4 +147,21 @@ public class GlobalExceptionHandler {
                                 .status(HttpStatus.INTERNAL_SERVER_ERROR)
                                 .body(response);
         }
+
+        @ExceptionHandler(AccessDeniedApplicationException.class)
+        public ResponseEntity<ErrorResponse> handleAccessDeniedApplication(
+                        AccessDeniedApplicationException ex,
+                        HttpServletRequest request) {
+
+                ErrorResponse response = new ErrorResponse(
+                                HttpStatus.FORBIDDEN.value(),
+                                "ACCESS_DENIED",
+                                "Forbidden",
+                                ex.getMessage(),
+                                request.getRequestURI());
+
+                return ResponseEntity
+                                .status(HttpStatus.FORBIDDEN)
+                                .body(response);
+        }
 }

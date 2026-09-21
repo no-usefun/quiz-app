@@ -1,8 +1,10 @@
 package com.quiz_app.backend.service;
 
 import java.math.BigDecimal;
+import java.time.Clock;
 import java.time.Duration;
 import java.time.LocalDateTime;
+import java.time.ZoneId;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -56,6 +58,9 @@ public class StudentAttemptService {
         private final QuestionRepository questionRepository;
         private final OptionRepository optionRepository;
         private final QuizAllowedStudentRepository quizAllowedStudentRepository;
+        private final Clock clock;
+
+        private static final ZoneId QUIZ_TIMEZONE = ZoneId.of("Asia/Kolkata");
 
         public StudentAttemptService(
                         QuizAttemptRepository quizAttemptRepository, QuizRepository quizRepository,
@@ -64,7 +69,8 @@ public class StudentAttemptService {
                         StudentSelectedOptionRepository studentSelectedOptionRepository,
                         QuestionRepository questionRepository,
                         OptionRepository optionRepository,
-                        QuizAllowedStudentRepository quizAllowedStudentRepository) {
+                        QuizAllowedStudentRepository quizAllowedStudentRepository,
+                        Clock clock) {
                 this.quizAttemptRepository = quizAttemptRepository;
                 this.quizRepository = quizRepository;
                 this.userRepository = userRepository;
@@ -73,6 +79,7 @@ public class StudentAttemptService {
                 this.questionRepository = questionRepository;
                 this.optionRepository = optionRepository;
                 this.quizAllowedStudentRepository = quizAllowedStudentRepository;
+                this.clock = clock;
         }
 
         @Transactional
@@ -112,7 +119,7 @@ public class StudentAttemptService {
                                         "Quiz is not available");
                 }
 
-                LocalDateTime now = LocalDateTime.now();
+                LocalDateTime now = LocalDateTime.now(clock.withZone(QUIZ_TIMEZONE));
 
                 // 4. Check exam window
                 if (quiz.getStartTime() != null
@@ -303,7 +310,7 @@ public class StudentAttemptService {
 
                 Quiz quiz = attempt.getQuiz();
 
-                LocalDateTime now = LocalDateTime.now();
+                LocalDateTime now = LocalDateTime.now(clock.withZone(QUIZ_TIMEZONE));
 
                 /*
                  * Backend is the source of truth for the deadline.
