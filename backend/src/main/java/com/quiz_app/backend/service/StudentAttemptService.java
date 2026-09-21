@@ -727,11 +727,6 @@ public class StudentAttemptService {
                                         "Results have not been published yet");
                 }
 
-                if (quiz.getResultVisibility() == ResultVisibility.NONE) {
-                        throw new BadRequestException(
-                                        "Results are not available to students");
-                }
-
                 BigDecimal totalMarks = quiz.getTotalMarks();
 
                 BigDecimal percentage = BigDecimal.ZERO;
