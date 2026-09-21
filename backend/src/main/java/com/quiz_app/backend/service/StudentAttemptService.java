@@ -1,6 +1,7 @@
 package com.quiz_app.backend.service;
 
 import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.time.Clock;
 import java.time.Duration;
 import java.time.LocalDateTime;
@@ -507,7 +508,7 @@ public class StudentAttemptService {
                                         "Quiz associated with attempt was not found");
                 }
 
-                LocalDateTime submittedAt = LocalDateTime.now();
+                LocalDateTime submittedAt = LocalDateTime.now(clock.withZone(QUIZ_TIMEZONE));
 
                 /*
                  * Load all questions belonging to this quiz.
@@ -975,12 +976,22 @@ public class StudentAttemptService {
 
                 Quiz quiz = attempt.getQuiz();
 
-                boolean resultsAvailable = quiz.isResultsPublished()
-                                && quiz.getResultVisibility() != ResultVisibility.NONE;
+                boolean resultsAvailable = quiz.isResultsPublished();
 
                 BigDecimal finalScore = null;
                 BigDecimal totalMarks = null;
                 BigDecimal percentage = null;
+
+                if (resultsAvailable) {
+                        finalScore = attempt.getFinalScore();
+                        totalMarks = quiz.getTotalMarks();
+
+                        if (totalMarks != null && totalMarks.compareTo(BigDecimal.ZERO) > 0) {
+                                percentage = finalScore
+                                                .multiply(BigDecimal.valueOf(100))
+                                                .divide(totalMarks, 2, RoundingMode.HALF_UP);
+                        }
+                }
 
                 if (resultsAvailable) {
 
