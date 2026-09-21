@@ -15,20 +15,24 @@ import java.util.stream.Collectors;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import com.quiz_app.backend.dto.attempt.LeaderboardEntryResponse;
 import com.quiz_app.backend.dto.quiz.QuizResponse;
 import com.quiz_app.backend.dto.quiz.TeacherQuizDetailResponse;
 import com.quiz_app.backend.dto.quiz.UpdateQuizSettingsRequest;
+import com.quiz_app.backend.entity.AttemptStatus;
 import com.quiz_app.backend.entity.ExamState;
 import com.quiz_app.backend.entity.Option;
 import com.quiz_app.backend.entity.Question;
 import com.quiz_app.backend.entity.Quiz;
 import com.quiz_app.backend.entity.QuizAllowedStudent;
+import com.quiz_app.backend.entity.QuizAttempt;
 import com.quiz_app.backend.entity.QuizStatus;
 import com.quiz_app.backend.exception.BadRequestException;
 import com.quiz_app.backend.exception.ResourceNotFoundException;
 import com.quiz_app.backend.repository.OptionRepository;
 import com.quiz_app.backend.repository.QuestionRepository;
 import com.quiz_app.backend.repository.QuizAllowedStudentRepository;
+import com.quiz_app.backend.repository.QuizAttemptRepository;
 import com.quiz_app.backend.repository.QuizRepository;
 
 @Service
@@ -39,13 +43,16 @@ public class TeacherQuizService {
         private final QuestionRepository questionRepository;
         private final OptionRepository optionRepository;
         private final QuizAllowedStudentRepository quizAllowedStudentRepository;
+        private final QuizAttemptRepository quizAttemptRepository;
 
         public TeacherQuizService(QuizRepository quizRepository, QuestionRepository questionRepository,
-                        OptionRepository optionRepository, QuizAllowedStudentRepository quizAllowedStudentRepository) {
+                        OptionRepository optionRepository, QuizAllowedStudentRepository quizAllowedStudentRepository,
+                        QuizAttemptRepository quizAttemptRepository) {
                 this.quizRepository = quizRepository;
                 this.questionRepository = questionRepository;
                 this.optionRepository = optionRepository;
                 this.quizAllowedStudentRepository = quizAllowedStudentRepository;
+                this.quizAttemptRepository = quizAttemptRepository;
         }
 
         @Transactional
@@ -533,7 +540,13 @@ public class TeacherQuizService {
                  * This prevents unique constraint violations when, for example,
                  * question 1 and question 2 swap positions.
                  */
-                int temporaryOrder = -1;
+                int maxDisplayOrder = existingQuestions.stream()
+                                .map(Question::getDisplayOrder)
+                                .filter(Objects::nonNull)
+                                .max(Integer::compareTo)
+                                .orElse(0);
+
+                int temporaryOrder = maxDisplayOrder + existingQuestions.size() + 1000;
 
                 for (Question question : existingQuestions) {
                         question.setDisplayOrder(temporaryOrder--);
@@ -750,7 +763,13 @@ public class TeacherQuizService {
                  * Temporarily move existing orders to avoid
                  * unique(question_id, option_order) conflicts.
                  */
-                short temporaryOrder = -1;
+                short maxOptionOrder = existingOptions.stream()
+                                .map(Option::getOptionOrder)
+                                .filter(Objects::nonNull)
+                                .max(Short::compareTo)
+                                .orElse((short) 0);
+
+                short temporaryOrder = (short) (maxOptionOrder + existingOptions.size() + 100);
 
                 for (Option option : existingOptions) {
                         option.setOptionOrder(temporaryOrder--);
@@ -942,5 +961,69 @@ public class TeacherQuizService {
                                 quiz.getStatus(),
                                 quiz.getExamState(),
                                 questions);
+        }
+
+        public List<LeaderboardEntryResponse> getLeaderboard(Long quizId, Long teacherId) {
+
+                if (quizId == null) {
+                        throw new BadRequestException("Quiz ID is required");
+                }
+
+                Quiz quiz = quizRepository.findById(quizId)
+                                .orElseThrow(() -> new ResourceNotFoundException("Quiz not found"));
+
+                if (quiz.getTeacher() == null
+                                || !quiz.getTeacher().getId().equals(teacherId)) {
+                        throw new BadRequestException("Valid teaacher Id required");
+                }
+
+                List<QuizAttempt> attempts = quizAttemptRepository.findByQuizId(quizId);
+
+                List<QuizAttempt> submittedAttempts = attempts.stream()
+                                .filter(attempt -> attempt.getStatus() == AttemptStatus.SUBMITTED
+                                                || attempt.getStatus() == AttemptStatus.AUTO_SUBMITTED)
+                                .sorted(
+                                                java.util.Comparator
+                                                                .comparing(
+                                                                                QuizAttempt::getFinalScore,
+                                                                                java.util.Comparator.reverseOrder())
+                                                                .thenComparing(
+                                                                                QuizAttempt::getTotalTimeTaken))
+                                .toList();
+
+                List<LeaderboardEntryResponse> result = new java.util.ArrayList<>();
+
+                int rank = 1;
+
+                for (QuizAttempt attempt : submittedAttempts) {
+
+                        BigDecimal score = attempt.getFinalScore();
+
+                        BigDecimal percentage = BigDecimal.ZERO;
+
+                        if (quiz.getTotalMarks() != null
+                                        && quiz.getTotalMarks()
+                                                        .compareTo(BigDecimal.ZERO) > 0) {
+
+                                percentage = score
+                                                .multiply(BigDecimal.valueOf(100))
+                                                .divide(
+                                                                quiz.getTotalMarks(),
+                                                                2,
+                                                                java.math.RoundingMode.HALF_UP);
+                        }
+
+                        result.add(
+                                        new LeaderboardEntryResponse(
+                                                        rank++,
+                                                        attempt.getStudent().getId(),
+                                                        attempt.getStudent().getFullName(),
+                                                        score,
+                                                        quiz.getTotalMarks(),
+                                                        percentage,
+                                                        attempt.getTotalTimeTaken()));
+                }
+
+                return result;
         }
 }
