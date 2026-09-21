@@ -15,7 +15,6 @@ import {
   FileQuestion,
 } from "lucide-react";
 import { Logo } from "@/components/Logo";
-import { getResultByCode, getTestByCode } from "@/lib/storage";
 
 const API_BASE = (
   process.env.NEXT_PUBLIC_API_URL || "http://localhost:8080"
@@ -73,16 +72,22 @@ export default function StudentResultPage({
 }) {
   const { testCode } = use(params);
   const [result, setResult] = useState<any | null>(null);
-  const [testMeta, setTestMeta] = useState<any | null>(null);
   const [loading, setLoading] = useState(true);
   const [mounted, setMounted] = useState(false);
 
   useEffect(() => {
     setMounted(true);
+
     const fetchResult = async () => {
-      const codeUpper = (testCode || "").toUpperCase();
-      const localTest = getTestByCode(codeUpper);
-      setTestMeta(localTest);
+      // This route is now intentionally attemptId-based.
+      // Do not treat quizCode or quizId as an attemptId.
+      const attemptId = (testCode || "").trim();
+
+      if (!/^\d+$/.test(attemptId)) {
+        setResult(null);
+        setLoading(false);
+        return;
+      }
 
       try {
         const token = localStorage.getItem("dynoquizz_token");
@@ -91,216 +96,179 @@ export default function StudentResultPage({
           "Content-Type": "application/json",
         };
 
-        let storedAttemptId =
-          localStorage.getItem(`dynoquizz_attemptId_${codeUpper}`) ||
-          localStorage.getItem("dynoquizz_attemptId") ||
-          (/^\d+$/.test(codeUpper) ? codeUpper : null);
+        const attemptUrl = `${API_BASE}/api/v1/student/attempts/${attemptId}/result`;
 
-        if (!storedAttemptId) {
-          try {
-            const subsRes = await fetch(
-              `${API_BASE}/api/v1/student/submissions`,
-              { headers },
-            );
-            if (subsRes.ok) {
-              const subsList: any[] = await subsRes.json();
-              if (Array.isArray(subsList) && subsList.length > 0) {
-                const matched =
-                  subsList.find(
-                    (s) =>
-                      String(s.quizId) === codeUpper ||
-                      (s.quizTitle &&
-                        s.quizTitle
-                          .toLowerCase()
-                          .includes(codeUpper.toLowerCase())),
-                  ) || subsList[0];
-                if (matched?.attemptId) {
-                  storedAttemptId = String(matched.attemptId);
-                }
-              }
-            }
-          } catch {
-            // ignore
-          }
-        }
+        console.log(`[Student Result] GET ${attemptUrl}`);
+
+        const res = await fetch(attemptUrl, { headers });
+        const rawText = await res.text();
 
         console.log(
-          `[Student Result] Looking up code: "${codeUpper}", storedAttemptId: "${storedAttemptId}"`,
+          `[Student Result] Attempt result HTTP status: ${res.status}`,
         );
+        console.log(`[Student Result] Attempt result raw response:`, rawText);
 
-        if (storedAttemptId) {
-          const attemptUrl = `${API_BASE}/api/v1/student/attempts/${storedAttemptId}/result`;
-          console.log(`[Student Result] GET ${attemptUrl}`);
+        let data: any = null;
+        try {
+          data = JSON.parse(rawText);
+        } catch {
+          // Response was not JSON.
+        }
 
-          // 1. Fetch Attempt Result
-          let res = await fetch(attemptUrl, { headers });
+        if (res.ok && data) {
+          // The details endpoint may legitimately return 400 when the
+          // instructor has not enabled question-wise result visibility.
+          // The summary result remains authoritative in that case.
+          const detailsUrl = `${API_BASE}/api/v1/student/attempts/${attemptId}/result/details`;
+          console.log(`[Student Result] GET details: ${detailsUrl}`);
 
+          const detailsRes = await fetch(detailsUrl, { headers });
           console.log(
-            `[Student Result] Attempt result HTTP status: ${res.status}`,
+            `[Student Result] Details HTTP status: ${detailsRes.status}`,
           );
-          const rawText = await res.text();
-          console.log(`[Student Result] Attempt result raw response:`, rawText);
 
-          let data: any = null;
-          try {
-            data = JSON.parse(rawText);
-          } catch {
-            // response was not JSON
-          }
+          let detailsList: any[] = [];
 
-          if (res.ok && data) {
-            // 2. Fetch Attempt Result Details
-            const detailsUrl = `${API_BASE}/api/v1/student/attempts/${storedAttemptId}/result/details`;
-            console.log(`[Student Result] GET details: ${detailsUrl}`);
-            let detailsRes = await fetch(detailsUrl, { headers });
-            console.log(
-              `[Student Result] Details HTTP status: ${detailsRes.status}`,
-            );
-
-            let detailsList: any[] = [];
-            if (detailsRes.ok) {
+          if (detailsRes.ok) {
+            try {
               const detailsData = await detailsRes.json();
               if (Array.isArray(detailsData)) {
                 detailsList = detailsData;
               }
-            }
-
-            const correctCount = detailsList.filter(
-              (d: any) => d.correct,
-            ).length;
-            const totalQ =
-              detailsList.length ||
-              localTest?.questions?.length ||
-              data.totalMarks ||
-              0;
-            const accuracy =
-              totalQ > 0
-                ? Math.round((correctCount / totalQ) * 100)
-                : (data.percentage ?? 0);
-
-            const questionsMapped =
-              detailsList.length > 0
-                ? detailsList.map((d: any) => ({
-                    id: d.questionId,
-                    questionId: d.questionId,
-                    text: d.questionText,
-                    questionText: d.questionText,
-                    correctOption:
-                      d.correctOptionIds && d.correctOptionIds.length > 0
-                        ? `Option ${d.correctOptionIds.join(", ")}`
-                        : "-",
-                  }))
-                : localTest?.questions || [];
-
-            const answersMapped = detailsList.map((d: any) => ({
-              questionId: d.questionId,
-              selectedOption:
-                d.selectedOptionIds && d.selectedOptionIds.length > 0
-                  ? `Option ${d.selectedOptionIds.join(", ")}`
-                  : "Not answered",
-              correct: d.correct,
-              marksAwarded: d.marksAwarded,
-            }));
-
-            // The backend's resultsAvailable flag is the source of truth.
-            // A SUBMITTED attempt does not mean its result has been released.
-            const resultsAvailable = data.resultsAvailable === true;
-
-            const canReveal =
-              resultsAvailable &&
-              (data.resultVisibility === "BOTH" ||
-                data.resultVisibility === "QUESTION_WISE");
-
-            const finalScore = formatNumber(data.finalScore, 0);
-            const totalMarks = formatNumber(data.totalMarks, 0);
-            const backendPercentage =
-              data.percentage !== null && data.percentage !== undefined
-                ? formatNumber(data.percentage, 0)
-                : totalMarks > 0
-                  ? (finalScore / totalMarks) * 100
-                  : 0;
-
-            setResult({
-              ...data,
-              finalScore,
-              totalMarks,
-              percentage: backendPercentage,
-              score: backendPercentage,
-              quizName:
-                data.quizTitle ||
-                localTest?.quizName ||
-                `Assessment ${codeUpper}`,
-              totalQuestions: totalQ,
-              correctCount,
-              accuracyPercentage: accuracy,
-              timeTakenTotalSeconds: formatNumber(data.totalTimeTaken, 0),
-              submittedAt: data.submittedAt || "Recently",
-              questions: questionsMapped,
-              answers: answersMapped,
-              published: resultsAvailable,
-              resultsAvailable,
-              revealSolutions: canReveal,
-            });
-            setLoading(false);
-            return;
-          } else if (
-            (res.status === 400 || res.status === 403) &&
-            (data?.message?.toLowerCase().includes("not been published") ||
-              rawText.toLowerCase().includes("not been published"))
-          ) {
-            console.log(
-              "[Student Result] Result is pending publication by the instructor.",
-            );
-            let studentName = "Registered Student";
-            try {
-              const u = JSON.parse(
-                localStorage.getItem("dynoquizz_user") || "{}",
-              );
-              studentName = u.fullName || u.firstName || u.name || studentName;
             } catch {
-              // ignore
+              // Ignore malformed/non-JSON details response. The summary is still usable.
             }
-
-            setResult({
-              quizName: localTest?.quizName || `Assessment ${codeUpper}`,
-              published: false,
-              resultsAvailable: false,
-              revealSolutions: false,
-              submittedAt: "Submitted (Pending release)",
-              studentName,
-            });
-            setLoading(false);
-            return;
           }
+
+          const correctCount = detailsList.filter(
+            (d: any) => d.correct === true,
+          ).length;
+
+          const totalQ =
+            formatNumber(data.totalQuestions, 0) || detailsList.length || 0;
+
+          const finalScore = formatNumber(data.finalScore, 0);
+          const totalMarks = formatNumber(data.totalMarks, 0);
+
+          const backendPercentage =
+            data.percentage !== null && data.percentage !== undefined
+              ? formatNumber(data.percentage, 0)
+              : totalMarks > 0
+                ? (finalScore / totalMarks) * 100
+                : 0;
+
+          const accuracy =
+            totalQ > 0
+              ? Math.round((correctCount / totalQ) * 100)
+              : backendPercentage;
+
+          const questionsMapped = detailsList.map((d: any) => ({
+            id: d.questionId,
+            questionId: d.questionId,
+            text: d.questionText,
+            questionText: d.questionText,
+            correctOption:
+              Array.isArray(d.correctOptionIds) && d.correctOptionIds.length > 0
+                ? `Option ${d.correctOptionIds.join(", ")}`
+                : "-",
+          }));
+
+          const answersMapped = detailsList.map((d: any) => ({
+            questionId: d.questionId,
+            selectedOption:
+              Array.isArray(d.selectedOptionIds) &&
+              d.selectedOptionIds.length > 0
+                ? `Option ${d.selectedOptionIds.join(", ")}`
+                : "Not answered",
+            correct: d.correct,
+            marksAwarded: d.marksAwarded,
+          }));
+
+          // A successful /result response means the backend has released the
+          // result. The current backend result DTO does not need a frontend-
+          // invented resultsAvailable field to determine this.
+          const resultsAvailable = true;
+
+          const canReveal =
+            resultsAvailable &&
+            (data.resultVisibility === "BOTH" ||
+              data.resultVisibility === "QUESTION_WISE");
+
+          let studentName = "Registered Student";
+          try {
+            const u = JSON.parse(
+              localStorage.getItem("dynoquizz_user") || "{}",
+            );
+            studentName = u.fullName || u.firstName || u.name || studentName;
+          } catch {
+            // Ignore malformed local user data.
+          }
+
+          setResult({
+            ...data,
+            finalScore,
+            totalMarks,
+            percentage: backendPercentage,
+            score: backendPercentage,
+            quizName:
+              data.quizTitle || `Assessment ${data.quizCode || attemptId}`,
+            quizCode: data.quizCode || data.code || null,
+            attemptId,
+            totalQuestions: totalQ,
+            correctCount,
+            accuracyPercentage: accuracy,
+            timeTakenTotalSeconds: formatNumber(data.totalTimeTaken, 0),
+            submittedAt: data.submittedAt || "Recently",
+            studentName: data.studentName || studentName,
+            questions: questionsMapped,
+            answers: answersMapped,
+            published: resultsAvailable,
+            resultsAvailable,
+            revealSolutions: canReveal,
+          });
+
+          setLoading(false);
+          return;
+        }
+
+        if (
+          (res.status === 400 || res.status === 403) &&
+          (data?.message?.toLowerCase().includes("not been published") ||
+            data?.message?.toLowerCase().includes("not published") ||
+            rawText.toLowerCase().includes("not been published") ||
+            rawText.toLowerCase().includes("not published"))
+        ) {
+          console.log(
+            "[Student Result] Result is pending publication by the instructor.",
+          );
+
+          let studentName = "Registered Student";
+          try {
+            const u = JSON.parse(
+              localStorage.getItem("dynoquizz_user") || "{}",
+            );
+            studentName = u.fullName || u.firstName || u.name || studentName;
+          } catch {
+            // Ignore malformed local user data.
+          }
+
+          setResult({
+            quizName: `Assessment Attempt ${attemptId}`,
+            attemptId,
+            published: false,
+            resultsAvailable: false,
+            revealSolutions: false,
+            submittedAt: "Submitted (Pending release)",
+            studentName,
+          });
+          setLoading(false);
+          return;
         }
       } catch (e) {
         console.warn("[Student Result] Result lookup error:", e);
       }
 
-      // Check local storage for actual student submission
-      // Check local storage for actual student submission
-      const localResult = getResultByCode(codeUpper) as any;
-
-      if (localResult) {
-        setResult({
-          ...localResult,
-          finalScore: formatNumber(localResult.finalScore, 0),
-          totalMarks: formatNumber(localResult.totalMarks, 0),
-          percentage: formatNumber(
-            localResult.percentage ?? localResult.score,
-            0,
-          ),
-          score: formatNumber(localResult.percentage ?? localResult.score, 0),
-          questions: localTest?.questions || [],
-          published: localResult.resultsAvailable === true,
-          resultsAvailable: localResult.resultsAvailable === true,
-          revealSolutions:
-            localResult.resultsAvailable === true &&
-            localTest?.settings?.revealSolutions === true,
-        });
-      } else {
-        setResult(null);
-      }
+      setResult(null);
       setLoading(false);
     };
 
@@ -335,8 +303,8 @@ export default function StudentResultPage({
               Submission Not Found
             </h1>
             <p className="text-xs text-[#78716b] leading-relaxed font-medium">
-              No recorded assessment submission found for session code{" "}
-              <strong>&ldquo;{testCode?.toUpperCase()}&rdquo;</strong>.
+              No recorded assessment submission found for attempt ID{" "}
+              <strong>&ldquo;{testCode}&rdquo;</strong>.
             </p>
           </div>
 
@@ -397,7 +365,7 @@ export default function StudentResultPage({
             <div className="flex justify-between">
               <span>Session Code:</span>
               <strong className="font-mono text-[#111111]">
-                {testCode?.toUpperCase()}
+                {result.attemptId || testCode}
               </strong>
             </div>
             <div className="flex justify-between">
@@ -433,7 +401,7 @@ export default function StudentResultPage({
     ring: "#1d5237",
   };
 
-  const questions = result.questions || testMeta?.questions || [];
+  const questions = result.questions || [];
 
   return (
     <div className="min-h-screen bg-[#f5f5f4] font-sans text-[#111111] selection:bg-[#e6e3e2] selection:text-[#165dfb]">
@@ -450,7 +418,7 @@ export default function StudentResultPage({
           <Logo />
         </div>
         <span className="rounded-full bg-[#f5f5f4] border border-[#d1dee8]/80 px-3 py-1 font-mono text-xs font-bold text-[#111111] shadow-xs">
-          {testCode.toUpperCase()}
+          {result.attemptId || testCode}
         </span>
       </nav>
 
