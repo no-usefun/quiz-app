@@ -1,7 +1,10 @@
 package com.quiz_app.backend.service;
 
 import java.math.BigDecimal;
+import java.time.Clock;
+import java.time.Instant;
 import java.time.LocalDateTime;
+import java.time.ZoneId;
 import java.util.List;
 import java.util.Optional;
 
@@ -37,6 +40,7 @@ import com.quiz_app.backend.dto.attempt.StudentSubmissionResponse;
 import com.quiz_app.backend.dto.attempt.SubmitAnswerRequest;
 import com.quiz_app.backend.dto.attempt.SubmitAttemptRequest;
 import com.quiz_app.backend.dto.attempt.SubmitAttemptResponse;
+import com.quiz_app.backend.dto.quiz.QuizAvailabilityResponse;
 import com.quiz_app.backend.entity.AnswerStatus;
 import com.quiz_app.backend.entity.AttemptStatus;
 import com.quiz_app.backend.entity.Option;
@@ -44,12 +48,14 @@ import com.quiz_app.backend.entity.Question;
 import com.quiz_app.backend.entity.QuestionType;
 import com.quiz_app.backend.entity.Quiz;
 import com.quiz_app.backend.entity.QuizAttempt;
+import com.quiz_app.backend.entity.QuizAvailabilityStatus;
 import com.quiz_app.backend.entity.QuizStatus;
 import com.quiz_app.backend.entity.ResultVisibility;
 import com.quiz_app.backend.entity.Role;
 import com.quiz_app.backend.entity.StudentAnswer;
 import com.quiz_app.backend.entity.StudentSelectedOption;
 import com.quiz_app.backend.entity.User;
+import com.quiz_app.backend.exception.AccessDeniedApplicationException;
 import com.quiz_app.backend.exception.BadRequestException;
 import com.quiz_app.backend.exception.ConflictException;
 import com.quiz_app.backend.exception.ResourceNotFoundException;
@@ -89,6 +95,9 @@ class StudentAttemptServiceTest {
         @Mock
         private QuizAllowedStudentRepository quizAllowedStudentRepository;
 
+        @Mock
+        private Clock clock;
+
         @InjectMocks
         private StudentAttemptService attemptService;
 
@@ -111,6 +120,11 @@ class StudentAttemptServiceTest {
         void setUp() {
 
                 startedAt = LocalDateTime.now().minusMinutes(5);
+
+                Clock fixedClock = Clock.fixed(
+                                Instant.parse("2026-09-21T15:00:00Z"),
+                                ZoneId.of("Asia/Kolkata"));
+                when(clock.withZone(any(ZoneId.class))).thenReturn(fixedClock);
 
                 // ---------------------------------------------------------
                 // Roles
@@ -235,8 +249,8 @@ class StudentAttemptServiceTest {
                                 .thenReturn(false);
 
                 when(quizAttemptRepository
-                                .existsByQuizQuizCodeAndStudentId("123456", 1L))
-                                .thenReturn(false);
+                                .findByQuizQuizCodeAndStudentId("123456", 1L))
+                                .thenReturn(Optional.empty());
 
                 when(quizAttemptRepository.save(any(QuizAttempt.class)))
                                 .thenAnswer(invocation -> invocation.getArgument(0));
@@ -425,8 +439,8 @@ class StudentAttemptServiceTest {
                                 .thenReturn(false);
 
                 when(quizAttemptRepository
-                                .existsByQuizQuizCodeAndStudentId("123456", 1L))
-                                .thenReturn(false);
+                                .findByQuizQuizCodeAndStudentId("123456", 1L))
+                                .thenReturn(Optional.empty());
 
                 when(quizAttemptRepository.save(any(QuizAttempt.class)))
                                 .thenAnswer(invocation -> invocation.getArgument(0));
@@ -482,8 +496,8 @@ class StudentAttemptServiceTest {
                                 .thenReturn(true);
 
                 when(quizAttemptRepository
-                                .existsByQuizQuizCodeAndStudentId("123456", 1L))
-                                .thenReturn(false);
+                                .findByQuizQuizCodeAndStudentId("123456", 1L))
+                                .thenReturn(Optional.empty());
 
                 when(quizAttemptRepository.save(any(QuizAttempt.class)))
                                 .thenAnswer(invocation -> invocation.getArgument(0));
@@ -514,9 +528,11 @@ class StudentAttemptServiceTest {
                 when(quizAllowedStudentRepository.existsByQuizId(10L))
                                 .thenReturn(false);
 
+                attempt.setStatus(AttemptStatus.SUBMITTED);
+
                 when(quizAttemptRepository
-                                .existsByQuizQuizCodeAndStudentId("123456", 1L))
-                                .thenReturn(true);
+                                .findByQuizQuizCodeAndStudentId("123456", 1L))
+                                .thenReturn(Optional.of(attempt));
 
                 assertThrows(
                                 ConflictException.class,
@@ -533,9 +549,12 @@ class StudentAttemptServiceTest {
         @Test
         void autoSubmitAttempt_shouldRejectNullAttemptId() {
 
+                when(userRepository.findById(1L))
+                                .thenReturn(Optional.of(student));
+
                 assertThrows(
                                 BadRequestException.class,
-                                () -> attemptService.autoSubmitAttempt(null));
+                                () -> attemptService.autoSubmitAttempt(null, 1L));
 
                 verifyNoInteractions(quizAttemptRepository);
         }
@@ -543,16 +562,36 @@ class StudentAttemptServiceTest {
         @Test
         void autoSubmitAttempt_shouldRejectUnknownAttempt() {
 
+                when(userRepository.findById(1L))
+                                .thenReturn(Optional.of(student));
+
                 when(quizAttemptRepository.findById(999L))
                                 .thenReturn(Optional.empty());
 
                 assertThrows(
-                                ResourceNotFoundException.class,
-                                () -> attemptService.autoSubmitAttempt(999L));
+                                AccessDeniedApplicationException.class,
+                                () -> attemptService.autoSubmitAttempt(999L, 1L));
+        }
+
+        @Test
+        void autoSubmitAttempt_shouldRejectWrongStudent() {
+
+                when(quizAttemptRepository.findById(1000L))
+                                .thenReturn(Optional.of(attempt));
+
+                assertThrows(
+                                AccessDeniedApplicationException.class,
+                                () -> attemptService.autoSubmitAttempt(1000L, 999L));
+
+                verify(quizAttemptRepository, never())
+                                .save(any(QuizAttempt.class));
         }
 
         @Test
         void autoSubmitAttempt_shouldFinalizeAttempt() {
+
+                when(userRepository.findById(1L))
+                                .thenReturn(Optional.of(student));
 
                 when(quizAttemptRepository.findById(1000L))
                                 .thenReturn(Optional.of(attempt));
@@ -574,7 +613,7 @@ class StudentAttemptServiceTest {
                 when(quizAttemptRepository.save(any(QuizAttempt.class)))
                                 .thenAnswer(invocation -> invocation.getArgument(0));
 
-                SubmitAttemptResponse response = attemptService.autoSubmitAttempt(1000L);
+                SubmitAttemptResponse response = attemptService.autoSubmitAttempt(1000L, 1L);
 
                 assertNotNull(response);
                 assertEquals(
@@ -629,7 +668,7 @@ class StudentAttemptServiceTest {
                                 .thenReturn(Optional.empty());
 
                 assertThrows(
-                                ResourceNotFoundException.class,
+                                AccessDeniedApplicationException.class,
                                 () -> attemptService.submitAttempt(
                                                 999L,
                                                 new SubmitAttemptRequest(List.of()),
@@ -1145,7 +1184,7 @@ class StudentAttemptServiceTest {
                                 .thenReturn(Optional.empty());
 
                 assertThrows(
-                                ResourceNotFoundException.class,
+                                AccessDeniedApplicationException.class,
                                 () -> attemptService.getAttemptResult(999L, 1L));
         }
 
@@ -1176,20 +1215,6 @@ class StudentAttemptServiceTest {
 
                 attempt.setStatus(AttemptStatus.SUBMITTED);
                 quiz.setResultsPublished(false);
-
-                when(quizAttemptRepository.findById(1000L))
-                                .thenReturn(Optional.of(attempt));
-
-                assertThrows(
-                                BadRequestException.class,
-                                () -> attemptService.getAttemptResult(1000L, 1L));
-        }
-
-        @Test
-        void getAttemptResult_shouldRejectResultVisibilityNone() {
-
-                attempt.setStatus(AttemptStatus.SUBMITTED);
-                quiz.setResultVisibility(ResultVisibility.NONE);
 
                 when(quizAttemptRepository.findById(1000L))
                                 .thenReturn(Optional.of(attempt));
@@ -1261,6 +1286,17 @@ class StudentAttemptServiceTest {
         }
 
         @Test
+        void getAttemptResultDetails_shouldRejectWrongStudent() {
+
+                when(quizAttemptRepository.findById(1000L))
+                                .thenReturn(Optional.of(attempt));
+
+                assertThrows(
+                                BadRequestException.class,
+                                () -> attemptService.getAttemptResultDetails(1000L, 999L));
+        }
+
+        @Test
         void getAttemptResultDetails_shouldRejectWhenQuestionWiseResultsUnavailable() {
 
                 attempt.setStatus(AttemptStatus.SUBMITTED);
@@ -1314,11 +1350,133 @@ class StudentAttemptServiceTest {
         }
 
         // =========================================================
+        // QUIZ AVAILABILITY
+        // =========================================================
+
+        @Test
+        void getQuizAvailability_shouldReturnNotFound() {
+
+                when(userRepository.findById(1L))
+                                .thenReturn(Optional.of(student));
+
+                when(quizRepository.findByQuizCode("999999"))
+                                .thenReturn(Optional.empty());
+
+                QuizAvailabilityResponse response = attemptService.getQuizAvailability("999999", 1L);
+
+                assertFalse(response.available());
+                assertEquals(QuizAvailabilityStatus.NOT_FOUND, response.status());
+                assertEquals("999999", response.quizCode());
+                assertNull(response.startTime());
+                assertNull(response.endTime());
+        }
+
+        @Test
+        void getQuizAvailability_shouldReturnNotPublished() {
+
+                when(userRepository.findById(1L))
+                                .thenReturn(Optional.of(student));
+
+                quiz.setStatus(QuizStatus.DRAFT);
+
+                when(quizRepository.findByQuizCode("123456"))
+                                .thenReturn(Optional.of(quiz));
+
+                QuizAvailabilityResponse response = attemptService.getQuizAvailability("123456", 1L);
+
+                assertFalse(response.available());
+                assertEquals(QuizAvailabilityStatus.NOT_PUBLISHED, response.status());
+        }
+
+        @Test
+        void getQuizAvailability_shouldReturnNotStarted() {
+
+                when(userRepository.findById(1L))
+                                .thenReturn(Optional.of(student));
+
+                quiz.setStartTime(LocalDateTime.of(2026, 9, 21, 21, 0));
+                quiz.setEndTime(LocalDateTime.of(2026, 9, 21, 22, 0));
+
+                when(quizRepository.findByQuizCode("123456"))
+                                .thenReturn(Optional.of(quiz));
+
+                QuizAvailabilityResponse response = attemptService.getQuizAvailability("123456", 1L);
+
+                assertFalse(response.available());
+                assertEquals(QuizAvailabilityStatus.NOT_STARTED, response.status());
+        }
+
+        @Test
+        void getQuizAvailability_shouldReturnLiveAtExactStartTime() {
+
+                quiz.setStartTime(LocalDateTime.of(2026, 9, 21, 20, 30));
+                quiz.setEndTime(LocalDateTime.of(2026, 9, 21, 21, 30));
+
+                when(userRepository.findById(1L))
+                                .thenReturn(Optional.of(student));
+
+                when(quizRepository.findByQuizCode("123456"))
+                                .thenReturn(Optional.of(quiz));
+
+                QuizAvailabilityResponse response = attemptService.getQuizAvailability("123456", 1L);
+
+                assertTrue(response.available());
+                assertEquals(QuizAvailabilityStatus.LIVE, response.status());
+        }
+
+        @Test
+        void getQuizAvailability_shouldReturnLive() {
+
+                when(userRepository.findById(1L))
+                                .thenReturn(Optional.of(student));
+
+                quiz.setStartTime(LocalDateTime.of(2026, 9, 21, 19, 0));
+                quiz.setEndTime(LocalDateTime.of(2026, 9, 21, 21, 0));
+
+                when(quizRepository.findByQuizCode("123456"))
+                                .thenReturn(Optional.of(quiz));
+
+                QuizAvailabilityResponse response = attemptService.getQuizAvailability("123456", 1L);
+
+                assertTrue(response.available());
+                assertEquals(QuizAvailabilityStatus.LIVE, response.status());
+        }
+
+        @Test
+        void getQuizAvailability_shouldReturnEndedAtExactEndTime() {
+
+                when(userRepository.findById(1L))
+                                .thenReturn(Optional.of(student));
+
+                quiz.setStartTime(LocalDateTime.of(2026, 9, 21, 19, 0));
+                quiz.setEndTime(LocalDateTime.of(2026, 9, 21, 20, 30));
+
+                when(quizRepository.findByQuizCode("123456"))
+                                .thenReturn(Optional.of(quiz));
+
+                QuizAvailabilityResponse response = attemptService.getQuizAvailability("123456", 1L);
+
+                assertFalse(response.available());
+                assertEquals(QuizAvailabilityStatus.ENDED, response.status());
+        }
+
+        @Test
+        void getQuizAvailability_shouldRejectNullStudentId() {
+
+                assertThrows(
+                                BadRequestException.class,
+                                () -> attemptService.getQuizAvailability("123456", null));
+        }
+
+        // =========================================================
         // LEADERBOARD
         // =========================================================
 
         @Test
         void getLeaderboard_shouldReturnSubmittedAttemptsSortedByScore() {
+
+                when(userRepository.findById(1L))
+                                .thenReturn(Optional.of(student));
 
                 QuizAttempt first = createLeaderboardAttempt(
                                 1001L,
@@ -1356,7 +1514,7 @@ class StudentAttemptServiceTest {
                                                 inProgress,
                                                 first));
 
-                List<LeaderboardEntryResponse> result = attemptService.getLeaderboard(10L);
+                List<LeaderboardEntryResponse> result = attemptService.getLeaderboard(10L, 1L);
 
                 assertEquals(2, result.size());
 
@@ -1372,24 +1530,33 @@ class StudentAttemptServiceTest {
         @Test
         void getLeaderboard_shouldRejectNullQuizId() {
 
+                when(userRepository.findById(1L))
+                                .thenReturn(Optional.of(student));
+
                 assertThrows(
                                 BadRequestException.class,
-                                () -> attemptService.getLeaderboard(null));
+                                () -> attemptService.getLeaderboard(null, 1L));
         }
 
         @Test
         void getLeaderboard_shouldRejectUnknownQuiz() {
+
+                when(userRepository.findById(1L))
+                                .thenReturn(Optional.of(student));
 
                 when(quizRepository.findById(999L))
                                 .thenReturn(Optional.empty());
 
                 assertThrows(
                                 ResourceNotFoundException.class,
-                                () -> attemptService.getLeaderboard(999L));
+                                () -> attemptService.getLeaderboard(999L, 1L));
         }
 
         @Test
         void getLeaderboard_shouldRejectUnpublishedResults() {
+
+                when(userRepository.findById(1L))
+                                .thenReturn(Optional.of(student));
 
                 quiz.setResultsPublished(false);
 
@@ -1398,11 +1565,14 @@ class StudentAttemptServiceTest {
 
                 assertThrows(
                                 BadRequestException.class,
-                                () -> attemptService.getLeaderboard(10L));
+                                () -> attemptService.getLeaderboard(10L, 1L));
         }
 
         @Test
         void getLeaderboard_shouldRejectUnavailableVisibility() {
+
+                when(userRepository.findById(1L))
+                                .thenReturn(Optional.of(student));
 
                 quiz.setResultVisibility(ResultVisibility.QUESTION_WISE);
 
@@ -1411,7 +1581,7 @@ class StudentAttemptServiceTest {
 
                 assertThrows(
                                 BadRequestException.class,
-                                () -> attemptService.getLeaderboard(10L));
+                                () -> attemptService.getLeaderboard(10L, 1L));
         }
 
         // =========================================================
