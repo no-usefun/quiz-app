@@ -25,6 +25,70 @@ const API_BASE = (
   process.env.NEXT_PUBLIC_API_URL || "http://localhost:8080"
 ).replace(/\/+$/, "");
 
+function formatForDateTimeInput(
+  val: string | number | null | undefined,
+): string {
+  if (!val) return "";
+  const str = String(val).trim();
+  const match = str.match(
+    /^(\d{4}-\d{2}-\d{2})[T ](\d{2}:\d{2})(?::(\d{2}))?/,
+  );
+  if (match) {
+    const [, date, time, sec] = match;
+    return sec && sec !== "00" ? `${date}T${time}:${sec}` : `${date}T${time}`;
+  }
+  const d = new Date(str);
+  if (!isNaN(d.getTime())) {
+    const pad = (n: number) => String(n).padStart(2, "0");
+    return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+  }
+  return str;
+}
+
+function formatToLocalDateTime(val: string | null | undefined): string {
+  if (!val) return "";
+  const str = String(val).trim();
+  const match = str.match(
+    /^(\d{4}-\d{2}-\d{2})[T ](\d{2}:\d{2})(?::(\d{2}))?/,
+  );
+  if (match) {
+    const [, date, time, sec] = match;
+    return `${date}T${time}:${sec || "00"}`;
+  }
+  const d = new Date(str);
+  if (!isNaN(d.getTime())) {
+    const pad = (n: number) => String(n).padStart(2, "0");
+    return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
+  }
+  return str;
+}
+
+// Computes end time as startTime + timeLimitMinutes using pure local arithmetic.
+// Returns a datetime-local string (YYYY-MM-DDTHH:mm) with NO timezone conversion.
+// Returns "" when startTime is empty or timeLimitMinutes is <= 0.
+function computeEndTime(startTimeLocal: string, timeLimitMinutes: number): string {
+  if (!startTimeLocal || timeLimitMinutes <= 0) return "";
+  // Parse as local by replacing any existing T separator
+  const match = startTimeLocal.match(
+    /^(\d{4})-(\d{2})-(\d{2})[T ](\d{2}):(\d{2})(?::(\d{2}))?/,
+  );
+  if (!match) return "";
+  const [, yr, mo, dy, hr, mn, sc] = match;
+  // Use Date constructor with explicit local parts to avoid UTC interpretation
+  const d = new Date(
+    Number(yr),
+    Number(mo) - 1,
+    Number(dy),
+    Number(hr),
+    Number(mn),
+    Number(sc || "0"),
+  );
+  if (isNaN(d.getTime())) return "";
+  d.setMinutes(d.getMinutes() + timeLimitMinutes);
+  const pad = (n: number) => String(n).padStart(2, "0");
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+}
+
 function CreateAssessmentContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -66,6 +130,20 @@ function CreateAssessmentContent() {
     useState(false);
   const [revealSolutions, setRevealSolutions] = useState(false);
   const [acceptedDomain, setAcceptedDomain] = useState("");
+
+  // Backend-owned settings. Hydrate these when editing so Save Changes does
+  // not silently overwrite values that are not exposed by this UI.
+  const [startTime, setStartTime] = useState("");
+  // endTime is derived — always equals startTime + timeLimit (overallTimerSeconds).
+  // It is NOT independently editable by the teacher.
+  const endTime = computeEndTime(startTime, timeLimit);
+  const [maxTabSwitch, setMaxTabSwitch] = useState(3);
+  const [timeBonusEnabled, setTimeBonusEnabled] = useState(false);
+  const [randomQuestionOrder, setRandomQuestionOrder] = useState(true);
+  const [randomOptionOrder, setRandomOptionOrder] = useState(true);
+  const [allowReview, setAllowReview] = useState(true);
+  const [allowResume, setAllowResume] = useState(true);
+  const [autoSubmit, setAutoSubmit] = useState(true);
 
   const [parsedQuestions, setParsedQuestions] = useState<any[]>([]);
 
@@ -140,6 +218,38 @@ function CreateAssessmentContent() {
     } else if (root.acceptedDomain !== undefined) {
       setAcceptedDomain(root.acceptedDomain || "");
     }
+
+    const settings =
+      root.settings && typeof root.settings === "object" ? root.settings : root;
+
+    const rawStartTime =
+      root.startTime ?? settings.startTime ?? data?.startTime ?? null;
+    if (rawStartTime) setStartTime(formatForDateTimeInput(rawStartTime));
+
+    // endTime is derived from startTime + timeLimit; no need to hydrate it separately.
+
+    if (settings.maxTabSwitch !== undefined && settings.maxTabSwitch !== null) {
+      setMaxTabSwitch(Number(settings.maxTabSwitch));
+    }
+    if (settings.timeBonusEnabled !== undefined) {
+      setTimeBonusEnabled(Boolean(settings.timeBonusEnabled));
+    }
+    if (settings.randomQuestionOrder !== undefined) {
+      setRandomQuestionOrder(Boolean(settings.randomQuestionOrder));
+    }
+    if (settings.randomOptionOrder !== undefined) {
+      setRandomOptionOrder(Boolean(settings.randomOptionOrder));
+    }
+    if (settings.allowReview !== undefined) {
+      setAllowReview(Boolean(settings.allowReview));
+    }
+    if (settings.allowResume !== undefined) {
+      setAllowResume(Boolean(settings.allowResume));
+    }
+    if (settings.autoSubmit !== undefined) {
+      setAutoSubmit(Boolean(settings.autoSubmit));
+    }
+
     if (neg || root.acceptedEmailDomain || root.acceptedDomain)
       setShowAdvanced(true);
 
@@ -245,6 +355,30 @@ function CreateAssessmentContent() {
           if (parsed.revealSolutions !== undefined) {
             setRevealSolutions(Boolean(parsed.revealSolutions));
           }
+          if (parsed.startTime)
+            setStartTime(formatForDateTimeInput(parsed.startTime));
+          // endTime is derived from startTime + timeLimit; no need to restore from cache.
+          if (parsed.maxTabSwitch !== undefined) {
+            setMaxTabSwitch(Number(parsed.maxTabSwitch));
+          }
+          if (parsed.timeBonusEnabled !== undefined) {
+            setTimeBonusEnabled(Boolean(parsed.timeBonusEnabled));
+          }
+          if (parsed.randomQuestionOrder !== undefined) {
+            setRandomQuestionOrder(Boolean(parsed.randomQuestionOrder));
+          }
+          if (parsed.randomOptionOrder !== undefined) {
+            setRandomOptionOrder(Boolean(parsed.randomOptionOrder));
+          }
+          if (parsed.allowReview !== undefined) {
+            setAllowReview(Boolean(parsed.allowReview));
+          }
+          if (parsed.allowResume !== undefined) {
+            setAllowResume(Boolean(parsed.allowResume));
+          }
+          if (parsed.autoSubmit !== undefined) {
+            setAutoSubmit(Boolean(parsed.autoSubmit));
+          }
           if (
             parsed.negativeMarking ||
             parsed.publishScoresImmediately ||
@@ -339,7 +473,7 @@ function CreateAssessmentContent() {
                           optionIndex + 1,
                         isCorrect: Boolean(
                           backendOption.isCorrect === true ||
-                            backendOption.correct === true,
+                          backendOption.correct === true,
                         ),
                       }),
                     ),
@@ -381,11 +515,11 @@ function CreateAssessmentContent() {
                           localOption?.id ??
                           null,
                         isCorrect: Boolean(
+                          localOption?.isCorrect ??
+                          localOption?.correct ??
+                          backendOption.isCorrect ??
                           backendOption.correct ??
-                            backendOption.isCorrect ??
-                            localOption?.isCorrect ??
-                            localOption?.correct ??
-                            false,
+                          false,
                         ),
                       };
                     },
@@ -916,6 +1050,9 @@ function CreateAssessmentContent() {
   // Shared validation — used by both Publish and Save as Draft flows.
   const validateForm = (): string | null => {
     if (!title.trim()) return "Please enter an assessment title.";
+    if (!startTime) return "Please select a start time.";
+    if (timeLimit <= 0) return "Time limit must be at least 1 minute.";
+    if (!endTime) return "Could not calculate end time — check start time and time limit.";
     if (parsedQuestions.length === 0)
       return "Please add at least one question before saving.";
     for (let i = 0; i < parsedQuestions.length; i++) {
@@ -929,99 +1066,108 @@ function CreateAssessmentContent() {
     return null;
   };
 
-  // Build the POST payload. Status is sent as PUBLISHED to match original
-  // behavior — the backend uses the separate PUT /publish call to actually
-  // transition the quiz to live state.
-  // forPost=true  → POST /teacher/quizzes   (new quiz):   options use `isCorrect`, no questionId/optionId
-  // forPost=false → PUT  /teacher/quizzes/id (edit/draft): options use `correct`,    includes IDs
-  const buildPayload = (forPost: boolean = false) => {
-    // --- FIX 1: Timestamp & Availability window ---
-    const now = new Date();
-    // Shift start time back by 5 minutes to bypass slight server clock mismatches
-    const startTime = new Date(now.getTime() - 5 * 60000);
-    // Give a 24-hour window for the quiz to remain "Available" in the lobby
-    // (The test duration itself is still strictly enforced by overallTimerSeconds)
-    const endTime = new Date(now.getTime() + 24 * 60 * 60000);
+  // ---------------------------------------------------------------------------
+  // Backend payload builders
+  // ---------------------------------------------------------------------------
+  // POST /api/v1/teacher/quizzes uses CreateQuizRequest.
+  // PUT  /api/v1/teacher/quizzes/{quizId}/settings uses UpdateQuizSettingsRequest.
+  // Keep these payloads separate so create-only fields never leak into updates.
 
-    const resultVis =
-      publishScoresImmediately && revealSolutions
-        ? "BOTH"
-        : publishScoresImmediately
-          ? "LEADERBOARD"
-          : revealSolutions
-            ? "QUESTION_WISE"
-            : "NONE";
+  const getResultVisibility = () =>
+    publishScoresImmediately && revealSolutions
+      ? "BOTH"
+      : publishScoresImmediately
+        ? "LEADERBOARD"
+        : revealSolutions
+          ? "QUESTION_WISE"
+          : "NONE";
 
-    // Process authorized rolls
-    const allowedRollsArray = allowedRollsText
+  const getAllowedRolls = () =>
+    allowedRollsText
       .split(",")
       .map((roll) => roll.trim())
-      .filter((roll) => roll.length > 0);
+      .filter(Boolean);
+
+  const buildQuestionPayload = (forPost: boolean) =>
+    parsedQuestions.map((q: any, index: number) => ({
+      ...(forPost ? {} : { questionId: q.questionId ?? q.id ?? null }),
+      questionText: String(q.questionText || "").trim(),
+      imageUrl: q.imageUrl || "",
+      explanation: String(q.explanation || "").trim(),
+      questionType:
+        q.questionType === "MULTIPLE_CHOICE" ? "MCQ" : q.questionType || "MCQ",
+      marks: Number(q.marks || 1),
+      negativeMarks: Number(negativeMarking ? negativeMarks : 0),
+      questionTimerSeconds: Number(q.questionTimerSeconds || 60),
+      difficulty: q.difficulty || "MEDIUM",
+      displayOrder: Number(q.displayOrder || index + 1),
+      options: (q.options || []).map((opt: any, optIndex: number) => ({
+        optionText: String(opt.optionText || "").trim(),
+        optionImage: opt.optionImage || "",
+        optionOrder: Number(
+          opt.optionOrder || opt.displayOrder || optIndex + 1,
+        ),
+        ...(forPost
+          ? { isCorrect: Boolean(opt.isCorrect) }
+          : {
+              optionId: opt.optionId ?? opt.id ?? null,
+              correct: Boolean(opt.isCorrect),
+            }),
+      })),
+    }));
+
+  const buildCreatePayload = () => {
+    const allowedRolls = getAllowedRolls();
 
     return {
-      // teacherId intentionally omitted: the OpenAPI CreateQuizRequest schema
-      // does not include it. The backend resolves the teacher from the
-      // authenticated JWT principal via Spring Security's authentication context.
       title: title.trim(),
       description: description.trim(),
       instructions: instructions.trim(),
       subject: subject.trim(),
       subjectCode: subjectCode.trim(),
+      totalStudents: allowedRolls.length,
       overallTimerSeconds: Math.floor(timeLimit * 60),
       negativeMarking: Boolean(negativeMarking),
       negativeMarks: Number(negativeMarking ? negativeMarks : 0),
-      timeBonusEnabled: false,
-      randomQuestionOrder: true,
-      randomOptionOrder: true,
-      allowReview: true,
-      allowResume: true,
-      autoSubmit: true,
-      startTime: startTime.toISOString(),
-      endTime: endTime.toISOString(),
-      resultVisibility: resultVis,
-      totalStudents: allowedRollsArray.length,
+      timeBonusEnabled: Boolean(timeBonusEnabled),
+      randomQuestionOrder: Boolean(randomQuestionOrder),
+      randomOptionOrder: Boolean(randomOptionOrder),
+      allowReview: Boolean(allowReview),
+      allowResume: Boolean(allowResume),
+      autoSubmit: Boolean(autoSubmit),
+      startTime: formatToLocalDateTime(startTime),
+      endTime: formatToLocalDateTime(endTime),
+      resultVisibility: getResultVisibility(),
       acceptedEmailDomain:
         acceptedDomain.trim() === "" ? null : acceptedDomain.trim(),
-      allowedRegistrationNumbers: allowedRollsArray,
-      questions: parsedQuestions.map((q: any, index: number) => {
-        const baseOption = (opt: any, optIndex: number) => ({
-          optionText: String(opt.optionText).trim(),
-          optionImage: opt.optionImage || "",
-          optionOrder:
-            opt.displayOrder || opt.optionOrder || Number(optIndex + 1),
-        });
+      allowedRegistrationNumbers: allowedRolls,
+      questions: buildQuestionPayload(true),
+    };
+  };
 
-        return {
-          // POST schema has no questionId; only include it on PUT
-          ...(forPost ? {} : { questionId: q.questionId ?? q.id ?? null }),
-          questionText: String(q.questionText).trim(),
-          imageUrl: q.imageUrl || "",
-          explanation: String(q.explanation || "").trim(),
-          questionType:
-            q.questionType === "MULTIPLE_CHOICE"
-              ? "MCQ"
-              : q.questionType || "MCQ",
-          marks: Number(q.marks || 1),
-          negativeMarks: Number(negativeMarking ? negativeMarks : 0),
-          questionTimerSeconds: Number(q.questionTimerSeconds || 60),
-          difficulty: q.difficulty || "MEDIUM",
-          displayOrder: q.displayOrder || Number(index + 1),
-          options: q.options.map((opt: any, optIndex: number) =>
-            forPost
-              ? // POST expects `isCorrect`, no optionId
-                {
-                  ...baseOption(opt, optIndex),
-                  isCorrect: Boolean(opt.isCorrect),
-                }
-              : // PUT expects `correct` + optionId
-                {
-                  ...baseOption(opt, optIndex),
-                  optionId: opt.optionId ?? opt.id ?? null,
-                  correct: Boolean(opt.isCorrect),
-                },
-          ),
-        };
-      }),
+  const buildUpdatePayload = () => {
+    const allowedRolls = getAllowedRolls();
+
+    // UpdateQuizSettingsRequest does NOT contain quizId or totalStudents.
+    // quizId belongs in the URL: /teacher/quizzes/{quizId}/settings.
+    return {
+      overallTimerSeconds: Math.floor(timeLimit * 60),
+      negativeMarking: Boolean(negativeMarking),
+      negativeMarks: Number(negativeMarking ? negativeMarks : 0),
+      timeBonusEnabled: Boolean(timeBonusEnabled),
+      randomQuestionOrder: Boolean(randomQuestionOrder),
+      randomOptionOrder: Boolean(randomOptionOrder),
+      allowReview: Boolean(allowReview),
+      allowResume: Boolean(allowResume),
+      autoSubmit: Boolean(autoSubmit),
+      maxTabSwitch: Math.max(0, Number(maxTabSwitch) || 0),
+      startTime: formatToLocalDateTime(startTime),
+      endTime: formatToLocalDateTime(endTime),
+      resultVisibility: getResultVisibility(),
+      acceptedEmailDomain:
+        acceptedDomain.trim() === "" ? null : acceptedDomain.trim(),
+      allowedRegistrationNumbers: allowedRolls,
+      questions: buildQuestionPayload(false),
     };
   };
 
@@ -1124,17 +1270,20 @@ function CreateAssessmentContent() {
           overallTimerSeconds: Math.floor(timeLimit * 60),
           negativeMarking: Boolean(negativeMarking),
           negativeMarks: Number(negativeMarking ? negativeMarks : 0),
-          timeBonusEnabled: false,
-          randomQuestionOrder: true,
-          randomOptionOrder: true,
-          allowReview: true,
-          allowResume: true,
-          autoSubmit: true,
+          timeBonusEnabled: Boolean(timeBonusEnabled),
+          randomQuestionOrder: Boolean(randomQuestionOrder),
+          randomOptionOrder: Boolean(randomOptionOrder),
+          allowReview: Boolean(allowReview),
+          allowResume: Boolean(allowResume),
+          autoSubmit: Boolean(autoSubmit),
+          maxTabSwitch: Number(maxTabSwitch),
+          startTime: formatToLocalDateTime(startTime) || null,
+          endTime: formatToLocalDateTime(endTime) || null,
           publishScoresImmediately: Boolean(publishScoresImmediately),
           revealSolutions: Boolean(revealSolutions),
           acceptedEmailDomain:
             acceptedDomain.trim() === "" ? null : acceptedDomain.trim(),
-          allowedRegistrationNumbers: [],
+          allowedRegistrationNumbers: getAllowedRolls(),
           allowedRollsText,
           questions: parsedQuestions,
         };
@@ -1157,8 +1306,7 @@ function CreateAssessmentContent() {
       if (isEditing) {
         // ── Edit path: PUT /api/v1/teacher/quizzes/{quizId}/settings ──────────
         const settingsPayload = {
-          ...buildPayload(false), // false = PUT schema (correct + optionId)
-          quizId: Number(draftId),
+          ...buildUpdatePayload(),
         };
 
         const settingsRes = await fetch(
@@ -1216,6 +1364,8 @@ function CreateAssessmentContent() {
           instructions: settingsData.instructions ?? instructions.trim(),
           overallTimerSeconds:
             settingsData.overallTimerSeconds ?? Math.floor(timeLimit * 60),
+          startTime: settingsData.startTime ?? formatToLocalDateTime(startTime),
+          endTime: settingsData.endTime ?? formatToLocalDateTime(endTime),
           acceptedEmailDomain:
             settingsData.acceptedEmailDomain ?? (acceptedDomain.trim() || null),
           questions: parsedQuestions,
@@ -1240,7 +1390,7 @@ function CreateAssessmentContent() {
             "Content-Type": "application/json",
             ...(token ? { Authorization: `Bearer ${token}` } : {}),
           },
-          body: JSON.stringify(buildPayload(true)), // true = POST schema (isCorrect, no IDs)
+          body: JSON.stringify(buildCreatePayload()),
         });
 
         if (!createRes.ok) {
@@ -1254,8 +1404,7 @@ function CreateAssessmentContent() {
 
         const createData = await createRes.json().catch(() => ({}));
         rawQuizId = createData.quizId ?? createData.id ?? null;
-        quizCode =
-          createData.quizCode ?? createData.testCode ?? "";
+        quizCode = createData.quizCode ?? createData.testCode ?? "";
       }
 
       if (!rawQuizId) throw new Error("Quiz response missing quizId");
@@ -1344,17 +1493,20 @@ function CreateAssessmentContent() {
           overallTimerSeconds: Math.floor(timeLimit * 60),
           negativeMarking: Boolean(negativeMarking),
           negativeMarks: Number(negativeMarking ? negativeMarks : 0),
-          timeBonusEnabled: false,
-          randomQuestionOrder: true,
-          randomOptionOrder: true,
-          allowReview: true,
-          allowResume: true,
-          autoSubmit: true,
+          timeBonusEnabled: Boolean(timeBonusEnabled),
+          randomQuestionOrder: Boolean(randomQuestionOrder),
+          randomOptionOrder: Boolean(randomOptionOrder),
+          allowReview: Boolean(allowReview),
+          allowResume: Boolean(allowResume),
+          autoSubmit: Boolean(autoSubmit),
+          maxTabSwitch: Number(maxTabSwitch),
+          startTime: formatToLocalDateTime(startTime) || null,
+          endTime: formatToLocalDateTime(endTime) || null,
           publishScoresImmediately: Boolean(publishScoresImmediately),
           revealSolutions: Boolean(revealSolutions),
           acceptedEmailDomain:
             acceptedDomain.trim() === "" ? null : acceptedDomain.trim(),
-          allowedRegistrationNumbers: [],
+          allowedRegistrationNumbers: getAllowedRolls(),
           allowedRollsText,
           questions: parsedQuestions,
         };
@@ -1378,9 +1530,13 @@ function CreateAssessmentContent() {
       if (isEditing) {
         // ── Edit path: PUT /api/v1/teacher/quizzes/{quizId}/settings ──────────
         const settingsPayload = {
-          ...buildPayload(false), // false = PUT schema (correct + optionId)
-          quizId: Number(draftId),
+          ...buildUpdatePayload(),
         };
+
+        console.log(
+          "FINAL SAVE SETTINGS PAYLOAD:",
+          JSON.stringify(settingsPayload, null, 2),
+        );
 
         const settingsRes = await fetch(
           `${API_BASE}/api/v1/teacher/quizzes/${draftId}/settings`,
@@ -1395,11 +1551,16 @@ function CreateAssessmentContent() {
         );
 
         if (!settingsRes.ok) {
-          const errData = await settingsRes.json().catch(() => ({}));
+          const errText = await settingsRes.text();
+
+          console.error("SAVE DRAFT BACKEND ERROR:", {
+            status: settingsRes.status,
+            statusText: settingsRes.statusText,
+            response: errText,
+          });
+
           throw new Error(
-            errData.message ||
-              errData.error ||
-              `Server returned status: ${settingsRes.status}`,
+            `Backend ${settingsRes.status}: ${errText || settingsRes.statusText}`,
           );
         }
 
@@ -1421,9 +1582,6 @@ function CreateAssessmentContent() {
           settingsData.quizCode ??
           settingsData.testCode ??
           cachedDraft.quizCode ??
-          getCachedQuizzes(user?.id).find(
-            (q: any) => String(q.quizId ?? q.id) === String(draftId),
-          )?.quizCode ??
           "";
 
         // Inside the successful PUT /settings response block:
@@ -1436,6 +1594,8 @@ function CreateAssessmentContent() {
           instructions: settingsData.instructions ?? instructions.trim(),
           overallTimerSeconds:
             settingsData.overallTimerSeconds ?? Math.floor(timeLimit * 60),
+          startTime: settingsData.startTime ?? formatToLocalDateTime(startTime),
+          endTime: settingsData.endTime ?? formatToLocalDateTime(endTime),
           acceptedEmailDomain:
             settingsData.acceptedEmailDomain ?? (acceptedDomain.trim() || null),
           questions: parsedQuestions, // Ensures we keep the frontend's answer key intact
@@ -1451,7 +1611,7 @@ function CreateAssessmentContent() {
           );
         }
       } else {
-        const createPayload = buildPayload(true); // true = POST schema (isCorrect, no IDs)
+        const createPayload = buildCreatePayload(); // true = POST schema (isCorrect, no IDs)
 
         const createRes = await fetch(`${API_BASE}/api/v1/teacher/quizzes`, {
           method: "POST",
@@ -1679,21 +1839,48 @@ function CreateAssessmentContent() {
                     </span>
                   </div>
                 </div>
-                <div className="text-left sm:col-span-3">
-                  <label className={labelClass}>
-                    Authorized Student Roll Numbers (Optional)
-                  </label>
-                  <textarea
-                    value={allowedRollsText}
-                    onChange={(e) => setAllowedRollsText(e.target.value)}
-                    rows={2}
-                    placeholder="Comma separated, e.g. 21BCE1001, 21BCE1002"
-                    className={`${inputClass} resize-y leading-relaxed`}
+              </div>
+              <div className="grid gap-3 sm:grid-cols-2">
+                <div className="text-left">
+                  <label className={labelClass}>Start Time</label>
+                  <input
+                    type="datetime-local"
+                    value={startTime}
+                    onChange={(e) => setStartTime(e.target.value)}
+                    className={inputClass}
+                    required
                   />
-                  <p className="mt-1 text-[11px] text-[#78716b]">
-                    Leave blank to allow any student to join.
-                  </p>
                 </div>
+                <div className="text-left">
+                  <label className={labelClass}>
+                    End Time{" "}
+                    <span className="normal-case font-medium text-[#a8a29d]">
+                      (auto-calculated)
+                    </span>
+                  </label>
+                  <input
+                    type="datetime-local"
+                    value={endTime}
+                    readOnly
+                    className={`${inputClass} cursor-default opacity-70`}
+                    tabIndex={-1}
+                  />
+                </div>
+              </div>
+              <div className="text-left">
+                <label className={labelClass}>
+                  Authorized Student Roll Numbers (Optional)
+                </label>
+                <textarea
+                  value={allowedRollsText}
+                  onChange={(e) => setAllowedRollsText(e.target.value)}
+                  rows={2}
+                  placeholder="Comma separated, e.g. 21BCE1001, 21BCE1002"
+                  className={`${inputClass} resize-y leading-relaxed`}
+                />
+                <p className="mt-1 text-[11px] text-[#78716b]">
+                  Leave blank to allow any student to join.
+                </p>
               </div>
             </div>
           </div>
