@@ -1,5 +1,5 @@
 "use client";
-
+// frontend/src/app/test/[testCode]/page.tsx
 import { use, useState, useEffect } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -51,6 +51,8 @@ export default function TestArenaPage({
 
   // Test data and question indexing
   const [test, setTest] = useState<any>(null);
+  const [isLoadingTest, setIsLoadingTest] = useState(true);
+  const [testLoadError, setTestLoadError] = useState<string | null>(null);
   const [currentIndex, setCurrentIndex] = useState(() => {
     if (typeof window !== "undefined") {
       const cleanCode = testCode.toUpperCase();
@@ -81,11 +83,46 @@ export default function TestArenaPage({
   const [submissionNotice, setSubmissionNotice] = useState<string | null>(null);
 
   /*
-   * Load test and restore locally cached answers
+   * Load the authoritative quiz package.
+   *
+   * The lobby downloads and caches the package before entering the Arena.
+   * The Arena therefore reads the cached package first and only falls back
+   * to the backend when the cache is missing or invalid.
    */
   useEffect(() => {
     setMounted(true);
     const cleanCode = testCode.toUpperCase();
+
+    let cancelled = false;
+
+    const normalizePackage = (data: any) => {
+      const normalizedQuestions = (data.questions || []).map(
+        (q: any, qIdx: number) => ({
+          id: Number(q.questionId ?? q.id),
+          text: q.questionText || `Question ${qIdx + 1}`,
+          options: (q.options || []).map((opt: any) => ({
+            ...opt,
+            optionId: Number(opt.optionId ?? opt.id),
+            optionText: opt.optionText ?? opt.text ?? "",
+          })),
+          marks: q.marks || 4,
+          negativeMarks: q.negativeMarks || (data.negativeMarking ? 1 : 0),
+          questionTimerSeconds: q.questionTimerSeconds || 30,
+        }),
+      );
+
+      return {
+        testCode: cleanCode,
+        quizName: data.title || `Assessment ${cleanCode}`,
+        totalTimeLimitMinutes: Math.floor(
+          (data.overallTimerSeconds || 1800) / 60,
+        ),
+        settings: {
+          allowResume: data.allowResume ?? true,
+        },
+        questions: normalizedQuestions,
+      };
+    };
 
     if (typeof window !== "undefined") {
       const token = getClientAuthToken();
@@ -103,59 +140,134 @@ export default function TestArenaPage({
           if (parsed.answers) setAnswers(parsed.answers);
           if (parsed.timeTaken) setTimeTakenPerQuestion(parsed.timeTaken);
         } catch {
-          // ignore
+          // Ignore malformed local answer state.
         }
       }
-
-      // Answers are restored only from the local assessment state above.
-      // The current backend does not expose an incremental answer-save endpoint.
     }
 
     const loadTest = async () => {
+      setIsLoadingTest(true);
+      setTestLoadError(null);
+
       try {
-        const token = localStorage.getItem("dynoquizz_token");
+        let packageData: any = null;
 
-        const res = await fetch(
-          `${API_BASE}/api/v1/quizzes/code/${cleanCode}/package`,
-          {
-            headers: {
-              ...(token ? { Authorization: `Bearer ${token}` } : {}),
-              "Content-Type": "application/json",
-            },
-          },
-        );
-
-        if (res.ok) {
-          const data = await res.json();
-          const normalizedQuestions = (data.questions || []).map(
-            (q: any, qIdx: number) => ({
-              id: Number(q.questionId ?? q.id),
-              text: q.questionText || `Question ${qIdx + 1}`,
-              options: (q.options || []).map((opt: any) => ({
-                ...opt,
-                optionId: Number(opt.optionId ?? opt.id),
-                optionText: opt.optionText ?? opt.text ?? "",
-              })),
-              marks: q.marks || 4,
-              negativeMarks: q.negativeMarks || (data.negativeMarking ? 1 : 0),
-              questionTimerSeconds: q.questionTimerSeconds || 30,
-            }),
+        /*
+         * First source: package cached by the lobby.
+         */
+        if (typeof window !== "undefined") {
+          const cachedPackage = sessionStorage.getItem(
+            `dynoquizz_pkg_${cleanCode}`,
           );
 
-          setTest({
-            testCode: cleanCode,
-            quizName: data.title || `Assessment ${cleanCode}`,
-            totalTimeLimitMinutes: Math.floor(
-              (data.overallTimerSeconds || 1800) / 60,
-            ),
-            settings: {
-              allowResume: data.allowResume ?? true,
-            },
-            questions: normalizedQuestions,
-          });
+          if (cachedPackage) {
+            try {
+              const parsed = JSON.parse(cachedPackage);
+
+              if (
+                parsed &&
+                Array.isArray(parsed.questions) &&
+                parsed.questions.length > 0
+              ) {
+                packageData = parsed;
+              }
+            } catch {
+              sessionStorage.removeItem(`dynoquizz_pkg_${cleanCode}`);
+            }
+          }
         }
-      } catch (e) {
-        console.warn("Backend quiz fetch error:", e);
+
+        /*
+         * Fallback: fetch the package directly if the lobby cache
+         * is unavailable. This keeps the Arena resilient on refresh.
+         */
+        if (!packageData) {
+          const token = getClientAuthToken();
+
+          if (!token) {
+            throw new Error(
+              "Your login session has expired. Please log in again.",
+            );
+          }
+
+          const res = await fetch(
+            `${API_BASE}/api/v1/quizzes/code/${cleanCode}/package`,
+            {
+              method: "GET",
+              headers: {
+                Authorization: `Bearer ${token}`,
+                "Content-Type": "application/json",
+              },
+              cache: "no-store",
+            },
+          );
+
+          const data = await res.json().catch(() => ({}));
+
+          if (!res.ok) {
+            throw new Error(
+              data.message ||
+                data.error ||
+                "Unable to load the assessment package.",
+            );
+          }
+
+          packageData = data;
+
+          if (
+            typeof window !== "undefined" &&
+            packageData &&
+            Array.isArray(packageData.questions) &&
+            packageData.questions.length > 0
+          ) {
+            sessionStorage.setItem(
+              `dynoquizz_pkg_${cleanCode}`,
+              JSON.stringify(packageData),
+            );
+          }
+        }
+
+        if (
+          !packageData ||
+          !Array.isArray(packageData.questions) ||
+          packageData.questions.length === 0
+        ) {
+          throw new Error("The assessment package is empty or invalid.");
+        }
+
+        const normalizedTest = normalizePackage(packageData);
+
+        const hasInvalidQuestion = normalizedTest.questions.some(
+          (question: any) =>
+            !Number.isFinite(Number(question.id)) ||
+            Number(question.id) <= 0 ||
+            !Array.isArray(question.options),
+        );
+
+        if (hasInvalidQuestion) {
+          throw new Error(
+            "The assessment package contains invalid question data.",
+          );
+        }
+
+        if (!cancelled) {
+          setTest(normalizedTest);
+          setTestLoadError(null);
+        }
+      } catch (error: any) {
+        console.error("Assessment package load error:", error);
+
+        if (!cancelled) {
+          setTest(null);
+          setTestLoadError(
+            error?.message ||
+              "Unable to load the assessment package. Please return to the lobby and try again.",
+          );
+        }
+      } finally {
+        if (!cancelled) {
+          setIsLoadingTest(false);
+        }
       }
     };
 
@@ -168,6 +280,7 @@ export default function TestArenaPage({
     window.addEventListener("offline", handleOffline);
 
     return () => {
+      cancelled = true;
       window.removeEventListener("online", handleOnline);
       window.removeEventListener("offline", handleOffline);
     };
@@ -360,8 +473,8 @@ export default function TestArenaPage({
     try {
       const token = getClientAuthToken();
       const attemptId =
-        localStorage.getItem("dynoquizz_attemptId") ||
-        localStorage.getItem(`dynoquizz_attemptId_${cleanCode}`);
+        localStorage.getItem(`dynoquizz_attemptId_${cleanCode}`) ||
+        localStorage.getItem("dynoquizz_attemptId");
 
       if (!attemptId) {
         console.warn("No attemptId found. Cannot submit attempt.");
@@ -650,8 +763,58 @@ export default function TestArenaPage({
   }
 
   /*
-   * Test not found/loading
+   * Loading / package error / invalid package
+   *
+   * "Not Found" is only shown after loading has completed and the
+   * package is genuinely missing or empty. It is never used as the
+   * initial loading state.
    */
+  if (isLoadingTest) {
+    return (
+      <main className="flex min-h-screen items-center justify-center bg-[#f5f5f4] text-[#111111] p-4 font-sans">
+        <div className="w-full max-w-md rounded-[14px] bg-white p-8 text-center border border-[#d1dee8]/70 shadow-xl space-y-4">
+          <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-[10px] bg-[#f5f5f4] border border-[#d1dee8]/70 text-[#165dfb] shadow-xs">
+            <Clock className="h-6 w-6 animate-pulse" />
+          </div>
+          <div className="space-y-1">
+            <h1 className="text-xl font-bold text-[#111111]">
+              Loading Assessment
+            </h1>
+            <p className="text-xs text-[#78716b] leading-relaxed font-medium">
+              Preparing your secure assessment package. Please wait.
+            </p>
+          </div>
+        </div>
+      </main>
+    );
+  }
+
+  if (testLoadError) {
+    return (
+      <main className="flex min-h-screen items-center justify-center bg-[#f5f5f4] text-[#111111] p-4 font-sans">
+        <div className="w-full max-w-md rounded-[14px] bg-white p-8 text-center border border-[#d1dee8]/70 shadow-xl space-y-4">
+          <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-[10px] bg-[#fbeee8] border border-[#d1dee8]/70 text-[#8c381c] shadow-xs">
+            <AlertTriangle className="h-6 w-6 text-[#8c381c]" />
+          </div>
+          <div className="space-y-1">
+            <h1 className="text-xl font-bold text-[#111111]">
+              Assessment Could Not Be Loaded
+            </h1>
+            <p className="text-xs text-[#78716b] leading-relaxed font-medium">
+              {testLoadError}
+            </p>
+          </div>
+          <Link
+            href={`/test/${testCode.toUpperCase()}/lobby`}
+            className="flex w-full items-center justify-center gap-1.5 rounded-[10px] bg-[#165dfb] py-2.5 text-xs font-bold text-white hover:bg-[#165dfb]/90 active:scale-[0.98] transition-all border-0 shadow-xs"
+          >
+            Return to Assessment Lobby
+          </Link>
+        </div>
+      </main>
+    );
+  }
+
   if (!test || questions.length === 0) {
     return (
       <main className="flex min-h-screen items-center justify-center bg-[#f5f5f4] text-[#111111] p-4 font-sans">
@@ -664,16 +827,16 @@ export default function TestArenaPage({
               Assessment Session Not Found
             </h1>
             <p className="text-xs text-[#78716b] leading-relaxed font-medium">
-              No questions found for session code{" "}
+              No valid questions were found for session code{" "}
               <strong>&ldquo;{testCode?.toUpperCase()}&rdquo;</strong>. Please
-              check the code or contact your educator.
+              return to the lobby and try again.
             </p>
           </div>
           <Link
-            href="/dashboard/student"
+            href={`/test/${testCode.toUpperCase()}/lobby`}
             className="flex w-full items-center justify-center gap-1.5 rounded-[10px] bg-[#165dfb] py-2.5 text-xs font-bold text-white hover:bg-[#165dfb]/90 active:scale-[0.98] transition-all border-0 shadow-xs"
           >
-            Back to Dashboard
+            Back to Assessment Lobby
           </Link>
         </div>
       </main>

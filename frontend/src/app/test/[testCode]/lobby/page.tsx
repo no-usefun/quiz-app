@@ -7,8 +7,6 @@ import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { motion } from "framer-motion";
 import {
-  Download,
-  CheckCircle2,
   ShieldCheck,
   Clock,
   FileQuestion,
@@ -76,10 +74,6 @@ function LobbyInner({ testCode }: { testCode: string }) {
   const [loading, setLoading] = useState(true);
   const [registrationNumber, setRegistrationNumber] = useState(regParam);
 
-  const [isDownloaded, setIsDownloaded] = useState(false);
-  const [isDownloading, setIsDownloading] = useState(false);
-  const [downloadProgress, setDownloadProgress] = useState(0);
-
   // Backend attempt initialization
   const [isStarting, setIsStarting] = useState(false);
   const [startError, setStartError] = useState<string | null>(null);
@@ -89,9 +83,6 @@ function LobbyInner({ testCode }: { testCode: string }) {
   // New availability state
   const [availabilityStatus, setAvailabilityStatus] =
     useState<AvailabilityStatus | null>(null);
-
-  const [availabilityData, setAvailabilityData] =
-    useState<QuizAvailabilityResponse | null>(null);
 
   useEffect(() => {
     const cleanCode = testCode.toUpperCase();
@@ -118,7 +109,6 @@ function LobbyInner({ testCode }: { testCode: string }) {
       setPackageError(null);
       setStartError(null);
       setAvailabilityStatus(null);
-      setAvailabilityData(null);
 
       try {
         const token = getClientAuthToken();
@@ -157,8 +147,6 @@ function LobbyInner({ testCode }: { testCode: string }) {
           return;
         }
 
-        setAvailabilityData(data);
-
         const status = data.status;
 
         if (status === "LIVE" && data.available === true) {
@@ -186,12 +174,7 @@ function LobbyInner({ testCode }: { testCode: string }) {
             description:
               "This assessment is currently live. Start the assessment to initialize your secure session.",
             targetClass: "General Batch",
-
-            // The actual configured exam duration will come
-            // from the quiz package in the next step.
             totalTimeLimitMinutes: 0,
-
-            // The package has NOT been downloaded yet.
             questions: [],
           });
 
@@ -236,7 +219,6 @@ function LobbyInner({ testCode }: { testCode: string }) {
         console.error("Assessment availability check failed:", error);
 
         setAvailabilityStatus(null);
-        setAvailabilityData(null);
         setTest(null);
 
         setPackageError(
@@ -258,86 +240,17 @@ function LobbyInner({ testCode }: { testCode: string }) {
         setRegistrationNumber(storedReg);
       }
     }
-
-    /*
-     * Preserve the existing cached-package flag for now.
-     *
-     * The actual package download/cache flow will be
-     * corrected in the next frontend step.
-     */
-    if (typeof window !== "undefined") {
-      const cached = sessionStorage.getItem(`dynoquizz_pkg_${cleanCode}`);
-
-      if (cached === "true") {
-        setIsDownloaded(true);
-      }
-    }
   }, [testCode, regParam, router]);
 
   /*
-   * Existing simulated download behavior.
-   *
-   * This will be replaced in the next step so that
-   * the real package is downloaded from the backend
-   * after the attempt is created.
-   */
-  const handleDownload = () => {
-    setIsDownloading(true);
-    setDownloadProgress(20);
-
-    const interval = setInterval(() => {
-      setDownloadProgress((prev) => {
-        if (prev >= 90) {
-          clearInterval(interval);
-          return 90;
-        }
-
-        return prev + 25;
-      });
-    }, 350);
-
-    setTimeout(() => {
-      clearInterval(interval);
-      setDownloadProgress(100);
-      setIsDownloading(false);
-      setIsDownloaded(true);
-
-      if (typeof window !== "undefined") {
-        sessionStorage.setItem(
-          `dynoquizz_pkg_${testCode.toUpperCase()}`,
-          "true",
-        );
-      }
-    }, 1500);
-  };
-
-  /*
-   * Existing attempt-start flow.
-   *
-   * This is intentionally kept for now.
-   * In the next step we will change this function so:
-   *
-   * availability LIVE
-   *       ↓
-   * POST /attempts
-   *       ↓
-   * GET /package
-   *       ↓
-   * store package
-   *       ↓
-   * navigate to Arena
+   * Start the server attempt and then download the authoritative
+   * quiz package. The Arena only opens after both succeed.
    */
   const handleStartAssessment = async () => {
     const cleanCode = testCode.toUpperCase();
 
-    const existingAttempt =
-      typeof window !== "undefined"
-        ? localStorage.getItem(`dynoquizz_attemptId_${cleanCode}`)
-        : null;
-
-    if (existingAttempt) {
-      // Existing attempt → resume directly.
-      router.push(`/test/${cleanCode}`);
+    if (availabilityStatus !== "LIVE") {
+      setStartError("This assessment is not currently live.");
       return;
     }
 
@@ -354,102 +267,174 @@ function LobbyInner({ testCode }: { testCode: string }) {
     try {
       const token = getClientAuthToken();
 
-      const res = await fetch(
-        `${API_BASE}/api/v1/student/quizzes/${cleanCode}/attempts`,
-        {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      if (!token) {
+        throw new Error("Your login session has expired. Please log in again.");
+      }
+
+      /*
+       * Step 1: Create or resume the server-side attempt.
+       */
+      let attemptId =
+        localStorage.getItem(`dynoquizz_attemptId_${cleanCode}`) || null;
+
+      if (!attemptId) {
+        const attemptRes = await fetch(
+          `${API_BASE}/api/v1/student/quizzes/${cleanCode}/attempts`,
+          {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              Authorization: `Bearer ${token}`,
+            },
           },
-        },
-      );
+        );
 
-      if (!res.ok) {
-        const errorData = await res.json().catch(() => ({}));
+        const errorData = await attemptRes.json().catch(() => ({}));
 
-        const errorCode = errorData.error;
-        const errorMessage = errorData.message || errorCode;
+        if (!attemptRes.ok) {
+          const errorCode = errorData.error;
+          const errorMessage = errorData.message || errorCode;
 
-        /*
-         * If candidate has already attempted,
-         * preserve the existing result behavior.
-         */
-        if (res.status === 409 && errorCode === "ALREADY_ATTEMPTED") {
-          router.push(`/dashboard/student/result/${cleanCode}`);
-          return;
-        }
+          if (attemptRes.status === 409 && errorCode === "ALREADY_ATTEMPTED") {
+            throw new Error("This assessment has already been submitted.");
+          }
 
-        if (
-          typeof errorMessage === "string" &&
-          errorMessage.toLowerCase().includes("not available to students")
-        ) {
+          if (errorCode === "QUIZ_NOT_STARTED") {
+            throw new Error("This assessment has not started yet.");
+          }
+
+          if (errorCode === "QUIZ_ENDED") {
+            throw new Error("This assessment has already ended.");
+          }
+
+          if (
+            errorCode === "QUIZ_NOT_AVAILABLE" ||
+            errorCode === "QUIZ_NOT_ACTIVE"
+          ) {
+            throw new Error("This assessment is not currently available.");
+          }
+
+          if (
+            typeof errorMessage === "string" &&
+            errorMessage.toLowerCase().includes("not available to students")
+          ) {
+            throw new Error(
+              "This assessment is not open yet. Ask your teacher to publish it.",
+            );
+          }
+
+          if (attemptRes.status === 403) {
+            throw new Error(
+              errorMessage || "You are not authorized to take this assessment.",
+            );
+          }
+
           throw new Error(
-            "This assessment is not open yet. Ask your teacher to publish it.",
+            errorMessage ||
+              "Failed to initialize assessment attempt on the server.",
           );
         }
 
-        /*
-         * Keep compatibility with the older backend
-         * error code while the new availability endpoint
-         * becomes the primary check.
-         */
-        if (
-          res.status === 409 &&
-          (errorCode === "QUIZ_NOT_ACTIVE" ||
-            (typeof errorMessage === "string" &&
-              errorMessage.includes("QUIZ_NOT_ACTIVE")))
-        ) {
-          throw new Error("This assessment is not open right now.");
-        }
+        const attemptData = await attemptRes.json();
 
-        if (errorCode === "QUIZ_NOT_STARTED") {
-          throw new Error("This assessment has not started yet.");
-        }
-
-        if (errorCode === "QUIZ_ENDED") {
-          throw new Error("This assessment has already ended.");
-        }
-
-        if (res.status === 403) {
+        if (!attemptData.attemptId) {
           throw new Error(
-            errorMessage || "You are not authorized to take this assessment.",
+            "The server created the attempt but did not return an attemptId.",
           );
         }
 
-        throw new Error(
-          errorMessage ||
-            "Failed to initialize assessment attempt on the server.",
-        );
-      }
+        attemptId = String(attemptData.attemptId);
 
-      const data = await res.json();
-
-      /*
-       * Save the server-generated attemptId.
-       */
-      if (typeof window !== "undefined" && data.attemptId) {
-        localStorage.setItem(
-          `dynoquizz_attemptId_${cleanCode}`,
-          data.attemptId.toString(),
-        );
-
-        localStorage.setItem("dynoquizz_attemptId", data.attemptId.toString());
+        localStorage.setItem(`dynoquizz_attemptId_${cleanCode}`, attemptId);
+        localStorage.setItem("dynoquizz_attemptId", attemptId);
+      } else {
+        /*
+         * Existing attempt: make sure the generic key is also available
+         * for backward compatibility.
+         */
+        localStorage.setItem("dynoquizz_attemptId", attemptId);
       }
 
       /*
-       * For this step, navigation remains unchanged.
-       * Package fetching will be moved here in Step 2/3.
+       * Step 2: Reuse a valid cached package if one exists.
+       * Otherwise download the authoritative package from the backend.
        */
+      const packageKey = `dynoquizz_pkg_${cleanCode}`;
+      let packageData: any = null;
+
+      const cachedPackage =
+        typeof window !== "undefined"
+          ? sessionStorage.getItem(packageKey)
+          : null;
+
+      if (cachedPackage) {
+        try {
+          const parsed = JSON.parse(cachedPackage);
+
+          if (
+            parsed &&
+            Array.isArray(parsed.questions) &&
+            parsed.questions.length > 0
+          ) {
+            packageData = parsed;
+          }
+        } catch {
+          sessionStorage.removeItem(packageKey);
+        }
+      }
+
+      if (!packageData) {
+        const packageRes = await fetch(
+          `${API_BASE}/api/v1/quizzes/code/${cleanCode}/package`,
+          {
+            method: "GET",
+            headers: {
+              "Content-Type": "application/json",
+              Authorization: `Bearer ${token}`,
+            },
+            cache: "no-store",
+          },
+        );
+
+        const packageErrorData = await packageRes.json().catch(() => ({}));
+
+        if (!packageRes.ok) {
+          throw new Error(
+            packageErrorData.message ||
+              packageErrorData.error ||
+              "The assessment package could not be downloaded.",
+          );
+        }
+
+        packageData = packageErrorData;
+
+        if (
+          !packageData ||
+          !Array.isArray(packageData.questions) ||
+          packageData.questions.length === 0
+        ) {
+          throw new Error(
+            "The server returned an invalid or empty assessment package.",
+          );
+        }
+
+        sessionStorage.setItem(packageKey, JSON.stringify(packageData));
+      }
+
+      /*
+       * Step 3: Only enter the Arena after the attempt and package
+       * are both ready.
+       */
+      setHasExistingAttempt(true);
       router.push(`/test/${cleanCode}`);
     } catch (err: any) {
-      console.error("Start attempt error:", err);
+      console.error("Start assessment error:", err);
 
       setStartError(
-        err.message ||
-          "Could not start the assessment. Please check your connection.",
+        err?.message ||
+          "Could not start the assessment. Please check your connection and try again.",
       );
-
+    } finally {
       setIsStarting(false);
     }
   };
@@ -587,157 +572,98 @@ function LobbyInner({ testCode }: { testCode: string }) {
           </div>
         </div>
 
-        {!isDownloaded && (
-          <motion.div
-            initial={{ opacity: 0, y: 6 }}
-            animate={{ opacity: 1, y: 0 }}
-            className="space-y-5"
-          >
-            <div className="rounded-[12px] border border-[#d1dee8]/70 bg-[#f5f5f4]/60 p-4 text-xs text-[#78716b] space-y-2 shadow-xs">
-              <div className="flex items-center gap-2 font-bold text-[#111111]">
-                <ShieldCheck className="h-4 w-4 text-[#165dfb]" />
-                Secure Assessment Architecture
-              </div>
-
-              <p className="leading-relaxed font-medium">
-                The assessment package will be loaded after your secure server
-                session is initialized.
-              </p>
+        <motion.div
+          initial={{ opacity: 0, y: 6 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="space-y-5"
+        >
+          <div className="rounded-[12px] border border-[#d1dee8]/70 bg-[#f5f5f4]/60 p-4 text-xs text-[#78716b] space-y-2 shadow-xs">
+            <div className="flex items-center gap-2 font-bold text-[#111111]">
+              <ShieldCheck className="h-4 w-4 text-[#165dfb]" />
+              Secure Assessment Architecture
             </div>
 
-            <div className="space-y-2 text-xs text-[#78716b] font-medium">
-              <div className="flex items-center gap-2">
-                <Check className="h-3.5 w-3.5 text-[#165dfb]" />
-                <span>Assessment availability verified by server</span>
-              </div>
+            <p className="leading-relaxed font-medium">
+              This assessment is live. Start the secure server session to
+              download the authoritative assessment package.
+            </p>
+          </div>
 
-              <div className="flex items-center gap-2">
-                <Check className="h-3.5 w-3.5 text-[#165dfb]" />
-                <span>
-                  Secure attempt session required before package access
-                </span>
-              </div>
+          <div className="space-y-2 text-xs text-[#78716b] font-medium">
+            <div className="flex items-center gap-2">
+              <Check className="h-3.5 w-3.5 text-[#165dfb]" />
+              <span>Assessment availability verified by server</span>
             </div>
 
-            {isDownloading ? (
-              <div className="space-y-2">
-                <div className="flex items-center justify-between text-xs font-bold text-[#111111]">
-                  <span className="flex items-center gap-2">
-                    <Loader2 className="h-4 w-4 animate-spin text-[#165dfb]" />
-                    Downloading Assessment Package...
-                  </span>
-
-                  <span>{downloadProgress}%</span>
-                </div>
-
-                <div className="h-2 w-full overflow-hidden rounded-full bg-[#e6e3e2]">
-                  <motion.div
-                    className="h-full bg-[#165dfb]"
-                    initial={{ width: "0%" }}
-                    animate={{
-                      width: `${downloadProgress}%`,
-                    }}
-                    transition={{ ease: "linear" }}
-                  />
-                </div>
-              </div>
-            ) : (
-              <button
-                type="button"
-                onClick={handleDownload}
-                className="w-full flex items-center justify-center gap-2 rounded-[10px] bg-[#165dfb] py-3 text-sm font-bold text-white hover:bg-[#0f4fd8] active:scale-[0.98] shadow-sm shadow-[#165dfb]/25 hover:shadow-md transition-all cursor-pointer border-0"
-              >
-                <Download className="h-4 w-4" />
-                Download Assessment Package
-              </button>
-            )}
-          </motion.div>
-        )}
-
-        {isDownloaded && (
-          <motion.div
-            initial={{ opacity: 0, scale: 0.98 }}
-            animate={{ opacity: 1, scale: 1 }}
-            className="space-y-6"
-          >
-            <div className="rounded-[12px] bg-[#e7f7ef] border border-[#1d5237]/20 p-4 text-xs text-[#1d5237] shadow-xs">
-              <div className="flex items-start gap-3">
-                <CheckCircle2 className="h-5 w-5 shrink-0 mt-0.5 text-[#1d5237]" />
-
-                <div className="space-y-1">
-                  <p className="font-bold text-sm">
-                    Package Verified &amp; Ready
-                  </p>
-
-                  <p className="leading-relaxed opacity-90 font-medium">
-                    All questions are cached. You can complete this exam
-                    securely.
-                  </p>
-                </div>
-              </div>
+            <div className="flex items-center gap-2">
+              <Check className="h-3.5 w-3.5 text-[#165dfb]" />
+              <span>Server attempt created before package access</span>
             </div>
 
-            <div className="rounded-[12px] border border-[#d1dee8]/70 bg-[#f5f5f4]/60 p-5 space-y-3 text-left shadow-xs">
-              <div className="flex items-center justify-between border-b border-[#d1dee8]/50 pb-3">
-                <span className="text-xs font-bold text-[#111111] uppercase tracking-wider flex items-center gap-1.5">
-                  <Lock className="h-3.5 w-3.5 text-[#165dfb]" />
-                  Candidate Ready Room
-                </span>
+            <div className="flex items-center gap-2">
+              <Check className="h-3.5 w-3.5 text-[#165dfb]" />
+              <span>Package is cached locally before entering the Arena</span>
+            </div>
+          </div>
 
-                <span className="rounded-full bg-white px-2.5 py-0.5 text-[10px] font-bold text-[#165dfb] border border-[#d1dee8]/80 shadow-xs">
-                  READY
-                </span>
-              </div>
+          {startError && (
+            <div className="rounded-[10px] bg-[#fbeee8] border border-[#8c381c]/30 p-3 text-xs text-[#8c381c] font-semibold flex items-center gap-2 shadow-xs">
+              <AlertCircle className="h-4 w-4 shrink-0" />
+              {startError}
+            </div>
+          )}
 
-              <div className="space-y-2 text-xs text-[#78716b]">
-                <p className="font-semibold text-[#111111]">Directives:</p>
+          <div className="rounded-[12px] border border-[#d1dee8]/70 bg-[#f5f5f4]/60 p-5 space-y-3 text-left shadow-xs">
+            <div className="flex items-center justify-between border-b border-[#d1dee8]/50 pb-3">
+              <span className="text-xs font-bold text-[#111111] uppercase tracking-wider flex items-center gap-1.5">
+                <Lock className="h-3.5 w-3.5 text-[#165dfb]" />
+                Candidate Ready Room
+              </span>
 
-                <ul className="list-disc pl-4 space-y-1 font-medium">
-                  <li>
-                    The timer starts immediately once you click &ldquo;Start
-                    Assessment&rdquo;.
-                  </li>
-
-                  <li>
-                    Your answers are automatically saved locally and
-                    synchronized upon completion.
-                  </li>
-                </ul>
-              </div>
+              <span className="rounded-full bg-white px-2.5 py-0.5 text-[10px] font-bold text-[#165dfb] border border-[#d1dee8]/80 shadow-xs">
+                LIVE
+              </span>
             </div>
 
-            {startError && (
-              <div className="rounded-[10px] bg-[#fbeee8] border border-[#8c381c]/30 p-3 text-xs text-[#8c381c] font-semibold flex items-center gap-2 shadow-xs">
-                <AlertCircle className="h-4 w-4 shrink-0" />
-                {startError}
-              </div>
-            )}
+            <div className="space-y-2 text-xs text-[#78716b]">
+              <p className="font-semibold text-[#111111]">Directives:</p>
 
-            <div className="space-y-2">
-              <button
-                type="button"
-                onClick={handleStartAssessment}
-                disabled={isStarting}
-                className="w-full flex items-center justify-center gap-2 rounded-[10px] bg-[#111111] py-3.5 text-sm font-bold text-white hover:bg-[#222222] active:scale-[0.98] shadow-sm hover:shadow-md transition-all cursor-pointer border-0 disabled:opacity-70"
-              >
-                {isStarting ? (
-                  <>
-                    <Loader2 className="h-4 w-4 animate-spin" />
-                    Initializing Server Session...
-                  </>
-                ) : (
-                  <>
-                    {hasExistingAttempt
-                      ? "Resume Assessment"
-                      : "Start Assessment"}
-
-                    <ArrowRight className="h-4 w-4" />
-                  </>
-                )}
-              </button>
+              <ul className="list-disc pl-4 space-y-1 font-medium">
+                <li>
+                  The timer starts once the secure assessment session is
+                  initialized.
+                </li>
+                <li>
+                  Your answers are automatically saved locally and submitted
+                  when you complete the assessment.
+                </li>
+              </ul>
             </div>
-          </motion.div>
-        )}
+          </div>
+
+          <div className="space-y-2">
+            <button
+              type="button"
+              onClick={handleStartAssessment}
+              disabled={isStarting}
+              className="w-full flex items-center justify-center gap-2 rounded-[10px] bg-[#111111] py-3.5 text-sm font-bold text-white hover:bg-[#222222] active:scale-[0.98] shadow-sm hover:shadow-md transition-all cursor-pointer border-0 disabled:opacity-70"
+            >
+              {isStarting ? (
+                <>
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                  Initializing Session &amp; Loading Package...
+                </>
+              ) : (
+                <>
+                  {hasExistingAttempt
+                    ? "Resume Assessment"
+                    : "Start Assessment"}
+                  <ArrowRight className="h-4 w-4" />
+                </>
+              )}
+            </button>
+          </div>
+        </motion.div>
       </div>
     </div>
   );
