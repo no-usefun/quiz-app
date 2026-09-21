@@ -1,6 +1,7 @@
 package com.quiz_app.backend.service;
 
 import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.time.Clock;
 import java.time.Duration;
 import java.time.LocalDateTime;
@@ -33,6 +34,7 @@ import com.quiz_app.backend.entity.ResultVisibility;
 import com.quiz_app.backend.entity.StudentAnswer;
 import com.quiz_app.backend.entity.StudentSelectedOption;
 import com.quiz_app.backend.entity.User;
+import com.quiz_app.backend.exception.AccessDeniedApplicationException;
 import com.quiz_app.backend.exception.BadRequestException;
 import com.quiz_app.backend.exception.ConflictException;
 import com.quiz_app.backend.exception.ResourceNotFoundException;
@@ -111,11 +113,15 @@ public class StudentAttemptService {
 
                 // 2. Find quiz
                 Quiz quiz = quizRepository.findByQuizCode(quizCode)
-                                .orElseThrow(() -> new ResourceNotFoundException("Quiz not found"));
+                                .orElseThrow(() -> {
+                                        throw new ResourceNotFoundException("QUIZ_NOT_FOUND",
+                                                        "Quiz not found");
+                                });
 
                 // 3. Quiz must be published
                 if (quiz.getStatus() != QuizStatus.PUBLISHED) {
                         throw new BadRequestException(
+                                        "QUIZ_NOT_AVAILABLE",
                                         "Quiz is not available");
                 }
 
@@ -126,13 +132,14 @@ public class StudentAttemptService {
                                 && now.isBefore(quiz.getStartTime())) {
 
                         throw new BadRequestException(
+                                        "QUIZ_NOT_STARTED",
                                         "Quiz has not started yet");
                 }
 
                 if (quiz.getEndTime() != null
                                 && !now.isBefore(quiz.getEndTime())) {
-
                         throw new BadRequestException(
+                                        "QUIZ_ENDED",
                                         "Quiz has already ended");
                 }
 
@@ -265,8 +272,11 @@ public class StudentAttemptService {
                 }
 
                 QuizAttempt attempt = quizAttemptRepository.findById(attemptId)
-                                .orElseThrow(() -> new ResourceNotFoundException(
-                                                "Attempt not found"));
+                                .orElseThrow(() -> {
+                                        throw new AccessDeniedApplicationException(
+                                                        "ATTEMPT_NOT_OWNED",
+                                                        "You are not authorized to access this attempt");
+                                });
 
                 return finalizeAttempt(
                                 attempt,
@@ -294,7 +304,11 @@ public class StudentAttemptService {
                 }
 
                 QuizAttempt attempt = quizAttemptRepository.findById(attemptId)
-                                .orElseThrow(() -> new ResourceNotFoundException("Attempt not found"));
+                                .orElseThrow(() -> {
+                                        throw new AccessDeniedApplicationException(
+                                                        "ATTEMPT_NOT_OWNED",
+                                                        "You are not authorized to access this attempt");
+                                });
 
                 if (attempt.getStudent() == null
                                 || !attempt.getStudent().getId().equals(studentId)) {
@@ -330,6 +344,7 @@ public class StudentAttemptService {
 
                 if (submittedQuestionIds.size() != submittedAnswers.size()) {
                         throw new BadRequestException(
+                                        "INVALID_SUBMISSION",
                                         "Submission contains duplicate or invalid question IDs");
                 }
 
@@ -415,6 +430,7 @@ public class StudentAttemptService {
                                                                 .equals(question.getId())) {
 
                                         throw new BadRequestException(
+                                                        "INVALID_SUBMISSION",
                                                         "Selected option does not belong to this question");
                                 }
                         }
@@ -507,7 +523,7 @@ public class StudentAttemptService {
                                         "Quiz associated with attempt was not found");
                 }
 
-                LocalDateTime submittedAt = LocalDateTime.now();
+                LocalDateTime submittedAt = LocalDateTime.now(clock.withZone(QUIZ_TIMEZONE));
 
                 /*
                  * Load all questions belonging to this quiz.
@@ -703,7 +719,11 @@ public class StudentAttemptService {
                 }
 
                 QuizAttempt attempt = quizAttemptRepository.findById(attemptId)
-                                .orElseThrow(() -> new ResourceNotFoundException("Attempt not found"));
+                                .orElseThrow(() -> {
+                                        throw new AccessDeniedApplicationException(
+                                                        "ATTEMPT_NOT_OWNED",
+                                                        "You are not authorized to access this attempt");
+                                });
 
                 if (attempt.getStudent() == null ||
                                 !attempt.getStudent().getId().equals(studentId)) {
@@ -723,12 +743,8 @@ public class StudentAttemptService {
 
                 if (!quiz.isResultsPublished()) {
                         throw new BadRequestException(
+                                        "RESULTS_NOT_PUBLISHED",
                                         "Results have not been published yet");
-                }
-
-                if (quiz.getResultVisibility() == ResultVisibility.NONE) {
-                        throw new BadRequestException(
-                                        "Results are not available to students");
                 }
 
                 BigDecimal totalMarks = quiz.getTotalMarks();
@@ -764,7 +780,11 @@ public class StudentAttemptService {
                 }
 
                 QuizAttempt attempt = quizAttemptRepository.findById(attemptId)
-                                .orElseThrow(() -> new ResourceNotFoundException("Attempt not found"));
+                                .orElseThrow(() -> {
+                                        throw new AccessDeniedApplicationException(
+                                                        "ATTEMPT_NOT_OWNED",
+                                                        "You are not authorized to access this attempt");
+                                });
 
                 if (attempt.getStudent() == null ||
                                 !attempt.getStudent().getId().equals(studentId)) {
@@ -783,7 +803,7 @@ public class StudentAttemptService {
                 }
 
                 if (!quiz.isResultsPublished()) {
-                        throw new BadRequestException(
+                        throw new BadRequestException("RESULTS_NOT_PUBLISHED",
                                         "Results have not been published yet");
                 }
 
@@ -870,10 +890,15 @@ public class StudentAttemptService {
                 }
 
                 Quiz quiz = quizRepository.findById(quizId)
-                                .orElseThrow(() -> new ResourceNotFoundException("Quiz not found"));
+                                .orElseThrow(() -> {
+                                        throw new ResourceNotFoundException(
+                                                        "QUIZ_NOT_FOUND",
+                                                        "Quiz not found");
+                                });
 
                 if (!quiz.isResultsPublished()) {
                         throw new BadRequestException(
+                                        "RESULTS_NOT_PUBLISHED",
                                         "Results have not been published yet");
                 }
 
@@ -975,27 +1000,20 @@ public class StudentAttemptService {
 
                 Quiz quiz = attempt.getQuiz();
 
-                boolean resultsAvailable = quiz.isResultsPublished()
-                                && quiz.getResultVisibility() != ResultVisibility.NONE;
+                boolean resultsAvailable = quiz.isResultsPublished();
 
                 BigDecimal finalScore = null;
                 BigDecimal totalMarks = null;
                 BigDecimal percentage = null;
 
                 if (resultsAvailable) {
-
                         finalScore = attempt.getFinalScore();
                         totalMarks = quiz.getTotalMarks();
 
-                        if (totalMarks != null
-                                        && totalMarks.compareTo(BigDecimal.ZERO) > 0) {
-
+                        if (totalMarks != null && totalMarks.compareTo(BigDecimal.ZERO) > 0) {
                                 percentage = finalScore
                                                 .multiply(BigDecimal.valueOf(100))
-                                                .divide(
-                                                                totalMarks,
-                                                                2,
-                                                                java.math.RoundingMode.HALF_UP);
+                                                .divide(totalMarks, 2, RoundingMode.HALF_UP);
                         }
                 }
 

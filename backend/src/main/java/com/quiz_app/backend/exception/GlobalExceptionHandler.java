@@ -68,7 +68,7 @@ public class GlobalExceptionHandler {
 
                 ErrorResponse response = new ErrorResponse(
                                 HttpStatus.CONFLICT.value(),
-                                "CONFLICT",
+                                ex.getCode(),
                                 "Conflict",
                                 ex.getMessage(),
                                 request.getRequestURI());
@@ -85,7 +85,7 @@ public class GlobalExceptionHandler {
 
                 ErrorResponse response = new ErrorResponse(
                                 HttpStatus.NOT_FOUND.value(),
-                                "RESOURCE_NOT_FOUND",
+                                ex.getCode(),
                                 "Not Found",
                                 ex.getMessage(),
                                 request.getRequestURI());
@@ -102,7 +102,7 @@ public class GlobalExceptionHandler {
 
                 ErrorResponse response = new ErrorResponse(
                                 HttpStatus.BAD_REQUEST.value(),
-                                "BAD_REQUEST",
+                                ex.getCode(),
                                 "Bad Request",
                                 ex.getMessage(),
                                 request.getRequestURI());
@@ -155,7 +155,7 @@ public class GlobalExceptionHandler {
 
                 ErrorResponse response = new ErrorResponse(
                                 HttpStatus.FORBIDDEN.value(),
-                                "ACCESS_DENIED",
+                                ex.getCode(),
                                 "Forbidden",
                                 ex.getMessage(),
                                 request.getRequestURI());
