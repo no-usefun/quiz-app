@@ -44,25 +44,6 @@ public class StudentQuizController {
                 return ResponseEntity.ok(response);
         }
 
-        // @PutMapping("/attempts/{attemptId}/answers/{questionId}")
-        // public ResponseEntity<AnswerResponse> saveAnswer(
-        // @PathVariable Long attemptId,
-        // @PathVariable Long questionId,
-        // @RequestBody SaveAnswerRequest request,
-        // Authentication authentication) {
-
-        // CustomUserDetails userDetails = (CustomUserDetails)
-        // authentication.getPrincipal();
-
-        // AnswerResponse response = attemptService.saveAnswer(
-        // attemptId,
-        // questionId,
-        // request,
-        // userDetails.getId());
-
-        // return ResponseEntity.ok(response);
-        // }
-
         @PostMapping("/attempts/{attemptId}/submit")
         public ResponseEntity<SubmitAttemptResponse> submitAttempt(
                         @PathVariable Long attemptId,
