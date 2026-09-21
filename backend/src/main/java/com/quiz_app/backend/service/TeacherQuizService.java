@@ -974,7 +974,7 @@ public class TeacherQuizService {
 
                 if (quiz.getTeacher() == null
                                 || !quiz.getTeacher().getId().equals(teacherId)) {
-                        throw new BadRequestException("Valid teaacher Id required");
+                        throw new BadRequestException("You are not authorized to view this leaderboard");
                 }
 
                 List<QuizAttempt> attempts = quizAttemptRepository.findByQuizId(quizId);
