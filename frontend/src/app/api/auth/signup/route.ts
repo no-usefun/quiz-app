@@ -8,15 +8,29 @@ const API_BASE = (
 
 export async function POST(request: Request) {
   try {
-    const { name, email, password, role } = await request.json();
+    const { firstName, lastName, name, email, password, role, registrationNo, college, department, phone } = await request.json();
     const normalizedRole = (role || "STUDENT").toUpperCase();
+    const fName = firstName || name?.split(" ")[0] || "User";
+    const lName = lastName || name?.split(" ").slice(1).join(" ") || "";
 
     // 1. Attempt Spring Boot backend registration
     try {
       const backendRes = await fetch(`${API_BASE}/api/v1/auth/signup`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name, email, password, role: normalizedRole }),
+        body: JSON.stringify({
+          firstName: fName,
+          lastName: lName,
+          email,
+          password,
+          role: normalizedRole,
+          ...(college ? { college } : {}),
+          ...(department ? { department } : {}),
+          ...(phone ? { phone } : {}),
+          ...(normalizedRole === "STUDENT" && registrationNo
+            ? { registrationNo: registrationNo.trim().toUpperCase() }
+            : {}),
+        }),
       });
 
       if (backendRes.ok) {
@@ -24,17 +38,23 @@ export async function POST(request: Request) {
         const returnedRole = (backendData.role || backendData.user?.role || normalizedRole).toUpperCase();
         const finalToken = backendData.token || backendData.accessToken;
 
+        if (!finalToken) {
+          return NextResponse.json(
+            { success: false, error: "Authentication server did not return a session token." },
+            { status: 500 }
+          );
+        }
+
         const payload = {
-          userId: backendData.userId || email,
+          userId: backendData.user?.id || backendData.userId || email,
           email,
           role: returnedRole,
-          name: backendData.name || backendData.user?.name || name || "New User",
+          name: backendData.name || backendData.user?.fullName || backendData.user?.firstName || name || "New User",
           exp: Math.floor(Date.now() / 1000) + 60 * 60 * 24,
         };
 
-        const token = finalToken || (await signJWT(payload));
         const cookieStore = await cookies();
-        cookieStore.set("dynoquizz_token", token, {
+        cookieStore.set("dynoquizz_token", finalToken, {
           httpOnly: false,
           secure: process.env.NODE_ENV === "production",
           sameSite: "lax",
@@ -44,41 +64,23 @@ export async function POST(request: Request) {
 
         return NextResponse.json({
           success: true,
-          token,
+          token: finalToken,
           user: payload,
           role: returnedRole,
         });
-      } else if (backendRes.status === 400 || backendRes.status === 409) {
+      } else {
         const errorData = await backendRes.json().catch(() => ({}));
         return NextResponse.json(
-          { success: false, error: errorData.message || errorData.error || "Email is already registered." },
+          { success: false, error: errorData.message || errorData.error || "Signup failed." },
           { status: backendRes.status },
         );
       }
     } catch {
-      // Backend not running/unreachable, fallback to local creation
+      return NextResponse.json(
+        { success: false, error: "Cannot connect to the authentication server." },
+        { status: 503 }
+      );
     }
-
-    // 2. Offline fallback registration
-    const payload = {
-      userId: email,
-      email,
-      role: normalizedRole,
-      name: name || "New User",
-      exp: Math.floor(Date.now() / 1000) + 60 * 60 * 24,
-    };
-
-    const token = await signJWT(payload);
-    const cookieStore = await cookies();
-    cookieStore.set("dynoquizz_token", token, {
-      httpOnly: false,
-      secure: process.env.NODE_ENV === "production",
-      sameSite: "lax",
-      maxAge: 60 * 60 * 24,
-      path: "/",
-    });
-
-    return NextResponse.json({ success: true, token, user: payload, role: normalizedRole });
   } catch {
     return NextResponse.json({ success: false, error: "Signup failed." }, { status: 400 });
   }

@@ -829,13 +829,26 @@ export default function Home() {
                 Dashboard <ArrowRight className="h-3.5 w-3.5" />
               </Link>
             ) : (
-              <Link
-                href="/signup"
-                className="flex items-center gap-1.5 rounded-[8.8px] px-4 py-2 text-xs font-bold text-white border-0 transition-colors"
-                style={{ background: C.cobalt }}
-              >
-                Create Account <ArrowRight className="h-3.5 w-3.5" />
-              </Link>
+              <>
+                <Link
+                  href="/login"
+                  className="flex items-center gap-1.5 rounded-[8.8px] border px-4 py-2 text-xs font-bold transition-all hover:bg-[#e6e3e2]/40"
+                  style={{
+                    borderColor: C.ice,
+                    color: C.ink,
+                    background: "white",
+                  }}
+                >
+                  Log in
+                </Link>
+                <Link
+                  href="/signup"
+                  className="flex items-center gap-1.5 rounded-[8.8px] px-4 py-2 text-xs font-bold text-white border-0 transition-colors"
+                  style={{ background: C.cobalt }}
+                >
+                  Create Account <ArrowRight className="h-3.5 w-3.5" />
+                </Link>
+              </>
             )}
           </div>
         </div>

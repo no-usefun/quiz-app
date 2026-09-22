@@ -15,7 +15,6 @@ import {
   FileQuestion,
 } from "lucide-react";
 import { Logo } from "@/components/Logo";
-import { getResultByCode, getTestByCode } from "@/lib/storage";
 
 const API_BASE = (
   process.env.NEXT_PUBLIC_API_URL || "http://localhost:8080"
@@ -24,6 +23,16 @@ const API_BASE = (
 function formatTime(s: number) {
   if (!s || s < 60) return `${s || 0}s`;
   return `${Math.floor(s / 60)}m ${s % 60}s`;
+}
+
+function formatNumber(value: unknown, fallback = 0): number {
+  const n = Number(value);
+  return Number.isFinite(n) ? n : fallback;
+}
+
+function formatDisplayNumber(value: unknown): string {
+  const n = formatNumber(value);
+  return Number.isInteger(n) ? String(n) : n.toFixed(2);
 }
 
 function ScoreRing({ score, color }: { score: number; color: string }) {
@@ -63,55 +72,214 @@ export default function StudentResultPage({
 }) {
   const { testCode } = use(params);
   const [result, setResult] = useState<any | null>(null);
-  const [testMeta, setTestMeta] = useState<any | null>(null);
   const [loading, setLoading] = useState(true);
   const [mounted, setMounted] = useState(false);
 
   useEffect(() => {
     setMounted(true);
+
     const fetchResult = async () => {
-      const codeUpper = (testCode || "").toUpperCase();
-      const localTest = getTestByCode(codeUpper);
-      setTestMeta(localTest);
+      // This route is now intentionally attemptId-based.
+      // Do not treat quizCode or quizId as an attemptId.
+      const attemptId = (testCode || "").trim();
+
+      if (!/^\d+$/.test(attemptId)) {
+        setResult(null);
+        setLoading(false);
+        return;
+      }
 
       try {
         const token = localStorage.getItem("dynoquizz_token");
-        const res = await fetch(
-          `${API_BASE}/api/v1/student/results/${codeUpper}`,
-          {
-            headers: {
-              ...(token ? { Authorization: `Bearer ${token}` } : {}),
-              "Content-Type": "application/json",
-            },
-          },
-        );
+        const headers = {
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+          "Content-Type": "application/json",
+        };
 
-        if (res.ok) {
-          const data = await res.json();
-          if (data) {
-            setResult(data);
-            setLoading(false);
-            return;
+        const attemptUrl = `${API_BASE}/api/v1/student/attempts/${attemptId}/result`;
+
+        console.log(`[Student Result] GET ${attemptUrl}`);
+
+        const res = await fetch(attemptUrl, { headers });
+        const rawText = await res.text();
+
+        console.log(
+          `[Student Result] Attempt result HTTP status: ${res.status}`,
+        );
+        console.log(`[Student Result] Attempt result raw response:`, rawText);
+
+        let data: any = null;
+        try {
+          data = JSON.parse(rawText);
+        } catch {
+          // Response was not JSON.
+        }
+
+        if (res.ok && data) {
+          // The details endpoint may legitimately return 400 when the
+          // instructor has not enabled question-wise result visibility.
+          // The summary result remains authoritative in that case.
+          // Question-wise details are only available when the backend releases
+          // question-wise results. The current AttemptResultResponse does not expose
+          // resultVisibility, so do not make a speculative /result/details request.
+          //
+          // The summary /result response is authoritative and is sufficient for the
+          // scorecard when solutions are locked.
+
+          let detailsList: any[] = [];
+
+          const resultVisibility = data.resultVisibility;
+
+          const questionWiseResultsEnabled =
+            resultVisibility === "BOTH" || resultVisibility === "QUESTION_WISE";
+
+          if (questionWiseResultsEnabled) {
+            const detailsUrl = `${API_BASE}/api/v1/student/attempts/${attemptId}/result/details`;
+
+            const detailsRes = await fetch(detailsUrl, { headers });
+
+            if (detailsRes.ok) {
+              try {
+                const detailsData = await detailsRes.json();
+
+                if (Array.isArray(detailsData)) {
+                  detailsList = detailsData;
+                }
+              } catch {
+                // Summary result remains usable if details cannot be parsed.
+              }
+            }
           }
+
+          const correctCount = detailsList.filter(
+            (d: any) => d.correct === true,
+          ).length;
+
+          const totalQ =
+            formatNumber(data.totalQuestions, 0) || detailsList.length || 0;
+
+          const finalScore = formatNumber(data.finalScore, 0);
+          const totalMarks = formatNumber(data.totalMarks, 0);
+
+          const backendPercentage =
+            data.percentage !== null && data.percentage !== undefined
+              ? formatNumber(data.percentage, 0)
+              : totalMarks > 0
+                ? (finalScore / totalMarks) * 100
+                : 0;
+
+          const accuracy =
+            totalQ > 0
+              ? Math.round((correctCount / totalQ) * 100)
+              : backendPercentage;
+
+          const questionsMapped = detailsList.map((d: any) => ({
+            id: d.questionId,
+            questionId: d.questionId,
+            text: d.questionText,
+            questionText: d.questionText,
+            correctOption:
+              Array.isArray(d.correctOptionIds) && d.correctOptionIds.length > 0
+                ? `Option ${d.correctOptionIds.join(", ")}`
+                : "-",
+          }));
+
+          const answersMapped = detailsList.map((d: any) => ({
+            questionId: d.questionId,
+            selectedOption:
+              Array.isArray(d.selectedOptionIds) &&
+              d.selectedOptionIds.length > 0
+                ? `Option ${d.selectedOptionIds.join(", ")}`
+                : "Not answered",
+            correct: d.correct,
+            marksAwarded: d.marksAwarded,
+          }));
+
+          // A successful /result response means the backend has released the
+          // result. The current backend result DTO does not need a frontend-
+          // invented resultsAvailable field to determine this.
+          const resultsAvailable = true;
+
+          const canReveal =
+            resultsAvailable &&
+            (data.resultVisibility === "BOTH" ||
+              data.resultVisibility === "QUESTION_WISE");
+
+          let studentName = "Registered Student";
+          try {
+            const u = JSON.parse(
+              localStorage.getItem("dynoquizz_user") || "{}",
+            );
+            studentName = u.fullName || u.firstName || u.name || studentName;
+          } catch {
+            // Ignore malformed local user data.
+          }
+
+          setResult({
+            ...data,
+            finalScore,
+            totalMarks,
+            percentage: backendPercentage,
+            score: backendPercentage,
+            quizName:
+              data.quizTitle || `Assessment ${data.quizCode || attemptId}`,
+            quizCode: data.quizCode || data.code || null,
+            attemptId,
+            totalQuestions: totalQ,
+            correctCount,
+            accuracyPercentage: accuracy,
+            timeTakenTotalSeconds: formatNumber(data.totalTimeTaken, 0),
+            submittedAt: data.submittedAt || "Recently",
+            studentName: data.studentName || studentName,
+            questions: questionsMapped,
+            answers: answersMapped,
+            published: resultsAvailable,
+            resultsAvailable,
+            revealSolutions: canReveal,
+          });
+
+          setLoading(false);
+          return;
+        }
+
+        if (
+          (res.status === 400 || res.status === 403) &&
+          (data?.message?.toLowerCase().includes("not been published") ||
+            data?.message?.toLowerCase().includes("not published") ||
+            rawText.toLowerCase().includes("not been published") ||
+            rawText.toLowerCase().includes("not published"))
+        ) {
+          console.log(
+            "[Student Result] Result is pending publication by the instructor.",
+          );
+
+          let studentName = "Registered Student";
+          try {
+            const u = JSON.parse(
+              localStorage.getItem("dynoquizz_user") || "{}",
+            );
+            studentName = u.fullName || u.firstName || u.name || studentName;
+          } catch {
+            // Ignore malformed local user data.
+          }
+
+          setResult({
+            quizName: `Assessment Attempt ${attemptId}`,
+            attemptId,
+            published: false,
+            resultsAvailable: false,
+            revealSolutions: false,
+            submittedAt: "Submitted (Pending release)",
+            studentName,
+          });
+          setLoading(false);
+          return;
         }
       } catch (e) {
-        console.warn("Backend student result lookup error:", e);
+        console.warn("[Student Result] Result lookup error:", e);
       }
 
-      // Check local storage for actual student submission
-      const localResult = getResultByCode(codeUpper);
-      if (localResult) {
-        setResult({
-          ...localResult,
-          score: localResult.score || 0,
-          questions: localTest?.questions || [],
-          published: localTest?.settings?.publishScoresImmediately ?? true,
-          revealSolutions: localTest?.settings?.revealSolutions ?? true,
-        });
-
-      } else {
-        setResult(null);
-      }
+      setResult(null);
       setLoading(false);
     };
 
@@ -133,9 +301,9 @@ export default function StudentResultPage({
         <motion.div
           initial={mounted ? { opacity: 0, y: 8 } : false}
           animate={mounted ? { opacity: 1, y: 0 } : false}
-          className="w-full max-w-md rounded-[8.8px] bg-white p-8 text-center border border-[#d1dee8] shadow-sm space-y-4 text-left"
+          className="w-full max-w-md rounded-[14px] bg-white p-8 text-center border border-[#d1dee8]/70 shadow-sm space-y-4 text-left"
         >
-          <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-[8.8px] bg-[#f5f5f4] border border-[#d1dee8] text-[#78716b]">
+          <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-[12px] bg-[#f5f5f4] border border-[#d1dee8]/80 text-[#78716b] shadow-xs">
             <FileQuestion className="h-6 w-6" />
           </div>
           <div className="text-center space-y-1">
@@ -146,21 +314,22 @@ export default function StudentResultPage({
               Submission Not Found
             </h1>
             <p className="text-xs text-[#78716b] leading-relaxed font-medium">
-              No recorded assessment submission found for session code{" "}
-              <strong>&ldquo;{testCode?.toUpperCase()}&rdquo;</strong>.
+              No recorded assessment submission found for attempt ID{" "}
+              <strong>&ldquo;{testCode}&rdquo;</strong>.
             </p>
           </div>
 
           <div className="pt-2 flex flex-col gap-2">
             <Link
               href="/join"
-              className="flex w-full items-center justify-center gap-1.5 rounded-[8.8px] bg-[#165dfb] py-2.5 text-xs font-bold text-white hover:bg-[#165dfb]/90 transition-all border-0"
+              className="flex w-full items-center justify-center gap-1.5 rounded-[10px] bg-[#165dfb] py-2.5 text-xs font-bold text-white hover:bg-[#0f4fd8] active:scale-[0.98] shadow-sm shadow-[#165dfb]/20 transition-all border-0"
             >
-              Take Assessment <ChevronRight className="h-3.5 w-3.5 text-white" />
+              Take Assessment{" "}
+              <ChevronRight className="h-3.5 w-3.5 text-white" />
             </Link>
             <Link
               href="/dashboard/student"
-              className="flex w-full items-center justify-center gap-1.5 rounded-[8.8px] bg-[#f5f5f4] py-2.5 text-xs font-bold text-[#111111] hover:bg-[#e6e3e2] transition-all border border-[#d1dee8]"
+              className="flex w-full items-center justify-center gap-1.5 rounded-[10px] bg-[#f5f5f4] py-2.5 text-xs font-bold text-[#111111] hover:bg-[#e6e3e2] hover:border-[#b9cbd9] active:scale-[0.98] shadow-xs transition-all border border-[#d1dee8]/80"
             >
               Return to Dashboard
             </Link>
@@ -170,16 +339,10 @@ export default function StudentResultPage({
     );
   }
 
-  // Determine if scores are published by instructor
-  const isPublished =
-    testMeta?.settings?.publishScoresImmediately !== undefined
-      ? testMeta.settings.publishScoresImmediately
-      : (result.published ?? result.isPublished ?? true);
+  // Backend is authoritative for result release.
+  const isPublished = result.resultsAvailable === true;
 
-  const canRevealSolutions =
-    testMeta?.settings?.revealSolutions !== undefined
-      ? testMeta.settings.revealSolutions
-      : (result.revealSolutions ?? true);
+  const canRevealSolutions = isPublished && result.revealSolutions === true;
 
   // If scores are not released yet
   if (!isPublished) {
@@ -189,13 +352,13 @@ export default function StudentResultPage({
           initial={mounted ? { opacity: 0, y: 8 } : false}
           animate={mounted ? { opacity: 1, y: 0 } : false}
           transition={{ duration: 0.25, ease: "easeOut" }}
-          className="w-full max-w-md rounded-[12px] bg-white p-8 text-center border border-[#d1dee8] shadow-sm space-y-5 text-left"
+          className="w-full max-w-md rounded-[14px] bg-white p-8 text-center border border-[#d1dee8]/70 shadow-sm space-y-5 text-left"
         >
-          <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-[#fbeee8] border border-[#8c381c]/30 text-[#8c381c]">
+          <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-[#fbeee8] border border-[#8c381c]/30 text-[#8c381c] shadow-xs">
             <Lock className="h-6 w-6" />
           </div>
           <div className="text-center space-y-1.5">
-            <span className="inline-flex items-center gap-1 rounded-full bg-[#f5f5f4] border border-[#d1dee8] px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wider text-[#78716b]">
+            <span className="inline-flex items-center gap-1 rounded-full bg-[#f5f5f4] border border-[#d1dee8]/80 px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wider text-[#78716b] shadow-xs">
               Pending Instructor Release
             </span>
             <h1 className="text-xl font-black text-[#111111]">
@@ -204,29 +367,35 @@ export default function StudentResultPage({
             <p className="text-xs text-[#78716b] leading-relaxed font-medium">
               Your responses for{" "}
               <strong>&ldquo;{result.quizName || testCode}&rdquo;</strong> have
-              been permanently recorded. Detailed scorecards, accuracy grades, and
-              solutions will be displayed once published by your instructor.
+              been permanently recorded. Your score and detailed result will be
+              displayed once your instructor publishes the results.
             </p>
           </div>
 
-          <div className="rounded-[8.8px] bg-[#f5f5f4] border border-[#d1dee8] p-3 text-xs space-y-1.5 font-medium text-[#78716b]">
+          <div className="rounded-[10px] bg-[#f5f5f4] border border-[#d1dee8]/80 p-3.5 text-xs space-y-1.5 font-medium text-[#78716b] shadow-xs">
             <div className="flex justify-between">
               <span>Session Code:</span>
-              <strong className="font-mono text-[#111111]">{testCode?.toUpperCase()}</strong>
+              <strong className="font-mono text-[#111111]">
+                {result.attemptId || testCode}
+              </strong>
             </div>
             <div className="flex justify-between">
               <span>Candidate:</span>
-              <strong className="text-[#111111]">{result.studentName || "Registered Student"}</strong>
+              <strong className="text-[#111111]">
+                {result.studentName || "Registered Student"}
+              </strong>
             </div>
             <div className="flex justify-between">
               <span>Submitted At:</span>
-              <strong className="text-[#111111]">{result.submittedAt || "Recently"}</strong>
+              <strong className="text-[#111111]">
+                {result.submittedAt || "Recently"}
+              </strong>
             </div>
           </div>
 
           <Link
             href="/dashboard/student"
-            className="flex w-full items-center justify-center gap-1.5 rounded-[8.8px] bg-[#111111] py-2.5 text-xs font-bold text-white hover:bg-[#111111]/90 active:scale-[0.98] transition-all border-0"
+            className="flex w-full items-center justify-center gap-1.5 rounded-[10px] bg-[#111111] py-2.5 text-xs font-bold text-white hover:bg-[#222222] active:scale-[0.98] shadow-sm transition-all border-0"
           >
             Return to Student Dashboard{" "}
             <ChevronRight className="h-3.5 w-3.5 text-white" />
@@ -243,11 +412,11 @@ export default function StudentResultPage({
     ring: "#1d5237",
   };
 
-  const questions = result.questions || testMeta?.questions || [];
+  const questions = result.questions || [];
 
   return (
     <div className="min-h-screen bg-[#f5f5f4] font-sans text-[#111111] selection:bg-[#e6e3e2] selection:text-[#165dfb]">
-      <nav className="sticky top-0 z-20 flex items-center justify-between bg-white border-b border-[#d1dee8] px-6 py-4">
+      <nav className="sticky top-0 z-20 flex items-center justify-between bg-white border-b border-[#d1dee8]/70 px-6 py-4">
         <div className="flex items-center gap-3">
           <Link
             href="/dashboard/student"
@@ -259,8 +428,8 @@ export default function StudentResultPage({
           <span className="text-[#d1dee8]">|</span>
           <Logo />
         </div>
-        <span className="rounded-full bg-[#f5f5f4] border border-[#d1dee8] px-3 py-1 font-mono text-xs font-bold text-[#111111]">
-          {testCode.toUpperCase()}
+        <span className="rounded-full bg-[#f5f5f4] border border-[#d1dee8]/80 px-3 py-1 font-mono text-xs font-bold text-[#111111] shadow-xs">
+          {result.attemptId || testCode}
         </span>
       </nav>
 
@@ -273,26 +442,23 @@ export default function StudentResultPage({
             {result.quizName || "Assessment Results"}
           </h1>
           <p className="mt-0.5 text-xs text-[#78716b] font-medium flex items-center gap-2">
-            <CalendarDays className="h-3.5 w-3.5 text-[#78716b]" />{" "}
-            Submitted: {result.submittedAt || "Recently"}
+            <CalendarDays className="h-3.5 w-3.5 text-[#78716b]" /> Submitted:{" "}
+            {result.submittedAt || "Recently"}
           </p>
         </section>
 
-        <section className="rounded-[8.8px] bg-white p-6 border border-[#d1dee8] shadow-sm">
+        <section className="rounded-[14px] bg-white p-6 border border-[#d1dee8]/70 shadow-sm">
           <div className="flex flex-col items-center gap-5 sm:flex-row sm:items-start">
             <div className="relative shrink-0">
-              <ScoreRing
-                score={result.score || 0}
-                color={gc.ring}
-              />
+              <ScoreRing score={result.score || 0} color={gc.ring} />
               <div className="absolute inset-0 flex flex-col items-center justify-center text-center">
                 <span
                   className={`text-2xl font-black tracking-tight tabular-nums ${gc.text}`}
                 >
-                  {result.score || 0}%
+                  {formatDisplayNumber(result.percentage)}%
                 </span>
                 <span className="text-[9px] font-bold text-[#78716b] uppercase tracking-wider mt-0.5">
-                  Score
+                  Percentage
                 </span>
               </div>
             </div>
@@ -310,36 +476,43 @@ export default function StudentResultPage({
               </div>
 
               <div className="grid grid-cols-2 sm:grid-cols-3 gap-2.5">
-                <div className="rounded-[8.8px] border border-[#d1dee8] bg-white p-3 text-center shadow-sm">
-                  <div className="mx-auto mb-1 inline-flex h-6 w-6 items-center justify-center rounded-[6px] bg-[#f5f5f4] border border-[#d1dee8] text-[#165dfb]">
+                <div className="rounded-[12px] border border-[#d1dee8]/70 bg-white p-3 text-center shadow-xs">
+                  <div className="mx-auto mb-1 inline-flex h-6 w-6 items-center justify-center rounded-[8px] bg-[#f5f5f4] border border-[#d1dee8]/70 text-[#165dfb] shadow-xs">
                     <CheckCircle2 className="h-3.5 w-3.5" />
                   </div>
                   <p className="text-base font-black text-[#111111]">
-                    {result.accuracyPercentage ?? (result.totalQuestions > 0 ? Math.round((result.correctCount / result.totalQuestions) * 100) : 0)}%
+                    {result.accuracyPercentage ??
+                      (result.totalQuestions > 0
+                        ? Math.round(
+                            (result.correctCount / result.totalQuestions) * 100,
+                          )
+                        : 0)}
+                    %
                   </p>
                   <p className="text-[9px] text-[#78716b] font-bold uppercase tracking-wider">
                     Accuracy
                   </p>
                 </div>
 
-                <div className="rounded-[8.8px] border border-[#d1dee8] bg-white p-3 text-center shadow-sm">
-                  <div className="mx-auto mb-1 inline-flex h-6 w-6 items-center justify-center rounded-[6px] bg-[#f5f5f4] border border-[#d1dee8] text-[#1d5237]">
+                <div className="rounded-[12px] border border-[#d1dee8]/70 bg-white p-3 text-center shadow-xs">
+                  <div className="mx-auto mb-1 inline-flex h-6 w-6 items-center justify-center rounded-[8px] bg-[#f5f5f4] border border-[#d1dee8]/70 text-[#1d5237] shadow-xs">
                     <Award className="h-3.5 w-3.5" />
                   </div>
                   <p className="text-base font-black text-[#111111]">
-                    {result.score || 0}%
+                    {formatDisplayNumber(result.finalScore)} /{" "}
+                    {formatDisplayNumber(result.totalMarks)}
                   </p>
                   <p className="text-[9px] text-[#78716b] font-bold uppercase tracking-wider">
                     Score
                   </p>
                 </div>
 
-                <div className="rounded-[8.8px] border border-[#d1dee8] bg-white p-3 text-center shadow-sm">
-                  <div className="mx-auto mb-1 inline-flex h-6 w-6 items-center justify-center rounded-[6px] bg-[#f5f5f4] border border-[#d1dee8] text-[#111111]">
+                <div className="rounded-[12px] border border-[#d1dee8]/70 bg-white p-3 text-center shadow-xs">
+                  <div className="mx-auto mb-1 inline-flex h-6 w-6 items-center justify-center rounded-[8px] bg-[#f5f5f4] border border-[#d1dee8]/70 text-[#111111] shadow-xs">
                     <Clock className="h-3.5 w-3.5" />
                   </div>
                   <p className="text-base font-black text-[#111111]">
-                    {formatTime(result.timeTakenTotalSeconds || 120)}
+                    {formatTime(result.timeTakenTotalSeconds || 0)}
                   </p>
                   <p className="text-[9px] text-[#78716b] font-bold uppercase tracking-wider">
                     Total Time
@@ -350,40 +523,40 @@ export default function StudentResultPage({
           </div>
         </section>
 
-
         {canRevealSolutions && questions.length > 0 ? (
           <section className="space-y-2.5">
             <h2 className="text-xs font-bold text-[#111111] uppercase tracking-wider">
               Question Breakdown &amp; Solutions
             </h2>
-            <div className="rounded-[8.8px] bg-white border border-[#d1dee8] overflow-hidden divide-y divide-[#d1dee8] shadow-sm">
+            <div className="rounded-[14px] bg-white border border-[#d1dee8]/70 overflow-hidden divide-y divide-[#d1dee8]/40 shadow-sm">
               {questions.map((q: any, idx: number) => {
                 const studentAns = result.answers?.find(
                   (a: any) =>
-                    a.questionId === (q.id || idx + 1) || a.questionText === q.text,
+                    a.questionId === (q.id || idx + 1) ||
+                    a.questionText === q.text,
                 );
                 const isCorrect =
                   studentAns?.selectedOption === q.correctOption;
 
                 return (
-                  <div key={idx} className="p-4 space-y-2.5 text-xs">
+                  <div key={idx} className="p-4 sm:p-5 space-y-2.5 text-xs">
                     <div className="flex items-start justify-between gap-2">
                       <p className="font-bold text-[#111111] leading-snug">
                         {idx + 1}. {q.text || q.questionText}
                       </p>
                       {isCorrect ? (
-                        <span className="inline-flex items-center gap-1 rounded-full bg-[#e2ede8] text-[#1d5237] px-2 py-0.5 text-[10px] font-bold shrink-0">
+                        <span className="inline-flex items-center gap-1 rounded-full bg-[#e2ede8] text-[#1d5237] px-2.5 py-0.5 text-[10px] font-bold shrink-0 shadow-xs">
                           <CheckCircle2 className="h-3 w-3" /> Correct
                         </span>
                       ) : (
-                        <span className="inline-flex items-center gap-1 rounded-full bg-[#fbeee8] text-[#8c381c] px-2 py-0.5 text-[10px] font-bold shrink-0">
+                        <span className="inline-flex items-center gap-1 rounded-full bg-[#fbeee8] text-[#8c381c] px-2.5 py-0.5 text-[10px] font-bold shrink-0 shadow-xs">
                           <XCircle className="h-3 w-3" /> Incorrect
                         </span>
                       )}
                     </div>
 
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-[11px]">
-                      <div className="rounded-[6px] bg-[#f5f5f4] p-2 border border-[#d1dee8]">
+                      <div className="rounded-[10px] bg-[#f5f5f4] p-2.5 border border-[#d1dee8]/80 shadow-xs">
                         <span className="text-[#78716b] block text-[9px] uppercase font-bold">
                           Your Answer:
                         </span>
@@ -391,7 +564,7 @@ export default function StudentResultPage({
                           {studentAns?.selectedOption || "Not answered"}
                         </span>
                       </div>
-                      <div className="rounded-[6px] bg-[#e2ede8]/60 p-2 border border-[#1d5237]/20">
+                      <div className="rounded-[10px] bg-[#e2ede8]/60 p-2.5 border border-[#1d5237]/20 shadow-xs">
                         <span className="text-[#1d5237] block text-[9px] uppercase font-bold">
                           Correct Answer:
                         </span>
@@ -406,9 +579,9 @@ export default function StudentResultPage({
             </div>
           </section>
         ) : (
-          <section className="rounded-[8.8px] bg-white border border-[#d1dee8] p-4 shadow-sm flex items-center justify-between">
+          <section className="rounded-[14px] bg-white border border-[#d1dee8]/70 p-5 shadow-sm flex items-center justify-between">
             <div className="flex items-center gap-3">
-              <div className="flex h-10 w-10 items-center justify-center rounded-[8.8px] bg-[#f5f5f4] border border-[#d1dee8] text-[#78716b]">
+              <div className="flex h-10 w-10 items-center justify-center rounded-[10px] bg-[#f5f5f4] border border-[#d1dee8]/70 text-[#78716b] shadow-xs">
                 <FileQuestion className="h-5 w-5" />
               </div>
               <div>
@@ -416,7 +589,8 @@ export default function StudentResultPage({
                   Question Solutions Locked
                 </h3>
                 <p className="text-[10px] text-[#78716b] font-medium">
-                  Detailed answer keys and explanations have been disabled by the instructor.
+                  Detailed answer keys and explanations have been disabled by
+                  the instructor.
                 </p>
               </div>
             </div>
@@ -426,7 +600,7 @@ export default function StudentResultPage({
         <section className="flex justify-end pt-2">
           <Link
             href="/dashboard/student"
-            className="flex items-center gap-1.5 rounded-[8.8px] bg-[#165dfb] px-5 py-2.5 text-xs font-bold text-white hover:bg-[#165dfb]/90 active:scale-[0.98] transition-all border-0 shadow-sm"
+            className="flex items-center gap-1.5 rounded-[10px] bg-[#165dfb] px-5 py-2.5 text-xs font-bold text-white hover:bg-[#0f4fd8] active:scale-[0.98] transition-all border-0 shadow-sm shadow-[#165dfb]/20"
           >
             Return to Dashboard <ChevronRight className="h-4 w-4 text-white" />
           </Link>

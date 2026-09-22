@@ -14,6 +14,7 @@ import {
 } from "lucide-react";
 import { TopNav } from "@/components/TopNav";
 import { useSession } from "@/hooks/useSession";
+import { resolveQuizIdentifiers } from "@/lib/quizCache";
 
 const API_BASE = (
   process.env.NEXT_PUBLIC_API_URL || "http://localhost:8080"
@@ -32,34 +33,71 @@ export default function ShareAssessmentPage({
   const [copiedLink, setCopiedLink] = useState(false);
   const [copiedCode, setCopiedCode] = useState(false);
 
+  // resolvedCode is the human-readable access code the backend expects.
+  // testCode (from the URL) may be a numeric quizId after a creation redirect.
+  const [resolvedCode, setResolvedCode] = useState<string>(testCode);
+
   useEffect(() => {
     const fetchQuizDetails = async () => {
       try {
         const token = localStorage.getItem("dynoquizz_token");
-        const res = await fetch(
+        const headers = {
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+          "Content-Type": "application/json",
+        };
+
+        // 1. Fetch teacher quizzes from backend to resolve this quiz
+        let foundQuiz: any = null;
+        if (token) {
+          const teacherRes = await fetch(`${API_BASE}/api/v1/teacher/quizzes`, {
+            headers,
+          }).catch(() => null);
+
+          if (teacherRes && teacherRes.ok) {
+            const data = await teacherRes.json();
+            const list: any[] = Array.isArray(data)
+              ? data
+              : Array.isArray(data?.content)
+                ? data.content
+                : Array.isArray(data?.data)
+                  ? data.data
+                  : [];
+
+            foundQuiz = list.find(
+              (q) =>
+                String(q.quizId ?? q.id) === String(testCode) ||
+                String(q.quizCode) === String(testCode),
+            );
+          }
+        }
+
+        if (foundQuiz) {
+          const code = foundQuiz.quizCode || testCode;
+          setResolvedCode(code);
+          setQuizData(foundQuiz);
+          setLoading(false);
+          return;
+        }
+
+        // 2. Fallback: fetch package by access code if not resolved in teacher list
+        const pkgRes = await fetch(
           `${API_BASE}/api/v1/quizzes/code/${testCode}/package`,
-          {
-            headers: {
-              Authorization: `Bearer ${token}`,
-              "Content-Type": "application/json",
-            },
-          },
+          { headers },
         );
 
-        if (res.status === 404) {
+        if (pkgRes.ok) {
+          const pkgData = await pkgRes.json();
+          if (pkgData.quizCode || pkgData.accessCode) {
+            setResolvedCode(pkgData.quizCode || pkgData.accessCode);
+          }
+          setQuizData(pkgData);
+        } else {
           throw new Error(
-            "Assessment not found in the database. Ensure it was saved correctly.",
+            "Assessment not found on the server. Ensure it was created correctly.",
           );
         }
-
-        if (!res.ok) {
-          throw new Error(`Server returned ${res.status}`);
-        }
-
-        const data = await res.json();
-        setQuizData(data);
       } catch (e: any) {
-        console.error("Failed to load quiz package for sharing:", e);
+        console.error("Failed to load quiz for sharing:", e);
         setError(
           e.message ||
             "We couldn't retrieve the assessment details from the server. Please check your backend connection.",
@@ -75,8 +113,8 @@ export default function ShareAssessmentPage({
 
   const assessmentLink =
     typeof window !== "undefined"
-      ? `${window.location.origin}/join?code=${testCode}`
-      : `http://localhost:3000/join?code=${testCode}`;
+      ? `${window.location.origin}/join?code=${resolvedCode}`
+      : `http://localhost:3000/join?code=${resolvedCode}`;
 
   const copyToClipboard = (text: string, type: "link" | "code") => {
     navigator.clipboard.writeText(text);
@@ -105,7 +143,7 @@ export default function ShareAssessmentPage({
       <div className="min-h-screen bg-[#f5f5f4] flex flex-col font-sans">
         <TopNav role="teacher" />
         <main className="flex-1 flex items-center justify-center p-4">
-          <div className="rounded-[8.8px] bg-[#fbeee8] border border-[#8c381c]/30 p-8 max-w-md w-full text-center space-y-4">
+          <div className="rounded-[14px] bg-[#fbeee8] border border-[#8c381c]/30 p-8 max-w-md w-full text-center space-y-4 shadow-sm">
             <AlertCircle className="h-10 w-10 text-[#8c381c] mx-auto opacity-80" />
             <h2 className="text-lg font-extrabold text-[#8c381c]">
               Connection Error
@@ -116,7 +154,7 @@ export default function ShareAssessmentPage({
             <div className="pt-2">
               <Link
                 href="/dashboard/teacher"
-                className="inline-flex items-center justify-center rounded-[8.8px] bg-[#8c381c] px-5 py-2.5 text-xs font-bold text-white hover:bg-[#8c381c]/90 transition-all"
+                className="inline-flex items-center justify-center rounded-[10px] bg-[#8c381c] px-5 py-2.5 text-xs font-bold text-white hover:bg-[#6e2b14] active:scale-[0.98] transition-all shadow-xs"
               >
                 Return to Dashboard
               </Link>
@@ -141,7 +179,7 @@ export default function ShareAssessmentPage({
           <div className="flex items-center gap-3">
             <Link
               href="/dashboard/teacher"
-              className="flex h-8 w-8 items-center justify-center rounded-[8.8px] border border-[#d1dee8] bg-white text-[#78716b] hover:bg-[#e6e3e2]/40 hover:text-[#111111] transition-all cursor-pointer"
+              className="flex h-9 w-9 items-center justify-center rounded-[10px] border border-[#d1dee8]/80 bg-white text-[#78716b] hover:border-[#b9cbd9] hover:text-[#111111] shadow-xs transition-all active:scale-95 cursor-pointer"
             >
               <ArrowLeft className="h-4 w-4" />
             </Link>
@@ -156,10 +194,10 @@ export default function ShareAssessmentPage({
           </div>
         </header>
 
-        <div className="rounded-[8.8px] border border-[#d1dee8] bg-white p-6 md:p-8 space-y-6 shadow-sm">
+        <div className="rounded-[14px] border border-[#d1dee8]/70 bg-white p-6 md:p-8 space-y-6 shadow-sm">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-[#d1dee8]/30 pb-6">
             <div>
-              <span className="rounded-full bg-[#e2ede8] text-[#1d5237] px-2.5 py-0.5 text-[10px] font-bold border border-[#d1dee8]/30">
+              <span className="rounded-full bg-[#e2ede8] text-[#1d5237] px-2.5 py-0.5 text-[10px] font-bold border border-[#1d5237]/20">
                 PUBLISHED &amp; ACTIVE
               </span>
               <h2 className="text-2xl font-black text-[#111111] mt-2">
@@ -184,7 +222,7 @@ export default function ShareAssessmentPage({
             <div className="flex items-center gap-2">
               <Link
                 href={`/dashboard/teacher/live/${testCode}`}
-                className="inline-flex items-center gap-1.5 rounded-[8.8px] bg-[#165dfb] px-4 py-2.5 text-xs font-bold text-white hover:bg-[#165dfb]/90 transition-all shadow-none"
+                className="inline-flex items-center gap-1.5 rounded-[10px] bg-[#165dfb] px-4 py-2.5 text-xs font-bold text-white hover:bg-[#0f4fd8] shadow-sm shadow-[#165dfb]/20 active:scale-[0.98] transition-all"
               >
                 <BarChart3 className="h-4 w-4 text-white" /> Monitor Live Stream
               </Link>
@@ -192,17 +230,17 @@ export default function ShareAssessmentPage({
           </div>
 
           <div className="grid gap-6 sm:grid-cols-2">
-            <div className="rounded-[8.8px] border border-[#d1dee8] bg-[#f5f5f4]/50 p-5 space-y-3">
+            <div className="rounded-[12px] border border-[#d1dee8]/70 bg-[#f5f5f4]/50 p-5 space-y-3">
               <span className="text-[10px] font-bold uppercase tracking-wider text-[#78716b]">
                 Session Access Code
               </span>
-              <div className="flex items-center justify-between bg-white border border-[#d1dee8] p-3 rounded-[8.8px]">
+              <div className="flex items-center justify-between bg-white border border-[#d1dee8]/80 p-3 rounded-[10px] shadow-xs">
                 <span className="font-mono text-lg font-black text-[#165dfb] tracking-wider">
-                  {testCode.toUpperCase()}
+                  {resolvedCode.toUpperCase()}
                 </span>
                 <button
-                  onClick={() => copyToClipboard(testCode, "code")}
-                  className="flex items-center gap-1 px-3 py-1.5 rounded-[8.8px] bg-[#f5f5f4] hover:bg-[#e6e3e2] text-xs font-bold text-[#111111] transition-colors cursor-pointer border-0"
+                  onClick={() => copyToClipboard(resolvedCode, "code")}
+                  className="flex items-center gap-1 px-3 py-1.5 rounded-[8px] bg-[#f5f5f4] hover:bg-[#e6e3e2] hover:border-[#b9cbd9] text-xs font-bold text-[#111111] transition-all cursor-pointer border border-[#d1dee8]/60 shadow-xs active:scale-95"
                 >
                   {copiedCode ? (
                     <>
@@ -222,17 +260,17 @@ export default function ShareAssessmentPage({
               </p>
             </div>
 
-            <div className="rounded-[8.8px] border border-[#d1dee8] bg-[#f5f5f4]/50 p-5 space-y-3">
+            <div className="rounded-[12px] border border-[#d1dee8]/70 bg-[#f5f5f4]/50 p-5 space-y-3">
               <span className="text-[10px] font-bold uppercase tracking-wider text-[#78716b]">
                 Direct Candidate Link
               </span>
-              <div className="flex items-center justify-between bg-white border border-[#d1dee8] p-3 rounded-[8.8px] overflow-hidden">
+              <div className="flex items-center justify-between bg-white border border-[#d1dee8]/80 p-3 rounded-[10px] overflow-hidden shadow-xs">
                 <span className="font-mono text-xs text-[#78716b] truncate pr-2">
                   {assessmentLink}
                 </span>
                 <button
                   onClick={() => copyToClipboard(assessmentLink, "link")}
-                  className="flex shrink-0 items-center gap-1 px-3 py-1.5 rounded-[8.8px] bg-[#f5f5f4] hover:bg-[#e6e3e2] text-xs font-bold text-[#111111] transition-colors cursor-pointer border-0"
+                  className="flex shrink-0 items-center gap-1 px-3 py-1.5 rounded-[8px] bg-[#f5f5f4] hover:bg-[#e6e3e2] hover:border-[#b9cbd9] text-xs font-bold text-[#111111] transition-all cursor-pointer border border-[#d1dee8]/60 shadow-xs active:scale-95"
                 >
                   {copiedLink ? (
                     <>
@@ -256,7 +294,7 @@ export default function ShareAssessmentPage({
           <div className="pt-4 border-t border-[#d1dee8]/30 flex justify-end gap-3">
             <Link
               href="/dashboard/teacher"
-              className="px-5 py-2.5 rounded-[8.8px] bg-[#165dfb] text-xs font-bold text-white hover:bg-[#165dfb]/90 transition-all"
+              className="px-5 py-2.5 rounded-[10px] bg-[#165dfb] text-xs font-bold text-white hover:bg-[#0f4fd8] shadow-sm shadow-[#165dfb]/20 active:scale-[0.98] transition-all"
             >
               Back to Educator Dashboard
             </Link>
