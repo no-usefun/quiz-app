@@ -1,5 +1,6 @@
 package com.quiz_app.backend.service;
 
+import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 
 import com.quiz_app.backend.dto.user.CreateStudentRequest;
@@ -20,12 +21,15 @@ public class UserService {
 
         private final UserRepository userRepository;
         private final RoleRepository roleRepository;
+        private final PasswordEncoder passwordEncoder;
 
         public UserService(
                         UserRepository userRepository,
-                        RoleRepository roleRepository) {
+                        RoleRepository roleRepository,
+                        PasswordEncoder passwordEncoder) {
                 this.userRepository = userRepository;
                 this.roleRepository = roleRepository;
+                this.passwordEncoder = passwordEncoder;
         }
 
         @Transactional
@@ -79,7 +83,7 @@ public class UserService {
                  * We'll replace this with PasswordEncoder
                  * when authentication is implemented.
                  */
-                teacher.setPasswordHash(request.password());
+                teacher.setPasswordHash(passwordEncoder.encode(request.password()));
 
                 teacher.setRole(teacherRole);
                 teacher.setAuthProvider("LOCAL");
@@ -119,6 +123,10 @@ public class UserService {
                                         "Registration number is already registered");
                 }
 
+                if (request.password() == null || request.password().isBlank()) {
+                        throw new BadRequestException("Password is required");
+                }
+
                 Role studentRole = roleRepository
                                 .findByName("STUDENT")
                                 .orElseThrow(() -> new ResourceNotFoundException(
@@ -141,6 +149,9 @@ public class UserService {
                                 java.time.LocalDateTime.now());
                 student.setUpdatedAt(
                                 java.time.LocalDateTime.now());
+
+                student.setPasswordHash(
+                                passwordEncoder.encode(request.password()));
 
                 student = userRepository.save(student);
 

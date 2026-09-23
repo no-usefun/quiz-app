@@ -67,14 +67,6 @@ public class AuthService {
 
         // 3. Resolve Role
         String targetRoleName = "STUDENT";
-        if (request.role() != null && !request.role().isBlank()) {
-            String roleUpper = request.role().trim().toUpperCase(Locale.ROOT);
-            if (roleUpper.equals("TEACHER") || roleUpper.equals("STUDENT")) {
-                targetRoleName = roleUpper;
-            } else {
-                throw new BadRequestException("Invalid role: " + request.role() + ". Must be 'TEACHER' or 'STUDENT'");
-            }
-        }
 
         final String roleNameToFind = targetRoleName;
         Role role = roleRepository.findByName(roleNameToFind)
