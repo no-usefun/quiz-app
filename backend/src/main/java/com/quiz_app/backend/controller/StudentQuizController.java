@@ -121,4 +121,18 @@ public class StudentQuizController {
 
                 return ResponseEntity.ok(response);
         }
+
+        @PostMapping("/attempts/{attemptId}/auto-submit")
+        public ResponseEntity<SubmitAttemptResponse> autoSubmitAttempt(
+                        @PathVariable Long attemptId,
+                        Authentication authentication) {
+
+                CustomUserDetails userDetails = (CustomUserDetails) authentication.getPrincipal();
+
+                SubmitAttemptResponse response = attemptService.autoSubmitAttempt(
+                                attemptId,
+                                userDetails.getId());
+
+                return ResponseEntity.ok(response);
+        }
 }
