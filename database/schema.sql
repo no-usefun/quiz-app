@@ -99,7 +99,7 @@ CREATE TABLE options (
     option_text TEXT,
     option_image TEXT,
     is_correct BOOLEAN NOT NULL DEFAULT FALSE,
-    option_order SMALLINT NOT NULL CHECK (option_order BETWEEN 1 AND 4),
+    option_order SMALLINT NOT NULL CHECK (option_order > 0),
     created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     CONSTRAINT chk_option_content CHECK (option_text IS NOT NULL OR option_image IS NOT NULL),
     CONSTRAINT uq_question_option_order UNIQUE (question_id, option_order)

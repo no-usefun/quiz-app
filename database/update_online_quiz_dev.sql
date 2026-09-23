@@ -51,3 +51,27 @@ CREATE TABLE IF NOT EXISTS quiz_allowed_students (
 
 CREATE INDEX IF NOT EXISTS idx_quiz_allowed_students_lookup
 ON quiz_allowed_students (quiz_id, registration_number);
+
+-- =========================================================
+-- Variable Options: Remove 1-4 Cap, Enforce Positive Order
+-- =========================================================
+
+DO $$
+DECLARE
+    r RECORD;
+BEGIN
+    FOR r IN (
+        SELECT conname 
+        FROM pg_constraint con
+        JOIN pg_class rel ON rel.oid = con.conrelid
+        WHERE rel.relname = 'options' AND con.contype = 'c'
+          AND pg_get_constraintdef(con.oid) LIKE '%option_order%'
+    ) LOOP
+        EXECUTE 'ALTER TABLE options DROP CONSTRAINT IF EXISTS ' || quote_ident(r.conname);
+    END LOOP;
+END $$;
+
+ALTER TABLE options
+ADD CONSTRAINT chk_option_order_positive
+CHECK (option_order > 0);
+
