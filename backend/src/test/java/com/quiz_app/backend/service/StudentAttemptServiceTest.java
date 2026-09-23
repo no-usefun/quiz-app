@@ -25,6 +25,7 @@ import static org.mockito.ArgumentMatchers.eq;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import static org.mockito.Mockito.atLeastOnce;
+import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
@@ -124,7 +125,7 @@ class StudentAttemptServiceTest {
                 Clock fixedClock = Clock.fixed(
                                 Instant.parse("2026-09-21T15:00:00Z"),
                                 ZoneId.of("Asia/Kolkata"));
-                when(clock.withZone(any(ZoneId.class))).thenReturn(fixedClock);
+                lenient().when(clock.withZone(any(ZoneId.class))).thenReturn(fixedClock);
 
                 // ---------------------------------------------------------
                 // Roles
