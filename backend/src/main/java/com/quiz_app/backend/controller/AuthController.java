@@ -13,7 +13,10 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import com.quiz_app.backend.dto.auth.AuthResponse;
+import com.quiz_app.backend.dto.auth.ChangePasswordRequest;
+import com.quiz_app.backend.dto.auth.DeleteAccountRequest;
 import com.quiz_app.backend.dto.auth.LoginRequest;
+import com.quiz_app.backend.dto.auth.ResendVerificationRequest;
 import com.quiz_app.backend.dto.auth.SignupRequest;
 import com.quiz_app.backend.dto.auth.SignupResponse;
 import com.quiz_app.backend.dto.auth.UpdateProfileRequest;
@@ -94,5 +97,38 @@ public class AuthController {
         emailVerificationService.verifyEmail(token);
 
         return ResponseEntity.ok().build();
+    }
+
+    @PostMapping("/resend-verification")
+    public ResponseEntity<Void> resendVerification(
+            @Valid @RequestBody ResendVerificationRequest request) {
+
+        emailVerificationService.resendVerification(request.email());
+
+        return ResponseEntity.ok().build();
+    }
+
+    @PostMapping("/change-password")
+    public ResponseEntity<Void> changePassword(
+            @AuthenticationPrincipal UserDetails userDetails,
+            @Valid @RequestBody ChangePasswordRequest request) {
+
+        authService.changePassword(
+                userDetails.getUsername(),
+                request);
+
+        return ResponseEntity.ok().build();
+    }
+
+    @PostMapping("/delete-account")
+    public ResponseEntity<Void> deleteAccount(
+            @AuthenticationPrincipal UserDetails userDetails,
+            @Valid @RequestBody DeleteAccountRequest request) {
+
+        authService.deleteAccount(
+                userDetails.getUsername(),
+                request);
+
+        return ResponseEntity.noContent().build();
     }
 }

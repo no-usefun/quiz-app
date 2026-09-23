@@ -8,6 +8,8 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import com.quiz_app.backend.dto.auth.AuthResponse;
+import com.quiz_app.backend.dto.auth.ChangePasswordRequest;
+import com.quiz_app.backend.dto.auth.DeleteAccountRequest;
 import com.quiz_app.backend.dto.auth.LoginRequest;
 import com.quiz_app.backend.dto.auth.SignupRequest;
 import com.quiz_app.backend.dto.auth.SignupResponse;
@@ -206,5 +208,72 @@ public class AuthService {
         User savedUser = userRepository.save(user);
 
         return UserSummaryResponse.fromEntity(savedUser);
+    }
+
+    @Transactional
+    public void changePassword(String email, ChangePasswordRequest request) {
+
+        User user = userRepository.findByEmail(
+                email.trim().toLowerCase(Locale.ROOT)).orElseThrow(
+                        () -> new ResourceNotFoundException(
+                                "USER_NOT_FOUND",
+                                "User not found"));
+
+        if (user.getPasswordHash() == null) {
+            throw new BadRequestException(
+                    "PASSWORD_NOT_AVAILABLE",
+                    "Password change is not available for this account");
+        }
+
+        if (!passwordEncoder.matches(
+                request.currentPassword(),
+                user.getPasswordHash())) {
+
+            throw new BadRequestException(
+                    "INVALID_CURRENT_PASSWORD",
+                    "Current password is incorrect");
+        }
+
+        if (passwordEncoder.matches(
+                request.newPassword(),
+                user.getPasswordHash())) {
+
+            throw new BadRequestException(
+                    "PASSWORD_UNCHANGED",
+                    "New password must be different from the current password");
+        }
+
+        user.setPasswordHash(
+                passwordEncoder.encode(request.newPassword()));
+
+        userRepository.save(user);
+    }
+
+    @Transactional
+    public void deleteAccount(String email, DeleteAccountRequest request) {
+
+        User user = userRepository.findByEmail(
+                email.trim().toLowerCase(Locale.ROOT)).orElseThrow(
+                        () -> new ResourceNotFoundException(
+                                "USER_NOT_FOUND",
+                                "User not found"));
+
+        if (user.getPasswordHash() == null) {
+            throw new BadRequestException(
+                    "PASSWORD_NOT_AVAILABLE",
+                    "Account deletion is not available for this account");
+        }
+
+        if (!passwordEncoder.matches(
+                request.password(),
+                user.getPasswordHash())) {
+
+            throw new BadRequestException(
+                    "INVALID_PASSWORD",
+                    "Password is incorrect");
+        }
+
+        user.setActive(false);
+        userRepository.save(user);
     }
 }

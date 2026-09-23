@@ -13,4 +13,6 @@ public interface EmailVerificationTokenRepository
 
     Optional<EmailVerificationToken> findByTokenHashAndUsedFalse(
             String tokenHash);
+
+    void deleteByUser_IdAndUsedFalse(Long userId);
 }

@@ -6,6 +6,7 @@ import java.security.NoSuchAlgorithmException;
 import java.security.SecureRandom;
 import java.time.LocalDateTime;
 import java.util.Base64;
+import java.util.Locale;
 
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -45,15 +46,7 @@ public class EmailVerificationService {
          * Invalidate any previous unused tokens for this user
          * before creating a new one.
          */
-        tokenRepository
-                .findAll()
-                .stream()
-                .filter(token -> token.getUser().getId().equals(user.getId())
-                        && !token.isUsed())
-                .forEach(token -> {
-                    token.setUsed(true);
-                    tokenRepository.save(token);
-                });
+        tokenRepository.deleteByUser_IdAndUsedFalse(user.getId());
 
         byte[] randomBytes = new byte[32];
         secureRandom.nextBytes(randomBytes);
@@ -137,5 +130,30 @@ public class EmailVerificationService {
                     "SHA-256 algorithm is not available",
                     e);
         }
+    }
+
+    @Transactional
+    public void resendVerification(String email) {
+
+        if (email == null || email.isBlank()) {
+            throw new BadRequestException(
+                    "EMAIL_REQUIRED",
+                    "Email is required");
+        }
+
+        String normalizedEmail = email.trim().toLowerCase(Locale.ROOT);
+
+        User user = userRepository.findByEmail(normalizedEmail)
+                .orElseThrow(() -> new ResourceNotFoundException(
+                        "USER_NOT_FOUND",
+                        "User not found"));
+
+        if (user.isVerified()) {
+            throw new BadRequestException(
+                    "EMAIL_ALREADY_VERIFIED",
+                    "Email is already verified");
+        }
+
+        createVerificationToken(user);
     }
 }
