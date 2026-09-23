@@ -199,6 +199,13 @@ public class StudentAttemptService {
 
                         // An active attempt can be resumed.
                         if (attempt.getStatus() == AttemptStatus.IN_PROGRESS) {
+                                LocalDateTime effectiveDeadline = attempt.getStartedAt()
+                                                .plusSeconds(quiz.getOverallTimerSeconds());
+
+                                if (quiz.getEndTime() != null
+                                                && quiz.getEndTime().isBefore(effectiveDeadline)) {
+                                        effectiveDeadline = quiz.getEndTime();
+                                }
 
                                 return new AttemptResponse(
                                                 attempt.getId(),
@@ -208,7 +215,8 @@ public class StudentAttemptService {
                                                 attempt.getSubmittedAt(),
                                                 attempt.getStatus(),
                                                 attempt.getCurrentQuestion(),
-                                                attempt.getTotalTimeTaken());
+                                                attempt.getTotalTimeTaken(),
+                                                effectiveDeadline);
                         }
 
                         // A completed attempt cannot be started again.
@@ -237,6 +245,14 @@ public class StudentAttemptService {
 
                 attempt = quizAttemptRepository.save(attempt);
 
+                LocalDateTime effectiveDeadline = attempt.getStartedAt()
+                                .plusSeconds(quiz.getOverallTimerSeconds());
+
+                if (quiz.getEndTime() != null
+                                && quiz.getEndTime().isBefore(effectiveDeadline)) {
+                        effectiveDeadline = quiz.getEndTime();
+                }
+
                 // 9. Return safe response
                 return new AttemptResponse(
                                 attempt.getId(),
@@ -246,7 +262,8 @@ public class StudentAttemptService {
                                 attempt.getSubmittedAt(),
                                 attempt.getStatus(),
                                 attempt.getCurrentQuestion(),
-                                attempt.getTotalTimeTaken());
+                                attempt.getTotalTimeTaken(),
+                                effectiveDeadline);
         }
 
         private void validateSelectionCount(
