@@ -6,16 +6,21 @@ import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import com.quiz_app.backend.dto.auth.AuthResponse;
 import com.quiz_app.backend.dto.auth.LoginRequest;
 import com.quiz_app.backend.dto.auth.SignupRequest;
+import com.quiz_app.backend.dto.auth.SignupResponse;
+import com.quiz_app.backend.dto.auth.UpdateProfileRequest;
 import com.quiz_app.backend.dto.auth.UserSummaryResponse;
 import com.quiz_app.backend.exception.BadRequestException;
 import com.quiz_app.backend.service.AuthService;
+import com.quiz_app.backend.service.EmailVerificationService;
 
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -27,15 +32,20 @@ import jakarta.validation.Valid;
 public class AuthController {
 
     private final AuthService authService;
+    private final EmailVerificationService emailVerificationService;
 
-    public AuthController(AuthService authService) {
+    public AuthController(
+            AuthService authService,
+            EmailVerificationService emailVerificationService) {
+
         this.authService = authService;
+        this.emailVerificationService = emailVerificationService;
     }
 
     @Operation(summary = "Register a new user", description = "Creates a new user account and returns a JWT token.")
     @PostMapping("/signup")
-    public ResponseEntity<AuthResponse> signup(@Valid @RequestBody SignupRequest request) {
-        AuthResponse response = authService.register(request);
+    public ResponseEntity<SignupResponse> signup(@Valid @RequestBody SignupRequest request) {
+        SignupResponse response = authService.register(request);
         return ResponseEntity.status(HttpStatus.CREATED).body(response);
     }
 
@@ -58,5 +68,31 @@ public class AuthController {
         UserSummaryResponse response = authService.getCurrentUser(userDetails.getUsername());
 
         return ResponseEntity.ok(response);
+    }
+
+    @Operation(summary = "Update current user profile", description = "Updates the editable profile fields of the currently authenticated user.")
+    @PutMapping("/me")
+    public ResponseEntity<UserSummaryResponse> updateProfile(
+            @AuthenticationPrincipal UserDetails userDetails,
+            @Valid @RequestBody UpdateProfileRequest request) {
+
+        if (userDetails == null) {
+            throw new BadRequestException("No authenticated user found");
+        }
+
+        UserSummaryResponse response = authService.updateProfile(
+                userDetails.getUsername(),
+                request);
+
+        return ResponseEntity.ok(response);
+    }
+
+    @PostMapping("/verify-email")
+    public ResponseEntity<Void> verifyEmail(
+            @RequestParam String token) {
+
+        emailVerificationService.verifyEmail(token);
+
+        return ResponseEntity.ok().build();
     }
 }

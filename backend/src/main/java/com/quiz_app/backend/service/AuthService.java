@@ -10,12 +10,14 @@ import org.springframework.transaction.annotation.Transactional;
 import com.quiz_app.backend.dto.auth.AuthResponse;
 import com.quiz_app.backend.dto.auth.LoginRequest;
 import com.quiz_app.backend.dto.auth.SignupRequest;
+import com.quiz_app.backend.dto.auth.SignupResponse;
+import com.quiz_app.backend.dto.auth.UpdateProfileRequest;
 import com.quiz_app.backend.dto.auth.UserSummaryResponse;
 import com.quiz_app.backend.entity.Role;
 import com.quiz_app.backend.entity.User;
 import com.quiz_app.backend.exception.BadRequestException;
-import com.quiz_app.backend.exception.ResourceNotFoundException;
 import com.quiz_app.backend.exception.ConflictException;
+import com.quiz_app.backend.exception.ResourceNotFoundException;
 import com.quiz_app.backend.repository.RoleRepository;
 import com.quiz_app.backend.repository.UserRepository;
 import com.quiz_app.backend.security.JwtUtils;
@@ -27,20 +29,24 @@ public class AuthService {
     private final RoleRepository roleRepository;
     private final PasswordEncoder passwordEncoder;
     private final JwtUtils jwtUtils;
+    private final EmailVerificationService emailVerificationService;
 
     public AuthService(
             UserRepository userRepository,
             RoleRepository roleRepository,
             PasswordEncoder passwordEncoder,
-            JwtUtils jwtUtils) {
+            JwtUtils jwtUtils,
+            EmailVerificationService emailVerificationService) {
+
         this.userRepository = userRepository;
         this.roleRepository = roleRepository;
         this.passwordEncoder = passwordEncoder;
         this.jwtUtils = jwtUtils;
+        this.emailVerificationService = emailVerificationService;
     }
 
     @Transactional
-    public AuthResponse register(SignupRequest request) {
+    public SignupResponse register(SignupRequest request) {
         String normalizedEmail = request.email().trim().toLowerCase(Locale.ROOT);
 
         // 1. Check duplicate email
@@ -92,17 +98,17 @@ public class AuthService {
                 ? request.registrationNo().trim()
                 : null);
         user.setPhone(request.phone() != null ? request.phone().trim() : null);
-        user.setVerified(true);
+        user.setVerified(false); // Initially not verified; can be updated later based on your verification logic
         user.setActive(true);
 
         User savedUser = userRepository.save(user);
 
-        // 5. Generate JWT token
-        String token = jwtUtils.generateToken(savedUser);
+        // 5. Create email verification token and send email
+        emailVerificationService.createVerificationToken(savedUser);
 
-        return new AuthResponse(
-                token,
-                jwtUtils.getExpirationMs(),
+        return new SignupResponse(
+                "Account created. Please verify your email before logging in.",
+                true,
                 UserSummaryResponse.fromEntity(savedUser));
     }
 
@@ -124,6 +130,12 @@ public class AuthService {
             throw new BadRequestException("Your account is currently disabled. Please contact administration.");
         }
 
+        if (!user.isVerified()) {
+            throw new BadRequestException(
+                    "EMAIL_NOT_VERIFIED",
+                    "Please verify your email before logging in");
+        }
+
         // 4. Generate JWT token
         String token = jwtUtils.generateToken(user);
 
@@ -139,5 +151,60 @@ public class AuthService {
                 .orElseThrow(() -> new ResourceNotFoundException("User not found for email: " + email));
 
         return UserSummaryResponse.fromEntity(user);
+    }
+
+    @Transactional
+    public UserSummaryResponse updateProfile(
+            String email,
+            UpdateProfileRequest request) {
+
+        User user = userRepository.findByEmail(email)
+                .orElseThrow(() -> new ResourceNotFoundException("User not found"));
+
+        if (request.firstName() != null) {
+            if (request.firstName().isBlank()) {
+                throw new BadRequestException("First name cannot be blank");
+            }
+            user.setFirstName(request.firstName().trim());
+        }
+
+        if (request.lastName() != null) {
+            user.setLastName(
+                    request.lastName().isBlank()
+                            ? null
+                            : request.lastName().trim());
+        }
+
+        if (request.phone() != null) {
+            user.setPhone(
+                    request.phone().isBlank()
+                            ? null
+                            : request.phone().trim());
+        }
+
+        if (request.college() != null) {
+            user.setCollege(
+                    request.college().isBlank()
+                            ? null
+                            : request.college().trim());
+        }
+
+        if (request.department() != null) {
+            user.setDepartment(
+                    request.department().isBlank()
+                            ? null
+                            : request.department().trim());
+        }
+
+        if (request.profileImage() != null) {
+            user.setProfileImage(
+                    request.profileImage().isBlank()
+                            ? null
+                            : request.profileImage().trim());
+        }
+
+        User savedUser = userRepository.save(user);
+
+        return UserSummaryResponse.fromEntity(savedUser);
     }
 }
