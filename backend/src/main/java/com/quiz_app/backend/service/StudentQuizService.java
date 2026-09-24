@@ -3,6 +3,8 @@ package com.quiz_app.backend.service;
 import java.util.ArrayList;
 import java.util.Collections;
 
+import org.springframework.stereotype.Service;
+
 import com.quiz_app.backend.dto.exam.OptionResponse;
 import com.quiz_app.backend.dto.exam.QuestionResponse;
 import com.quiz_app.backend.dto.exam.QuizPackageResponse;
@@ -14,6 +16,7 @@ import com.quiz_app.backend.repository.OptionRepository;
 import com.quiz_app.backend.repository.QuestionRepository;
 import com.quiz_app.backend.repository.QuizRepository;
 
+@Service
 public class StudentQuizService {
 
     private final QuizRepository quizRepository;
