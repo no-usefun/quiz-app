@@ -45,7 +45,7 @@ public class AuthController {
         this.emailVerificationService = emailVerificationService;
     }
 
-    @Operation(summary = "Register a new user", description = "Creates a new user account and returns a JWT token.")
+    @Operation(summary = "Register a student account", description = "Creates a student account and sends an email verification link. The account must be verified before login.")
     @PostMapping("/signup")
     public ResponseEntity<SignupResponse> signup(@Valid @RequestBody SignupRequest request) {
         SignupResponse response = authService.register(request);
