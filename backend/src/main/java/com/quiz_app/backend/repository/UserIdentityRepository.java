@@ -1,10 +1,14 @@
 package com.quiz_app.backend.repository;
 
-import com.quiz_app.backend.entity.UserIdentity;
-import org.springframework.data.jpa.repository.JpaRepository;
-
+import java.util.List;
 import java.util.Optional;
 
+import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.stereotype.Repository;
+
+import com.quiz_app.backend.entity.UserIdentity;
+
+@Repository
 public interface UserIdentityRepository extends JpaRepository<UserIdentity, Long> {
 
     Optional<UserIdentity> findByIssuerAndSubject(
@@ -14,4 +18,6 @@ public interface UserIdentityRepository extends JpaRepository<UserIdentity, Long
     boolean existsByIssuerAndSubject(
             String issuer,
             String subject);
+
+    List<UserIdentity> findByUserId(Long userId);
 }

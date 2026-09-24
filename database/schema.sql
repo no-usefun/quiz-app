@@ -31,6 +31,18 @@ CREATE TABLE users (
     CONSTRAINT chk_google_user_has_id CHECK (auth_provider <> 'GOOGLE' OR google_id IS NOT NULL)
 );
 
+CREATE TABLE user_identities (
+    identity_id BIGSERIAL PRIMARY KEY,
+    user_id BIGINT NOT NULL REFERENCES users(user_id) ON DELETE CASCADE,
+    provider VARCHAR(30) NOT NULL,
+    issuer VARCHAR(500) NOT NULL,
+    subject VARCHAR(255) NOT NULL,
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT uq_user_identity UNIQUE (issuer, subject)
+);
+
+CREATE INDEX idx_user_identities_user_id ON user_identities(user_id);
+
 CREATE TABLE quizzes (
     quiz_id BIGSERIAL PRIMARY KEY,
     quiz_code VARCHAR(6) UNIQUE NOT NULL,

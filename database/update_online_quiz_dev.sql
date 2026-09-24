@@ -98,3 +98,21 @@ CREATE INDEX IF NOT EXISTS idx_email_verification_tokens_expiry
     ON email_verification_tokens(expires_at);
 
 
+-- =========================================================
+-- Authentication + Institution SSO: User Identities (OIDC)
+-- =========================================================
+
+CREATE TABLE IF NOT EXISTS user_identities (
+    identity_id BIGSERIAL PRIMARY KEY,
+    user_id BIGINT NOT NULL REFERENCES users(user_id) ON DELETE CASCADE,
+    provider VARCHAR(30) NOT NULL,
+    issuer VARCHAR(500) NOT NULL,
+    subject VARCHAR(255) NOT NULL,
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT uq_user_identity UNIQUE (issuer, subject)
+);
+
+CREATE INDEX IF NOT EXISTS idx_user_identities_user_id
+    ON user_identities(user_id);
+
+
