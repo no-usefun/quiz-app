@@ -23,6 +23,7 @@ import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
 import com.quiz_app.backend.security.AccessDeniedHandlerJwt;
 import com.quiz_app.backend.security.AuthEntryPointJwt;
 import com.quiz_app.backend.security.JwtAuthenticationFilter;
+import com.quiz_app.backend.security.OAuth2AuthenticationSuccessHandler;
 
 @Configuration
 @EnableWebSecurity
@@ -68,7 +69,8 @@ public class SecurityConfig {
         }
 
         @Bean
-        public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
+        public SecurityFilterChain securityFilterChain(HttpSecurity http,
+                        OAuth2AuthenticationSuccessHandler oAuth2AuthenticationSuccessHandler) throws Exception {
                 http
                                 .cors(cors -> cors.configurationSource(corsConfigurationSource()))
                                 .csrf(csrf -> csrf.disable())
@@ -108,7 +110,10 @@ public class SecurityConfig {
                                                 .hasRole("TEACHER")
 
                                                 // Everything else requires authentication
-                                                .anyRequest().authenticated());
+                                                .anyRequest().authenticated())
+
+                                .oauth2Login(oauth2 -> oauth2
+                                                .successHandler(oAuth2AuthenticationSuccessHandler));
 
                 http.addFilterBefore(
                                 jwtAuthenticationFilter,

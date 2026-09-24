@@ -59,17 +59,6 @@ public class AuthService {
                                         "Please provide a valid email address");
                 }
 
-                String emailDomain = normalizedEmail.substring(atIndex + 1);
-
-                boolean validAcademicDomain = emailDomain.endsWith(".ac.in") ||
-                                emailDomain.endsWith(".edu.in");
-
-                if (!validAcademicDomain) {
-                        throw new BadRequestException(
-                                        "INVALID_STUDENT_EMAIL_DOMAIN",
-                                        "Student accounts require an institutional .ac.in or .edu.in email address");
-                }
-
                 // 1. Check duplicate email
                 if (userRepository.existsByEmail(normalizedEmail)) {
                         throw new ConflictException("An account with email " + normalizedEmail + " already exists");
