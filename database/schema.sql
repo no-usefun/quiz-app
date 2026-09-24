@@ -191,6 +191,18 @@ CREATE INDEX idx_attempts_quiz ON quiz_attempts(quiz_id);
 CREATE INDEX idx_attempts_student ON quiz_attempts(student_id);
 CREATE INDEX idx_answers_attempt ON student_answers(attempt_id);
 CREATE INDEX idx_selected_options_answer ON student_selected_options(answer_id);
-CREATE INDEX idx_devices_attempt ON devices(attempt_id);
 CREATE INDEX idx_activity_attempt_time ON activity_logs(attempt_id, activity_time);
 CREATE INDEX idx_leaderboard_quiz_score ON leaderboard_entries(quiz_id, score DESC);
+
+CREATE TABLE email_verification_tokens (
+    token_id BIGSERIAL PRIMARY KEY,
+    user_id BIGINT NOT NULL REFERENCES users(user_id) ON UPDATE CASCADE ON DELETE CASCADE,
+    token_hash VARCHAR(255) NOT NULL UNIQUE,
+    expires_at TIMESTAMP NOT NULL,
+    used BOOLEAN NOT NULL DEFAULT FALSE,
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX idx_email_verification_tokens_user ON email_verification_tokens(user_id);
+CREATE INDEX idx_email_verification_tokens_expiry ON email_verification_tokens(expires_at);
+
