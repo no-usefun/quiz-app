@@ -8,8 +8,10 @@ import org.springframework.security.oauth2.core.oidc.user.OidcUser;
 import org.springframework.security.web.authentication.AuthenticationSuccessHandler;
 import org.springframework.stereotype.Component;
 
+import com.quiz_app.backend.entity.Role;
 import com.quiz_app.backend.entity.User;
 import com.quiz_app.backend.entity.UserIdentity;
+import com.quiz_app.backend.repository.RoleRepository;
 import com.quiz_app.backend.repository.UserIdentityRepository;
 import com.quiz_app.backend.repository.UserRepository;
 
@@ -23,15 +25,18 @@ public class OAuth2AuthenticationSuccessHandler
 
     private final UserIdentityRepository userIdentityRepository;
     private final UserRepository userRepository;
+    private final RoleRepository roleRepository;
     private final JwtUtils jwtUtils;
 
     public OAuth2AuthenticationSuccessHandler(
             UserIdentityRepository userIdentityRepository,
             UserRepository userRepository,
-            JwtUtils jwtUtils) {
+            JwtUtils jwtUtils,
+            RoleRepository roleRepository) {
         this.userIdentityRepository = userIdentityRepository;
         this.userRepository = userRepository;
         this.jwtUtils = jwtUtils;
+        this.roleRepository = roleRepository;
     }
 
     @Override
@@ -47,6 +52,15 @@ public class OAuth2AuthenticationSuccessHandler
         String email = oidcUser.getAttribute("email");
         String subject = oidcUser.getSubject();
         String issuer = oidcUser.getIssuer().toString();
+
+        Boolean emailVerified = oidcUser.getAttribute("email_verified");
+
+        if (!Boolean.TRUE.equals(emailVerified)) {
+            response.sendError(
+                    HttpServletResponse.SC_FORBIDDEN,
+                    "Google account email is not verified");
+            return;
+        }
 
         if (email == null || subject == null) {
             response.sendError(
@@ -83,10 +97,14 @@ public class OAuth2AuthenticationSuccessHandler
             String issuer,
             String subject,
             String provider) {
+
+        String normalizedEmail = email.trim().toLowerCase();
+
         User user = userRepository
-                .findByEmail(email.toLowerCase())
-                .orElseThrow(() -> new IllegalStateException(
-                        "No DynoQuizz account is linked to this SSO identity"));
+                .findByEmail(normalizedEmail)
+                .orElseGet(() -> createNewSsoUser(
+                        normalizedEmail,
+                        subject));
 
         UserIdentity identity = new UserIdentity();
         identity.setUser(user);
@@ -97,5 +115,39 @@ public class OAuth2AuthenticationSuccessHandler
         userIdentityRepository.save(identity);
 
         return user;
+    }
+
+    private User createNewSsoUser(
+            String email,
+            String subject) {
+
+        Role studentRole = roleRepository
+                .findByName("STUDENT")
+                .orElseThrow(() -> new IllegalStateException(
+                        "STUDENT role is not configured in the database"));
+
+        User user = new User();
+
+        user.setFirstName(email.substring(0, email.indexOf('@')));
+        user.setLastName(null);
+        user.setEmail(email);
+
+        // Google-authenticated users do not use a local password.
+        user.setPasswordHash(null);
+
+        // Keep legacy Google fields valid for the current schema.
+        user.setGoogleId(subject);
+        user.setAuthProvider("GOOGLE");
+
+        user.setRole(studentRole);
+
+        // SSO authentication verifies the external identity.
+        user.setVerified(true);
+        user.setActive(true);
+
+        // Registration number can be supplied later if required.
+        user.setRegistrationNo(null);
+
+        return userRepository.save(user);
     }
 }
