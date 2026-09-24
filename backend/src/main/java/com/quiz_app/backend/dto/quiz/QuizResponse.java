@@ -2,9 +2,11 @@ package com.quiz_app.backend.dto.quiz;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
+import java.util.List;
 
 import com.quiz_app.backend.entity.ExamState;
 import com.quiz_app.backend.entity.QuizStatus;
+import com.quiz_app.backend.entity.ResultVisibility;
 
 public record QuizResponse(
         Long quizId,
@@ -36,6 +38,12 @@ public record QuizResponse(
 
         LocalDateTime startTime,
         LocalDateTime endTime,
+
+        ResultVisibility resultVisibility,
+        boolean resultsPublished,
+
+        String acceptedEmailDomain,
+        List<String> allowedRegistrationNumbers,
 
         QuizStatus status,
         ExamState examState) {

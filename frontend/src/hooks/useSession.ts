@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
+import { ENDPOINTS } from "@/lib/api/endpoints";
 
 const API_BASE = (
   process.env.NEXT_PUBLIC_API_URL || "http://localhost:8080"
@@ -14,16 +15,40 @@ export function useSession() {
 
   const fetchSession = async () => {
     try {
-      const token =
+      const rawToken =
         typeof window !== "undefined"
-          ? localStorage.getItem("dynoquizz_token")
+          ? localStorage.getItem("dynoquizz_token") || localStorage.getItem("token")
           : null;
       const storedUser =
         typeof window !== "undefined"
           ? localStorage.getItem("dynoquizz_user")
           : null;
 
-      // 1. Optimistic Load: Instantly load cached user to prevent UI lag
+      // 1. Aggressive Token Pre-Validation: Guard against undefined, null, or empty strings
+      if (!rawToken || rawToken === "undefined" || rawToken === "null" || rawToken.trim() === "") {
+        if (typeof window !== "undefined") {
+          localStorage.removeItem("dynoquizz_token");
+          localStorage.removeItem("token");
+        }
+        setUser(null);
+        setLoading(false);
+        return; // DO NOT FIRE THE FETCH
+      }
+
+      // 2. Sanitize the Valid Token: Strip accidental surrounding quotes
+      const cleanToken = rawToken.replace(/^["']|["']$/g, "").trim();
+
+      if (!cleanToken || cleanToken === "undefined" || cleanToken === "null") {
+        if (typeof window !== "undefined") {
+          localStorage.removeItem("dynoquizz_token");
+          localStorage.removeItem("token");
+        }
+        setUser(null);
+        setLoading(false);
+        return; // DO NOT FIRE THE FETCH
+      }
+
+      // 3. Optimistic Load: Instantly load cached user to prevent UI lag
       if (storedUser) {
         try {
           setUser(JSON.parse(storedUser));
@@ -32,29 +57,31 @@ export function useSession() {
         }
       }
 
-      if (!token) {
-        setUser(null);
-        setLoading(false);
-        return;
-      }
-
-      // 2. Background Verification: Ping the live backend for fresh data
-      const res = await fetch(`${API_BASE}/api/v1/auth/me`, {
+      // 4. Background Verification: Ping the live backend for fresh data
+      const res = await fetch(ENDPOINTS.auth.me, {
         method: "GET",
         headers: {
-          Authorization: `Bearer ${token}`,
-          "Content-Type": "application/json",
+          Authorization: `Bearer ${cleanToken}`,
+          Accept: "application/json",
         },
       });
 
       if (res.ok) {
         const liveUserData = await res.json();
-        setUser(liveUserData);
+        const normalizedUser = {
+          ...liveUserData,
+          name: liveUserData.fullName || `${liveUserData.firstName || ""} ${liveUserData.lastName || ""}`.trim() || liveUserData.name,
+          institution: liveUserData.college || liveUserData.institution || "",
+          program: liveUserData.department || liveUserData.program || "",
+        };
+        setUser(normalizedUser);
 
         // Keep local cache synced with live database data
         if (typeof window !== "undefined") {
-          localStorage.setItem("dynoquizz_user", JSON.stringify(liveUserData));
-          localStorage.setItem("dynoquizz_role", liveUserData.role);
+          localStorage.setItem("dynoquizz_user", JSON.stringify(normalizedUser));
+          if (liveUserData.role) {
+            localStorage.setItem("dynoquizz_role", liveUserData.role.toUpperCase());
+          }
           if (liveUserData.registrationNo) {
             localStorage.setItem(
               "dynoquizz_regNo",
@@ -62,8 +89,8 @@ export function useSession() {
             );
           }
         }
-      } else if (res.status === 401 || res.status === 403) {
-        // 3. Security: If token is rejected by backend, clear session
+      } else if (res.status === 401 || res.status === 403 || res.status === 400) {
+        // 5. Security: If token is rejected by backend, clear session
         await logout();
       }
     } catch (err) {
@@ -84,14 +111,12 @@ export function useSession() {
     role?: string;
   }) => {
     try {
-      const backendRole = (credentials.role || "STUDENT").toUpperCase();
-      const res = await fetch(`${API_BASE}/api/v1/auth/login`, {
+      const res = await fetch(ENDPOINTS.auth.login, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           email: credentials.email.trim(),
           password: credentials.password,
-          role: backendRole,
         }),
       });
 
@@ -101,7 +126,8 @@ export function useSession() {
         const returnedRole = (
           data.user?.role ||
           data.role ||
-          backendRole
+          credentials.role ||
+          "STUDENT"
         ).toUpperCase();
         const userObj = data.user || {
           email: credentials.email,
@@ -120,7 +146,7 @@ export function useSession() {
         return userObj;
       }
       throw new Error(
-        data.error || data.message || "Invalid email or password.",
+        data.message || data.error || "Invalid email or password.",
       );
     } catch (e: any) {
       throw new Error(e.message || "Failed to log in.");
@@ -133,21 +159,23 @@ export function useSession() {
     email: string;
     password: string;
     role?: string;
+    registrationNo?: string;
   }) => {
     try {
       const backendRole = (payload.role || "STUDENT").toUpperCase();
-      const combinedName = `${payload.firstName.trim()} ${payload.lastName.trim()}`;
 
-      const res = await fetch(`${API_BASE}/api/v1/auth/signup`, {
+      const res = await fetch(ENDPOINTS.auth.signup, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           firstName: payload.firstName.trim(),
           lastName: payload.lastName.trim(),
-          name: combinedName,
           email: payload.email.trim(),
           password: payload.password,
           role: backendRole,
+          ...(backendRole === "STUDENT" && payload.registrationNo
+            ? { registrationNo: payload.registrationNo.trim().toUpperCase() }
+            : {}),
         }),
       });
 
@@ -162,7 +190,7 @@ export function useSession() {
         const userObj = data.user || {
           email: payload.email,
           role: returnedRole,
-          name: combinedName,
+          name: `${payload.firstName.trim()} ${payload.lastName.trim()}`,
         };
 
         if (typeof window !== "undefined") {

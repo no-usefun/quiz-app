@@ -12,7 +12,9 @@ import org.springframework.web.bind.annotation.RestController;
 import com.quiz_app.backend.dto.exam.QuizPackageResponse;
 import com.quiz_app.backend.dto.quiz.CreateQuizRequest;
 import com.quiz_app.backend.dto.quiz.QuizResponse;
+import com.quiz_app.backend.security.CustomUserDetails;
 import com.quiz_app.backend.service.QuizService;
+import org.springframework.security.core.Authentication;
 
 @RestController
 @RequestMapping("/api/v1")
@@ -26,8 +28,14 @@ public class QuizController {
 
     @PostMapping("/teacher/quizzes")
     public ResponseEntity<QuizResponse> createQuiz(
-            @RequestBody CreateQuizRequest request) {
-        QuizResponse quiz = quizService.createQuiz(request);
+            @RequestBody CreateQuizRequest request,
+            Authentication authentication) {
+
+        CustomUserDetails userDetails = (CustomUserDetails) authentication.getPrincipal();
+
+        QuizResponse quiz = quizService.createQuiz(
+                request,
+                userDetails.getId());
 
         return ResponseEntity
                 .status(HttpStatus.CREATED)

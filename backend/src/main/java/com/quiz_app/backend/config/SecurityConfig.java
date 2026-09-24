@@ -20,6 +20,7 @@ import org.springframework.web.cors.CorsConfiguration;
 import org.springframework.web.cors.CorsConfigurationSource;
 import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
 
+import com.quiz_app.backend.security.AccessDeniedHandlerJwt;
 import com.quiz_app.backend.security.AuthEntryPointJwt;
 import com.quiz_app.backend.security.JwtAuthenticationFilter;
 
@@ -30,10 +31,13 @@ public class SecurityConfig {
 
     private final JwtAuthenticationFilter jwtAuthenticationFilter;
     private final AuthEntryPointJwt authEntryPointJwt;
+    private final AccessDeniedHandlerJwt accessDeniedHandlerJwt;
 
-    public SecurityConfig(JwtAuthenticationFilter jwtAuthenticationFilter, AuthEntryPointJwt authEntryPointJwt) {
+    public SecurityConfig(JwtAuthenticationFilter jwtAuthenticationFilter, AuthEntryPointJwt authEntryPointJwt,
+            AccessDeniedHandlerJwt accessDeniedHandlerJwt) {
         this.jwtAuthenticationFilter = jwtAuthenticationFilter;
         this.authEntryPointJwt = authEntryPointJwt;
+        this.accessDeniedHandlerJwt = accessDeniedHandlerJwt;
     }
 
     @Bean
@@ -67,13 +71,14 @@ public class SecurityConfig {
         http
                 .cors(cors -> cors.configurationSource(corsConfigurationSource()))
                 .csrf(csrf -> csrf.disable())
-                .exceptionHandling(exception -> exception.authenticationEntryPoint(authEntryPointJwt))
+                .exceptionHandling(exception -> exception
+                        .authenticationEntryPoint(authEntryPointJwt)
+                        .accessDeniedHandler(accessDeniedHandlerJwt))
                 .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .authorizeHttpRequests(auth -> auth
 
                         // Public Auth Endpoints
-                        .requestMatchers("/api/v1/auth/**").permitAll()
-                        .requestMatchers("/api/v1/health").permitAll()
+                        .requestMatchers("/api/v1/auth/**", "/", "/api/v1/health").permitAll()
 
                         // Public Quiz metadata & package endpoints for candidate links
                         .requestMatchers(HttpMethod.GET, "/api/v1/quizzes/**").permitAll()
@@ -90,9 +95,17 @@ public class SecurityConfig {
                         .requestMatchers("/error").permitAll()
                         .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
 
+                        // Student-specific endpoints
+                        .requestMatchers("/api/v1/student/**")
+                        .hasRole("STUDENT")
+
                         // Teacher-specific endpoints (including proctoring overviews)
                         .requestMatchers("/api/v1/teacher/**")
                         .hasRole("TEACHER")
+
+                        // Candidate exam attempt & proctoring endpoints
+                        .requestMatchers("/api/v1/attempts/**")
+                        .authenticated()
 
                         // Everything else requires authentication
                         .anyRequest().authenticated());

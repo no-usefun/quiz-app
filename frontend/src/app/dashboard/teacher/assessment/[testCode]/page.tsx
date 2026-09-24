@@ -24,7 +24,8 @@ import {
   Lock,
 } from "lucide-react";
 import { Logo } from "@/components/Logo";
-import { getStoredResults, getStoredTests } from "@/lib/storage";
+import { getStoredTests } from "@/lib/storage";
+import { resolveQuizIdentifiers } from "@/lib/quizCache";
 
 const API_BASE = (
   process.env.NEXT_PUBLIC_API_URL || "http://localhost:8080"
@@ -35,26 +36,26 @@ type FlagType =
   | "fullscreen_exit"
   | "right_click"
   | "copy_attempt";
-type SortKey =
-  | "rank"
-  | "name"
-  | "score"
-  | "timeTaken"
-  | "flagCount";
+type SortKey = "rank" | "name" | "score" | "timeTaken" | "flagCount";
 type SortDir = "asc" | "desc";
 
 interface StudentRecord {
   id: number;
   name: string;
   avatar: string;
+  /** Percentage used for ranking/sorting and percentage display. */
   score: number;
-  accuracyPercentage?: number;
+  /** Raw marks obtained by the student. */
+  finalScore: number;
+  /** Maximum marks available for the quiz/result. */
+  totalMarks: number;
+  /** Canonical percentage returned by the backend, when available. */
+  percentage: number;
   timeTaken: string;
   timeTakenSeconds?: number;
   submitted: boolean;
   flags: { type: FlagType; label: string; count: number }[];
 }
-
 
 function avatarStyle(flagCount: number) {
   if (flagCount >= 4) return "bg-pastel-pink text-pastel-pink-text";
@@ -78,6 +79,19 @@ function flagChipStyle(type: FlagType) {
 
 function totalFlags(s: StudentRecord) {
   return (s.flags || []).reduce((sum, f) => sum + f.count, 0);
+}
+
+function numericValue(value: unknown, fallback = 0): number {
+  const n = Number(value);
+  return Number.isFinite(n) ? n : fallback;
+}
+
+function formatPercentage(value: number): string {
+  return Number.isInteger(value) ? String(value) : value.toFixed(2);
+}
+
+function formatMarks(value: number): string {
+  return Number.isInteger(value) ? String(value) : value.toFixed(2);
 }
 
 function podiumRingColor(pos: number) {
@@ -107,8 +121,8 @@ function exportCSV(testCode: string, data: StudentRecord[], title: string) {
   const headers = [
     "Rank",
     "Candidate Name",
-    "Score (%)",
-    "Accuracy (%)",
+    "Score (Marks)",
+    "Percentage (%)",
     "Time Taken",
     "Submitted",
     "Total Flags",
@@ -117,8 +131,8 @@ function exportCSV(testCode: string, data: StudentRecord[], title: string) {
   const rows = data.map((s, idx) => [
     idx + 1,
     s.name,
-    s.score,
-    s.accuracyPercentage ?? s.score,
+    `${s.finalScore} / ${s.totalMarks}`,
+    s.percentage,
     s.timeTaken,
     s.submitted ? "Yes" : "No",
     totalFlags(s),
@@ -204,132 +218,497 @@ export default function TeacherAssessmentPage({
     revealSolutions: true,
     showIntegrityFlagsToStudent: false,
   });
+  const [settingsError, setSettingsError] = useState<string | null>(null);
+  const [lifecycleLoading, setLifecycleLoading] = useState(false);
+  const [lifecycleError, setLifecycleError] = useState<string | null>(null);
+  const [confirmCompleteOpen, setConfirmCompleteOpen] = useState(false);
+  const [leaderboardUnavailable, setLeaderboardUnavailable] = useState(false);
 
   useEffect(() => {
     const fetchAssessmentDetails = async () => {
-      const cleanCode = (testCode || "").toUpperCase();
+      // The URL param may be a numeric quizId (e.g. "42") or an access code.
+      // Resolve both identifiers from the local cache up front.
+      const { quizId: resolvedId, quizCode } = resolveQuizIdentifiers(testCode);
 
-      // Check stored test details
-      const localTest = getStoredTests().find((t) => t.testCode.toUpperCase() === cleanCode);
-
-      // Check local actual submissions
-      const localStudents: StudentRecord[] = getStoredResults()
-        .filter((r) => r.testCode.toUpperCase() === cleanCode)
-        .map((r, idx) => ({
-          id: idx + 1,
-          name: r.studentName || "Candidate",
-          avatar: (r.studentName || "C").slice(0, 2).toUpperCase(),
-          score: r.score || 0,
-          accuracyPercentage: r.accuracyPercentage ?? (r.totalQuestions > 0 ? Math.round((r.correctCount / r.totalQuestions) * 100) : 0),
-
-          timeTaken: `${Math.floor((r.timeTakenTotalSeconds || 0) / 60)}m ${(r.timeTakenTotalSeconds || 0) % 60}s`,
-          timeTakenSeconds: r.timeTakenTotalSeconds || 0,
-          submitted: true,
-          flags: [],
-        }));
+      // Match stored tests by access code OR numeric quizId
+      const localTest = getStoredTests().find(
+        (t) =>
+          t.testCode.toUpperCase() === quizCode.toUpperCase() ||
+          (resolvedId &&
+            String((t as any).quizId ?? (t as any).id) === resolvedId),
+      );
 
       try {
         const token = localStorage.getItem("dynoquizz_token");
-        const res = await fetch(
-          `${API_BASE}/api/v1/quizzes/code/${cleanCode}/package`,
-          {
-            headers: {
-              ...(token ? { Authorization: `Bearer ${token}` } : {}),
-              "Content-Type": "application/json",
-            },
-          },
-        );
+        const headers = {
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+          "Content-Type": "application/json",
+        };
 
-        if (res.ok) {
-          const data = await res.json();
-          const backendStudents: StudentRecord[] = Array.isArray(data.students) ? data.students : [];
-          const seen = new Set(backendStudents.map((s) => s.name.toUpperCase()));
-          const mergedStudents = [
-            ...backendStudents,
-            ...localStudents.filter((l) => !seen.has(l.name.toUpperCase())),
-          ];
+        // 1. Resolve numeric quizId by finding quiz whose quizCode equals route param in GET /teacher/quizzes
+        let numericQuizId: number | null = null;
+        let matchedQuiz: any = null;
+        const tqRes = await fetch(`${API_BASE}/api/v1/teacher/quizzes`, {
+          headers,
+        }).catch(() => null);
 
+        if (tqRes && tqRes.ok) {
+          const tqData = await tqRes.json();
+          const list: any[] = Array.isArray(tqData)
+            ? tqData
+            : Array.isArray(tqData?.content)
+              ? tqData.content
+              : Array.isArray(tqData?.data)
+                ? tqData.data
+                : [];
+          matchedQuiz = list.find(
+            (q: any) =>
+              String(q.quizCode || q.testCode || "").toUpperCase() ===
+                quizCode.toUpperCase() ||
+              String(q.quizId || q.id || "") === testCode,
+          );
+          if (matchedQuiz) {
+            numericQuizId = matchedQuiz.quizId ?? matchedQuiz.id;
+          }
+        }
+
+        if (!numericQuizId && /^\d+$/.test(testCode)) {
+          numericQuizId = Number(testCode);
+        }
+
+        // 2. Fetch teacher-side quiz details.
+        // IMPORTANT:
+        // Do NOT call /api/v1/quizzes/code/{quizCode}/package here.
+        // That is the student package endpoint and intentionally rejects
+        // completed/non-published quizzes with HTTP 400.
+        //
+        // Teacher details are available through:
+        // GET /api/v1/teacher/quizzes/{quizId}
+
+        let pkgData: any = {};
+
+        if (numericQuizId) {
+          const teacherDetailRes = await fetch(
+            `${API_BASE}/api/v1/teacher/quizzes/${numericQuizId}`,
+            { headers },
+          ).catch(() => null);
+
+          if (teacherDetailRes && teacherDetailRes.ok) {
+            pkgData = await teacherDetailRes.json();
+          }
+        }
+        if (matchedQuiz) {
+          pkgData = { ...matchedQuiz, ...pkgData };
+        }
+
+        // 3. Fetch Leaderboard using numeric quizId (teacher endpoint only)
+        let backendStudents: StudentRecord[] = [];
+        let isLbUnavailable = false;
+
+        if (numericQuizId) {
+          const activeLbRes = await fetch(
+            `${API_BASE}/api/v1/teacher/quizzes/${numericQuizId}/leaderboard`,
+            { headers },
+          ).catch(() => null);
+
+          if (activeLbRes && activeLbRes.ok) {
+            const lbData = await activeLbRes.json();
+            const rawList = Array.isArray(lbData)
+              ? lbData
+              : lbData.content || lbData.leaderboard || lbData.students || [];
+
+            backendStudents = rawList.map((entry: any, idx: number) => {
+              const timeSecs = numericValue(
+                entry.totalTimeTaken ?? entry.timeTakenSeconds,
+                0,
+              );
+
+              // Backend result contract:
+              // finalScore = marks obtained
+              // totalMarks = maximum marks
+              // percentage = (finalScore / totalMarks) * 100
+              //
+              // Keep the backend percentage as the canonical ranking/display
+              // value. If an older leaderboard response does not provide it,
+              // derive it from the raw marks without treating finalScore as
+              // a percentage.
+              const finalScore = numericValue(
+                entry.finalScore ?? entry.score,
+                0,
+              );
+              const totalMarks = numericValue(
+                entry.totalMarks ?? pkgData.totalMarks,
+                0,
+              );
+
+              const calculatedPercentage =
+                totalMarks > 0 ? (finalScore / totalMarks) * 100 : 0;
+
+              const percentage = numericValue(
+                entry.percentage,
+                calculatedPercentage,
+              );
+
+              return {
+                id: numericValue(
+                  entry.studentId ?? entry.attemptId ?? entry.rank,
+                  idx + 1,
+                ),
+                name:
+                  entry.studentName ||
+                  entry.registrationNo ||
+                  entry.username ||
+                  "Candidate",
+                avatar: String(
+                  entry.studentName ||
+                    entry.registrationNo ||
+                    entry.username ||
+                    "C",
+                )
+                  .slice(0, 2)
+                  .toUpperCase(),
+                score: percentage,
+                finalScore,
+                totalMarks,
+                percentage,
+                timeTaken: `${Math.floor(timeSecs / 60)}m ${timeSecs % 60}s`,
+                timeTakenSeconds: timeSecs,
+                submitted:
+                  String(entry.status || "SUBMITTED").toUpperCase() ===
+                    "SUBMITTED" ||
+                  String(entry.status || "SUBMITTED").toUpperCase() ===
+                    "COMPLETED" ||
+                  entry.submitted !== false,
+                flags: Array.isArray(entry.proctoringFlags)
+                  ? entry.proctoringFlags
+                  : [],
+              };
+            });
+          } else if (
+            !activeLbRes ||
+            activeLbRes.status === 403 ||
+            activeLbRes.status === 404
+          ) {
+            isLbUnavailable = true;
+          }
+        } else {
+          isLbUnavailable = true;
+        }
+
+        setLeaderboardUnavailable(isLbUnavailable);
+
+        if (pkgData.title || backendStudents.length > 0) {
           setAssessmentData({
-            ...data,
-            title: data.title || localTest?.quizName || `Assessment ${cleanCode}`,
-            students: mergedStudents.length > 0 ? mergedStudents : localStudents,
+            ...pkgData,
+            title:
+              pkgData.title || localTest?.quizName || `Assessment ${quizCode}`,
+            // Preserve an explicit backend publication state when available.
+            // The results publish/unpublish endpoint remains the source of
+            // truth for changing this value.
+            resultsPublished: Boolean(
+              pkgData.resultsPublished ??
+              matchedQuiz?.resultsPublished ??
+              false,
+            ),
+            students: backendStudents,
           });
 
-          if (data.settings) {
+          if (pkgData.resultVisibility) {
+            const rv = pkgData.resultVisibility;
             setTestSettings({
-              publishScoresImmediately: !!data.settings.publishScoresImmediately,
-              revealSolutions: !!data.settings.revealSolutions,
-              showIntegrityFlagsToStudent: !!data.settings.showIntegrityFlagsToStudent,
+              publishScoresImmediately: rv === "BOTH" || rv === "LEADERBOARD",
+              revealSolutions: rv === "BOTH" || rv === "QUESTION_WISE",
+              showIntegrityFlagsToStudent:
+                !!pkgData.showIntegrityFlagsToStudent,
+            });
+          } else if (pkgData.settings) {
+            setTestSettings({
+              publishScoresImmediately:
+                !!pkgData.settings.publishScoresImmediately,
+              revealSolutions: !!pkgData.settings.revealSolutions,
+              showIntegrityFlagsToStudent:
+                !!pkgData.settings.showIntegrityFlagsToStudent,
             });
           }
           setLoading(false);
           return;
         }
       } catch (e) {
-        console.warn("Backend assessment fetch fallback to local session:", e);
+        console.warn("Backend assessment fetch error:", e);
       }
 
       setAssessmentData({
-        title: localTest?.quizName || `Assessment Session (${cleanCode})`,
-        quizCode: cleanCode,
+        title: localTest?.quizName || `Assessment Session (${quizCode})`,
+        quizCode,
         targetClass: localTest?.targetClass || "CS302 - 2026 Batch",
         totalStudents: 50,
         overallTimerSeconds: (localTest?.totalTimeLimitMinutes || 30) * 60,
-        students: localStudents,
+        students: [],
         settings: {
           publishScoresImmediately: true,
           revealSolutions: true,
           showIntegrityFlagsToStudent: false,
         },
       });
+      setLeaderboardUnavailable(true);
       setLoading(false);
     };
 
     fetchAssessmentDetails();
   }, [testCode]);
 
+  // Update settings on backend, synchronizing resultVisibility and toggles
   const handleToggleSetting = async (key: keyof typeof testSettings) => {
+    const prevSettings = { ...testSettings };
     const newVal = !testSettings[key];
-    setTestSettings((prev) => ({ ...prev, [key]: newVal }));
+    const nextSettings = { ...testSettings, [key]: newVal };
+
+    const nextPub = nextSettings.publishScoresImmediately;
+    const nextRev = nextSettings.revealSolutions;
+    const resultVisibility =
+      nextPub && nextRev
+        ? "BOTH"
+        : nextPub
+          ? "LEADERBOARD"
+          : nextRev
+            ? "QUESTION_WISE"
+            : "NONE";
+
+    // Optimistically update UI
+    setTestSettings(nextSettings);
+    setSettingsError(null);
+
+    try {
+      const token =
+        typeof window !== "undefined"
+          ? localStorage.getItem("dynoquizz_token")
+          : null;
+      if (!token) {
+        throw new Error("Authentication token not found. Please log in.");
+      }
+
+      const { quizId: resolvedId, quizCode } = resolveQuizIdentifiers(testCode);
+
+      let numericQuizId: number | null =
+        assessmentData?.quizId ??
+        (resolvedId && /^\d+$/.test(resolvedId) ? Number(resolvedId) : null) ??
+        (/^\d+$/.test(testCode) ? Number(testCode) : null);
+
+      if (!numericQuizId) {
+        // Resolve quizId via package endpoint
+        const pkgRes = await fetch(
+          `${API_BASE}/api/v1/quizzes/code/${quizCode}/package`,
+          {
+            headers: {
+              Authorization: `Bearer ${token}`,
+              "Content-Type": "application/json",
+            },
+          },
+        ).catch(() => null);
+
+        if (pkgRes && pkgRes.ok) {
+          const pkg = await pkgRes.json();
+          if (pkg.quizId) numericQuizId = Number(pkg.quizId);
+        }
+      }
+
+      if (!numericQuizId) {
+        throw new Error(
+          "Unable to resolve numeric quiz ID for settings update.",
+        );
+      }
+
+      let payload: any = {};
+      if (key === "publishScoresImmediately" || key === "revealSolutions") {
+        payload = {
+          resultVisibility,
+        };
+      } else {
+        payload = {
+          [key]: newVal,
+        };
+      }
+
+      let res = await fetch(
+        `${API_BASE}/api/v1/teacher/quizzes/${numericQuizId}/settings`,
+        {
+          method: "PUT",
+          headers: {
+            Authorization: `Bearer ${token}`,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify(payload),
+        },
+      );
+
+      if (!res.ok) {
+        const errData = await res.json().catch(() => ({}));
+        throw new Error(
+          errData.message ||
+            errData.error ||
+            `Server rejected settings update with status ${res.status}`,
+        );
+      }
+
+      const updated = await res.json().catch(() => null);
+      if (updated?.resultVisibility) {
+        const rv = updated.resultVisibility;
+        setTestSettings({
+          publishScoresImmediately: rv === "BOTH" || rv === "LEADERBOARD",
+          revealSolutions: rv === "BOTH" || rv === "QUESTION_WISE",
+          showIntegrityFlagsToStudent:
+            updated.showIntegrityFlagsToStudent ??
+            nextSettings.showIntegrityFlagsToStudent,
+        });
+      }
+    } catch (e: any) {
+      console.error("Failed to sync setting to backend:", e);
+      // Visually revert setting on failure
+      setTestSettings(prevSettings);
+      setSettingsError(
+        e.message || "Failed to update assessment settings on the server.",
+      );
+      setTimeout(() => setSettingsError(null), 4000);
+    }
+  };
+
+  const getNumericQuizId = (): number | null => {
+    const { quizId: resolvedId } = resolveQuizIdentifiers(testCode);
+    return (
+      assessmentData?.quizId ??
+      (resolvedId && /^\d+$/.test(resolvedId) ? Number(resolvedId) : null) ??
+      (/^\d+$/.test(testCode) ? Number(testCode) : null)
+    );
+  };
+
+  const handlePublishQuiz = async () => {
+    const id = getNumericQuizId();
+    if (!id) return;
+    setLifecycleLoading(true);
+    setLifecycleError(null);
     try {
       const token = localStorage.getItem("dynoquizz_token");
-      await fetch(`${API_BASE}/api/v1/teacher/quizzes/${testCode}/settings`, {
+      const res = await fetch(
+        `${API_BASE}/api/v1/teacher/quizzes/${id}/publish`,
+        {
+          method: "PUT",
+          headers: {
+            Authorization: `Bearer ${token}`,
+            "Content-Type": "application/json",
+          },
+        },
+      );
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(
+          err.message || err.error || "Failed to publish assessment",
+        );
+      }
+      setAssessmentData((prev: any) => ({ ...prev, status: "PUBLISHED" }));
+    } catch (e: any) {
+      setLifecycleError(e.message);
+    } finally {
+      setLifecycleLoading(false);
+    }
+  };
+
+  const handleCompleteQuiz = async () => {
+    const id = getNumericQuizId();
+    if (!id) return;
+    setLifecycleLoading(true);
+    setLifecycleError(null);
+    try {
+      const token = localStorage.getItem("dynoquizz_token");
+      const res = await fetch(
+        `${API_BASE}/api/v1/teacher/quizzes/${id}/complete`,
+        {
+          method: "PUT",
+          headers: {
+            Authorization: `Bearer ${token}`,
+            "Content-Type": "application/json",
+          },
+        },
+      );
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(
+          err.message || err.error || "Failed to complete assessment",
+        );
+      }
+      setAssessmentData((prev: any) => ({ ...prev, status: "COMPLETED" }));
+      setConfirmCompleteOpen(false);
+    } catch (e: any) {
+      setLifecycleError(e.message);
+    } finally {
+      setLifecycleLoading(false);
+    }
+  };
+
+  const handleToggleResultsPublish = async () => {
+    const id = getNumericQuizId();
+    if (!id) return;
+    setLifecycleLoading(true);
+    setLifecycleError(null);
+    const currentlyPublished = Boolean(assessmentData?.resultsPublished);
+    const endpoint = currentlyPublished
+      ? `${API_BASE}/api/v1/teacher/quizzes/${id}/results/unpublish`
+      : `${API_BASE}/api/v1/teacher/quizzes/${id}/results/publish`;
+    try {
+      const token = localStorage.getItem("dynoquizz_token");
+      const res = await fetch(endpoint, {
         method: "PUT",
         headers: {
           Authorization: `Bearer ${token}`,
           "Content-Type": "application/json",
         },
-        body: JSON.stringify({ [key]: newVal }),
       });
-    } catch (e) {
-      console.error("Failed to sync setting to backend:", e);
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(
+          err.message || err.error || "Failed to update results publication",
+        );
+      }
+      const updated = await res.json().catch(() => null);
+
+      setAssessmentData((prev: any) => ({
+        ...prev,
+        resultsPublished:
+          typeof updated?.resultsPublished === "boolean"
+            ? updated.resultsPublished
+            : !currentlyPublished,
+      }));
+    } catch (e: any) {
+      setLifecycleError(e.message);
+    } finally {
+      setLifecycleLoading(false);
     }
   };
 
   const allStudents: StudentRecord[] = assessmentData?.students || [];
   const submitted = allStudents.filter((s) => s.submitted);
-  const classAvg = Math.round(
-    submitted.reduce((a, s) => a + (s.score || 0), 0) /
-      Math.max(1, submitted.length),
-  );
+  const classAvg =
+    submitted.length > 0
+      ? submitted.reduce((sum, student) => sum + student.percentage, 0) /
+        submitted.length
+      : 0;
+
   const highScore = Math.max(
-    ...(submitted.map((s) => s.score).length > 0
-      ? submitted.map((s) => s.score)
+    ...(submitted.length > 0
+      ? submitted.map((student) => student.percentage)
       : [0]),
   );
   const flaggedCount = allStudents.filter((s) => totalFlags(s) > 0).length;
   const topThree = [...submitted]
-    .sort((a, b) => b.score - a.score)
+    .sort((a, b) => b.percentage - a.percentage)
     .slice(0, 3);
 
   const displayList = useMemo(() => {
     const ranked = [...allStudents]
-      .sort((a, b) => (b.score || 0) - (a.score || 0))
+      .sort((a, b) => (b.percentage || 0) - (a.percentage || 0))
       .map((s, i) => ({ ...s, rank: i + 1 }));
 
-    const filtered = ranked.filter(
-      (s) =>
-        s.name?.toLowerCase().includes(query.toLowerCase()),
+    const filtered = ranked.filter((s) =>
+      s.name?.toLowerCase().includes(query.toLowerCase()),
     );
 
     return filtered.sort((a, b) => {
@@ -338,14 +717,13 @@ export default function TeacherAssessmentPage({
       else if (sortKey === "name")
         cmp = (a.name || "").localeCompare(b.name || "");
       else if (sortKey === "score")
-        cmp = (a.score || 0) - (b.score || 0);
+        cmp = (a.percentage || 0) - (b.percentage || 0);
       else if (sortKey === "timeTaken")
-        cmp = (a.timeTaken || "").localeCompare(b.timeTaken || "");
+        cmp = (a.timeTakenSeconds || 0) - (b.timeTakenSeconds || 0);
       else if (sortKey === "flagCount") cmp = totalFlags(a) - totalFlags(b);
       return sortDir === "asc" ? cmp : -cmp;
     });
   }, [allStudents, query, sortKey, sortDir]);
-
 
   function toggleSort(key: SortKey) {
     if (sortKey === key) setSortDir((d) => (d === "asc" ? "desc" : "asc"));
@@ -387,10 +765,10 @@ export default function TeacherAssessmentPage({
 
           <button
             onClick={handleExport}
-            className={`flex items-center gap-2 rounded-buttons px-4 py-2 text-xs font-bold transition-all duration-200 active:scale-[0.98] border-0 shadow-sm cursor-pointer ${
+            className={`flex items-center gap-2 rounded-[10px] px-4 py-2 text-xs font-bold transition-all duration-200 active:scale-[0.98] border-0 shadow-xs cursor-pointer ${
               exported
                 ? "bg-pastel-mint text-pastel-mint-text"
-                : "bg-signal-green text-white hover:bg-signal-green/90"
+                : "bg-signal-green text-white hover:bg-signal-green/90 shadow-sm"
             }`}
           >
             {exported ? (
@@ -427,18 +805,122 @@ export default function TeacherAssessmentPage({
                   )}{" "}
                   min
                 </span>
-                <span className="rounded-pills bg-frost-surface px-2.5 py-0.5 font-mono text-[9px] font-bold text-signal-green border border-mist-blue/30">
+                <span className="rounded-full bg-frost-surface px-2.5 py-0.5 font-mono text-[9px] font-bold text-signal-green border border-mist-blue/30 shadow-xs">
                   {testCode}
                 </span>
               </div>
             </div>
+
+            <div className="flex flex-wrap items-center gap-2 mt-2 sm:mt-0">
+              <span
+                className={`rounded-full px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider ${
+                  (assessmentData?.status || "PUBLISHED").toUpperCase() ===
+                  "COMPLETED"
+                    ? "bg-[#ece9f3] text-[#4c3d73]"
+                    : (assessmentData?.status || "PUBLISHED").toUpperCase() ===
+                        "PUBLISHED"
+                      ? "bg-[#e2ede8] text-[#1d5237]"
+                      : "bg-[#f6efe1] text-[#73561a]"
+                }`}
+              >
+                {(assessmentData?.status || "PUBLISHED").toUpperCase()}
+              </span>
+
+              {(assessmentData?.status || "").toUpperCase() === "DRAFT" && (
+                <button
+                  type="button"
+                  onClick={handlePublishQuiz}
+                  disabled={lifecycleLoading}
+                  className="rounded-[10px] bg-[#165dfb] px-3.5 py-1.5 text-xs font-bold text-white hover:bg-[#0f4fd8] active:scale-[0.98] transition-all cursor-pointer border-0 disabled:opacity-50 shadow-xs"
+                >
+                  Publish Quiz
+                </button>
+              )}
+
+              {(assessmentData?.status || "").toUpperCase() === "PUBLISHED" && (
+                <button
+                  type="button"
+                  onClick={() => setConfirmCompleteOpen(true)}
+                  disabled={lifecycleLoading}
+                  className="rounded-[10px] bg-[#8c381c] px-3.5 py-1.5 text-xs font-bold text-white hover:bg-[#6e2b14] active:scale-[0.98] transition-all cursor-pointer border-0 disabled:opacity-50 shadow-xs"
+                >
+                  Complete Quiz
+                </button>
+              )}
+
+              <button
+                type="button"
+                onClick={handleToggleResultsPublish}
+                disabled={
+                  lifecycleLoading ||
+                  (assessmentData?.status || "").toUpperCase() !== "COMPLETED"
+                }
+                className={`rounded-[10px] px-3.5 py-1.5 text-xs font-bold transition-all border-0 shadow-xs active:scale-[0.98] ${
+                  (assessmentData?.status || "").toUpperCase() !== "COMPLETED"
+                    ? "bg-[#e6e3e2]/60 text-[#78716b] cursor-not-allowed"
+                    : assessmentData?.resultsPublished
+                      ? "bg-[#8c381c] text-white hover:bg-[#6e2b14] cursor-pointer"
+                      : "bg-[#1d5237] text-white hover:bg-[#153e2a] cursor-pointer"
+                }`}
+              >
+                {assessmentData?.resultsPublished
+                  ? "Unpublish Results"
+                  : "Publish Results"}
+              </button>
+            </div>
           </div>
 
-          <section className="rounded-cards border border-mist-blue bg-paper-white p-4 space-y-3 shadow-sm">
-            <h3 className="text-xs font-bold uppercase tracking-wider text-midnight-navy flex items-center gap-1.5 border-b border-mist-blue/30 pb-2">
+          {lifecycleError && (
+            <div className="flex items-center gap-2 rounded-[10px] bg-pastel-pink/30 border border-pastel-pink text-pastel-pink-text px-3.5 py-2 text-xs font-bold shadow-xs">
+              <AlertTriangle className="h-3.5 w-3.5 shrink-0" />
+              <span>{lifecycleError}</span>
+            </div>
+          )}
+
+          {confirmCompleteOpen && (
+            <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4">
+              <div className="w-full max-w-sm rounded-[14px] bg-white p-6 shadow-2xl border border-[#d1dee8]/80 space-y-4 text-left animate-in fade-in zoom-in-95 duration-150">
+                <h3 className="text-sm font-black text-[#111111]">
+                  Complete Assessment?
+                </h3>
+                <p className="text-xs text-[#78716b] leading-relaxed font-medium">
+                  Completing this assessment closes the testing window and marks
+                  all submissions final. You can then release scorecards to
+                  students.
+                </p>
+                <div className="flex justify-end gap-2 pt-2">
+                  <button
+                    type="button"
+                    onClick={() => setConfirmCompleteOpen(false)}
+                    className="rounded-[10px] border border-[#d1dee8]/80 bg-white px-3.5 py-1.5 text-xs font-bold text-[#78716b] hover:bg-[#f5f5f4] hover:border-[#b9cbd9] shadow-xs cursor-pointer transition-all"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleCompleteQuiz}
+                    disabled={lifecycleLoading}
+                    className="rounded-[10px] bg-[#8c381c] px-3.5 py-1.5 text-xs font-bold text-white hover:bg-[#6e2b14] active:scale-[0.98] shadow-xs cursor-pointer border-0 transition-all"
+                  >
+                    {lifecycleLoading ? "Completing..." : "Confirm & Complete"}
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+
+          <section className="rounded-[14px] border border-[#d1dee8]/70 bg-paper-white p-4 space-y-3 shadow-sm">
+            <h3 className="text-xs font-bold uppercase tracking-wider text-midnight-navy flex items-center gap-1.5 border-b border-[#d1dee8]/40 pb-2">
               <Lock className="h-3.5 w-3.5 text-signal-green" /> Teacher Control
               Panel (Dynamic Settings)
             </h3>
+
+            {settingsError && (
+              <div className="flex items-center gap-2 rounded-[10px] bg-pastel-pink/30 border border-pastel-pink text-pastel-pink-text px-3.5 py-2 text-xs font-bold shadow-xs">
+                <AlertTriangle className="h-3.5 w-3.5 shrink-0" />
+                <span>{settingsError}</span>
+              </div>
+            )}
 
             <div className="grid grid-cols-1 md:grid-cols-3 gap-2.5">
               {[
@@ -467,10 +949,10 @@ export default function TeacherAssessmentPage({
                     onClick={() =>
                       handleToggleSetting(item.key as keyof typeof testSettings)
                     }
-                    className={`flex items-start justify-between gap-3 rounded-inputs border p-3 text-left transition-all duration-150 active:scale-[0.98] cursor-pointer ${
+                    className={`flex items-start justify-between gap-3 rounded-[10px] border p-3 text-left transition-all duration-150 active:scale-[0.98] cursor-pointer shadow-xs ${
                       active
                         ? "border-signal-green bg-frost-surface text-midnight-navy ring-2 ring-signal-green/20"
-                        : "border-mist-blue bg-paper-white text-steel-blue-gray hover:border-mist-blue/80"
+                        : "border-[#d1dee8]/80 bg-paper-white text-steel-blue-gray hover:border-[#b9cbd9]"
                     }`}
                   >
                     <div className="text-left">
@@ -487,7 +969,7 @@ export default function TeacherAssessmentPage({
                       }`}
                     >
                       <span
-                        className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform duration-150 ${
+                        className={`inline-block h-4 w-4 transform rounded-full bg-white shadow-xs transition-transform duration-150 ${
                           active ? "translate-x-4" : "translate-x-0"
                         }`}
                       />
@@ -508,12 +990,12 @@ export default function TeacherAssessmentPage({
               {
                 icon: <TrendingUp className="h-4 w-4 text-pastel-mint-text" />,
                 label: "Class Avg",
-                value: `${classAvg}%`,
+                value: `${formatPercentage(classAvg)}%`,
               },
               {
                 icon: <Award className="h-4 w-4 text-signal-green" />,
                 label: "High Score",
-                value: `${highScore}%`,
+                value: `${formatPercentage(highScore)}%`,
               },
               {
                 icon: (
@@ -525,9 +1007,9 @@ export default function TeacherAssessmentPage({
             ].map((stat) => (
               <div
                 key={stat.label}
-                className="flex items-center gap-3 rounded-cards border border-mist-blue bg-paper-white p-4 shadow-sm"
+                className="flex items-center gap-3 rounded-[14px] border border-[#d1dee8]/70 bg-paper-white p-4 shadow-sm hover:shadow-md transition-all duration-200"
               >
-                <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-inputs bg-frost-surface text-signal-green border border-mist-blue/20">
+                <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-[10px] bg-frost-surface text-signal-green border border-mist-blue/20 shadow-xs">
                   {stat.icon}
                 </div>
                 <div className="text-left">
@@ -556,13 +1038,13 @@ export default function TeacherAssessmentPage({
                 return (
                   <div
                     key={s.id || pos}
-                    className="relative overflow-hidden rounded-cards border border-mist-blue bg-paper-white p-4 shadow-sm"
+                    className="relative overflow-hidden rounded-[14px] border border-[#d1dee8]/70 bg-paper-white p-4 shadow-sm hover:shadow-md transition-all duration-200"
                   >
                     <span className="absolute right-3.5 top-3.5 text-lg">
                       {c.icon}
                     </span>
                     <div
-                      className={`mb-2.5 flex h-9 w-9 items-center justify-center rounded-full ${avatarStyle(flags)} text-[10px] font-bold`}
+                      className={`mb-2.5 flex h-9 w-9 items-center justify-center rounded-full ${avatarStyle(flags)} text-[10px] font-bold shadow-xs`}
                     >
                       {s.avatar || "ST"}
                     </div>
@@ -574,7 +1056,11 @@ export default function TeacherAssessmentPage({
                     </p>
                     <div className="mt-3 text-left">
                       <p className="text-xl font-bold text-midnight-navy">
-                        {s.score}%
+                        {formatMarks(s.finalScore)} /{" "}
+                        {formatMarks(s.totalMarks)}
+                      </p>
+                      <p className="text-[10px] font-bold text-signal-green">
+                        {formatPercentage(s.percentage)}%
                       </p>
                       <p className="text-[8px] text-steel-blue-gray font-bold uppercase">
                         Score
@@ -598,13 +1084,13 @@ export default function TeacherAssessmentPage({
                   placeholder="Search by name…"
                   value={query}
                   onChange={(e) => setQuery(e.target.value)}
-                  className="w-full rounded-pills border border-mist-blue bg-paper-white py-2 pl-9 pr-4 text-xs text-midnight-navy outline-none transition-all placeholder:text-steel-blue-gray/60 focus:border-signal-green focus:ring-2 focus:ring-signal-green/20 sm:w-64"
+                  className="w-full rounded-[10px] border border-[#d1dee8]/80 bg-paper-white py-2 pl-9 pr-4 text-xs font-medium text-midnight-navy outline-none transition-all placeholder:text-steel-blue-gray/60 focus:border-signal-green focus:ring-2 focus:ring-signal-green/20 shadow-xs sm:w-64"
                 />
               </div>
             </div>
 
-            <div className="flex-1 rounded-cards border border-mist-blue overflow-hidden bg-paper-white shadow-xl text-left">
-              <div className="grid grid-cols-[2.5rem_1fr_7rem_6rem_4rem_12rem] items-center gap-3 border-b border-mist-blue/30 bg-paper-white px-5 py-2">
+            <div className="flex-1 rounded-[14px] border border-[#d1dee8]/70 overflow-hidden bg-paper-white shadow-sm text-left">
+              <div className="grid grid-cols-[2.5rem_1fr_7rem_6rem_4rem_12rem] items-center gap-3 border-b border-[#d1dee8]/40 bg-paper-white px-5 py-2.5">
                 <Th
                   label="#"
                   col="rank"
@@ -620,7 +1106,7 @@ export default function TeacherAssessmentPage({
                   onSort={toggleSort}
                 />
                 <Th
-                  label="Score"
+                  label="Score / %"
                   col="score"
                   sortKey={sortKey}
                   sortDir={sortDir}
@@ -648,7 +1134,13 @@ export default function TeacherAssessmentPage({
                 </span>
               </div>
 
-              {displayList.length === 0 ? (
+              {leaderboardUnavailable ? (
+                <div className="flex flex-col items-center justify-center gap-1 py-10 text-steel-blue-gray">
+                  <p className="text-xs font-medium text-steel-blue-gray">
+                    Leaderboard isn&apos;t available yet
+                  </p>
+                </div>
+              ) : displayList.length === 0 ? (
                 <div className="flex flex-col items-center justify-center gap-1 py-10 text-steel-blue-gray">
                   <Search className="h-6 w-6 text-mist-blue" />
                   <p className="text-xs">
@@ -656,20 +1148,20 @@ export default function TeacherAssessmentPage({
                   </p>
                 </div>
               ) : (
-                <ul className="divide-y divide-mist-blue/30 bg-paper-white">
+                <ul className="divide-y divide-[#d1dee8]/30 bg-paper-white">
                   {displayList.map((student) => {
                     const flags = totalFlags(student);
                     return (
                       <li
                         key={student.id}
-                        className="grid grid-cols-[2.5rem_1fr_7rem_6rem_4rem_12rem] items-center gap-3 px-5 py-2.5 transition-colors hover:bg-frost-surface/30"
+                        className="grid grid-cols-[2.5rem_1fr_7rem_6rem_4rem_12rem] items-center gap-3 px-5 py-2.5 transition-colors hover:bg-frost-surface/40"
                       >
                         <span className="text-xs font-bold font-mono text-steel-blue-gray">
                           {student.rank}
                         </span>
                         <div className="flex min-w-0 items-center gap-2">
                           <div
-                            className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-[10px] font-bold ${avatarStyle(flags)}`}
+                            className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-[10px] font-bold ${avatarStyle(flags)} shadow-xs`}
                           >
                             {student.avatar || "ST"}
                           </div>
@@ -677,9 +1169,13 @@ export default function TeacherAssessmentPage({
                             {student.name}
                           </p>
                         </div>
-                        <div className="flex justify-center">
-                          <span className="inline-flex min-w-[3rem] items-center justify-center rounded-pills px-2.5 py-0.5 text-xs font-bold tabular-nums bg-pastel-mint text-pastel-mint-text">
-                            {student.score}%
+                        <div className="flex flex-col items-center justify-center leading-tight">
+                          <span className="text-xs font-bold tabular-nums text-midnight-navy">
+                            {formatMarks(student.finalScore)} /{" "}
+                            {formatMarks(student.totalMarks)}
+                          </span>
+                          <span className="text-[9px] font-bold tabular-nums text-signal-green">
+                            {formatPercentage(student.percentage)}%
                           </span>
                         </div>
                         <div className="flex justify-center">
@@ -701,13 +1197,13 @@ export default function TeacherAssessmentPage({
                         <div className="flex flex-wrap gap-1 text-left">
                           {(student.flags || []).length === 0 ? (
                             <span className="text-[10px] text-steel-blue-gray font-medium">
-                              Clean
+                              —
                             </span>
                           ) : (
                             student.flags.map((f, fi) => (
                               <span
                                 key={fi}
-                                className={`flex items-center gap-1 rounded-pills px-2 py-0.5 text-[9px] font-bold ${flagChipStyle(f.type)}`}
+                                className={`flex items-center gap-1 rounded-full px-2 py-0.5 text-[9px] font-bold ${flagChipStyle(f.type)} shadow-xs`}
                               >
                                 {flagIcon(f.type)} {f.label} ×{f.count}
                               </span>
@@ -721,7 +1217,6 @@ export default function TeacherAssessmentPage({
               )}
             </div>
           </section>
-
         </div>
       </div>
     </main>

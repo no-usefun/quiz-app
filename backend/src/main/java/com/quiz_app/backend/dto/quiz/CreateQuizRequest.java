@@ -3,9 +3,9 @@ package com.quiz_app.backend.dto.quiz;
 import java.time.LocalDateTime;
 import java.util.List;
 
-public record CreateQuizRequest(
-        Long teacherId,
+import com.quiz_app.backend.entity.ResultVisibility;
 
+public record CreateQuizRequest(
         String title,
         String description,
         String instructions,
@@ -28,6 +28,10 @@ public record CreateQuizRequest(
 
         LocalDateTime startTime,
         LocalDateTime endTime,
+
+        ResultVisibility resultVisibility,
+        String acceptedEmailDomain,
+        List<String> allowedRegistrationNumbers,
 
         List<QuestionRequest> questions) {
 }

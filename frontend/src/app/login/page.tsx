@@ -8,6 +8,7 @@ import { useState, useEffect, Suspense } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Eye, EyeOff, ArrowLeft } from "lucide-react";
+import { ENDPOINTS } from "@/lib/api/endpoints";
 
 function isTokenValid(token: string): boolean {
   if (!token) return false;
@@ -74,16 +75,14 @@ function LoginContent() {
     }
 
     setLoading(true);
-    const backendRole = activeRole === "teacher" ? "TEACHER" : "STUDENT";
 
     try {
-      const res = await fetch(`${API_BASE}/api/v1/auth/login`, {
+      const res = await fetch(ENDPOINTS.auth.login, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           email: email.trim(),
           password,
-          role: backendRole,
         }),
       });
 
@@ -93,7 +92,7 @@ function LoginContent() {
         const returnedRole = (
           data.user?.role ||
           data.role ||
-          backendRole
+          (activeRole === "teacher" ? "TEACHER" : "STUDENT")
         ).toUpperCase();
         if (typeof window !== "undefined") {
           const userObj = data.user || {
@@ -115,7 +114,7 @@ function LoginContent() {
             : "/dashboard/student";
         window.location.href = redirectTarget || destination;
       } else {
-        setError(data.error || data.message || "Invalid email or password.");
+        setError(data.message || data.error || "Invalid email or password.");
       }
     } catch (err) {
       console.error("Login connection error:", err);

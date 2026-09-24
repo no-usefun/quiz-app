@@ -15,6 +15,7 @@ import {
   Presentation,
   ArrowRight,
 } from "lucide-react";
+import { ENDPOINTS } from "@/lib/api/endpoints";
 
 function isTokenValid(token: string): boolean {
   if (!token) return false;
@@ -49,6 +50,7 @@ function SignupContent() {
   const [firstName, setFirstName] = useState("");
   const [lastName, setLastName] = useState("");
   const [email, setEmail] = useState("");
+  const [registrationNo, setRegistrationNo] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
 
@@ -83,6 +85,11 @@ function SignupContent() {
       return;
     }
 
+    if (activeRole === "student" && !registrationNo.trim()) {
+      setError("Please enter your student registration / roll number.");
+      return;
+    }
+
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
     if (!emailRegex.test(email.trim())) {
       setError("Please enter a valid email address format.");
@@ -106,16 +113,18 @@ function SignupContent() {
     const combinedName = `${firstName.trim()} ${lastName.trim()}`;
 
     try {
-      const res = await fetch(`${API_BASE}/api/v1/auth/signup`, {
+      const res = await fetch(ENDPOINTS.auth.signup, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           firstName: firstName.trim(),
           lastName: lastName.trim(),
-          name: combinedName,
           email: email.trim(),
           password,
           role: backendRole,
+          ...(backendRole === "STUDENT" && registrationNo
+            ? { registrationNo: registrationNo.trim().toUpperCase() }
+            : {}),
         }),
       });
 
@@ -135,6 +144,12 @@ function SignupContent() {
           };
           localStorage.setItem("dynoquizz_role", returnedRole);
           localStorage.setItem("dynoquizz_user", JSON.stringify(userObj));
+          if (data.user?.registrationNo || (backendRole === "STUDENT" && registrationNo)) {
+            localStorage.setItem(
+              "dynoquizz_regNo",
+              data.user?.registrationNo || registrationNo.trim().toUpperCase(),
+            );
+          }
           if (data.token) {
             localStorage.setItem("dynoquizz_token", data.token);
             document.cookie = `dynoquizz_token=${data.token}; path=/; max-age=86400`;
@@ -148,11 +163,7 @@ function SignupContent() {
             : "/dashboard/student";
         window.location.href = redirectTarget || destination;
       } else {
-        setError(
-          data.error ||
-            data.message ||
-            "Failed to create account. Please try again.",
-        );
+        setError(data.message || data.error || "Signup failed.");
       }
     } catch (err) {
       console.error("Signup connection error:", err);
@@ -259,19 +270,21 @@ function SignupContent() {
       />
       <div className="relative w-full max-w-md bg-white rounded-2xl shadow-[0_18px_50px_-20px_rgba(15,23,42,0.18)] ring-1 ring-neutral-900/5 border border-neutral-100 p-8 space-y-6">
         <div>
-          <button
-            type="button"
-            onClick={() => {
-              setError("");
-              router.push("/signup");
-            }}
-            className="group text-xs font-medium text-neutral-400 hover:text-neutral-700 transition-colors mb-5 cursor-pointer bg-transparent border-0 p-0 inline-flex items-center gap-1.5"
-          >
-            <ArrowLeft className="h-3.5 w-3.5 transition-transform duration-200 group-hover:-translate-x-0.5" />{" "}
-            Back to roles
-          </button>
+          <div className="mb-5">
+            <button
+              type="button"
+              onClick={() => {
+                setError("");
+                router.push("/signup");
+              }}
+              className="group text-xs font-medium text-neutral-400 hover:text-neutral-700 transition-colors cursor-pointer bg-transparent border-0 p-0 inline-flex items-center gap-1.5"
+            >
+              <ArrowLeft className="h-3.5 w-3.5 transition-transform duration-200 group-hover:-translate-x-0.5" />{" "}
+              Back to roles
+            </button>
+          </div>
           <span
-            className={`mb-4 inline-flex h-11 w-11 items-center justify-center rounded-xl ring-1 ${
+            className={`mb-4 flex h-11 w-11 items-center justify-center rounded-xl ring-1 ${
               activeRole === "teacher"
                 ? "bg-[#0F172A] text-white ring-[#0F172A]/20"
                 : "bg-neutral-100 text-neutral-900 ring-neutral-900/10"
@@ -350,6 +363,22 @@ function SignupContent() {
               className={fieldClass}
             />
           </div>
+
+          {activeRole === "student" && (
+            <div className="space-y-1.5">
+              <label className="text-xs font-semibold text-neutral-700 block">
+                Registration / Roll number
+              </label>
+              <input
+                type="text"
+                value={registrationNo}
+                onChange={(e) => setRegistrationNo(e.target.value)}
+                placeholder="e.g. 21CS042"
+                required
+                className={fieldClass}
+              />
+            </div>
+          )}
 
           <div className="space-y-1.5">
             <label className="text-xs font-semibold text-neutral-700 block">

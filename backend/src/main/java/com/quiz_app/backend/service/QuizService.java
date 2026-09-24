@@ -1,7 +1,13 @@
 package com.quiz_app.backend.service;
 
 import java.math.BigDecimal;
+import java.time.LocalDateTime;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.LinkedHashSet;
+import java.util.Set;
 import java.util.concurrent.ThreadLocalRandom;
+import java.util.stream.Collectors;
 
 import org.springframework.stereotype.Service;
 
@@ -12,14 +18,20 @@ import com.quiz_app.backend.dto.quiz.CreateQuizRequest;
 import com.quiz_app.backend.dto.quiz.OptionRequest;
 import com.quiz_app.backend.dto.quiz.QuestionRequest;
 import com.quiz_app.backend.dto.quiz.QuizResponse;
+import com.quiz_app.backend.entity.Difficulty;
+import com.quiz_app.backend.entity.ExamState;
 import com.quiz_app.backend.entity.Option;
 import com.quiz_app.backend.entity.Question;
 import com.quiz_app.backend.entity.Quiz;
+import com.quiz_app.backend.entity.QuizAllowedStudent;
+import com.quiz_app.backend.entity.QuizStatus;
+import com.quiz_app.backend.entity.ResultVisibility;
 import com.quiz_app.backend.entity.User;
 import com.quiz_app.backend.exception.BadRequestException;
 import com.quiz_app.backend.exception.ResourceNotFoundException;
 import com.quiz_app.backend.repository.OptionRepository;
 import com.quiz_app.backend.repository.QuestionRepository;
+import com.quiz_app.backend.repository.QuizAllowedStudentRepository;
 import com.quiz_app.backend.repository.QuizRepository;
 import com.quiz_app.backend.repository.UserRepository;
 
@@ -32,23 +44,33 @@ public class QuizService {
         private final QuestionRepository questionRepository;
         private final OptionRepository optionRepository;
         private final UserRepository userRepository;
+        private final QuizAllowedStudentRepository quizAllowedStudentRepository;
 
         public QuizService(
                         QuizRepository quizRepository,
                         QuestionRepository questionRepository,
                         OptionRepository optionRepository,
-                        UserRepository userRepository) {
+                        UserRepository userRepository,
+                        QuizAllowedStudentRepository quizAllowedStudentRepository) {
                 this.quizRepository = quizRepository;
                 this.questionRepository = questionRepository;
                 this.optionRepository = optionRepository;
                 this.userRepository = userRepository;
+                this.quizAllowedStudentRepository = quizAllowedStudentRepository;
         }
 
         @Transactional
-        public QuizResponse createQuiz(CreateQuizRequest request) {
+        public QuizResponse createQuiz(
+                        CreateQuizRequest request,
+                        Long teacherId) {
 
                 // 1. Find teacher
-                User teacher = userRepository.findById(request.teacherId())
+                if (teacherId == null) {
+                        throw new BadRequestException(
+                                        "Teacher authentication is required");
+                }
+
+                User teacher = userRepository.findById(teacherId)
                                 .orElseThrow(() -> new ResourceNotFoundException("Teacher not found"));
 
                 // 2. Validate teacher role
@@ -72,6 +94,13 @@ public class QuizService {
                 quiz.setSubject(request.subject());
                 quiz.setSubjectCode(request.subjectCode());
                 quiz.setTotalStudents(request.totalStudents());
+
+                quiz.setResultVisibility(
+                                request.resultVisibility() != null
+                                                ? request.resultVisibility()
+                                                : ResultVisibility.NONE);
+
+                quiz.setResultsPublished(false);
 
                 quiz.setOverallTimerSeconds(request.overallTimerSeconds());
 
@@ -105,19 +134,56 @@ public class QuizService {
                  * These enum values may need to match the exact defaults
                  * in your database schema.
                  */
-                quiz.setStatus(
-                                com.quiz_app.backend.entity.QuizStatus.DRAFT);
+                quiz.setStatus(QuizStatus.DRAFT);
 
-                quiz.setExamState(
-                                com.quiz_app.backend.entity.ExamState.WAITING);
+                quiz.setExamState(ExamState.WAITING);
 
-                quiz.setCreatedAt(java.time.LocalDateTime.now());
-                quiz.setUpdatedAt(java.time.LocalDateTime.now());
+                quiz.setCreatedAt(LocalDateTime.now());
+                quiz.setUpdatedAt(LocalDateTime.now());
+
+                String acceptedEmailDomain = request.acceptedEmailDomain();
+
+                if (acceptedEmailDomain != null) {
+                        acceptedEmailDomain = acceptedEmailDomain.trim().toLowerCase();
+
+                        if (!acceptedEmailDomain.isBlank()
+                                        && !acceptedEmailDomain.startsWith("@")) {
+                                throw new BadRequestException(
+                                                "Accepted email domain must start with @");
+                        }
+
+                        quiz.setAcceptedEmailDomain(
+                                        acceptedEmailDomain.isBlank()
+                                                        ? null
+                                                        : acceptedEmailDomain);
+                }
 
                 // 5. Save quiz first because questions need quiz_id
                 quiz = quizRepository.save(quiz);
 
+                if (request.allowedRegistrationNumbers() != null) {
+
+                        Set<String> registrations = request.allowedRegistrationNumbers()
+                                        .stream()
+                                        .filter(value -> value != null)
+                                        .map(String::trim)
+                                        .filter(value -> !value.isBlank())
+                                        .collect(Collectors.toCollection(LinkedHashSet::new));
+
+                        for (String registrationNumber : registrations) {
+
+                                QuizAllowedStudent allowedStudent = new QuizAllowedStudent();
+
+                                allowedStudent.setQuiz(quiz);
+                                allowedStudent.setRegistrationNumber(registrationNumber);
+
+                                quizAllowedStudentRepository.save(allowedStudent);
+                        }
+                }
+
                 // 6. Create questions and options
+                int questionOrder = 1;
+
                 for (QuestionRequest questionRequest : request.questions()) {
 
                         validateQuestion(questionRequest);
@@ -131,6 +197,7 @@ public class QuizService {
 
                         question.setQuestionType(questionRequest.questionType());
                         question.setMarks(questionRequest.marks());
+
                         question.setNegativeMarks(
                                         questionRequest.negativeMarks() != null
                                                         ? questionRequest.negativeMarks()
@@ -139,15 +206,23 @@ public class QuizService {
                         question.setQuestionTimerSeconds(
                                         questionRequest.questionTimerSeconds());
 
-                        question.setDifficulty(questionRequest.difficulty());
-                        question.setDisplayOrder(questionRequest.displayOrder());
+                        question.setDifficulty(
+                                        questionRequest.difficulty() != null
+                                                        ? questionRequest.difficulty()
+                                                        : Difficulty.EASY);
 
-                        question.setCreatedAt(java.time.LocalDateTime.now());
-                        question.setUpdatedAt(java.time.LocalDateTime.now());
+                        // Generate question order on the backend
+                        question.setDisplayOrder(questionOrder++);
+
+                        question.setCreatedAt(LocalDateTime.now());
+                        question.setUpdatedAt(LocalDateTime.now());
 
                         question = questionRepository.save(question);
 
+                        // Create options
                         // 7. Create options
+                        int optionOrder = 1;
+
                         for (OptionRequest optionRequest : questionRequest.options()) {
 
                                 Option option = new Option();
@@ -156,8 +231,11 @@ public class QuizService {
                                 option.setOptionText(optionRequest.optionText());
                                 option.setOptionImage(optionRequest.optionImage());
                                 option.setCorrect(optionRequest.isCorrect());
-                                option.setOptionOrder(optionRequest.optionOrder());
-                                option.setCreatedAt(java.time.LocalDateTime.now());
+
+                                // Generate option order on the backend
+                                option.setOptionOrder((short) optionOrder++);
+
+                                option.setCreatedAt(LocalDateTime.now());
 
                                 optionRepository.save(option);
                         }
@@ -194,16 +272,19 @@ public class QuizService {
                                 quiz.getStartTime(),
                                 quiz.getEndTime(),
 
+                                quiz.getResultVisibility(),
+                                quiz.isResultsPublished(),
+                                quiz.getAcceptedEmailDomain(),
+                                quizAllowedStudentRepository.findByQuizId(quiz.getId())
+                                                .stream()
+                                                .map(QuizAllowedStudent::getRegistrationNumber)
+                                                .toList(),
+
                                 quiz.getStatus(),
                                 quiz.getExamState());
         }
 
         private void validateQuiz(CreateQuizRequest request) {
-
-                if (request.teacherId() == null) {
-                        throw new BadRequestException(
-                                        "Teacher ID is required");
-                }
 
                 if (request.title() == null || request.title().isBlank()) {
                         throw new BadRequestException(
@@ -234,6 +315,11 @@ public class QuizService {
 
                         throw new BadRequestException(
                                         "Quiz must contain at least one question");
+                }
+
+                if (request.resultVisibility() == null) {
+                        throw new BadRequestException(
+                                        "Quiz must have a result visibility declaration");
                 }
 
                 if (request.negativeMarking()
@@ -317,6 +403,10 @@ public class QuizService {
         }
 
         private void validateOption(OptionRequest request) {
+                if (request == null) {
+                        throw new BadRequestException(
+                                        "Option cannot be null");
+                }
 
                 if ((request.optionText() == null ||
                                 request.optionText().isBlank())
@@ -325,13 +415,6 @@ public class QuizService {
 
                         throw new BadRequestException(
                                         "Option must contain text or an image");
-                }
-
-                if (request.optionOrder() == null ||
-                                request.optionOrder() <= 0) {
-
-                        throw new BadRequestException(
-                                        "Option order must be greater than zero");
                 }
         }
 
@@ -357,15 +440,29 @@ public class QuizService {
                 Quiz quiz = quizRepository.findById(quizId)
                                 .orElseThrow(() -> new ResourceNotFoundException("Quiz not found"));
 
-                var questions = questionRepository
-                                .findByQuizIdOrderByDisplayOrder(quizId);
+                if (quiz.getStatus() != QuizStatus.PUBLISHED) {
+                        throw new BadRequestException(
+                                        "Quiz is not available to students");
+                }
+
+                var questions = new ArrayList<>(
+                                questionRepository.findByQuizIdOrderByDisplayOrder(quizId));
+
+                if (quiz.isRandomQuestionOrder()) {
+                        Collections.shuffle(questions);
+                }
 
                 var questionResponses = questions.stream()
                                 .map(question -> {
 
-                                        var options = optionRepository
-                                                        .findByQuestionIdOrderByOptionOrder(
-                                                                        question.getId());
+                                        var options = new ArrayList<>(
+                                                        optionRepository
+                                                                        .findByQuestionIdOrderByOptionOrder(
+                                                                                        question.getId()));
+
+                                        if (quiz.isRandomOptionOrder()) {
+                                                Collections.shuffle(options);
+                                        }
 
                                         var optionResponses = options.stream()
                                                         .map(option -> new OptionResponse(
@@ -394,28 +491,21 @@ public class QuizService {
                                 quiz.getTitle(),
                                 quiz.getDescription(),
                                 quiz.getInstructions(),
-
                                 quiz.getSubject(),
                                 quiz.getSubjectCode(),
-
                                 quiz.getTotalStudents(),
                                 quiz.getTotalQuestions(),
                                 quiz.getTotalMarks(),
-
                                 quiz.getOverallTimerSeconds(),
-
                                 quiz.isNegativeMarking(),
                                 quiz.getNegativeMarks(),
-
                                 quiz.isRandomQuestionOrder(),
                                 quiz.isRandomOptionOrder(),
                                 quiz.isAllowReview(),
                                 quiz.isAllowResume(),
                                 quiz.isAutoSubmit(),
-
                                 quiz.getStartTime(),
                                 quiz.getEndTime(),
-
                                 questionResponses);
         }
 

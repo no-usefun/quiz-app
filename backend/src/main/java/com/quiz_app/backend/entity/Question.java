@@ -44,7 +44,7 @@ public class Question {
 
     @Enumerated(EnumType.STRING)
     @Column(name = "difficulty", nullable = false, length = 20)
-    private Difficulty difficulty;
+    private Difficulty difficulty = Difficulty.EASY;
 
     @Column(name = "display_order", nullable = false)
     private Integer displayOrder;

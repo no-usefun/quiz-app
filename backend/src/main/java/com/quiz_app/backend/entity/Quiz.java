@@ -115,7 +115,7 @@ public class Quiz {
     @Column(name = "results_published", nullable = false)
     private boolean resultsPublished = false;
 
-    @Column(name = "accepted_email_domain")
+    @Column(name = "accepted_email_domain", length = 255)
     private String acceptedEmailDomain;
 
     public Quiz() {

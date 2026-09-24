@@ -4,6 +4,7 @@
 ALTER TABLE quizzes
     DROP COLUMN IF EXISTS passing_marks,
     ALTER COLUMN total_marks TYPE DECIMAL(8,2) USING total_marks::DECIMAL(8,2),
+    ADD COLUMN IF NOT EXISTS quiz_code VARCHAR(10) UNIQUE,
     ADD COLUMN IF NOT EXISTS subject VARCHAR(100) NOT NULL DEFAULT 'General',
     ADD COLUMN IF NOT EXISTS subject_code VARCHAR(50) NOT NULL DEFAULT 'GEN-101',
     ADD COLUMN IF NOT EXISTS total_students INTEGER CHECK (total_students >= 0),
@@ -31,26 +32,23 @@ CHECK (
     )
 );
 
--- Expand users.registration_no length
-ALTER TABLE users
-ALTER COLUMN registration_no TYPE VARCHAR(100);
+-- =========================================================
+-- Eligibility: Email Domain & Allowed Student Whitelist
+-- =========================================================
 
--- Create quiz_allowed_students table for whitelist eligibility
+ALTER TABLE users
+    ALTER COLUMN registration_no TYPE VARCHAR(100);
+
 CREATE TABLE IF NOT EXISTS quiz_allowed_students (
     id BIGSERIAL PRIMARY KEY,
-    quiz_id BIGINT NOT NULL,
+    quiz_id BIGINT NOT NULL REFERENCES quizzes(quiz_id) ON UPDATE CASCADE ON DELETE CASCADE,
     registration_number VARCHAR(100) NOT NULL,
     created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    CONSTRAINT fk_quiz_allowed_students_quiz
-        FOREIGN KEY (quiz_id)
-        REFERENCES quizzes(quiz_id)
-        ON DELETE CASCADE,
-    CONSTRAINT uq_quiz_allowed_students
-        UNIQUE (quiz_id, registration_number)
+    CONSTRAINT uq_quiz_allowed_students UNIQUE (quiz_id, registration_number)
 );
 
-CREATE INDEX IF NOT EXISTS idx_quiz_allowed_students_lookup
-ON quiz_allowed_students (quiz_id, registration_number);
+CREATE INDEX IF NOT EXISTS idx_quiz_allowed_students_lookup 
+    ON quiz_allowed_students(quiz_id, registration_number);
 
 -- =========================================================
 -- Variable Options: Remove 1-4 Cap, Enforce Positive Order
@@ -96,5 +94,3 @@ CREATE INDEX IF NOT EXISTS idx_email_verification_tokens_user
 
 CREATE INDEX IF NOT EXISTS idx_email_verification_tokens_expiry
     ON email_verification_tokens(expires_at);
-
-

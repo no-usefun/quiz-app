@@ -1,5 +1,4 @@
-# Environment variables
-.env
+﻿.env
 .env*
 !.env.example
 
@@ -33,7 +32,3 @@ Thumbs.db
 *.iml
 *.ipr
 *.iws
-
-# Local scratch
-FEATURES_TRACKER.md
-ANTIGRAVITY_INSTRUCTIONS.md
