@@ -18,6 +18,7 @@ import com.quiz_app.backend.dto.attempt.LeaderboardEntryResponse;
 import com.quiz_app.backend.dto.attempt.StudentSubmissionResponse;
 import com.quiz_app.backend.dto.attempt.SubmitAttemptRequest;
 import com.quiz_app.backend.dto.attempt.SubmitAttemptResponse;
+import com.quiz_app.backend.dto.exam.QuizPackageResponse;
 import com.quiz_app.backend.dto.quiz.QuizAvailabilityResponse;
 import com.quiz_app.backend.security.CustomUserDetails;
 import com.quiz_app.backend.service.StudentAttemptService;
@@ -134,5 +135,20 @@ public class StudentQuizController {
                                 userDetails.getId());
 
                 return ResponseEntity.ok(response);
+        }
+
+        @GetMapping("/quizzes/{quizId}/package")
+        public ResponseEntity<QuizPackageResponse> getQuizPackage(
+                        @PathVariable Long quizId) {
+                QuizPackageResponse response = attemptService.getQuizPackage(quizId);
+
+                return ResponseEntity.ok(response);
+        }
+
+        @GetMapping("/quizzes/code/{quizCode}/package")
+        public ResponseEntity<QuizPackageResponse> getQuizPackageByCode(
+                        @PathVariable String quizCode) {
+                return ResponseEntity.ok(
+                                attemptService.getQuizPackageByCode(quizCode));
         }
 }
