@@ -22,14 +22,18 @@ import com.quiz_app.backend.dto.exam.QuizPackageResponse;
 import com.quiz_app.backend.dto.quiz.QuizAvailabilityResponse;
 import com.quiz_app.backend.security.CustomUserDetails;
 import com.quiz_app.backend.service.StudentAttemptService;
+import com.quiz_app.backend.service.StudentQuizService;
 
 @RestController
 @RequestMapping("/api/v1/student")
 public class StudentQuizController {
-        private final StudentAttemptService attemptService;
+        private final StudentAttemptService studentAttemptService;
+        private final StudentQuizService studentQuizService;
 
-        public StudentQuizController(StudentAttemptService attemptService) {
-                this.attemptService = attemptService;
+        public StudentQuizController(StudentAttemptService studentAttemptService,
+                        StudentQuizService studentQuizService) {
+                this.studentAttemptService = studentAttemptService;
+                this.studentQuizService = studentQuizService;
         }
 
         @PostMapping("/quizzes/{quizCode}/attempts")
@@ -39,7 +43,7 @@ public class StudentQuizController {
 
                 CustomUserDetails userDetails = (CustomUserDetails) authentication.getPrincipal();
 
-                AttemptResponse response = attemptService.startAttempt(
+                AttemptResponse response = studentAttemptService.startAttempt(
                                 quizCode,
                                 userDetails.getId());
 
@@ -54,7 +58,7 @@ public class StudentQuizController {
 
                 CustomUserDetails userDetails = (CustomUserDetails) authentication.getPrincipal();
 
-                SubmitAttemptResponse response = attemptService.submitAttempt(
+                SubmitAttemptResponse response = studentAttemptService.submitAttempt(
                                 attemptId,
                                 request,
                                 userDetails.getId());
@@ -69,7 +73,7 @@ public class StudentQuizController {
 
                 CustomUserDetails userDetails = (CustomUserDetails) authentication.getPrincipal();
 
-                AttemptResultResponse response = attemptService.getAttemptResult(
+                AttemptResultResponse response = studentAttemptService.getAttemptResult(
                                 attemptId,
                                 userDetails.getId());
 
@@ -83,7 +87,7 @@ public class StudentQuizController {
 
                 CustomUserDetails userDetails = (CustomUserDetails) authentication.getPrincipal();
 
-                List<AttemptResultDetailResponse> response = attemptService.getAttemptResultDetails(attemptId,
+                List<AttemptResultDetailResponse> response = studentAttemptService.getAttemptResultDetails(attemptId,
                                 userDetails.getId());
 
                 return ResponseEntity.ok(response);
@@ -94,7 +98,7 @@ public class StudentQuizController {
                         @PathVariable Long quizId, Authentication authentication) {
                 CustomUserDetails userDetails = (CustomUserDetails) authentication.getPrincipal();
                 return ResponseEntity.ok(
-                                attemptService.getLeaderboard(quizId,
+                                studentAttemptService.getLeaderboard(quizId,
                                                 userDetails.getId()));
         }
 
@@ -105,7 +109,7 @@ public class StudentQuizController {
                 CustomUserDetails userDetails = (CustomUserDetails) authentication.getPrincipal();
 
                 return ResponseEntity.ok(
-                                attemptService.getStudentSubmissions(
+                                studentAttemptService.getStudentSubmissions(
                                                 userDetails.getId()));
         }
 
@@ -116,7 +120,7 @@ public class StudentQuizController {
 
                 CustomUserDetails userDetails = (CustomUserDetails) authentication.getPrincipal();
 
-                QuizAvailabilityResponse response = attemptService.getQuizAvailability(
+                QuizAvailabilityResponse response = studentAttemptService.getQuizAvailability(
                                 quizCode,
                                 userDetails.getId());
 
@@ -130,7 +134,7 @@ public class StudentQuizController {
 
                 CustomUserDetails userDetails = (CustomUserDetails) authentication.getPrincipal();
 
-                SubmitAttemptResponse response = attemptService.autoSubmitAttempt(
+                SubmitAttemptResponse response = studentAttemptService.autoSubmitAttempt(
                                 attemptId,
                                 userDetails.getId());
 
@@ -140,7 +144,7 @@ public class StudentQuizController {
         @GetMapping("/quizzes/{quizId}/package")
         public ResponseEntity<QuizPackageResponse> getQuizPackage(
                         @PathVariable Long quizId) {
-                QuizPackageResponse response = attemptService.getQuizPackage(quizId);
+                QuizPackageResponse response = studentQuizService.getQuizPackage(quizId);
 
                 return ResponseEntity.ok(response);
         }
@@ -149,6 +153,6 @@ public class StudentQuizController {
         public ResponseEntity<QuizPackageResponse> getQuizPackageByCode(
                         @PathVariable String quizCode) {
                 return ResponseEntity.ok(
-                                attemptService.getQuizPackageByCode(quizCode));
+                                studentQuizService.getQuizPackageByCode(quizCode));
         }
 }
