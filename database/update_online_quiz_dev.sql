@@ -75,3 +75,26 @@ ALTER TABLE options
 ADD CONSTRAINT chk_option_order_positive
 CHECK (option_order > 0);
 
+-- =========================================================
+-- Email Verification Tokens
+-- =========================================================
+
+CREATE TABLE IF NOT EXISTS email_verification_tokens (
+    token_id BIGSERIAL PRIMARY KEY,
+    user_id BIGINT NOT NULL
+        REFERENCES users(user_id)
+        ON UPDATE CASCADE
+        ON DELETE CASCADE,
+    token_hash VARCHAR(255) NOT NULL UNIQUE,
+    expires_at TIMESTAMP NOT NULL,
+    used BOOLEAN NOT NULL DEFAULT FALSE,
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX IF NOT EXISTS idx_email_verification_tokens_user
+    ON email_verification_tokens(user_id);
+
+CREATE INDEX IF NOT EXISTS idx_email_verification_tokens_expiry
+    ON email_verification_tokens(expires_at);
+
+
