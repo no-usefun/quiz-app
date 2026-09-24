@@ -123,10 +123,19 @@ class ProctoringControllerTest {
     }
 
     @Test
+    void testUploadIdPhotoEndpoint() throws Exception {
+        mockMvc.perform(post("/api/v1/attempts/100/id-photo")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"idPhotoData\":\"data:image/jpeg;base64,mockphotodata\"}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.success").value(true));
+    }
+
+    @Test
     void testGetAttemptSummaryEndpoint() throws Exception {
         ProctoringSummaryResponse summary = new ProctoringSummaryResponse(
                 100L, 5L, "Bob Ross", "bob@art.edu", AttemptStatus.IN_PROGRESS,
-                1, 1, 0, 0, 0, true, Collections.emptyList());
+                1, 1, 0, 0, 0, true, "data:image/jpeg;base64,sampleid", Collections.emptyList());
 
         when(proctoringService.getAttemptSummary(100L)).thenReturn(summary);
 
@@ -134,7 +143,8 @@ class ProctoringControllerTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.studentName").value("Bob Ross"))
                 .andExpect(jsonPath("$.tabSwitches").value(1))
-                .andExpect(jsonPath("$.isIntegrityFlagged").value(true));
+                .andExpect(jsonPath("$.isIntegrityFlagged").value(true))
+                .andExpect(jsonPath("$.idPhotoData").value("data:image/jpeg;base64,sampleid"));
     }
 
     @Test

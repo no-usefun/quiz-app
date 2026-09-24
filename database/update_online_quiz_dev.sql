@@ -94,3 +94,24 @@ CREATE INDEX IF NOT EXISTS idx_email_verification_tokens_user
 
 CREATE INDEX IF NOT EXISTS idx_email_verification_tokens_expiry
     ON email_verification_tokens(expires_at);
+
+-- =========================================================
+-- AI Proctoring: ID Photo & Full Event Classification
+-- =========================================================
+
+ALTER TABLE quiz_attempts
+    ADD COLUMN IF NOT EXISTS id_photo_data TEXT;
+
+ALTER TABLE activity_logs
+    DROP CONSTRAINT IF EXISTS activity_logs_activity_type_check;
+
+ALTER TABLE activity_logs
+    ADD CONSTRAINT activity_logs_activity_type_check
+    CHECK (activity_type IN (
+        'LOGIN', 'START_QUIZ', 'VIEW_QUESTION', 'ANSWER_SELECTED', 'ANSWER_CHANGED', 
+        'QUESTION_SKIPPED', 'TAB_SWITCH', 'WINDOW_BLUR', 'WINDOW_FOCUS', 'FULLSCREEN_EXIT', 
+        'NETWORK_LOST', 'NETWORK_RESTORED', 'AUTO_SAVE', 'SUBMIT', 'AUTO_SUBMIT',
+        'FACE_NOT_DETECTED', 'MULTIPLE_FACES', 'LOOKING_AWAY', 'VOICE_DETECTED', 
+        'SUSPICIOUS_OBJECT', 'DEVICE_SWITCH', 'RIGHT_CLICK', 'COPY_ATTEMPT'
+    ));
+

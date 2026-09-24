@@ -18,6 +18,10 @@ export interface UseProctoringOptions {
   enabled?: boolean;
 }
 
+const API_BASE = (
+  process.env.NEXT_PUBLIC_API_URL || "http://localhost:8080"
+).replace(/\/+$/, "");
+
 export function useProctoring({
   attemptId,
   maxWarnings = 3,
@@ -26,18 +30,26 @@ export function useProctoring({
 }: UseProctoringOptions = {}) {
   const [warningsCount, setWarningsCount] = useState(0);
   const [violations, setViolations] = useState<ProctoringViolation[]>([]);
-  const [proctorStatus, setProctorStatus] = useState<"INITIALIZING" | "ACTIVE" | "WARNING" | "VIOLATION">("INITIALIZING");
-  const [statusMessage, setStatusMessage] = useState("Initializing Edge-AI proctor...");
+  const [proctorStatus, setProctorStatus] = useState<
+    "INITIALIZING" | "ACTIVE" | "WARNING" | "VIOLATION"
+  >("INITIALIZING");
+  const [statusMessage, setStatusMessage] = useState(
+    "Initializing Edge-AI proctor & gaze tracker...",
+  );
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [hasCameraPermission, setHasCameraPermission] = useState(false);
-  const [faceStatus, setFaceStatus] = useState<"OK" | "NO_FACE" | "MULTIPLE_FACES" | "LOOKING_AWAY">("OK");
+  const [faceStatus, setFaceStatus] = useState<
+    "OK" | "NO_FACE" | "MULTIPLE_FACES" | "LOOKING_AWAY"
+  >("OK");
 
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
   const audioContextRef = useRef<AudioContext | null>(null);
   const consecutiveNoFaceRef = useRef(0);
   const consecutiveMultiFaceRef = useRef(0);
+  const consecutiveLookingAwayRef = useRef(0);
   const isAutoSubmittedRef = useRef(false);
+  const lastAudioSpikeTimeRef = useRef(0);
 
   // ─── 1. Send Violation to Backend ──────────────────────────────────────────
   const logEventToBackend = useCallback(
@@ -54,18 +66,26 @@ export function useProctoring({
       if (!attemptId) return;
 
       try {
-        const response = await fetch(`http://localhost:8080/api/v1/attempts/${attemptId}/activities`, {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${typeof window !== "undefined" ? localStorage.getItem("dynoquizz_token") || "" : ""}`,
+        const token =
+          typeof window !== "undefined"
+            ? localStorage.getItem("dynoquizz_token") || ""
+            : "";
+
+        const response = await fetch(
+          `${API_BASE}/api/v1/attempts/${attemptId}/activities`,
+          {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              Authorization: `Bearer ${token}`,
+            },
+            body: JSON.stringify({
+              activityType,
+              details,
+              activityTime: new Date().toISOString(),
+            }),
           },
-          body: JSON.stringify({
-            activityType,
-            details,
-            activityTime: new Date().toISOString(),
-          }),
-        });
+        );
 
         if (response.ok) {
           const data = await response.json();
@@ -75,7 +95,7 @@ export function useProctoring({
           if (data.autoSubmitted && !isAutoSubmittedRef.current) {
             isAutoSubmittedRef.current = true;
             setProctorStatus("VIOLATION");
-            setStatusMessage("Exam auto-submitted due to excessive violations.");
+            setStatusMessage("Exam auto-submitted due to excessive integrity violations.");
             if (onAutoSubmit) {
               onAutoSubmit();
             }
@@ -85,7 +105,7 @@ export function useProctoring({
         console.warn("Could not sync proctoring event to backend:", err);
       }
     },
-    [attemptId, onAutoSubmit]
+    [attemptId, onAutoSubmit],
   );
 
   // ─── 2. Register Device Footprint ─────────────────────────────────────────
@@ -100,21 +120,28 @@ export function useProctoring({
 
       let browserName = "Chrome";
       if (ua.includes("Firefox")) browserName = "Firefox";
-      else if (ua.includes("Safari") && !ua.includes("Chrome")) browserName = "Safari";
+      else if (ua.includes("Safari") && !ua.includes("Chrome"))
+        browserName = "Safari";
       else if (ua.includes("Edg")) browserName = "Edge";
 
       let operatingSystem = "Windows";
       if (ua.includes("Mac OS")) operatingSystem = "macOS";
       else if (ua.includes("Linux")) operatingSystem = "Linux";
       else if (ua.includes("Android")) operatingSystem = "Android";
-      else if (ua.includes("iPhone") || ua.includes("iPad")) operatingSystem = "iOS";
+      else if (ua.includes("iPhone") || ua.includes("iPad"))
+        operatingSystem = "iOS";
 
       try {
-        await fetch(`http://localhost:8080/api/v1/attempts/${attemptId}/device`, {
+        const token =
+          typeof window !== "undefined"
+            ? localStorage.getItem("dynoquizz_token") || ""
+            : "";
+
+        await fetch(`${API_BASE}/api/v1/attempts/${attemptId}/device`, {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
-            Authorization: `Bearer ${localStorage.getItem("dynoquizz_token") || ""}`,
+            Authorization: `Bearer ${token}`,
           },
           body: JSON.stringify({
             browserName,
@@ -151,7 +178,7 @@ export function useProctoring({
     const handleBlur = () => {
       setProctorStatus("WARNING");
       setStatusMessage("Warning: Window lost focus!");
-      logEventToBackend("WINDOW_BLUR", "Exam window blurred");
+      logEventToBackend("WINDOW_BLUR", "Exam window lost focus");
     };
 
     const handleFullscreenChange = () => {
@@ -159,7 +186,7 @@ export function useProctoring({
       setIsFullscreen(inFullscreen);
       if (!inFullscreen) {
         setProctorStatus("WARNING");
-        setStatusMessage("Warning: Fullscreen exited!");
+        setStatusMessage("Warning: Fullscreen mode exited!");
         logEventToBackend("FULLSCREEN_EXIT", "Candidate exited full screen mode");
       }
     };
@@ -167,21 +194,34 @@ export function useProctoring({
     const handleContextMenu = (e: MouseEvent) => {
       e.preventDefault();
       setProctorStatus("WARNING");
-      setStatusMessage("Warning: Right-click is prohibited!");
-      logEventToBackend("RIGHT_CLICK", "Candidate attempted right-click context menu");
+      setStatusMessage("Warning: Right-click context menu is prohibited!");
+      logEventToBackend(
+        "RIGHT_CLICK",
+        "Candidate attempted right-click context menu",
+      );
     };
 
     const handleCopyPaste = (e: ClipboardEvent) => {
       e.preventDefault();
       setProctorStatus("WARNING");
       setStatusMessage("Warning: Clipboard copying / pasting is prohibited!");
-      logEventToBackend("COPY_ATTEMPT", `Candidate attempted clipboard action: ${e.type}`);
+      logEventToBackend(
+        "COPY_ATTEMPT",
+        `Candidate attempted clipboard action: ${e.type}`,
+      );
     };
 
     const handleKeyDown = (e: KeyboardEvent) => {
       if (
         e.key === "F12" ||
-        (e.ctrlKey && e.shiftKey && (e.key === "I" || e.key === "i" || e.key === "C" || e.key === "c" || e.key === "J" || e.key === "j")) ||
+        (e.ctrlKey &&
+          e.shiftKey &&
+          (e.key === "I" ||
+            e.key === "i" ||
+            e.key === "C" ||
+            e.key === "c" ||
+            e.key === "J" ||
+            e.key === "j")) ||
         (e.ctrlKey && (e.key === "U" || e.key === "u"))
       ) {
         e.preventDefault();
@@ -210,7 +250,7 @@ export function useProctoring({
     };
   }, [enabled, logEventToBackend]);
 
-  // ─── 4. Edge-AI Webcam & Audio Stream ────────────────────────────────────
+  // ─── 4. Edge-AI Webcam, Gaze & Audio Stream ───────────────────────────────
   useEffect(() => {
     if (!enabled) return;
 
@@ -236,7 +276,8 @@ export function useProctoring({
 
         // Setup Audio Analyser for voice spikes
         try {
-          const AudioContextClass = window.AudioContext || (window as any).webkitAudioContext;
+          const AudioContextClass =
+            window.AudioContext || (window as any).webkitAudioContext;
           if (AudioContextClass) {
             const ctx = new AudioContextClass();
             audioContextRef.current = ctx;
@@ -254,21 +295,31 @@ export function useProctoring({
                 sum += dataArray[i];
               }
               const average = sum / dataArray.length;
-              if (average > 75) {
-                logEventToBackend("VOICE_DETECTED", `Audio spike detected (volume level: ${Math.round(average)})`);
+              const now = Date.now();
+              if (average > 75 && now - lastAudioSpikeTimeRef.current > 4000) {
+                lastAudioSpikeTimeRef.current = now;
+                setProctorStatus("WARNING");
+                setStatusMessage(`Audio detected (level: ${Math.round(average)})`);
+                logEventToBackend(
+                  "VOICE_DETECTED",
+                  `Audio spike detected (volume level: ${Math.round(average)})`,
+                );
               }
-            }, 3000);
+            }, 1000);
           }
         } catch (audioErr) {
           console.warn("Audio analysis unavailable:", audioErr);
         }
 
         setProctorStatus("ACTIVE");
-        setStatusMessage("Edge-AI Vision & Audio proctor active");
+        setStatusMessage("Edge-AI Vision, Gaze & Audio proctor active");
 
         // Edge-AI Face Detection Loop using native FaceDetector if available or Canvas frame analysis
-        const hasNativeFaceDetector = typeof window !== "undefined" && "FaceDetector" in window;
-        const faceDetector = hasNativeFaceDetector ? new (window as any).FaceDetector({ fastMode: true, maxDetectedFaces: 4 }) : null;
+        const hasNativeFaceDetector =
+          typeof window !== "undefined" && "FaceDetector" in window;
+        const faceDetector = hasNativeFaceDetector
+          ? new (window as any).FaceDetector({ fastMode: true, maxDetectedFaces: 4 })
+          : null;
 
         const canvas = document.createElement("canvas");
         canvas.width = 160;
@@ -284,59 +335,129 @@ export function useProctoring({
               if (faces.length === 0) {
                 consecutiveNoFaceRef.current += 1;
                 consecutiveMultiFaceRef.current = 0;
+                consecutiveLookingAwayRef.current = 0;
+
                 if (consecutiveNoFaceRef.current >= 3) {
                   setFaceStatus("NO_FACE");
                   setProctorStatus("WARNING");
                   setStatusMessage("Warning: Face not detected in camera frame!");
-                  logEventToBackend("FACE_NOT_DETECTED", "No face detected in video feed for >3s");
+                  logEventToBackend(
+                    "FACE_NOT_DETECTED",
+                    "No face detected in video feed for >3s",
+                  );
                   consecutiveNoFaceRef.current = 0;
                 }
               } else if (faces.length > 1) {
                 consecutiveMultiFaceRef.current += 1;
                 consecutiveNoFaceRef.current = 0;
+                consecutiveLookingAwayRef.current = 0;
+
                 if (consecutiveMultiFaceRef.current >= 2) {
                   setFaceStatus("MULTIPLE_FACES");
                   setProctorStatus("VIOLATION");
                   setStatusMessage("Alert: Multiple faces detected in video frame!");
-                  logEventToBackend("MULTIPLE_FACES", `${faces.length} faces detected in camera feed`);
+                  logEventToBackend(
+                    "MULTIPLE_FACES",
+                    `${faces.length} faces detected in camera feed`,
+                  );
                   consecutiveMultiFaceRef.current = 0;
                 }
               } else {
+                // Single face detected: analyze bounding box alignment & gaze
                 consecutiveNoFaceRef.current = 0;
                 consecutiveMultiFaceRef.current = 0;
-                setFaceStatus("OK");
-                setProctorStatus("ACTIVE");
-                setStatusMessage("Face verified and aligned");
+
+                const faceBox = faces[0].boundingBox;
+                const videoW = videoRef.current.videoWidth || 320;
+                const faceCenterX = faceBox.x + faceBox.width / 2;
+                const normalizedX = faceCenterX / videoW;
+
+                // If face center is outside the middle 25%-75% of the frame (looking far left/right)
+                if (normalizedX < 0.22 || normalizedX > 0.78) {
+                  consecutiveLookingAwayRef.current += 1;
+                  if (consecutiveLookingAwayRef.current >= 3) {
+                    setFaceStatus("LOOKING_AWAY");
+                    setProctorStatus("WARNING");
+                    setStatusMessage("Warning: Eyes/Face turned away from the screen!");
+                    logEventToBackend(
+                      "LOOKING_AWAY",
+                      `Candidate looking away from center (head pose offset: ${Math.round(normalizedX * 100)}%)`,
+                    );
+                    consecutiveLookingAwayRef.current = 0;
+                  }
+                } else {
+                  consecutiveLookingAwayRef.current = 0;
+                  setFaceStatus("OK");
+                  setProctorStatus("ACTIVE");
+                  setStatusMessage("Face verified and aligned");
+                }
               }
             } catch {
-              // Fallback to optical brightness
+              // Fallback to optical analysis
             }
           } else if (ctx && videoRef.current.readyState >= 2) {
-            // Lightweight optical motion & luminance heuristic
+            // Lightweight optical motion, luminance & eye quadrant analysis
             ctx.drawImage(videoRef.current, 0, 0, 160, 120);
             const imgData = ctx.getImageData(0, 0, 160, 120);
+            const data = imgData.data;
+
+            let leftBrightness = 0;
+            let rightBrightness = 0;
             let totalBrightness = 0;
-            for (let i = 0; i < imgData.data.length; i += 4) {
-              totalBrightness += (imgData.data[i] + imgData.data[i + 1] + imgData.data[i + 2]) / 3;
+            const halfW = 80;
+
+            for (let y = 0; y < 120; y++) {
+              for (let x = 0; x < 160; x++) {
+                const idx = (y * 160 + x) * 4;
+                const b = (data[idx] + data[idx + 1] + data[idx + 2]) / 3;
+                totalBrightness += b;
+                if (x < halfW) {
+                  leftBrightness += b;
+                } else {
+                  rightBrightness += b;
+                }
+              }
             }
-            const avgBrightness = totalBrightness / (imgData.data.length / 4);
+
+            const totalPixels = 160 * 120;
+            const avgBrightness = totalBrightness / totalPixels;
 
             if (avgBrightness < 15) {
               consecutiveNoFaceRef.current += 1;
               if (consecutiveNoFaceRef.current >= 3) {
                 setFaceStatus("NO_FACE");
                 setStatusMessage("Warning: Camera feed is obscured or too dark!");
-                logEventToBackend("FACE_NOT_DETECTED", "Camera lens blocked or low lighting");
+                logEventToBackend(
+                  "FACE_NOT_DETECTED",
+                  "Camera lens blocked or low lighting",
+                );
                 consecutiveNoFaceRef.current = 0;
               }
             } else {
-              consecutiveNoFaceRef.current = 0;
-              setFaceStatus("OK");
-              setProctorStatus("ACTIVE");
-              setStatusMessage("Proctor active | Lighting verified");
+              // Gaze lateral deviation heuristic (left vs right imbalance)
+              const diffRatio = Math.abs(leftBrightness - rightBrightness) / (totalBrightness || 1);
+              if (diffRatio > 0.45) {
+                consecutiveLookingAwayRef.current += 1;
+                if (consecutiveLookingAwayRef.current >= 3) {
+                  setFaceStatus("LOOKING_AWAY");
+                  setProctorStatus("WARNING");
+                  setStatusMessage("Warning: Looking away from test screen!");
+                  logEventToBackend(
+                    "LOOKING_AWAY",
+                    "Optical gaze shift detected away from screen",
+                  );
+                  consecutiveLookingAwayRef.current = 0;
+                }
+              } else {
+                consecutiveNoFaceRef.current = 0;
+                consecutiveLookingAwayRef.current = 0;
+                setFaceStatus("OK");
+                setProctorStatus("ACTIVE");
+                setStatusMessage("Proctor active | Gaze aligned");
+              }
             }
           }
-        }, 1500);
+        }, 1200);
       } catch (mediaErr) {
         console.warn("Camera or microphone permission denied:", mediaErr);
         setProctorStatus("WARNING");
@@ -352,7 +473,10 @@ export function useProctoring({
       if (streamRef.current) {
         streamRef.current.getTracks().forEach((track) => track.stop());
       }
-      if (audioContextRef.current && audioContextRef.current.state !== "closed") {
+      if (
+        audioContextRef.current &&
+        audioContextRef.current.state !== "closed"
+      ) {
         audioContextRef.current.close().catch(() => {});
       }
     };

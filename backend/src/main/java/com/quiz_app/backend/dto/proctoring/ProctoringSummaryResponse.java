@@ -16,6 +16,7 @@ public record ProctoringSummaryResponse(
         int faceWarnings,
         int voiceWarnings,
         boolean isIntegrityFlagged,
+        String idPhotoData,
         List<ActivityLogResponse> recentViolations
 ) {
 }

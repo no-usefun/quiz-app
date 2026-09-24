@@ -67,6 +67,9 @@ public class QuizAttempt {
     @Column(name = "created_at", nullable = false)
     private LocalDateTime createdAt;
 
+    @Column(name = "id_photo_data")
+    private String idPhotoData;
+
     public QuizAttempt() {
     }
 
@@ -168,5 +171,13 @@ public class QuizAttempt {
 
     public void setCreatedAt(LocalDateTime createdAt) {
         this.createdAt = createdAt;
+    }
+
+    public String getIdPhotoData() {
+        return idPhotoData;
+    }
+
+    public void setIdPhotoData(String idPhotoData) {
+        this.idPhotoData = idPhotoData;
     }
 }

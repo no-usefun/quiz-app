@@ -191,6 +191,22 @@ public class ProctoringService {
                 .toList();
     }
 
+    @Transactional
+    public void saveIdPhoto(Long attemptId, String idPhotoData) {
+        QuizAttempt attempt = quizAttemptRepository.findById(attemptId)
+                .orElseThrow(() -> new ResourceNotFoundException("Quiz attempt not found with ID: " + attemptId));
+        attempt.setIdPhotoData(idPhotoData);
+        quizAttemptRepository.save(attempt);
+
+        // Record activity log for ID card scan verification
+        ActivityLog log = new ActivityLog();
+        log.setAttempt(attempt);
+        log.setActivityType(ActivityType.LOGIN);
+        log.setActivityTime(LocalDateTime.now());
+        log.setDetails("Student ID verification photo captured and registered");
+        activityLogRepository.save(log);
+    }
+
     @Transactional(readOnly = true)
     public ProctoringSummaryResponse getAttemptSummary(Long attemptId) {
         QuizAttempt attempt = quizAttemptRepository.findById(attemptId)
@@ -228,6 +244,7 @@ public class ProctoringService {
                 faceWarnings,
                 voiceWarnings,
                 isIntegrityFlagged,
+                attempt.getIdPhotoData(),
                 recentViolations
         );
     }

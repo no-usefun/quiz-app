@@ -12,6 +12,11 @@ import {
   ChevronRight,
   ShieldCheck,
   AlertTriangle,
+  Camera,
+  Eye,
+  Volume2,
+  ShieldAlert,
+  Maximize2,
 } from "lucide-react";
 import { useProctoring } from "@/hooks/useProctoring";
 
@@ -91,7 +96,56 @@ export default function TestArenaPage({
   const [mounted, setMounted] = useState(false);
   const [isOnline, setIsOnline] = useState(true);
 
-  const { flags } = useProctoring();
+  const [activeAttemptId, setActiveAttemptId] = useState<number | null>(() => {
+    if (typeof window !== "undefined") {
+      const cleanCode = testCode.toUpperCase();
+      const stored =
+        localStorage.getItem(`dynoquizz_attemptId_${cleanCode}`) ||
+        localStorage.getItem("dynoquizz_attemptId");
+      return stored ? Number(stored) : null;
+    }
+    return null;
+  });
+
+  const {
+    videoRef,
+    warningsCount,
+    maxWarnings,
+    violations,
+    proctorStatus,
+    statusMessage,
+    faceStatus,
+    isFullscreen,
+    hasCameraPermission,
+    requestFullscreen,
+  } = useProctoring({
+    attemptId: activeAttemptId,
+    maxWarnings: 3,
+    onAutoSubmit: () => {
+      if (!isSubmitted) {
+        finishAssessment(answers);
+      }
+    },
+    enabled: !isSubmitted,
+  });
+
+  // Sync candidate ID snapshot to backend attempt once attempt is active
+  useEffect(() => {
+    if (!activeAttemptId) return;
+    const cleanCode = testCode.toUpperCase();
+    const idPhoto = sessionStorage.getItem(`dynoquizz_id_photo_${cleanCode}`);
+    if (idPhoto) {
+      const token = getClientAuthToken();
+      fetch(`${API_BASE}/api/v1/attempts/${activeAttemptId}/id-photo`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ idPhotoData: idPhoto }),
+      }).catch((err) => console.warn("Could not sync ID photo snapshot:", err));
+    }
+  }, [activeAttemptId, testCode]);
 
   const [saveStatus, setSaveStatus] = useState<"idle" | "saved">("idle");
   const [sessionExpired, setSessionExpired] = useState(false);
@@ -1123,7 +1177,95 @@ export default function TestArenaPage({
         </footer>
       </motion.div>
 
-      <aside className="hidden w-72 flex-col gap-4 pl-6 lg:flex text-left">
+      <aside className="hidden w-80 flex-col gap-4 pl-6 lg:flex text-left">
+        {/* Live Edge-AI Proctoring Webcam & Gaze Monitor */}
+        <div className="overflow-hidden rounded-[16px] bg-white border border-[#d1dee8]/80 shadow-md">
+          <div className="p-3.5 border-b border-[#d1dee8]/50 bg-midnight-navy text-white flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <span className="relative flex h-2 w-2">
+                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-signal-green opacity-75" />
+                <span className="relative inline-flex h-2 w-2 rounded-full bg-signal-green" />
+              </span>
+              <span className="text-[11px] font-bold tracking-tight">
+                AI Proctor & Eye Tracker
+              </span>
+            </div>
+            <span className="text-[10px] font-mono bg-white/10 px-2 py-0.5 rounded text-white/90">
+              {faceStatus === "OK"
+                ? "TRACKING"
+                : faceStatus === "LOOKING_AWAY"
+                ? "AWAY"
+                : "ALERT"}
+            </span>
+          </div>
+
+          <div className="relative aspect-[4/3] bg-black overflow-hidden flex items-center justify-center">
+            <video
+              ref={videoRef}
+              autoPlay
+              playsInline
+              muted
+              className="w-full h-full object-cover transform -scale-x-100"
+            />
+
+            {/* Live AI Overlay Status Pill */}
+            <div className="absolute top-2 left-2 right-2 flex items-center justify-between pointer-events-none">
+              <span
+                className={`text-[9px] font-bold px-2 py-0.5 rounded-full flex items-center gap-1 shadow-sm ${
+                  faceStatus === "OK"
+                    ? "bg-emerald-600/90 text-white"
+                    : faceStatus === "LOOKING_AWAY"
+                    ? "bg-amber-500/95 text-white animate-pulse"
+                    : "bg-rose-600/95 text-white animate-pulse"
+                }`}
+              >
+                <Eye className="h-3 w-3" />
+                {faceStatus === "OK"
+                  ? "Gaze Aligned"
+                  : faceStatus === "LOOKING_AWAY"
+                  ? "Looking Away!"
+                  : faceStatus === "NO_FACE"
+                  ? "No Face Detected!"
+                  : "Multiple Faces!"}
+              </span>
+
+              <span className="text-[9px] font-mono bg-black/60 text-white/90 px-1.5 py-0.5 rounded">
+                LIVE
+              </span>
+            </div>
+
+            {/* Warnings Alert Counter */}
+            <div className="absolute bottom-2 left-2 right-2 flex items-center justify-between pointer-events-none">
+              <span
+                className={`text-[10px] font-bold px-2 py-0.5 rounded-md shadow-sm flex items-center gap-1 ${
+                  warningsCount > 0
+                    ? "bg-rose-600 text-white"
+                    : "bg-black/60 text-white/90"
+                }`}
+              >
+                <ShieldAlert className="h-3 w-3" />
+                Warnings: {warningsCount} / {maxWarnings}
+              </span>
+
+              <span className="text-[9px] text-white/80 bg-black/60 px-1.5 py-0.5 rounded flex items-center gap-1">
+                <Volume2 className="h-3 w-3 text-signal-green" />
+                Mic Active
+              </span>
+            </div>
+          </div>
+
+          {/* Real-time Status Details */}
+          <div className="p-3 bg-frost-surface border-t border-[#d1dee8]/50 text-[11px] font-medium text-steel-blue-gray space-y-1">
+            <p className="flex items-center justify-between text-midnight-navy font-semibold text-[10px]">
+              <span>Proctoring Engine:</span>
+              <span className="text-signal-green font-bold">Edge AI (Active)</span>
+            </p>
+            <p className="text-[10px] text-steel-blue-gray leading-tight">
+              {statusMessage}
+            </p>
+          </div>
+        </div>
+
         <div className="overflow-hidden rounded-[14px] bg-white border border-[#d1dee8]/70 shadow-sm">
           <div className="p-4 border-b border-[#d1dee8]/50 bg-[#f5f5f4]">
             <span className="text-[10px] font-bold uppercase tracking-wider text-[#165dfb] block mb-1">
@@ -1148,7 +1290,6 @@ export default function TestArenaPage({
           <div className="p-3.5 space-y-2 text-xs">
             <div className="flex justify-between items-center text-[#78716b]">
               <span>Total Questions:</span>
-
               <span className="font-bold text-[#111111]">
                 {questions.length}
               </span>
@@ -1156,7 +1297,6 @@ export default function TestArenaPage({
 
             <div className="flex justify-between items-center text-[#78716b]">
               <span>Current Progress:</span>
-
               <span className="font-bold text-[#165dfb]">
                 {currentIndex + 1} / {questions.length}
               </span>
@@ -1167,23 +1307,54 @@ export default function TestArenaPage({
         <div className="rounded-[14px] border border-[#d1dee8]/70 bg-white p-4 shadow-sm space-y-2">
           <h3 className="flex items-center gap-1.5 font-bold text-[#111111] text-xs">
             <ShieldCheck className="h-3.5 w-3.5 text-[#165dfb]" />
-            Assessment Directives
+            Security & Integrity Directives
           </h3>
 
           <ul className="space-y-1.5 text-[10px] font-medium text-[#78716b]">
             <li className="flex items-start gap-1 leading-relaxed">
-              <div className="mt-1 h-1 w-1 rounded-full bg-[#165dfb] shrink-0" />
-              Select an option if you want to answer it. Unanswered questions
-              can be skipped.
+              <div className="mt-1 h-1 w-1 rounded-full bg-signal-green shrink-0" />
+              Do not switch tabs, minimize window, or exit fullscreen mode.
             </li>
 
             <li className="flex items-start gap-1 leading-relaxed">
-              <div className="mt-1 h-1 w-1 rounded-full bg-[#165dfb] shrink-0" />
-              Questions advance automatically when the timer reaches zero.
+              <div className="mt-1 h-1 w-1 rounded-full bg-signal-green shrink-0" />
+              Maintain eye contact with the screen. Looking away or multiple faces triggers warnings.
+            </li>
+
+            <li className="flex items-start gap-1 leading-relaxed">
+              <div className="mt-1 h-1 w-1 rounded-full bg-signal-green shrink-0" />
+              Exceeding {maxWarnings} warnings results in automatic test submission.
             </li>
           </ul>
         </div>
       </aside>
+
+      {/* Fullscreen Integrity Enforcement Overlay */}
+      {!isFullscreen && mounted && !isSubmitted && !isLoadingTest && test && (
+        <div className="fixed inset-0 z-50 bg-midnight-navy/95 backdrop-blur-md flex items-center justify-center p-4">
+          <div className="w-full max-w-md bg-paper-white rounded-[20px] p-6 text-center border-2 border-rose-500 shadow-2xl space-y-4">
+            <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-rose-100 text-rose-600">
+              <AlertTriangle className="h-8 w-8 animate-bounce" />
+            </div>
+            <div>
+              <h2 className="text-base font-bold text-midnight-navy">
+                Fullscreen Mode Required
+              </h2>
+              <p className="mt-1 text-xs text-steel-blue-gray leading-relaxed font-medium">
+                To preserve examination integrity, you must remain in Fullscreen Mode throughout the assessment. Exiting fullscreen logs a security violation.
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={requestFullscreen}
+              className="w-full py-3.5 px-4 rounded-[12px] bg-signal-green hover:bg-signal-green/90 text-white font-bold text-xs shadow-md shadow-signal-green/20 active:scale-[0.98] transition-all cursor-pointer flex items-center justify-center gap-2 border-0"
+            >
+              <Maximize2 className="h-4 w-4" />
+              <span>Enter Fullscreen & Resume Assessment</span>
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

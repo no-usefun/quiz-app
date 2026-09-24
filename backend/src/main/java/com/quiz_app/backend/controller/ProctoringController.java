@@ -1,6 +1,7 @@
 package com.quiz_app.backend.controller;
 
 import java.util.List;
+import java.util.Map;
 
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -60,6 +61,16 @@ public class ProctoringController {
 
         proctoringService.registerDevice(attemptId, request);
         return ResponseEntity.status(HttpStatus.CREATED).body(ApiResponse.ok("Device footprint registered successfully"));
+    }
+
+    @PostMapping("/attempts/{attemptId}/id-photo")
+    public ResponseEntity<ApiResponse> uploadIdPhoto(
+            @PathVariable Long attemptId,
+            @RequestBody Map<String, String> body) {
+
+        String idPhotoData = body != null ? body.get("idPhotoData") : null;
+        proctoringService.saveIdPhoto(attemptId, idPhotoData);
+        return ResponseEntity.ok(ApiResponse.ok("Candidate ID snapshot verified and recorded"));
     }
 
     // ─── Instructor / Teacher Endpoints ───────────────────────────────────────
