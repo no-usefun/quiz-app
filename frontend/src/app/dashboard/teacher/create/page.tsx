@@ -30,9 +30,7 @@ function formatForDateTimeInput(
 ): string {
   if (!val) return "";
   const str = String(val).trim();
-  const match = str.match(
-    /^(\d{4}-\d{2}-\d{2})[T ](\d{2}:\d{2})(?::(\d{2}))?/,
-  );
+  const match = str.match(/^(\d{4}-\d{2}-\d{2})[T ](\d{2}:\d{2})(?::(\d{2}))?/);
   if (match) {
     const [, date, time, sec] = match;
     return sec && sec !== "00" ? `${date}T${time}:${sec}` : `${date}T${time}`;
@@ -48,9 +46,7 @@ function formatForDateTimeInput(
 function formatToLocalDateTime(val: string | null | undefined): string {
   if (!val) return "";
   const str = String(val).trim();
-  const match = str.match(
-    /^(\d{4}-\d{2}-\d{2})[T ](\d{2}:\d{2})(?::(\d{2}))?/,
-  );
+  const match = str.match(/^(\d{4}-\d{2}-\d{2})[T ](\d{2}:\d{2})(?::(\d{2}))?/);
   if (match) {
     const [, date, time, sec] = match;
     return `${date}T${time}:${sec || "00"}`;
@@ -66,7 +62,10 @@ function formatToLocalDateTime(val: string | null | undefined): string {
 // Computes end time as startTime + timeLimitMinutes using pure local arithmetic.
 // Returns a datetime-local string (YYYY-MM-DDTHH:mm) with NO timezone conversion.
 // Returns "" when startTime is empty or timeLimitMinutes is <= 0.
-function computeEndTime(startTimeLocal: string, timeLimitMinutes: number): string {
+function computeEndTime(
+  startTimeLocal: string,
+  timeLimitMinutes: number,
+): string {
   if (!startTimeLocal || timeLimitMinutes <= 0) return "";
   // Parse as local by replacing any existing T separator
   const match = startTimeLocal.match(
@@ -279,33 +278,96 @@ function CreateAssessmentContent() {
           : findQuestions(data);
 
     if (rawQuestions.length > 0) {
-      const mappedQuestions = rawQuestions.map((q: any, i: number) => ({
-        // Preserve IDs so PUT /settings sends them back to the backend
-        questionId: q.questionId ?? q.id ?? null,
-        questionText: String(q.questionText || q.text || q.prompt || ""),
-        imageUrl: q.imageUrl || "",
-        explanation: q.explanation || "",
-        // Backend package returns "MCQ"; UI expects "MULTIPLE_CHOICE"
-        questionType:
-          q.questionType === "MCQ"
-            ? "MULTIPLE_CHOICE"
-            : q.questionType || "MULTIPLE_CHOICE",
-        marks: Number(q.marks || 1),
-        negativeMarks: Number(q.negativeMarks || 0),
-        questionTimerSeconds: Number(q.questionTimerSeconds || 60),
-        difficulty: q.difficulty || "MEDIUM",
-        displayOrder: q.displayOrder || i + 1,
-        options: (q.options || []).map((opt: any, oi: number) => ({
+      const mappedQuestions = rawQuestions.map((q: any, i: number) => {
+        const rawType = String(q.questionType || "MCQ").toUpperCase();
+        const questionType =
+          rawType === "MULTIPLE_CHOICE" ? "MULTIPLE_CHOICE" : rawType;
+
+        let mappedOptions = (q.options || []).map((opt: any, oi: number) => ({
           optionId: opt.optionId ?? opt.id ?? null,
           optionText: String(opt.optionText || opt.text || ""),
           optionImage: opt.optionImage || "",
-          // Backend package uses optionOrder; UI uses displayOrder
-          displayOrder: opt.optionOrder || opt.displayOrder || oi + 1,
-          // /package strips isCorrect (student-facing); prefer cached value,
-          // default to false so the UI doesn't crash — teacher re-checks answers
+          optionOrder: Number(opt.optionOrder || opt.displayOrder || oi + 1),
           isCorrect: Boolean(opt.isCorrect === true || opt.correct === true),
-        })),
-      }));
+        }));
+
+        // Keep the editor consistent with the create flow. MCQ/MSQ start with
+        // at least four answer slots; TRUE/FALSE is always exactly two.
+        if (questionType === "TRUE_FALSE") {
+          mappedOptions = [
+            {
+              ...(mappedOptions[0] || {}),
+              optionText: "True",
+              optionImage: mappedOptions[0]?.optionImage || "",
+              optionOrder: 1,
+              isCorrect:
+                mappedOptions.length > 0
+                  ? Boolean(mappedOptions[0].isCorrect)
+                  : true,
+            },
+            {
+              ...(mappedOptions[1] || {}),
+              optionText: "False",
+              optionImage: mappedOptions[1]?.optionImage || "",
+              optionOrder: 2,
+              isCorrect: false,
+            },
+          ];
+
+          // Backend data should have exactly one correct answer. If the stored
+          // state is invalid, normalize it instead of making the editor show
+          // multiple correct TRUE/FALSE answers.
+          if (!mappedOptions.some((opt) => opt.isCorrect)) {
+            mappedOptions[0].isCorrect = true;
+          }
+        } else {
+          while (mappedOptions.length < 4) {
+            mappedOptions.push({
+              optionId: null,
+              optionText: "",
+              optionImage: "",
+              optionOrder: mappedOptions.length + 1,
+              isCorrect: false,
+            });
+          }
+
+          if (questionType === "MULTIPLE_CHOICE") {
+            const firstCorrect = mappedOptions.findIndex(
+              (opt) => opt.isCorrect,
+            );
+            const correctIndex = firstCorrect >= 0 ? firstCorrect : 0;
+            mappedOptions = mappedOptions.map((opt, oi) => ({
+              ...opt,
+              optionOrder: oi + 1,
+              isCorrect: oi === correctIndex,
+            }));
+          } else if (questionType === "MSQ") {
+            const hasCorrect = mappedOptions.some((opt) => opt.isCorrect);
+            if (!hasCorrect) {
+              mappedOptions[0].isCorrect = true;
+            }
+            mappedOptions = mappedOptions.map((opt, oi) => ({
+              ...opt,
+              optionOrder: oi + 1,
+            }));
+          }
+        }
+
+        return {
+          // Preserve IDs so PUT /settings sends them back to the backend.
+          questionId: q.questionId ?? q.id ?? null,
+          questionText: String(q.questionText || q.text || q.prompt || ""),
+          imageUrl: q.imageUrl || "",
+          explanation: q.explanation || "",
+          questionType,
+          marks: Number(q.marks || 1),
+          negativeMarks: Number(q.negativeMarks || 0),
+          questionTimerSeconds: Number(q.questionTimerSeconds || 60),
+          difficulty: q.difficulty || "MEDIUM",
+          displayOrder: q.displayOrder || i + 1,
+          options: mappedOptions,
+        };
+      });
       console.log("[Quiz Edit] Raw questions:", rawQuestions);
       console.log("[Quiz Edit] Mapped questions:", mappedQuestions);
       setParsedQuestions(mappedQuestions);
@@ -830,9 +892,12 @@ function CreateAssessmentContent() {
             const q = rawList[idx];
             const qNum = idx + 1;
             const qText = (q.questionText || q.text || "").trim();
-            if (!qText)
+            const qImageUrl = String(q.imageUrl || q.image || "").trim();
+            if (!qText && !qImageUrl)
               return (
-                setValidationError(`Question ${qNum}: text is required.`),
+                setValidationError(
+                  `Question ${qNum}: text or image is required.`,
+                ),
                 setParsedQuestions([])
               );
 
@@ -884,7 +949,7 @@ function CreateAssessmentContent() {
 
             validated.push({
               questionText: qText,
-              imageUrl: "",
+              imageUrl: qImageUrl,
               explanation: q.explanation || "",
               questionType: q.questionType || "MCQ",
               marks: Number(q.marks) || 1,
@@ -1026,15 +1091,148 @@ function CreateAssessmentContent() {
     );
   };
 
+  const handleSetQuestionType = (qIdx: number, questionType: string) => {
+    setParsedQuestions((prev) =>
+      prev.map((q, i) => {
+        if (i !== qIdx) return q;
+
+        // TRUE/FALSE is always exactly two options.
+        if (questionType === "TRUE_FALSE") {
+          return {
+            ...q,
+            questionType,
+            options: [
+              {
+                ...(q.options?.[0] || {}),
+                optionText: "True",
+                optionImage: q.options?.[0]?.optionImage || "",
+                optionOrder: 1,
+                isCorrect: true,
+              },
+              {
+                ...(q.options?.[1] || {}),
+                optionText: "False",
+                optionImage: q.options?.[1]?.optionImage || "",
+                optionOrder: 2,
+                isCorrect: false,
+              },
+            ],
+          };
+        }
+
+        // MCQ/MSQ should start with at least the normal four answer slots.
+        // When coming back from TRUE/FALSE, do not leave the question stuck
+        // with only the old True/False pair.
+        const existing = Array.isArray(q.options) ? q.options : [];
+        const options = [...existing];
+
+        while (options.length < 4) {
+          options.push({
+            optionText: "",
+            optionImage: "",
+            optionOrder: options.length + 1,
+            isCorrect: false,
+          });
+        }
+
+        // Switching to MCQ must immediately collapse any MSQ multi-selection
+        // to exactly one correct answer. Preserve the first currently-correct
+        // option; if none exists, make option A correct.
+        if (questionType === "MCQ") {
+          const firstCorrectIndex = options.findIndex((opt: any) =>
+            Boolean(opt.isCorrect),
+          );
+          const correctIndex = firstCorrectIndex >= 0 ? firstCorrectIndex : 0;
+
+          return {
+            ...q,
+            questionType,
+            options: options.map((opt: any, oi: number) => ({
+              ...opt,
+              optionOrder: oi + 1,
+              isCorrect: oi === correctIndex,
+            })),
+          };
+        }
+
+        // Switching to MSQ keeps any existing correct answers. If there are
+        // none, make option A the initial correct answer so the state remains
+        // valid and predictable.
+        const hasCorrect = options.some((opt: any) => Boolean(opt.isCorrect));
+        return {
+          ...q,
+          questionType,
+          options: options.map((opt: any, oi: number) => ({
+            ...opt,
+            optionOrder: oi + 1,
+            isCorrect: hasCorrect ? Boolean(opt.isCorrect) : oi === 0,
+          })),
+        };
+      }),
+    );
+  };
+
   const handleSetCorrectOption = (qIdx: number, optIdx: number) => {
     setParsedQuestions((prev) =>
       prev.map((q, i) => {
         if (i !== qIdx) return q;
-        const newOpts = q.options.map((opt: any, oi: number) => ({
+
+        const type =
+          q.questionType === "MULTIPLE_CHOICE" ? "MCQ" : q.questionType;
+        const newOpts = (q.options || []).map((opt: any, oi: number) => ({
           ...opt,
-          isCorrect: oi === optIdx,
+          // MCQ/TRUE_FALSE: exactly one correct option.
+          // MSQ: each option can be toggled independently.
+          isCorrect:
+            type === "MSQ"
+              ? oi === optIdx
+                ? !Boolean(opt.isCorrect)
+                : Boolean(opt.isCorrect)
+              : oi === optIdx,
         }));
+
         return { ...q, options: newOpts };
+      }),
+    );
+  };
+
+  const handleAddOption = (qIdx: number) => {
+    setParsedQuestions((prev) =>
+      prev.map((q, i) => {
+        if (i !== qIdx) return q;
+        if (q.questionType === "TRUE_FALSE") return q;
+
+        const options = Array.isArray(q.options) ? q.options : [];
+        const nextOrder = options.length + 1;
+        return {
+          ...q,
+          options: [
+            ...options,
+            {
+              optionText: "",
+              optionImage: "",
+              optionOrder: nextOrder,
+              isCorrect: false,
+            },
+          ],
+        };
+      }),
+    );
+  };
+
+  const handleDeleteOption = (qIdx: number, optIdx: number) => {
+    setParsedQuestions((prev) =>
+      prev.map((q, i) => {
+        if (i !== qIdx || q.questionType === "TRUE_FALSE") return q;
+
+        const options = (q.options || [])
+          .filter((_: any, oi: number) => oi !== optIdx)
+          .map((opt: any, oi: number) => ({
+            ...opt,
+            optionOrder: oi + 1,
+          }));
+
+        return { ...q, options };
       }),
     );
   };
@@ -1052,15 +1250,39 @@ function CreateAssessmentContent() {
     if (!title.trim()) return "Please enter an assessment title.";
     if (!startTime) return "Please select a start time.";
     if (timeLimit <= 0) return "Time limit must be at least 1 minute.";
-    if (!endTime) return "Could not calculate end time — check start time and time limit.";
+    if (!endTime)
+      return "Could not calculate end time — check start time and time limit.";
     if (parsedQuestions.length === 0)
       return "Please add at least one question before saving.";
     for (let i = 0; i < parsedQuestions.length; i++) {
-      if (!parsedQuestions[i].questionText.trim())
-        return `Question ${i + 1} cannot have empty text.`;
-      for (let j = 0; j < parsedQuestions[i].options.length; j++) {
-        if (!parsedQuestions[i].options[j].optionText.trim())
-          return `Option ${String.fromCharCode(65 + j)} in Question ${i + 1} cannot be empty.`;
+      const q = parsedQuestions[i];
+      if (!q.questionText.trim() && !String(q.imageUrl || "").trim())
+        return `Question ${i + 1} must contain text or an image.`;
+
+      if (!Array.isArray(q.options) || q.options.length < 2)
+        return `Question ${i + 1} must have at least 2 options.`;
+
+      const type =
+        q.questionType === "MULTIPLE_CHOICE" ? "MCQ" : q.questionType;
+      const correctCount = q.options.filter((opt: any) =>
+        Boolean(opt.isCorrect),
+      ).length;
+
+      if (type === "MCQ" && correctCount !== 1)
+        return `Question ${i + 1} must have exactly one correct option.`;
+      if (type === "MSQ" && correctCount < 1)
+        return `Question ${i + 1} must have at least one correct option.`;
+      if (
+        type === "TRUE_FALSE" &&
+        (q.options.length !== 2 || correctCount !== 1)
+      )
+        return `Question ${i + 1} must have exactly two options with exactly one correct option.`;
+
+      for (let j = 0; j < q.options.length; j++) {
+        const optionText = String(q.options[j].optionText || "").trim();
+        const optionImage = String(q.options[j].optionImage || "").trim();
+        if (!optionText && !optionImage)
+          return `Option ${String.fromCharCode(65 + j)} in Question ${i + 1} must contain text or an image.`;
       }
     }
     return null;
@@ -1948,24 +2170,100 @@ function CreateAssessmentContent() {
                     </div>
 
                     <div className="space-y-4 p-5">
-                      <input
-                        type="text"
-                        value={q.questionText}
-                        onChange={(e) =>
-                          handleUpdateQuestionField(
-                            idx,
-                            "questionText",
-                            e.target.value,
-                          )
-                        }
-                        placeholder="Type your question"
-                        className="w-full rounded-[10px] border border-[#d1dee8]/80 bg-[#fbfbfa] px-3.5 py-2.5 text-sm font-semibold text-[#111111] outline-none transition-all placeholder:font-medium placeholder:text-[#a8a29d] hover:border-[#b9cbd9] focus:border-[#165dfb] focus:bg-white focus:ring-4 focus:ring-[#165dfb]/10 shadow-xs"
-                      />
+                      <div className="grid gap-3 sm:grid-cols-[1fr_auto]">
+                        <input
+                          type="text"
+                          value={q.questionText}
+                          onChange={(e) =>
+                            handleUpdateQuestionField(
+                              idx,
+                              "questionText",
+                              e.target.value,
+                            )
+                          }
+                          placeholder="Type your question (optional if an image is provided)"
+                          className="w-full rounded-[10px] border border-[#d1dee8]/80 bg-[#fbfbfa] px-3.5 py-2.5 text-sm font-semibold text-[#111111] outline-none transition-all placeholder:font-medium placeholder:text-[#a8a29d] hover:border-[#b9cbd9] focus:border-[#165dfb] focus:bg-white focus:ring-4 focus:ring-[#165dfb]/10 shadow-xs"
+                        />
+                        <select
+                          value={
+                            q.questionType === "MULTIPLE_CHOICE"
+                              ? "MCQ"
+                              : q.questionType || "MCQ"
+                          }
+                          onChange={(e) =>
+                            handleSetQuestionType(idx, e.target.value)
+                          }
+                          className="rounded-[10px] border border-[#d1dee8]/80 bg-white px-3 py-2.5 text-xs font-bold text-[#111111] outline-none focus:border-[#165dfb] focus:ring-4 focus:ring-[#165dfb]/10"
+                          aria-label={`Question ${idx + 1} type`}
+                        >
+                          <option value="MCQ">MCQ — Single correct</option>
+                          <option value="MSQ">MSQ — Multiple correct</option>
+                          <option value="TRUE_FALSE">True / False</option>
+                        </select>
+                      </div>
+
+                      <div className="grid gap-2">
+                        <label className="text-[10px] font-bold uppercase tracking-wider text-[#78716b]">
+                          Question Image URL{" "}
+                          <span className="normal-case font-medium text-[#a8a29d]">
+                            (optional)
+                          </span>
+                        </label>
+                        <input
+                          type="url"
+                          value={q.imageUrl || ""}
+                          onChange={(e) =>
+                            handleUpdateQuestionField(
+                              idx,
+                              "imageUrl",
+                              e.target.value,
+                            )
+                          }
+                          placeholder="https://example.com/question-image.png"
+                          className="w-full rounded-[10px] border border-[#d1dee8]/80 bg-white px-3.5 py-2.5 text-xs text-[#111111] outline-none transition-all placeholder:text-[#a8a29d] hover:border-[#b9cbd9] focus:border-[#165dfb] focus:ring-4 focus:ring-[#165dfb]/10"
+                        />
+                        {q.imageUrl && (
+                          <img
+                            src={q.imageUrl}
+                            alt={`Question ${idx + 1}`}
+                            className="max-h-48 max-w-full rounded-[10px] border border-[#d1dee8]/70 object-contain bg-[#fbfbfa] p-1"
+                            onError={(e) => {
+                              e.currentTarget.style.display = "none";
+                            }}
+                          />
+                        )}
+                      </div>
+
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <p className="text-[10px] font-bold uppercase tracking-wider text-[#78716b]">
+                            {q.questionType === "MSQ"
+                              ? "Select all correct answers"
+                              : "Select correct answer"}
+                          </p>
+                          <p className="mt-0.5 text-[10px] text-[#a8a29d]">
+                            {q.questionType === "MSQ"
+                              ? "Multiple options can be correct."
+                              : q.questionType === "TRUE_FALSE"
+                                ? "Exactly one of True / False must be correct."
+                                : "Exactly one option must be correct."}
+                          </p>
+                        </div>
+                        {q.questionType !== "TRUE_FALSE" && (
+                          <button
+                            type="button"
+                            onClick={() => handleAddOption(idx)}
+                            className="inline-flex items-center gap-1.5 rounded-[9px] border border-[#d1dee8]/80 bg-white px-3 py-1.5 text-[10px] font-bold text-[#165dfb] shadow-xs hover:border-[#165dfb] hover:bg-[#eef4ff]"
+                          >
+                            <PlusCircle className="h-3.5 w-3.5" /> Add Option
+                          </button>
+                        )}
+                      </div>
 
                       <div className="grid gap-2.5 sm:grid-cols-2">
                         {q.options.map((opt: any, oi: number) => (
                           <div
-                            key={oi}
+                            key={opt.optionId ?? `${idx}-${oi}`}
                             className={`flex items-center gap-2.5 rounded-[10px] border px-3 py-2.5 text-xs transition-all ${
                               opt.isCorrect
                                 ? "border-[#165dfb] bg-[#eef4ff] shadow-[0_0_0_3px_rgba(22,93,251,0.08)]"
@@ -1975,7 +2273,7 @@ function CreateAssessmentContent() {
                             <button
                               type="button"
                               onClick={() => handleSetCorrectOption(idx, oi)}
-                              aria-label={`Mark option ${String.fromCharCode(65 + oi)} correct`}
+                              aria-label={`Mark option ${String.fromCharCode(65 + oi)} ${opt.isCorrect ? "incorrect" : "correct"}`}
                               className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-[11px] font-bold transition-all ${
                                 opt.isCorrect
                                   ? "bg-[#165dfb] text-white shadow-xs shadow-[#165dfb]/30"
@@ -1993,8 +2291,9 @@ function CreateAssessmentContent() {
                             </button>
                             <input
                               type="text"
-                              value={opt.optionText}
+                              value={opt.optionText || ""}
                               placeholder={`Option ${String.fromCharCode(65 + oi)}`}
+                              disabled={q.questionType === "TRUE_FALSE"}
                               onChange={(e) =>
                                 handleUpdateOption(idx, oi, e.target.value)
                               }
@@ -2002,13 +2301,24 @@ function CreateAssessmentContent() {
                                 opt.isCorrect
                                   ? "font-semibold text-[#0f3fa8]"
                                   : "text-[#111111]"
-                              }`}
+                              } ${q.questionType === "TRUE_FALSE" ? "cursor-not-allowed opacity-80" : ""}`}
                             />
                             {opt.isCorrect && (
                               <span className="shrink-0 rounded-full bg-[#165dfb]/10 px-2 py-0.5 text-[9px] font-bold uppercase tracking-wider text-[#165dfb]">
                                 Correct
                               </span>
                             )}
+                            {q.questionType !== "TRUE_FALSE" &&
+                              q.options.length > 2 && (
+                                <button
+                                  type="button"
+                                  onClick={() => handleDeleteOption(idx, oi)}
+                                  aria-label={`Delete option ${String.fromCharCode(65 + oi)}`}
+                                  className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-[#a8a29d] hover:bg-[#fbeee8] hover:text-[#8c381c]"
+                                >
+                                  <Trash2 className="h-3.5 w-3.5" />
+                                </button>
+                              )}
                           </div>
                         ))}
                       </div>

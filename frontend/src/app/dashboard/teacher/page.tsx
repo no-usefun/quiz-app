@@ -39,6 +39,46 @@ export default function TeacherDashboard() {
   const [actionLoading, setActionLoading] = useState(false);
   const [actionError, setActionError] = useState<string | null>(null);
 
+  const normalizeQuiz = (q: any) => {
+    const rawQuizId = q.quizId ?? q.id;
+    const quizCode = q.quizCode ?? q.testCode ?? "";
+    const status = (q.status ?? "DRAFT").toUpperCase();
+    const examState = (q.examState ?? "WAITING").toUpperCase();
+    const startTime = q.startTime ?? null;
+    const endTime = q.endTime ?? null;
+
+    const displayState = computeQuizDisplayState({
+      status,
+      examState,
+      startTime,
+      endTime,
+    });
+
+    return {
+      quizId: rawQuizId,
+      quizCode,
+      teacherId: q.teacherId ?? 0,
+      title: q.title ?? q.quizName ?? "Assessment",
+      description: q.description ?? "",
+      instructions: q.instructions ?? "",
+      subject: q.subject ?? "",
+      subjectCode: q.subjectCode ?? "",
+      totalStudents: q.totalStudents ?? 0,
+      totalQuestions:
+        q.totalQuestions ??
+        (Array.isArray(q.questions) ? q.questions.length : 0),
+      totalMarks: q.totalMarks ?? 0,
+      overallTimerSeconds: q.overallTimerSeconds ?? 3600,
+      status,
+      examState,
+      startTime,
+      endTime,
+      displayState,
+      resultVisibility: q.resultVisibility ?? "NONE",
+      resultsPublished: Boolean(q.resultsPublished),
+    };
+  };
+
   const fetchQuizzes = async () => {
     setLoading(true);
     setFetchError(null);
@@ -72,47 +112,7 @@ export default function TeacherDashboard() {
               ? data.data
               : [];
 
-        const normalizedBackend = list.map((q: any) => {
-          const rawQuizId = q.quizId ?? q.id;
-          const quizCode = q.quizCode ?? q.testCode ?? "";
-          const status = (q.status ?? "DRAFT").toUpperCase();
-          const examState = (q.examState ?? "WAITING").toUpperCase();
-          const startTime = q.startTime ?? null;
-          const endTime = q.endTime ?? null;
-
-          const displayState = computeQuizDisplayState({
-            status,
-            examState,
-            startTime,
-            endTime,
-          });
-
-          return {
-            quizId: rawQuizId,
-            quizCode,
-            teacherId: q.teacherId ?? 0,
-            title: q.title ?? q.quizName ?? "Assessment",
-            description: q.description ?? "",
-            instructions: q.instructions ?? "",
-            subject: q.subject ?? "",
-            subjectCode: q.subjectCode ?? "",
-            totalStudents: q.totalStudents ?? 0,
-            totalQuestions:
-              q.totalQuestions ??
-              (Array.isArray(q.questions) ? q.questions.length : 0),
-            totalMarks: q.totalMarks ?? 0,
-            overallTimerSeconds: q.overallTimerSeconds ?? 3600,
-            status,
-            examState,
-            startTime,
-            endTime,
-            displayState,
-            resultVisibility: q.resultVisibility ?? "NONE",
-            resultsPublished: Boolean(q.resultsPublished),
-          };
-        });
-
-        setTests(normalizedBackend);
+        setTests(list.map(normalizeQuiz));
       } else {
         const errData = await res.json().catch(() => ({}));
         throw new Error(
@@ -135,6 +135,16 @@ export default function TeacherDashboard() {
 
     fetchQuizzes();
   }, [sessionLoading]);
+
+  const replaceQuizInState = (updatedQuiz: any) => {
+    const normalized = normalizeQuiz(updatedQuiz);
+
+    setTests((prev) =>
+      prev.map((quiz) =>
+        quiz.quizId === normalized.quizId ? normalized : quiz,
+      ),
+    );
+  };
 
   const copyCode = (code: string) => {
     navigator.clipboard.writeText(code);
@@ -165,7 +175,8 @@ export default function TeacherDashboard() {
           err.message || err.error || `Publish failed (${res.status})`,
         );
       }
-      await fetchQuizzes();
+      const updatedQuiz = await res.json().catch(() => null);
+      if (updatedQuiz) replaceQuizInState(updatedQuiz);
     } catch (err: any) {
       alert(`Could not publish quiz: ${err.message}`);
     } finally {
@@ -198,8 +209,9 @@ export default function TeacherDashboard() {
           err.message || err.error || `Complete failed (${res.status})`,
         );
       }
+      const updatedQuiz = await res.json().catch(() => null);
+      if (updatedQuiz) replaceQuizInState(updatedQuiz);
       setQuizToEnd(null);
-      await fetchQuizzes();
     } catch (err: any) {
       setActionError(err.message);
     } finally {
@@ -230,7 +242,8 @@ export default function TeacherDashboard() {
           err.message || err.error || `Publish results failed (${res.status})`,
         );
       }
-      await fetchQuizzes();
+      const updatedQuiz = await res.json().catch(() => null);
+      if (updatedQuiz) replaceQuizInState(updatedQuiz);
     } catch (err: any) {
       alert(`Could not publish results: ${err.message}`);
     } finally {
@@ -263,14 +276,14 @@ export default function TeacherDashboard() {
             `Unpublish results failed (${res.status})`,
         );
       }
-      await fetchQuizzes();
+      const updatedQuiz = await res.json().catch(() => null);
+      if (updatedQuiz) replaceQuizInState(updatedQuiz);
     } catch (err: any) {
       alert(`Could not unpublish results: ${err.message}`);
     } finally {
       setActionLoading(false);
     }
   };
-
 
   const displayName =
     user?.firstName ||
@@ -436,7 +449,8 @@ export default function TeacherDashboard() {
                     case "Ended":
                     case "Completed":
                     case "Cancelled":
-                      if (code) router.push(`/dashboard/teacher/assessment/${code}`);
+                      if (code)
+                        router.push(`/dashboard/teacher/assessment/${code}`);
                       break;
                   }
                 };
@@ -546,7 +560,6 @@ export default function TeacherDashboard() {
                         </>
                       )}
 
-
                       {displayState === "Scheduled" && (
                         <Link
                           href={`/dashboard/teacher/share/${code}`}
@@ -592,25 +605,26 @@ export default function TeacherDashboard() {
                             Results & Leaderboard
                           </Link>
 
-                          {displayState === "Ended" && test.status !== "COMPLETED" && (
-                            <button
-                              type="button"
-                              onClick={() =>
-                                setQuizToEnd({
-                                  quizId,
-                                  quizCode: String(code),
-                                  title: name,
-                                })
-                              }
-                              disabled={actionLoading}
-                              className="flex items-center gap-1 rounded-[10px] border border-[#8c381c]/30 bg-[#fbeee8] px-3 py-1.5 text-xs font-bold text-[#8c381c] hover:bg-[#8c381c]/15 shadow-xs active:scale-[0.98] transition-all cursor-pointer disabled:opacity-50"
-                            >
-                              End Quiz
-                            </button>
-                          )}
+                          {displayState === "Ended" &&
+                            test.status !== "COMPLETED" && (
+                              <button
+                                type="button"
+                                onClick={() =>
+                                  setQuizToEnd({
+                                    quizId,
+                                    quizCode: String(code),
+                                    title: name,
+                                  })
+                                }
+                                disabled={actionLoading}
+                                className="flex items-center gap-1 rounded-[10px] border border-[#8c381c]/30 bg-[#fbeee8] px-3 py-1.5 text-xs font-bold text-[#8c381c] hover:bg-[#8c381c]/15 shadow-xs active:scale-[0.98] transition-all cursor-pointer disabled:opacity-50"
+                              >
+                                End Quiz
+                              </button>
+                            )}
 
-                          {displayState !== "Cancelled" && (
-                            !test.resultsPublished ? (
+                          {displayState !== "Cancelled" &&
+                            (!test.resultsPublished ? (
                               <button
                                 type="button"
                                 disabled={
@@ -638,8 +652,7 @@ export default function TeacherDashboard() {
                               >
                                 Unpublish Results
                               </button>
-                            )
-                          )}
+                            ))}
                         </>
                       )}
                     </div>
@@ -659,9 +672,9 @@ export default function TeacherDashboard() {
               End Assessment?
             </h3>
             <p className="text-xs text-[#78716b] leading-relaxed">
-              Are you sure you want to end &ldquo;{quizToEnd.title}&rdquo;? Active
-              student attempts will be concluded and the quiz will transition
-              to COMPLETED.
+              Are you sure you want to end &ldquo;{quizToEnd.title}&rdquo;?
+              Active student attempts will be concluded and the quiz will
+              transition to COMPLETED.
             </p>
             {actionError && (
               <p className="text-xs font-semibold text-[#8c381c]">
@@ -698,4 +711,3 @@ export default function TeacherDashboard() {
     </div>
   );
 }
-

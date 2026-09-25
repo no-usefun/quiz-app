@@ -1,6 +1,6 @@
 "use client";
 // frontend/src/app/test/[testCode]/page.tsx
-import { use, useState, useEffect } from "react";
+import { use, useState, useEffect, useRef } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
@@ -54,14 +54,29 @@ export default function TestArenaPage({
   const [isLoadingTest, setIsLoadingTest] = useState(true);
   const [testLoadError, setTestLoadError] = useState<string | null>(null);
 
-  const [currentIndex, setCurrentIndex] = useState(() => {
-    if (typeof window !== "undefined") {
-      const cleanCode = testCode.toUpperCase();
-      const savedIndex = localStorage.getItem(`exam_index_${cleanCode}`);
-      return savedIndex ? parseInt(savedIndex, 10) : 0;
-    }
-    return 0;
+  /*
+   * Active attempt is the storage boundary for this assessment.
+   *
+   * quizCode is shared by every student, so quizCode-based localStorage
+   * keys can leak one student's answers/progress into another student's
+   * session on the same browser.
+   *
+   * The lobby creates the authoritative attempt and stores its ID before
+   * navigating here. All active exam state below is therefore scoped to
+   * that attempt ID.
+   */
+  const [activeAttemptId] = useState<string | null>(() => {
+    if (typeof window === "undefined") return null;
+
+    const cleanCode = testCode.toUpperCase();
+
+    return (
+      localStorage.getItem(`dynoquizz_attemptId_${cleanCode}`) ||
+      localStorage.getItem("dynoquizz_attemptId")
+    );
   });
+
+  const [currentIndex, setCurrentIndex] = useState(0);
 
   const [selectedOption, setSelectedOption] = useState<number | null>(null);
 
@@ -72,8 +87,39 @@ export default function TestArenaPage({
     Record<number, number>
   >({});
 
-  const [timeLeft, setTimeLeft] = useState(30);
+  // Backend-authoritative absolute attempt deadline.
+  // The backend returns effectiveDeadline = min(startedAt + overallTimerSeconds, quiz.endTime).
+  const [effectiveDeadline, setEffectiveDeadline] = useState<string | null>(
+    () => {
+      if (typeof window === "undefined") return null;
+
+      const cleanCode = testCode.toUpperCase();
+      const attemptId =
+        localStorage.getItem(`dynoquizz_attemptId_${cleanCode}`) ||
+        localStorage.getItem("dynoquizz_attemptId");
+
+      if (!attemptId) return null;
+
+      try {
+        const raw = localStorage.getItem(
+          `dynoquizz_attemptTiming_${attemptId}`,
+        );
+        if (!raw) return null;
+
+        const timing = JSON.parse(raw);
+        return typeof timing?.effectiveDeadline === "string"
+          ? timing.effectiveDeadline
+          : null;
+      } catch {
+        return null;
+      }
+    },
+  );
+
+  const [timeLeft, setTimeLeft] = useState(0);
   const [isSubmitted, setIsSubmitted] = useState(false);
+  const expiryHandledRef = useRef(false);
+  const questionElapsedRef = useRef(0);
 
   /*
    * Authoritative attempt ID returned by the backend after submission.
@@ -148,21 +194,75 @@ export default function TestArenaPage({
         return;
       }
 
-      const cached = localStorage.getItem(`dynoquizz_active_test_${cleanCode}`);
-
-      if (cached) {
+      /*
+       * Restore the timing returned by POST /attempts.
+       * Never calculate a new deadline from question count or questionTimerSeconds.
+       */
+      if (activeAttemptId) {
         try {
-          const parsed = JSON.parse(cached);
+          const rawTiming = localStorage.getItem(
+            `dynoquizz_attemptTiming_${activeAttemptId}`,
+          );
+          const timing = rawTiming ? JSON.parse(rawTiming) : null;
 
-          if (parsed.answers) {
-            setAnswers(parsed.answers);
+          if (typeof timing?.effectiveDeadline !== "string") {
+            throw new Error(
+              "The server did not return the authoritative attempt timing information.",
+            );
           }
 
-          if (parsed.timeTaken) {
-            setTimeTakenPerQuestion(parsed.timeTaken);
+          setEffectiveDeadline(timing.effectiveDeadline);
+        } catch (timingError: any) {
+          console.error(
+            "[Assessment Timing] Invalid attempt timing:",
+            timingError,
+          );
+          setTestLoadError(
+            timingError?.message ||
+              "The server did not return the authoritative attempt timing information.",
+          );
+        }
+      } else {
+        setTestLoadError(
+          "No active server attempt was found. Please return to the lobby and start the assessment again.",
+        );
+      }
+
+      /*
+       * Restore only state belonging to the current backend attempt.
+       *
+       * Never restore quiz-code-only state here. That state belongs to the
+       * browser/device, not to the logged-in student's attempt.
+       */
+      if (activeAttemptId) {
+        const attemptStateKey = `dynoquizz_active_test_${activeAttemptId}`;
+        const attemptIndexKey = `exam_index_${activeAttemptId}`;
+
+        const cached = localStorage.getItem(attemptStateKey);
+
+        if (cached) {
+          try {
+            const parsed = JSON.parse(cached);
+
+            if (parsed.answers) {
+              setAnswers(parsed.answers);
+            }
+
+            if (parsed.timeTaken) {
+              setTimeTakenPerQuestion(parsed.timeTaken);
+            }
+          } catch {
+            localStorage.removeItem(attemptStateKey);
           }
-        } catch {
-          // Ignore malformed local answer state.
+        }
+
+        const savedIndex = localStorage.getItem(attemptIndexKey);
+        if (savedIndex) {
+          const parsedIndex = Number.parseInt(savedIndex, 10);
+
+          if (Number.isInteger(parsedIndex) && parsedIndex >= 0) {
+            setCurrentIndex(parsedIndex);
+          }
         }
       }
     }
@@ -307,7 +407,7 @@ export default function TestArenaPage({
       window.removeEventListener("online", handleOnline);
       window.removeEventListener("offline", handleOffline);
     };
-  }, [testCode, router]);
+  }, [testCode, router, activeAttemptId]);
 
   const questions = test?.questions || [];
   const currentQuestion = questions[currentIndex];
@@ -316,26 +416,45 @@ export default function TestArenaPage({
     questions.length > 0 ? ((currentIndex + 1) / questions.length) * 100 : 0;
 
   useEffect(() => {
-    if (currentQuestion) {
-      setSelectedOption(answers[currentQuestion.id] ?? null);
-    }
+    if (!currentQuestion) return;
+
+    setSelectedOption(answers[currentQuestion.id] ?? null);
   }, [currentIndex, currentQuestion?.id, answers]);
 
   useEffect(() => {
-    if (currentQuestion) {
-      setTimeLeft(currentQuestion.questionTimerSeconds || 30);
-    }
+    questionElapsedRef.current = 0;
   }, [currentIndex, currentQuestion?.id]);
+
+  // Track response time for the submission payload only. This does not
+  // control the exam deadline; the backend effectiveDeadline does.
+  useEffect(() => {
+    if (isSubmitted || !currentQuestion) return;
+
+    const interval = window.setInterval(() => {
+      questionElapsedRef.current += 1;
+      setTimeTakenPerQuestion((prev) => ({
+        ...prev,
+        [currentQuestion.id]: questionElapsedRef.current,
+      }));
+    }, 1000);
+
+    return () => window.clearInterval(interval);
+  }, [currentQuestion?.id, isSubmitted]);
 
   const persistLocalAnswerState = (
     nextAnswers: Record<number, number | null>,
     nextTimeTaken: Record<number, number>,
   ) => {
-    const cleanCode = testCode.toUpperCase();
+    /*
+     * No attempt ID means there is no safe student-specific storage scope.
+     * Do not fall back to quizCode because that can leak another student's
+     * answers on a shared browser.
+     */
+    if (!activeAttemptId) return;
 
     try {
       localStorage.setItem(
-        `dynoquizz_active_test_${cleanCode}`,
+        `dynoquizz_active_test_${activeAttemptId}`,
         JSON.stringify({
           answers: nextAnswers,
           timeTaken: nextTimeTaken,
@@ -389,8 +508,6 @@ export default function TestArenaPage({
    * Move to next question or submit
    */
   const advanceOrSubmit = (latestAnswers: Record<number, number | null>) => {
-    const cleanCode = testCode.toUpperCase();
-
     persistLocalAnswerState(latestAnswers, timeTakenPerQuestion);
 
     if (currentIndex < questions.length - 1) {
@@ -398,8 +515,11 @@ export default function TestArenaPage({
 
       setCurrentIndex(nextIndex);
 
-      if (typeof window !== "undefined") {
-        localStorage.setItem(`exam_index_${cleanCode}`, nextIndex.toString());
+      if (typeof window !== "undefined" && activeAttemptId) {
+        localStorage.setItem(
+          `exam_index_${activeAttemptId}`,
+          nextIndex.toString(),
+        );
       }
 
       const nextQuestion = questions[nextIndex];
@@ -408,7 +528,6 @@ export default function TestArenaPage({
         nextQuestion ? (latestAnswers[Number(nextQuestion.id)] ?? null) : null,
       );
 
-      setTimeLeft(nextQuestion?.questionTimerSeconds || 30);
       setSaveStatus("idle");
     } else {
       finishAssessment(latestAnswers);
@@ -451,12 +570,12 @@ export default function TestArenaPage({
    * Save active assessment state when leaving tab/page
    */
   useEffect(() => {
-    const cleanCode = testCode.toUpperCase();
+    if (!activeAttemptId) return;
 
     const flushActiveState = () => {
       try {
         localStorage.setItem(
-          `dynoquizz_active_test_${cleanCode}`,
+          `dynoquizz_active_test_${activeAttemptId}`,
           JSON.stringify({
             answers,
             timeTaken: timeTakenPerQuestion,
@@ -485,7 +604,7 @@ export default function TestArenaPage({
       window.removeEventListener("pagehide", flushActiveState);
       window.removeEventListener("beforeunload", flushActiveState);
     };
-  }, [answers, timeTakenPerQuestion, testCode]);
+  }, [answers, timeTakenPerQuestion, activeAttemptId]);
 
   /*
    * Submit assessment
@@ -505,9 +624,7 @@ export default function TestArenaPage({
     try {
       const token = getClientAuthToken();
 
-      const attemptId =
-        localStorage.getItem(`dynoquizz_attemptId_${cleanCode}`) ||
-        localStorage.getItem("dynoquizz_attemptId");
+      const attemptId = activeAttemptId;
 
       if (!attemptId) {
         console.warn("No attemptId found. Cannot submit attempt.");
@@ -667,14 +784,25 @@ export default function TestArenaPage({
         );
 
         /*
-         * Remove only the active exam state.
+         * Submission succeeded.
          *
-         * Do NOT remove the attempt ID here because the result
-         * page may still need it during the transition.
+         * The backend has returned the authoritative attemptId and
+         * we have already stored it separately as submittedAttemptId.
+         *
+         * The active attempt ID is no longer needed, so remove it.
+         * This prevents a later student account from inheriting
+         * this student's attempt ID from browser localStorage.
          */
-        localStorage.removeItem(`dynoquizz_active_test_${cleanCode}`);
+        localStorage.removeItem(`dynoquizz_attemptId_${cleanCode}`);
+        localStorage.removeItem("dynoquizz_attemptId");
+        localStorage.removeItem(
+          `dynoquizz_attemptTiming_${authoritativeAttemptId}`,
+        );
 
-        localStorage.removeItem(`exam_index_${cleanCode}`);
+        localStorage.removeItem(
+          `dynoquizz_active_test_${authoritativeAttemptId}`,
+        );
+        localStorage.removeItem(`exam_index_${authoritativeAttemptId}`);
 
         if (data.deadlineExceeded || data.error === "EXAM_DEADLINE_EXCEEDED") {
           setDeadlineNotice(
@@ -707,10 +835,13 @@ export default function TestArenaPage({
   };
 
   /*
-   * Handle timer expiration
+   * Handle backend-authoritative timer expiration.
+   * The timer belongs to the whole attempt, so changing questions never resets it.
    */
   const handleTimerExpired = () => {
-    if (!currentQuestion) return;
+    if (expiryHandledRef.current || isSubmitted || !currentQuestion) return;
+
+    expiryHandledRef.current = true;
 
     const questionId = Number(currentQuestion.id);
 
@@ -719,7 +850,6 @@ export default function TestArenaPage({
         "[Assessment] Invalid question ID during timer expiry:",
         currentQuestion,
       );
-
       return;
     }
 
@@ -739,36 +869,93 @@ export default function TestArenaPage({
     };
 
     setAnswers(latestAnswers);
-    advanceOrSubmit(latestAnswers);
+    finishAssessment(latestAnswers);
+  };
+
+  const parseBackendDeadline = (value: string): number => {
+    // Backend returns Java LocalDateTime without Z/offset. Do not add or subtract
+    // an arbitrary timezone offset. The browser interprets this local timestamp
+    // in its own local timezone, matching the current frontend/backend contract.
+    const normalized = value.includes("T") ? value : value.replace(" ", "T");
+    const timestamp = new Date(normalized).getTime();
+    return Number.isFinite(timestamp) ? timestamp : NaN;
+  };
+
+  const formatRemainingTime = (seconds: number) => {
+    const safe = Math.max(0, seconds);
+    const hours = Math.floor(safe / 3600);
+    const minutes = Math.floor((safe % 3600) / 60);
+    const secs = safe % 60;
+
+    if (hours > 0) {
+      return `${hours.toString().padStart(2, "0")}:${minutes
+        .toString()
+        .padStart(2, "0")}:${secs.toString().padStart(2, "0")}`;
+    }
+
+    return `${minutes.toString().padStart(2, "0")}:${secs
+      .toString()
+      .padStart(2, "0")}`;
   };
 
   /*
-   * Question timer
+   * One countdown for the entire attempt.
+   * Recalculate on every tick and when the tab becomes visible again so a
+   * backgrounded browser cannot pause or extend the client-side countdown.
    */
   useEffect(() => {
-    if (isSubmitted || questions.length === 0 || !currentQuestion) {
+    if (isSubmitted || !effectiveDeadline) return;
+
+    const deadlineMs = parseBackendDeadline(effectiveDeadline);
+
+    if (!Number.isFinite(deadlineMs)) {
+      console.error(
+        "[Assessment Timing] Invalid backend effectiveDeadline:",
+        effectiveDeadline,
+      );
+      setTestLoadError(
+        "The server returned an invalid authoritative attempt deadline. Please return to the lobby and start the assessment again.",
+      );
       return;
     }
 
-    const timer = setInterval(() => {
-      setTimeTakenPerQuestion((prev) => ({
-        ...prev,
-        [currentQuestion.id]: (prev[currentQuestion.id] || 0) + 1,
-      }));
+    expiryHandledRef.current = false;
 
-      setTimeLeft((prev) => {
-        if (prev <= 1) {
-          handleTimerExpired();
+    const updateCountdown = () => {
+      const remainingSeconds = Math.max(
+        0,
+        Math.ceil((deadlineMs - Date.now()) / 1000),
+      );
 
-          return currentQuestion.questionTimerSeconds || 30;
-        }
+      setTimeLeft(remainingSeconds);
 
-        return prev - 1;
-      });
-    }, 1000);
+      if (remainingSeconds <= 0) {
+        handleTimerExpired();
+      }
+    };
 
-    return () => clearInterval(timer);
-  }, [currentIndex, isSubmitted, questions.length, currentQuestion]);
+    updateCountdown();
+
+    const interval = window.setInterval(updateCountdown, 1000);
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === "visible") {
+        updateCountdown();
+      }
+    };
+
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+
+    return () => {
+      window.clearInterval(interval);
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
+    };
+  }, [
+    effectiveDeadline,
+    isSubmitted,
+    currentQuestion?.id,
+    selectedOption,
+    answers,
+  ]);
 
   /*
    * Session expired screen
@@ -1034,7 +1221,7 @@ export default function TestArenaPage({
               }`}
             >
               <Clock className="h-3.5 w-3.5" />
-              00:{timeLeft.toString().padStart(2, "0")}
+              {formatRemainingTime(timeLeft)}
             </div>
           </div>
         </header>

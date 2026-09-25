@@ -78,7 +78,6 @@ function LobbyInner({ testCode }: { testCode: string }) {
   const [isStarting, setIsStarting] = useState(false);
   const [startError, setStartError] = useState<string | null>(null);
   const [packageError, setPackageError] = useState<string | null>(null);
-  const [hasExistingAttempt, setHasExistingAttempt] = useState(false);
 
   // New availability state
   const [availabilityStatus, setAvailabilityStatus] =
@@ -93,14 +92,6 @@ function LobbyInner({ testCode }: { testCode: string }) {
       if (!token) {
         router.push(`/login?role=student&redirect=/test/${cleanCode}/lobby`);
         return;
-      }
-
-      const existingAttempt = localStorage.getItem(
-        `dynoquizz_attemptId_${cleanCode}`,
-      );
-
-      if (existingAttempt) {
-        setHasExistingAttempt(true);
       }
     }
 
@@ -272,89 +263,116 @@ function LobbyInner({ testCode }: { testCode: string }) {
       }
 
       /*
-       * Step 1: Create or resume the server-side attempt.
+       * Step 1: Always ask the backend to create or resume the attempt
+       * for the CURRENTLY authenticated student.
+       *
+       * IMPORTANT:
+       * Never trust an attemptId from localStorage here.
+       *
+       * localStorage belongs to the browser, not to the logged-in
+       * account. A previous student's attemptId can remain after
+       * switching accounts.
+       *
+       * The backend uses the current JWT to determine ownership
+       * and returns the correct attemptId for this student.
        */
-      let attemptId =
-        localStorage.getItem(`dynoquizz_attemptId_${cleanCode}`) || null;
-
-      if (!attemptId) {
-        const attemptRes = await fetch(
-          `${API_BASE}/api/v1/student/quizzes/${cleanCode}/attempts`,
-          {
-            method: "POST",
-            headers: {
-              "Content-Type": "application/json",
-              Authorization: `Bearer ${token}`,
-            },
+      const attemptRes = await fetch(
+        `${API_BASE}/api/v1/student/quizzes/${cleanCode}/attempts`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${token}`,
           },
+        },
+      );
+
+      // Read the response body exactly once.
+      const attemptData = await attemptRes.json().catch(() => ({}));
+
+      if (!attemptRes.ok) {
+        const errorCode = attemptData.error;
+        const errorMessage = attemptData.message || errorCode;
+
+        if (attemptRes.status === 409 && errorCode === "ALREADY_ATTEMPTED") {
+          throw new Error("This assessment has already been submitted.");
+        }
+
+        if (errorCode === "QUIZ_NOT_STARTED") {
+          throw new Error("This assessment has not started yet.");
+        }
+
+        if (errorCode === "QUIZ_ENDED") {
+          throw new Error("This assessment has already ended.");
+        }
+
+        if (
+          errorCode === "QUIZ_NOT_AVAILABLE" ||
+          errorCode === "QUIZ_NOT_ACTIVE"
+        ) {
+          throw new Error("This assessment is not currently available.");
+        }
+
+        if (
+          typeof errorMessage === "string" &&
+          errorMessage.toLowerCase().includes("not available to students")
+        ) {
+          throw new Error(
+            "This assessment is not open yet. Ask your teacher to publish it.",
+          );
+        }
+
+        if (attemptRes.status === 403) {
+          throw new Error(
+            errorMessage || "You are not authorized to take this assessment.",
+          );
+        }
+
+        throw new Error(
+          errorMessage ||
+            "Failed to initialize assessment attempt on the server.",
         );
-
-        // Read the response body exactly once.
-        // Calling attemptRes.json() a second time causes:
-        // "Failed to execute 'json' on 'Response': body stream already read"
-        const attemptData = await attemptRes.json().catch(() => ({}));
-
-        if (!attemptRes.ok) {
-          const errorCode = attemptData.error;
-          const errorMessage = attemptData.message || errorCode;
-
-          if (attemptRes.status === 409 && errorCode === "ALREADY_ATTEMPTED") {
-            throw new Error("This assessment has already been submitted.");
-          }
-
-          if (errorCode === "QUIZ_NOT_STARTED") {
-            throw new Error("This assessment has not started yet.");
-          }
-
-          if (errorCode === "QUIZ_ENDED") {
-            throw new Error("This assessment has already ended.");
-          }
-
-          if (
-            errorCode === "QUIZ_NOT_AVAILABLE" ||
-            errorCode === "QUIZ_NOT_ACTIVE"
-          ) {
-            throw new Error("This assessment is not currently available.");
-          }
-
-          if (
-            typeof errorMessage === "string" &&
-            errorMessage.toLowerCase().includes("not available to students")
-          ) {
-            throw new Error(
-              "This assessment is not open yet. Ask your teacher to publish it.",
-            );
-          }
-
-          if (attemptRes.status === 403) {
-            throw new Error(
-              errorMessage || "You are not authorized to take this assessment.",
-            );
-          }
-
-          throw new Error(
-            errorMessage ||
-              "Failed to initialize assessment attempt on the server.",
-          );
-        }
-
-        if (!attemptData.attemptId) {
-          throw new Error(
-            "The server created the attempt but did not return an attemptId.",
-          );
-        }
-
-        attemptId = String(attemptData.attemptId);
-
-        localStorage.setItem(`dynoquizz_attemptId_${cleanCode}`, attemptId);
-        localStorage.setItem("dynoquizz_attemptId", attemptId);
-      } else {
-        /*
-         * Existing attempt: make sure the generic key is also available
-         * for backward compatibility.
-         */
-        localStorage.setItem("dynoquizz_attemptId", attemptId);
       }
+
+      if (!attemptData.attemptId) {
+        throw new Error(
+          "The server created/resumed the attempt but did not return an attemptId.",
+        );
+      }
+
+      if (typeof attemptData.effectiveDeadline !== "string") {
+        console.error(
+          "[Assessment Timing] Start-attempt response missing effectiveDeadline:",
+          attemptData,
+        );
+        throw new Error(
+          "The server did not return the authoritative attempt timing information.",
+        );
+      }
+
+      const attemptId = String(attemptData.attemptId);
+
+      /*
+       * Replace any stale browser value with the authoritative attemptId
+       * returned for the currently authenticated student.
+       */
+      localStorage.setItem(`dynoquizz_attemptId_${cleanCode}`, attemptId);
+      localStorage.setItem("dynoquizz_attemptId", attemptId);
+
+      // Persist the complete authoritative attempt timing response so the Arena
+      // can survive refreshes without inventing a client-side deadline.
+      localStorage.setItem(
+        `dynoquizz_attemptTiming_${attemptId}`,
+        JSON.stringify({
+          attemptId,
+          startedAt: attemptData.startedAt ?? null,
+          submittedAt: attemptData.submittedAt ?? null,
+          status: attemptData.status ?? null,
+          currentQuestion: attemptData.currentQuestion ?? null,
+          totalTimeTaken: attemptData.totalTimeTaken ?? null,
+          effectiveDeadline: attemptData.effectiveDeadline,
+        }),
+      );
 
       /*
        * Step 2: Reuse a valid cached package if one exists.
@@ -426,7 +444,6 @@ function LobbyInner({ testCode }: { testCode: string }) {
        * Step 3: Only enter the Arena after the attempt and package
        * are both ready.
        */
-      setHasExistingAttempt(true);
       router.push(`/test/${cleanCode}`);
     } catch (err: any) {
       console.error("Start assessment error:", err);
@@ -656,9 +673,7 @@ function LobbyInner({ testCode }: { testCode: string }) {
                 </>
               ) : (
                 <>
-                  {hasExistingAttempt
-                    ? "Resume Assessment"
-                    : "Start Assessment"}
+                  Start / Resume Assessment
                   <ArrowRight className="h-4 w-4" />
                 </>
               )}
