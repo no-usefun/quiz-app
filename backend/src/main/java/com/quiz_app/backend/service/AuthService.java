@@ -64,20 +64,40 @@ public class AuthService {
                         throw new ConflictException("An account with email " + normalizedEmail + " already exists");
                 }
 
-                // 2. Check duplicate registration number if provided
-                String regNo = request.registrationNo()
+                // 2. Resolve Role
+                String requestedRole = request.role()
                                 .trim()
                                 .toUpperCase(Locale.ROOT);
 
-                if (userRepository.existsByRegistrationNo(regNo)) {
-                        throw new ConflictException(
-                                        "Registration number " + regNo + " is already associated with an account");
+                if (!requestedRole.equals("STUDENT")
+                                && !requestedRole.equals("TEACHER")) {
+                        throw new BadRequestException(
+                                        "INVALID_ROLE",
+                                        "Role must be STUDENT or TEACHER");
                 }
 
-                // 3. Resolve Role
-                Role role = roleRepository.findByName("STUDENT")
+                Role role = roleRepository.findByName(requestedRole)
                                 .orElseThrow(() -> new IllegalStateException(
-                                                "STUDENT role is not configured in the database"));
+                                                requestedRole + " role is not configured in the database"));
+
+                // 3. Check duplicate registration number if provided
+                String regNo = request.registrationNo() == null
+                                ? null
+                                : request.registrationNo().trim().toUpperCase(Locale.ROOT);
+
+                if ("STUDENT".equals(requestedRole)
+                                && (regNo == null || regNo.isBlank())) {
+                        throw new BadRequestException(
+                                        "REGISTRATION_NUMBER_REQUIRED",
+                                        "Registration number is required for students");
+                }
+
+                if (regNo != null && !regNo.isBlank()
+                                && userRepository.existsByRegistrationNo(regNo)) {
+                        throw new ConflictException(
+                                        "Registration number " + regNo
+                                                        + " is already associated with an account");
+                }
 
                 // 4. Create and populate User entity
                 User user = new User();
