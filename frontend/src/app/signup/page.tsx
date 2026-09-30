@@ -60,6 +60,9 @@ function SignupContent() {
   const [lastName, setLastName] = useState("");
   const [email, setEmail] = useState("");
   const [registrationNo, setRegistrationNo] = useState("");
+  const [college, setCollege] = useState("");
+  const [department, setDepartment] = useState("");
+  const [phone, setPhone] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
 
@@ -67,6 +70,7 @@ function SignupContent() {
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const [success, setSuccess] = useState("");
 
   useEffect(() => {
     if (typeof window !== "undefined") {
@@ -116,18 +120,34 @@ function SignupContent() {
 
     if (!firstName.trim() || !lastName.trim()) {
       setError("Please enter both your first and last name.");
+      setSuccess("");
       return;
     }
 
+    // Registration number is required by the backend for students,
+    // but is optional for teacher accounts.
     if (activeRole === "student" && !registrationNo.trim()) {
       setError("Please enter your student registration / roll number.");
+      setSuccess("");
       return;
     }
 
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-
     if (!emailRegex.test(email.trim())) {
       setError("Please enter a valid email address format.");
+      setSuccess("");
+      return;
+    }
+
+    if (phone.trim() && !/^[0-9+()\-\s]{7,15}$/.test(phone.trim())) {
+      setError("Please enter a valid phone number.");
+      setSuccess("");
+      return;
+    }
+
+    if (password.length > 100) {
+      setError("Password must not exceed 100 characters.");
+      setSuccess("");
       return;
     }
 
@@ -135,22 +155,22 @@ function SignupContent() {
       setError(
         "Password must be at least 8 characters and include an uppercase letter, lowercase letter, number, and special character.",
       );
+      setSuccess("");
       return;
     }
 
     if (!passwordsMatch) {
       setError("Passwords do not match.");
+      setSuccess("");
       return;
     }
 
     setError("");
+    setSuccess("");
     setLoading(true);
 
-    const backendRole = activeRole === "teacher" ? "TEACHER" : "STUDENT";
-
-    const combinedName = `${firstName.trim()} ${lastName.trim()}`;
-
     try {
+      // Backend SignupRequest does not contain a role field.
       const res = await fetch(ENDPOINTS.auth.signup, {
         method: "POST",
         headers: {
@@ -161,68 +181,50 @@ function SignupContent() {
           lastName: lastName.trim(),
           email: email.trim(),
           password,
-          role: backendRole,
-          ...(backendRole === "STUDENT" && registrationNo
-            ? {
-                registrationNo: registrationNo.trim().toUpperCase(),
-              }
-            : {}),
+          role: activeRole === "teacher" ? "TEACHER" : "STUDENT",
+          college: college.trim() || null,
+          department: department.trim() || null,
+          registrationNo: registrationNo.trim()
+            ? registrationNo.trim().toUpperCase()
+            : null,
+          phone: phone.trim() || null,
         }),
       });
 
       const data = await res.json().catch(() => ({}));
 
       if (res.ok) {
-        const returnedRole = (
-          data.user?.role ||
-          data.role ||
-          backendRole
-        ).toUpperCase();
+        // Current backend requires email verification before password login.
+        setSuccess(
+          data.message ||
+            "Account created. Please verify your email before logging in.",
+        );
+        setError("");
 
+        // Signup does not return an authenticated JWT.
         if (typeof window !== "undefined") {
-          const userObj = data.user || {
-            email: email.trim(),
-            role: returnedRole,
-            name: combinedName,
-          };
+          localStorage.removeItem("dynoquizz_token");
+          localStorage.removeItem("dynoquizz_user");
+          localStorage.removeItem("dynoquizz_role");
+          const normalizedRegistrationNo = registrationNo.trim().toUpperCase();
 
-          localStorage.setItem("dynoquizz_role", returnedRole);
-
-          localStorage.setItem("dynoquizz_user", JSON.stringify(userObj));
-
-          if (
-            data.user?.registrationNo ||
-            (backendRole === "STUDENT" && registrationNo)
-          ) {
-            localStorage.setItem(
-              "dynoquizz_regNo",
-              data.user?.registrationNo || registrationNo.trim().toUpperCase(),
-            );
-          }
-
-          if (data.token) {
-            localStorage.setItem("dynoquizz_token", data.token);
-
-            document.cookie = `dynoquizz_token=${data.token}; path=/; max-age=86400`;
+          if (normalizedRegistrationNo) {
+            localStorage.setItem("dynoquizz_regNo", normalizedRegistrationNo);
+          } else {
+            localStorage.removeItem("dynoquizz_regNo");
           }
         }
-
-        router.refresh();
-
-        const redirectTarget = searchParams?.get("redirect");
-
-        const destination =
-          returnedRole === "TEACHER"
-            ? "/dashboard/teacher"
-            : "/dashboard/student";
-
-        window.location.href = redirectTarget || destination;
       } else {
-        setError(data.message || data.error || "Signup failed.");
+        setSuccess("");
+        setError(
+          data.message ||
+            data.error ||
+            "Signup failed. Please check your details and try again.",
+        );
       }
     } catch (err) {
       console.error("Signup connection error:", err);
-
+      setSuccess("");
       setError(
         "Cannot connect to the authentication server. Please ensure the backend is running.",
       );
@@ -375,7 +377,9 @@ function SignupContent() {
           </h1>
 
           <p className="text-sm text-neutral-500 mt-1.5 leading-relaxed">
-            Create your account to get started.
+            {activeRole === "teacher"
+              ? "Create your instructor account to manage assessments."
+              : "Create your student account to take assessments."}
           </p>
         </div>
 
@@ -390,6 +394,15 @@ function SignupContent() {
             />
 
             <span>{error}</span>
+          </div>
+        )}
+
+        {success && (
+          <div
+            role="status"
+            className="rounded-lg bg-green-50 p-3.5 text-sm text-green-700 font-medium border border-green-200/70"
+          >
+            {success}
           </div>
         )}
 
@@ -452,12 +465,70 @@ function SignupContent() {
                 type="text"
                 value={registrationNo}
                 onChange={(e) => setRegistrationNo(e.target.value)}
-                placeholder="e.g. 21CS042"
+                placeholder="e.g. 21BCE1024"
                 required
+                maxLength={30}
                 className={fieldClass}
               />
             </div>
           )}
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div className="space-y-1.5">
+              <label className="text-xs font-semibold text-neutral-700 block">
+                College
+                <span className="ml-1 font-normal text-neutral-400">
+                  (optional)
+                </span>
+              </label>
+
+              <input
+                type="text"
+                value={college}
+                onChange={(e) => setCollege(e.target.value)}
+                placeholder="Example University"
+                maxLength={100}
+                className={fieldClass}
+              />
+            </div>
+
+            <div className="space-y-1.5">
+              <label className="text-xs font-semibold text-neutral-700 block">
+                Department
+                <span className="ml-1 font-normal text-neutral-400">
+                  (optional)
+                </span>
+              </label>
+
+              <input
+                type="text"
+                value={department}
+                onChange={(e) => setDepartment(e.target.value)}
+                placeholder="CSE"
+                maxLength={100}
+                className={fieldClass}
+              />
+            </div>
+          </div>
+
+          <div className="space-y-1.5">
+            <label className="text-xs font-semibold text-neutral-700 block">
+              Phone number
+              <span className="ml-1 font-normal text-neutral-400">
+                (optional)
+              </span>
+            </label>
+
+            <input
+              type="tel"
+              value={phone}
+              onChange={(e) => setPhone(e.target.value)}
+              placeholder="9876543210"
+              inputMode="tel"
+              maxLength={15}
+              className={fieldClass}
+            />
+          </div>
 
           <div className="space-y-1.5">
             <label className="text-xs font-semibold text-neutral-700 block">
@@ -588,7 +659,9 @@ function SignupContent() {
 
           <button
             type="submit"
-            disabled={loading || !isPasswordValid || !passwordsMatch}
+            disabled={
+              loading || !isPasswordValid || !passwordsMatch || !!success
+            }
             className="w-full rounded-lg bg-gradient-to-b from-neutral-800 to-neutral-900 py-3 px-4 text-sm font-semibold text-white shadow-sm transition-all hover:from-neutral-900 hover:to-black hover:shadow-md active:scale-[0.99] disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-neutral-900 focus-visible:ring-offset-2 cursor-pointer border-0 mt-5"
           >
             {loading ? (
@@ -596,6 +669,8 @@ function SignupContent() {
                 <span className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-white/30 border-t-white" />
                 Creating account...
               </span>
+            ) : success ? (
+              "Account Created"
             ) : (
               "Create Account"
             )}

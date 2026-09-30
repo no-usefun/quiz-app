@@ -1,9 +1,5 @@
 "use client";
 
-const API_BASE = (
-  process.env.NEXT_PUBLIC_API_URL || "http://localhost:8080"
-).replace(/\/+$/, "");
-
 import { useState, useEffect, Suspense } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
@@ -12,19 +8,51 @@ import { ENDPOINTS } from "@/lib/api/endpoints";
 
 function isTokenValid(token: string): boolean {
   if (!token) return false;
+
   const parts = token.split(".");
   if (parts.length !== 3) return false;
+
   try {
     let base64 = parts[1].replace(/-/g, "+").replace(/_/g, "/");
     while (base64.length % 4) base64 += "=";
+
     const payload = JSON.parse(atob(base64));
+
     if (payload.exp && Date.now() / 1000 > payload.exp) {
       return false;
     }
+
     return true;
   } catch {
     return false;
   }
+}
+
+function clearStoredSession() {
+  if (typeof window === "undefined") return;
+
+  localStorage.removeItem("dynoquizz_token");
+  localStorage.removeItem("dynoquizz_user");
+  localStorage.removeItem("dynoquizz_role");
+  localStorage.removeItem("dynoquizz_attemptId");
+  localStorage.removeItem("dynoquizz_regNo");
+
+  document.cookie = "dynoquizz_token=; path=/; max-age=0; samesite=lax";
+}
+
+function getRoleDestination(role: string): string {
+  return role === "TEACHER" ? "/dashboard/teacher" : "/dashboard/student";
+}
+
+function normalizeRole(role: unknown): "TEACHER" | "STUDENT" | null {
+  const normalized = String(role ?? "")
+    .trim()
+    .toUpperCase();
+
+  if (normalized === "TEACHER") return "TEACHER";
+  if (normalized === "STUDENT") return "STUDENT";
+
+  return null;
 }
 
 function LoginContent() {
@@ -32,6 +60,7 @@ function LoginContent() {
   const searchParams = useSearchParams();
 
   const qRole = searchParams?.get("role");
+
   const activeRole: "teacher" | "student" | null =
     qRole === "teacher" || qRole === "instructor" || qRole === "educator"
       ? "teacher"
@@ -46,80 +75,190 @@ function LoginContent() {
   const [error, setError] = useState("");
 
   useEffect(() => {
-    if (typeof window !== "undefined") {
-      const token = localStorage.getItem("dynoquizz_token");
-      const role = (localStorage.getItem("dynoquizz_role") || "").toUpperCase();
-      if (token && isTokenValid(token)) {
-        const destination =
-          role === "TEACHER" ? "/dashboard/teacher" : "/dashboard/student";
-        const redirectTarget = searchParams?.get("redirect");
-        window.location.href = redirectTarget || destination;
-      } else if (token) {
-        localStorage.removeItem("dynoquizz_token");
-        localStorage.removeItem("dynoquizz_user");
-        localStorage.removeItem("dynoquizz_role");
-      }
+    if (typeof window === "undefined") return;
+
+    const token = localStorage.getItem("dynoquizz_token");
+
+    if (!token) return;
+
+    if (!isTokenValid(token)) {
+      clearStoredSession();
+      return;
     }
+
+    const redirectTarget = searchParams?.get("redirect");
+
+    // Do not trust cached role as the authority for a live session.
+    // Ask the backend for the canonical authenticated user profile.
+    const validateExistingSession = async () => {
+      try {
+        const res = await fetch(ENDPOINTS.auth.me, {
+          method: "GET",
+          headers: {
+            Authorization: `Bearer ${token}`,
+            "Content-Type": "application/json",
+          },
+          cache: "no-store",
+        });
+
+        if (!res.ok) {
+          clearStoredSession();
+          return;
+        }
+
+        const user = await res.json();
+        const role = normalizeRole(user?.role);
+
+        if (!role) {
+          clearStoredSession();
+          return;
+        }
+
+        localStorage.setItem("dynoquizz_user", JSON.stringify(user));
+        localStorage.setItem("dynoquizz_role", role);
+
+        const destination = getRoleDestination(role);
+        window.location.href = redirectTarget || destination;
+      } catch {
+        // Keep the login page available when the backend cannot be reached.
+      }
+    };
+
+    void validateExistingSession();
   }, [searchParams]);
 
   const handleLoginSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+
     if (!activeRole) return;
 
     setError("");
 
+    const trimmedEmail = email.trim();
+
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    if (!emailRegex.test(email.trim())) {
+
+    if (!emailRegex.test(trimmedEmail)) {
       setError("Please enter a valid email address format.");
+      return;
+    }
+
+    if (!password) {
+      setError("Please enter your password.");
       return;
     }
 
     setLoading(true);
 
     try {
+      // Backend LoginRequest accepts only email + password.
       const res = await fetch(ENDPOINTS.auth.login, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+        },
         body: JSON.stringify({
-          email: email.trim(),
+          email: trimmedEmail,
           password,
         }),
       });
 
       const data = await res.json().catch(() => ({}));
 
-      if (res.ok) {
-        const returnedRole = (
-          data.user?.role ||
-          data.role ||
-          (activeRole === "teacher" ? "TEACHER" : "STUDENT")
-        ).toUpperCase();
-        if (typeof window !== "undefined") {
-          const userObj = data.user || {
-            email: email.trim(),
-            role: returnedRole,
-          };
-          localStorage.setItem("dynoquizz_role", returnedRole);
-          localStorage.setItem("dynoquizz_user", JSON.stringify(userObj));
-          if (data.token) {
-            localStorage.setItem("dynoquizz_token", data.token);
-            document.cookie = `dynoquizz_token=${data.token}; path=/; max-age=86400`;
-          }
-        }
-        router.refresh();
-        const redirectTarget = searchParams?.get("redirect");
-        const destination =
-          returnedRole === "TEACHER"
-            ? "/dashboard/teacher"
-            : "/dashboard/student";
-        window.location.href = redirectTarget || destination;
-      } else {
-        setError(data.message || data.error || "Invalid email or password.");
+      if (!res.ok) {
+        setError(
+          data?.message ||
+            data?.error ||
+            (data?.code === "EMAIL_NOT_VERIFIED"
+              ? "Please verify your email before logging in."
+              : "Invalid email or password."),
+        );
+        return;
       }
+
+      const token =
+        typeof data?.token === "string" && data.token.length > 0
+          ? data.token
+          : typeof data?.accessToken === "string" && data.accessToken.length > 0
+            ? data.accessToken
+            : null;
+
+      if (!token || !isTokenValid(token)) {
+        setError("Login succeeded but no valid session token was returned.");
+        return;
+      }
+
+      // The login response already contains UserSummaryResponse, but /me is
+      // the canonical source for the authenticated user profile and role.
+      let user = data?.user ?? null;
+
+      try {
+        const meRes = await fetch(ENDPOINTS.auth.me, {
+          method: "GET",
+          headers: {
+            Authorization: `Bearer ${token}`,
+            "Content-Type": "application/json",
+          },
+          cache: "no-store",
+        });
+
+        if (meRes.ok) {
+          user = await meRes.json();
+        }
+      } catch {
+        // Fall back to the user object returned by /login.
+      }
+
+      const backendRole = normalizeRole(user?.role);
+
+      if (!backendRole) {
+        clearStoredSession();
+        setError("The backend returned an invalid user role.");
+        return;
+      }
+
+      // The backend determines the actual account role.
+      // The URL role is only the role the user selected on the login screen.
+      const selectedRole = activeRole === "teacher" ? "TEACHER" : "STUDENT";
+
+      if (backendRole !== selectedRole) {
+        clearStoredSession();
+        setError(
+          `This account is registered as ${backendRole === "TEACHER" ? "Instructor" : "Student"}. Please use the corresponding login option.`,
+        );
+        return;
+      }
+
+      if (typeof window !== "undefined") {
+        localStorage.setItem("dynoquizz_token", token);
+        localStorage.setItem("dynoquizz_role", backendRole);
+        localStorage.setItem(
+          "dynoquizz_user",
+          JSON.stringify(user ?? data.user ?? {}),
+        );
+
+        const expiresInMs = Number(data?.expiresIn);
+        const maxAgeSeconds =
+          Number.isFinite(expiresInMs) && expiresInMs > 0
+            ? Math.max(1, Math.floor(expiresInMs / 1000))
+            : 86400;
+
+        document.cookie =
+          `dynoquizz_token=${token}; ` +
+          `path=/; max-age=${maxAgeSeconds}; samesite=lax`;
+      }
+
+      router.refresh();
+
+      const redirectTarget = searchParams?.get("redirect");
+      const destination = getRoleDestination(backendRole);
+
+      window.location.href = redirectTarget || destination;
     } catch (err) {
       console.error("Login connection error:", err);
+
       setError(
-        "Cannot connect to the authentication server. Please ensure the backend is running.",
+        "Cannot connect to the authentication server. Please ensure the backend is reachable.",
       );
     } finally {
       setLoading(false);
@@ -139,6 +278,7 @@ function LoginContent() {
                 Take quizzes with an access code
               </p>
             </div>
+
             <button
               type="button"
               onClick={() => {
@@ -162,6 +302,7 @@ function LoginContent() {
                 Create and manage quizzes
               </p>
             </div>
+
             <button
               type="button"
               onClick={() => {
@@ -190,13 +331,16 @@ function LoginContent() {
             }}
             className="text-xs font-medium text-neutral-400 hover:text-neutral-700 transition-colors mb-4 cursor-pointer bg-transparent border-0 p-0 inline-flex items-center gap-1.5"
           >
-            <ArrowLeft className="h-3.5 w-3.5" /> Back to roles
+            <ArrowLeft className="h-3.5 w-3.5" />
+            Back to roles
           </button>
+
           <h1 className="text-2xl font-bold tracking-tight text-neutral-900">
             {activeRole === "teacher"
               ? "Log in as Instructor"
               : "Log in as Student"}
           </h1>
+
           <p className="text-sm text-neutral-500 mt-1">
             Enter your credentials to continue.
           </p>
@@ -213,6 +357,7 @@ function LoginContent() {
             <label className="text-xs font-bold text-neutral-700 block">
               Email Address
             </label>
+
             <input
               type="email"
               value={email}
@@ -229,10 +374,12 @@ function LoginContent() {
               <label className="text-xs font-bold text-neutral-700 block">
                 Password
               </label>
+
               <span className="text-xs text-neutral-400 cursor-not-allowed hover:text-neutral-600 transition-colors">
                 Forgot password?
               </span>
             </div>
+
             <div className="relative">
               <input
                 type={showPassword ? "text" : "password"}
@@ -242,6 +389,7 @@ function LoginContent() {
                 required
                 className="w-full rounded-lg border border-neutral-200 bg-neutral-50 px-3.5 py-2.5 pr-10 text-sm text-neutral-900 outline-none focus:bg-white focus:border-neutral-900 focus:ring-1 focus:ring-neutral-900 transition-all placeholder:text-neutral-400"
               />
+
               <button
                 type="button"
                 onClick={() => setShowPassword(!showPassword)}

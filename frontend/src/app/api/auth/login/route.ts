@@ -1,73 +1,155 @@
 import { NextResponse } from "next/server";
-import { signJWT } from "@/lib/jwt";
-import { cookies } from "next/headers";
 
 const API_BASE = (
   process.env.NEXT_PUBLIC_API_URL || "http://localhost:8080"
 ).replace(/\/+$/, "");
 
+function getErrorMessage(data: any): string {
+  if (typeof data?.message === "string" && data.message.trim()) {
+    return data.message;
+  }
+
+  if (typeof data?.error === "string" && data.error.trim()) {
+    return data.error;
+  }
+
+  return "Login failed.";
+}
+
 export async function POST(request: Request) {
+  let body: { email?: unknown; password?: unknown };
+
   try {
-    const { email, password, role, name } = await request.json();
-    const normalizedRole = (role || "STUDENT").toUpperCase();
+    body = await request.json();
+  } catch {
+    return NextResponse.json(
+      {
+        success: false,
+        error: "Invalid request body.",
+      },
+      { status: 400 },
+    );
+  }
 
-    // 1. Attempt Spring Boot backend authentication
-    try {
-      const backendRes = await fetch(`${API_BASE}/api/v1/auth/login`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email, password }),
-      });
+  const email = typeof body.email === "string" ? body.email.trim() : "";
+  const password = typeof body.password === "string" ? body.password : "";
 
-      if (backendRes.ok) {
-        const backendData = await backendRes.json();
-        const returnedRole = (backendData.role || backendData.user?.role || normalizedRole).toUpperCase();
-        const finalToken = backendData.token || backendData.accessToken;
+  if (!email || !password) {
+    return NextResponse.json(
+      {
+        success: false,
+        error: "Email and password are required.",
+      },
+      { status: 400 },
+    );
+  }
 
-        if (!finalToken) {
-          return NextResponse.json(
-            { success: false, error: "Authentication server did not return a session token." },
-            { status: 500 }
-          );
-        }
+  try {
+    /*
+     * This route is only a compatibility proxy for the legacy AuthForm.
+     *
+     * Spring Boot owns:
+     * - credential validation;
+     * - email verification;
+     * - account status;
+     * - JWT generation;
+     * - authenticated user/role.
+     *
+     * Do NOT generate another JWT in Next.js.
+     */
+    const backendResponse = await fetch(`${API_BASE}/api/v1/auth/login`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Accept: "application/json",
+      },
+      body: JSON.stringify({
+        email,
+        password,
+      }),
+      cache: "no-store",
+    });
 
-        const payload = {
-          userId: backendData.user?.id || backendData.userId || email,
-          email,
-          role: returnedRole,
-          name: backendData.name || backendData.user?.fullName || backendData.user?.firstName || name || "User",
-          exp: Math.floor(Date.now() / 1000) + 60 * 60 * 24,
-        };
+    const data = await backendResponse.json().catch(() => ({}));
 
-        const cookieStore = await cookies();
-        cookieStore.set("dynoquizz_token", finalToken, {
-          httpOnly: false,
-          secure: process.env.NODE_ENV === "production",
-          sameSite: "lax",
-          maxAge: 60 * 60 * 24,
-          path: "/",
-        });
-
-        return NextResponse.json({
-          success: true,
-          token: finalToken,
-          user: payload,
-          role: returnedRole,
-        });
-      } else {
-        const errorData = await backendRes.json().catch(() => ({}));
-        return NextResponse.json(
-          { success: false, error: errorData.message || errorData.error || "Invalid email or password." },
-          { status: backendRes.status },
-        );
-      }
-    } catch {
+    if (!backendResponse.ok) {
       return NextResponse.json(
-        { success: false, error: "Cannot connect to the authentication server." },
-        { status: 503 }
+        {
+          success: false,
+          error: getErrorMessage(data),
+          message: data?.message,
+          code: data?.error,
+        },
+        {
+          status: backendResponse.status,
+        },
       );
     }
-  } catch {
-    return NextResponse.json({ success: false, error: "Invalid credentials." }, { status: 400 });
+
+    const token = typeof data?.token === "string" ? data.token.trim() : "";
+
+    if (!token) {
+      return NextResponse.json(
+        {
+          success: false,
+          error: "Authentication server did not return a session token.",
+        },
+        { status: 502 },
+      );
+    }
+
+    const user = data?.user ?? null;
+    const role =
+      typeof user?.role === "string" ? user.role.toUpperCase() : undefined;
+
+    /*
+     * AuthResponse.expiresIn is returned by the backend in milliseconds.
+     * Convert it to cookie max-age seconds, with a safe one-day fallback.
+     */
+    const expiresInMs =
+      Number.isFinite(Number(data?.expiresIn)) && Number(data.expiresIn) > 0
+        ? Number(data.expiresIn)
+        : 24 * 60 * 60 * 1000;
+
+    const maxAgeSeconds = Math.max(1, Math.floor(expiresInMs / 1000));
+
+    const response = NextResponse.json(
+      {
+        success: true,
+        token,
+        user,
+        role,
+        tokenType: data?.tokenType || "Bearer",
+        expiresIn: data?.expiresIn,
+      },
+      { status: backendResponse.status },
+    );
+
+    /*
+     * Keep the cookie readable because the current route-protection proxy
+     * and browser session helpers use dynoquizz_token.
+     *
+     * The token itself is still created and cryptographically signed only
+     * by Spring Boot.
+     */
+    response.cookies.set("dynoquizz_token", token, {
+      httpOnly: false,
+      secure: process.env.NODE_ENV === "production",
+      sameSite: "lax",
+      maxAge: maxAgeSeconds,
+      path: "/",
+    });
+
+    return response;
+  } catch (error) {
+    console.error("Authentication proxy error:", error);
+
+    return NextResponse.json(
+      {
+        success: false,
+        error: "Cannot connect to the authentication server.",
+      },
+      { status: 503 },
+    );
   }
 }

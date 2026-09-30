@@ -19,11 +19,34 @@ import {
   FileQuestion,
 } from "lucide-react";
 import { useSession } from "@/hooks/useSession";
-import { resolveQuizIdentifiers, getCachedQuizzes } from "@/lib/quizCache";
+import { ENDPOINTS } from "@/lib/api/endpoints";
 
 const API_BASE = (
   process.env.NEXT_PUBLIC_API_URL || "http://localhost:8080"
 ).replace(/\/+$/, "");
+
+// Local cache fallback replacing the removed quizCache module.
+function getCachedQuizzes(teacherId?: number | string | null): any[] {
+  if (typeof window === "undefined") return [];
+
+  const keys = [
+    teacherId != null ? `dynoquizz_quizzes_${teacherId}` : "",
+    "dynoquizz_teacher_quizzes",
+  ].filter(Boolean);
+
+  for (const key of keys) {
+    try {
+      const raw = localStorage.getItem(key);
+      if (!raw) continue;
+      const parsed = JSON.parse(raw);
+      if (Array.isArray(parsed)) return parsed;
+    } catch {
+      // Ignore invalid cache and continue with the next source.
+    }
+  }
+
+  return [];
+}
 
 function formatForDateTimeInput(
   val: string | number | null | undefined,
@@ -600,10 +623,9 @@ function CreateAssessmentContent() {
         };
 
         // 1. Primary: GET /api/v1/teacher/quizzes/${draftId}
-        const directRes = await fetch(
-          `${API_BASE}/api/v1/teacher/quizzes/${draftId}`,
-          { headers },
-        ).catch(() => null);
+        const directRes = await fetch(ENDPOINTS.teacher.quizDetail(draftId), {
+          headers,
+        }).catch(() => null);
 
         if (directRes && directRes.ok) {
           data = await directRes.json();
@@ -735,12 +757,9 @@ function CreateAssessmentContent() {
         // If still no questions, resolve access code from teacher quizzes roster
         if (rawQuestions.length === 0) {
           try {
-            const rosterRes = await fetch(
-              `${API_BASE}/api/v1/teacher/quizzes`,
-              {
-                headers,
-              },
-            );
+            const rosterRes = await fetch(ENDPOINTS.teacher.quizzes, {
+              headers,
+            });
             if (rosterRes.ok) {
               const rData = await rosterRes.json();
               const list = Array.isArray(rData)
@@ -1531,17 +1550,14 @@ function CreateAssessmentContent() {
           ...buildUpdatePayload(),
         };
 
-        const settingsRes = await fetch(
-          `${API_BASE}/api/v1/teacher/quizzes/${draftId}/settings`,
-          {
-            method: "PUT",
-            headers: {
-              "Content-Type": "application/json",
-              ...(token ? { Authorization: `Bearer ${token}` } : {}),
-            },
-            body: JSON.stringify(settingsPayload),
+        const settingsRes = await fetch(ENDPOINTS.teacher.settings(draftId), {
+          method: "PUT",
+          headers: {
+            "Content-Type": "application/json",
+            ...(token ? { Authorization: `Bearer ${token}` } : {}),
           },
-        );
+          body: JSON.stringify(settingsPayload),
+        });
 
         if (!settingsRes.ok) {
           const errData = await settingsRes.json().catch(() => ({}));
@@ -1641,7 +1657,7 @@ function CreateAssessmentContent() {
       // ── Publish: PUT /api/v1/teacher/quizzes/{quizId}/publish ────────────
       try {
         const pubRes = await fetch(
-          `${API_BASE}/api/v1/teacher/quizzes/${numericQuizId}/publish`,
+          ENDPOINTS.teacher.publishQuiz(numericQuizId),
           {
             method: "PUT",
             headers: {
@@ -1889,7 +1905,7 @@ function CreateAssessmentContent() {
 
     try {
       const pubRes = await fetch(
-        `${API_BASE}/api/v1/teacher/quizzes/${publishRetryData.quizId}/publish`,
+        ENDPOINTS.teacher.publishQuiz(publishRetryData.quizId),
         {
           method: "PUT",
           headers: {

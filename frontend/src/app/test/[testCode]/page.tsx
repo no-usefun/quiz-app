@@ -300,7 +300,7 @@ export default function TestArenaPage({
         }
 
         /*
-         * Fallback: fetch the package directly if the lobby cache
+         * Fallback: fetch the student-safe package directly if the lobby cache
          * is unavailable. This keeps the Arena resilient on refresh.
          */
         if (!packageData) {
@@ -313,7 +313,7 @@ export default function TestArenaPage({
           }
 
           const res = await fetch(
-            `${API_BASE}/api/v1/quizzes/code/${cleanCode}/package`,
+            `${API_BASE}/api/v1/student/quizzes/code/${cleanCode}/package`,
             {
               method: "GET",
               headers: {

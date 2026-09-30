@@ -376,7 +376,7 @@ function LobbyInner({ testCode }: { testCode: string }) {
 
       /*
        * Step 2: Reuse a valid cached package if one exists.
-       * Otherwise download the authoritative package from the backend.
+       * Otherwise download the authoritative student-safe package from the backend.
        */
       const packageKey = `dynoquizz_pkg_${cleanCode}`;
       let packageData: any = null;
@@ -404,7 +404,7 @@ function LobbyInner({ testCode }: { testCode: string }) {
 
       if (!packageData) {
         const packageRes = await fetch(
-          `${API_BASE}/api/v1/quizzes/code/${cleanCode}/package`,
+          `${API_BASE}/api/v1/student/quizzes/code/${cleanCode}/package`,
           {
             method: "GET",
             headers: {

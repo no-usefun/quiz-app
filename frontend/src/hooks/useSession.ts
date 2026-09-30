@@ -1,243 +1,426 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { ENDPOINTS } from "@/lib/api/endpoints";
 
-const API_BASE = (
-  process.env.NEXT_PUBLIC_API_URL || "http://localhost:8080"
-).replace(/\/+$/, "");
+type SessionUser = {
+  id?: number;
+  userId?: number;
+  firstName?: string;
+  lastName?: string;
+  fullName?: string;
+  name?: string;
+  email?: string;
+  role?: string;
+  college?: string;
+  department?: string;
+  institution?: string;
+  program?: string;
+  registrationNo?: string;
+  phone?: string;
+  authProvider?: string;
+  profileImage?: string;
+  verified?: boolean;
+  active?: boolean;
+  [key: string]: unknown;
+};
+
+type LoginCredentials = {
+  email: string;
+  password: string;
+  role?: string;
+};
+
+type SignupPayload = {
+  firstName: string;
+  lastName?: string;
+  email: string;
+  password: string;
+  role?: string;
+  college?: string;
+  department?: string;
+  registrationNo?: string;
+  phone?: string;
+};
+
+function getStoredToken(): string | null {
+  if (typeof window === "undefined") return null;
+
+  const primaryToken = localStorage.getItem("dynoquizz_token");
+  const legacyToken = localStorage.getItem("token");
+  const rawToken = primaryToken || legacyToken;
+
+  if (!rawToken) return null;
+
+  const cleanToken = rawToken.replace(/^["']|["']$/g, "").trim();
+
+  if (!cleanToken || cleanToken === "undefined" || cleanToken === "null") {
+    localStorage.removeItem("dynoquizz_token");
+    localStorage.removeItem("token");
+    return null;
+  }
+
+  if (!primaryToken || primaryToken !== cleanToken) {
+    localStorage.setItem("dynoquizz_token", cleanToken);
+  }
+
+  if (legacyToken) {
+    localStorage.removeItem("token");
+  }
+
+  return cleanToken;
+}
+
+function normalizeUser(data: SessionUser): SessionUser {
+  const fullName =
+    data.fullName ||
+    `${data.firstName || ""} ${data.lastName || ""}`.trim() ||
+    data.name ||
+    "";
+
+  const role = data.role ? String(data.role).toUpperCase() : undefined;
+
+  return {
+    ...data,
+    id: data.id ?? data.userId,
+    role,
+    name: fullName,
+    institution: data.college ?? data.institution ?? "",
+    program: data.department ?? data.program ?? "",
+  };
+}
+
+function saveSessionUser(user: SessionUser) {
+  if (typeof window === "undefined") return;
+
+  localStorage.setItem("dynoquizz_user", JSON.stringify(user));
+
+  if (user.role) {
+    localStorage.setItem("dynoquizz_role", String(user.role).toUpperCase());
+  }
+
+  if (user.registrationNo) {
+    localStorage.setItem(
+      "dynoquizz_regNo",
+      String(user.registrationNo).trim().toUpperCase(),
+    );
+  } else {
+    localStorage.removeItem("dynoquizz_regNo");
+  }
+}
+
+function clearSessionStorage() {
+  if (typeof window === "undefined") return;
+
+  localStorage.removeItem("dynoquizz_token");
+  localStorage.removeItem("token");
+  localStorage.removeItem("dynoquizz_user");
+  localStorage.removeItem("dynoquizz_role");
+  localStorage.removeItem("dynoquizz_regNo");
+  localStorage.removeItem("dynoquizz_attemptId");
+
+  for (const key of Object.keys(localStorage)) {
+    if (
+      key.startsWith("dynoquizz_active_test_") ||
+      key.startsWith("dynoquizz_attemptId_") ||
+      key.startsWith("dynoquizz_attemptTiming_") ||
+      key.startsWith("dynoquizz_pkg_")
+    ) {
+      localStorage.removeItem(key);
+    }
+  }
+
+  sessionStorage.clear();
+
+  document.cookie =
+    "dynoquizz_token=; expires=Thu, 01 Jan 1970 00:00:00 GMT; path=/;";
+}
+
+function persistToken(token: string) {
+  if (typeof window === "undefined") return;
+
+  const cleanToken = token.replace(/^["']|["']$/g, "").trim();
+
+  if (!cleanToken || cleanToken === "undefined" || cleanToken === "null") {
+    throw new Error("Authentication server returned an invalid token.");
+  }
+
+  localStorage.setItem("dynoquizz_token", cleanToken);
+  localStorage.removeItem("token");
+
+  document.cookie = `dynoquizz_token=${encodeURIComponent(
+    cleanToken,
+  )}; path=/; max-age=86400`;
+}
 
 export function useSession() {
   const router = useRouter();
-  const [user, setUser] = useState<any | null>(null);
+  const [user, setUser] = useState<SessionUser | null>(null);
   const [loading, setLoading] = useState(true);
 
-  const fetchSession = async () => {
-    try {
-      const rawToken =
-        typeof window !== "undefined"
-          ? localStorage.getItem("dynoquizz_token") || localStorage.getItem("token")
-          : null;
-      const storedUser =
-        typeof window !== "undefined"
-          ? localStorage.getItem("dynoquizz_user")
-          : null;
+  const logout = useCallback(
+    (redirect = true) => {
+      clearSessionStorage();
+      setUser(null);
 
-      // 1. Aggressive Token Pre-Validation: Guard against undefined, null, or empty strings
-      if (!rawToken || rawToken === "undefined" || rawToken === "null" || rawToken.trim() === "") {
-        if (typeof window !== "undefined") {
-          localStorage.removeItem("dynoquizz_token");
-          localStorage.removeItem("token");
-        }
-        setUser(null);
-        setLoading(false);
-        return; // DO NOT FIRE THE FETCH
+      if (
+        redirect &&
+        typeof window !== "undefined" &&
+        window.location.pathname !== "/login"
+      ) {
+        router.replace("/login");
       }
+    },
+    [router],
+  );
 
-      // 2. Sanitize the Valid Token: Strip accidental surrounding quotes
-      const cleanToken = rawToken.replace(/^["']|["']$/g, "").trim();
+  const fetchSession = useCallback(async (): Promise<SessionUser | null> => {
+    const token = getStoredToken();
 
-      if (!cleanToken || cleanToken === "undefined" || cleanToken === "null") {
-        if (typeof window !== "undefined") {
-          localStorage.removeItem("dynoquizz_token");
-          localStorage.removeItem("token");
-        }
-        setUser(null);
-        setLoading(false);
-        return; // DO NOT FIRE THE FETCH
-      }
+    if (!token) {
+      setUser(null);
+      setLoading(false);
+      return null;
+    }
 
-      // 3. Optimistic Load: Instantly load cached user to prevent UI lag
+    if (typeof window !== "undefined") {
+      const storedUser = localStorage.getItem("dynoquizz_user");
+
       if (storedUser) {
         try {
-          setUser(JSON.parse(storedUser));
-        } catch (e) {
-          // ignore
+          setUser(normalizeUser(JSON.parse(storedUser)));
+        } catch {
+          localStorage.removeItem("dynoquizz_user");
         }
       }
+    }
 
-      // 4. Background Verification: Ping the live backend for fresh data
-      const res = await fetch(ENDPOINTS.auth.me, {
+    try {
+      const response = await fetch(ENDPOINTS.auth.me, {
         method: "GET",
         headers: {
-          Authorization: `Bearer ${cleanToken}`,
+          Authorization: `Bearer ${token}`,
           Accept: "application/json",
         },
+        cache: "no-store",
       });
 
-      if (res.ok) {
-        const liveUserData = await res.json();
-        const normalizedUser = {
-          ...liveUserData,
-          name: liveUserData.fullName || `${liveUserData.firstName || ""} ${liveUserData.lastName || ""}`.trim() || liveUserData.name,
-          institution: liveUserData.college || liveUserData.institution || "",
-          program: liveUserData.department || liveUserData.program || "",
-        };
-        setUser(normalizedUser);
+      if (response.ok) {
+        const data: SessionUser = await response.json();
+        const normalizedUser = normalizeUser(data);
 
-        // Keep local cache synced with live database data
-        if (typeof window !== "undefined") {
-          localStorage.setItem("dynoquizz_user", JSON.stringify(normalizedUser));
-          if (liveUserData.role) {
-            localStorage.setItem("dynoquizz_role", liveUserData.role.toUpperCase());
-          }
-          if (liveUserData.registrationNo) {
-            localStorage.setItem(
-              "dynoquizz_regNo",
-              liveUserData.registrationNo,
-            );
-          }
+        if (!normalizedUser.role) {
+          throw new Error("Authenticated user has no role.");
         }
-      } else if (res.status === 401 || res.status === 403 || res.status === 400) {
-        // 5. Security: If token is rejected by backend, clear session
-        await logout();
+
+        if (normalizedUser.active === false) {
+          throw new Error("Your account is disabled.");
+        }
+
+        setUser(normalizedUser);
+        saveSessionUser(normalizedUser);
+
+        return normalizedUser;
       }
-    } catch (err) {
-      console.warn("Session verification network error. Relying on cache.");
+
+      if (
+        response.status === 400 ||
+        response.status === 401 ||
+        response.status === 403
+      ) {
+        clearSessionStorage();
+        setUser(null);
+        return null;
+      }
+
+      return null;
+    } catch (error) {
+      console.warn("Session verification failed:", error);
+
+      /*
+       * Keep the cached user when the backend is temporarily unreachable.
+       * A rejected authentication response above still clears the session.
+       */
+      return null;
     } finally {
       setLoading(false);
     }
-  };
-
-  useEffect(() => {
-    fetchSession();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const login = async (credentials: {
-    email: string;
-    password: string;
-    role?: string;
-  }) => {
-    try {
-      const res = await fetch(ENDPOINTS.auth.login, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          email: credentials.email.trim(),
-          password: credentials.password,
-        }),
-      });
+  useEffect(() => {
+    void fetchSession();
+  }, [fetchSession]);
 
-      const data = await res.json().catch(() => ({}));
+  const login = useCallback(async (credentials: LoginCredentials) => {
+    const response = await fetch(ENDPOINTS.auth.login, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Accept: "application/json",
+      },
+      body: JSON.stringify({
+        email: credentials.email.trim(),
+        password: credentials.password,
+      }),
+    });
 
-      if (res.ok) {
-        const returnedRole = (
-          data.user?.role ||
-          data.role ||
-          credentials.role ||
-          "STUDENT"
-        ).toUpperCase();
-        const userObj = data.user || {
-          email: credentials.email,
-          role: returnedRole,
-        };
+    const data = await response.json().catch(() => ({}));
 
-        if (typeof window !== "undefined") {
-          localStorage.setItem("dynoquizz_user", JSON.stringify(userObj));
-          localStorage.setItem("dynoquizz_role", returnedRole);
-          if (data.token) {
-            localStorage.setItem("dynoquizz_token", data.token);
-            document.cookie = `dynoquizz_token=${data.token}; path=/; max-age=86400`;
-          }
-        }
-        setUser(userObj);
-        return userObj;
-      }
-      throw new Error(
-        data.message || data.error || "Invalid email or password.",
-      );
-    } catch (e: any) {
-      throw new Error(e.message || "Failed to log in.");
+    if (!response.ok) {
+      const message =
+        data?.message || data?.error || "Invalid email or password.";
+
+      throw new Error(message);
     }
-  };
 
-  const signup = async (payload: {
-    firstName: string;
-    lastName: string;
-    email: string;
-    password: string;
-    role?: string;
-    registrationNo?: string;
-  }) => {
-    try {
-      const backendRole = (payload.role || "STUDENT").toUpperCase();
+    const token = typeof data?.token === "string" ? data.token : "";
 
-      const res = await fetch(ENDPOINTS.auth.signup, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          firstName: payload.firstName.trim(),
-          lastName: payload.lastName.trim(),
+    if (!token) {
+      throw new Error(
+        "Login succeeded but the authentication token was not returned.",
+      );
+    }
+
+    persistToken(token);
+
+    /*
+     * /auth/login already returns UserSummaryResponse, but /auth/me is
+     * the canonical session source and also confirms the token works.
+     */
+    const meResponse = await fetch(ENDPOINTS.auth.me, {
+      method: "GET",
+      headers: {
+        Authorization: `Bearer ${token}`,
+        Accept: "application/json",
+      },
+      cache: "no-store",
+    });
+
+    const meData = await meResponse.json().catch(() => ({}));
+
+    if (!meResponse.ok) {
+      clearSessionStorage();
+      throw new Error(
+        meData?.message ||
+          meData?.error ||
+          "Unable to verify the authenticated session.",
+      );
+    }
+
+    const normalizedUser = normalizeUser(meData);
+
+    if (!normalizedUser.role) {
+      clearSessionStorage();
+      throw new Error("Authenticated account has no valid role.");
+    }
+
+    if (normalizedUser.active === false) {
+      clearSessionStorage();
+      throw new Error("Your account is disabled.");
+    }
+
+    if (
+      credentials.role &&
+      String(normalizedUser.role).toUpperCase() !==
+        String(credentials.role).toUpperCase()
+    ) {
+      clearSessionStorage();
+      throw new Error(
+        `This account is registered as ${String(
+          normalizedUser.role,
+        ).toLowerCase()}, not ${String(credentials.role).toLowerCase()}.`,
+      );
+    }
+
+    setUser(normalizedUser);
+    saveSessionUser(normalizedUser);
+
+    return normalizedUser;
+  }, []);
+
+  const signup = useCallback(async (payload: SignupPayload) => {
+    const backendRole = String(payload.role || "STUDENT").toUpperCase();
+
+    if (backendRole !== "STUDENT" && backendRole !== "TEACHER") {
+      throw new Error("Role must be STUDENT or TEACHER.");
+    }
+
+    if (backendRole === "STUDENT" && !payload.registrationNo?.trim()) {
+      throw new Error("Registration number is required for students.");
+    }
+
+    const requestBody = {
+      firstName: payload.firstName.trim(),
+      lastName: payload.lastName?.trim() || "",
+      email: payload.email.trim(),
+      password: payload.password,
+      role: backendRole,
+      ...(payload.college?.trim() ? { college: payload.college.trim() } : {}),
+      ...(payload.department?.trim()
+        ? { department: payload.department.trim() }
+        : {}),
+      ...(backendRole === "STUDENT" && payload.registrationNo?.trim()
+        ? {
+            registrationNo: payload.registrationNo.trim().toUpperCase(),
+          }
+        : {}),
+      ...(payload.phone?.trim() ? { phone: payload.phone.trim() } : {}),
+    };
+
+    const response = await fetch(ENDPOINTS.auth.signup, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Accept: "application/json",
+      },
+      body: JSON.stringify(requestBody),
+    });
+
+    const data = await response.json().catch(() => ({}));
+
+    if (!response.ok) {
+      throw new Error(
+        data?.message || data?.error || "Failed to create account.",
+      );
+    }
+
+    const returnedUser = data?.user
+      ? normalizeUser(data.user)
+      : normalizeUser({
           email: payload.email.trim(),
-          password: payload.password,
+          firstName: payload.firstName.trim(),
+          lastName: payload.lastName?.trim() || "",
           role: backendRole,
-          ...(backendRole === "STUDENT" && payload.registrationNo
-            ? { registrationNo: payload.registrationNo.trim().toUpperCase() }
-            : {}),
-        }),
-      });
+          registrationNo:
+            backendRole === "STUDENT"
+              ? payload.registrationNo?.trim().toUpperCase()
+              : undefined,
+        });
 
-      const data = await res.json().catch(() => ({}));
-
-      if (res.ok) {
-        const returnedRole = (
-          data.user?.role ||
-          data.role ||
-          backendRole
-        ).toUpperCase();
-        const userObj = data.user || {
-          email: payload.email,
-          role: returnedRole,
-          name: `${payload.firstName.trim()} ${payload.lastName.trim()}`,
-        };
-
-        if (typeof window !== "undefined") {
-          localStorage.setItem("dynoquizz_user", JSON.stringify(userObj));
-          localStorage.setItem("dynoquizz_role", returnedRole);
-          if (data.token) {
-            localStorage.setItem("dynoquizz_token", data.token);
-            document.cookie = `dynoquizz_token=${data.token}; path=/; max-age=86400`;
-          }
-        }
-        setUser(userObj);
-        return userObj;
-      }
-      throw new Error(
-        data.error || data.message || "Failed to create account.",
-      );
-    } catch (e: any) {
-      throw new Error(e.message || "Failed to sign up.");
-    }
-  };
-
-  const logout = async () => {
-    // Optional: If backend adds an invalidation endpoint later, ping it here
-    if (typeof window !== "undefined") {
-      localStorage.removeItem("dynoquizz_token");
-      localStorage.removeItem("dynoquizz_user");
-      localStorage.removeItem("dynoquizz_role");
-      localStorage.removeItem("dynoquizz_regNo");
-
-      // Clear any active test caches to prevent data leaking between users
-      const keys = Object.keys(localStorage);
-      for (const key of keys) {
-        if (
-          key.startsWith("dynoquizz_active_test_") ||
-          key.startsWith("dynoquizz_attemptId_")
-        ) {
-          localStorage.removeItem(key);
-        }
-      }
-
-      sessionStorage.clear();
-      document.cookie =
-        "dynoquizz_token=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;";
-    }
+    /*
+     * The current backend returns SignupResponse, not AuthResponse:
+     * signup creates the account and requires email verification.
+     * Therefore signup must NOT create an authenticated frontend session.
+     */
+    clearSessionStorage();
     setUser(null);
-    window.location.href = "/login";
-  };
 
-  return { user, loading, login, signup, logout, refreshSession: fetchSession };
+    return {
+      user: returnedUser,
+      verificationRequired: data?.verificationRequired === true,
+      message:
+        data?.message ||
+        "Account created. Please verify your email before logging in.",
+    };
+  }, []);
+
+  return {
+    user,
+    loading,
+    login,
+    signup,
+    logout,
+    refreshSession: fetchSession,
+  };
 }

@@ -16,10 +16,7 @@ import {
 import { TopNav } from "@/components/TopNav";
 import { useSession } from "@/hooks/useSession";
 import { computeQuizDisplayState, QuizDisplayState } from "@/lib/quizStatus";
-
-const API_BASE = (
-  process.env.NEXT_PUBLIC_API_URL || "http://localhost:8080"
-).replace(/\/+$/, "");
+import { ENDPOINTS } from "@/lib/api/endpoints";
 
 export default function TeacherDashboard() {
   const router = useRouter();
@@ -95,7 +92,7 @@ export default function TeacherDashboard() {
     }
 
     try {
-      const res = await fetch(`${API_BASE}/api/v1/teacher/quizzes`, {
+      const res = await fetch(ENDPOINTS.teacher.quizzes, {
         headers: {
           Authorization: `Bearer ${token}`,
           "Content-Type": "application/json",
@@ -154,29 +151,28 @@ export default function TeacherDashboard() {
 
   const handlePublishQuiz = async (quizId: number) => {
     setActionLoading(true);
+    setActionError(null);
     const token =
       typeof window !== "undefined"
         ? localStorage.getItem("dynoquizz_token")
         : null;
 
     try {
-      const res = await fetch(
-        `${API_BASE}/api/v1/teacher/quizzes/${quizId}/publish`,
-        {
-          method: "PUT",
-          headers: {
-            ...(token ? { Authorization: `Bearer ${token}` } : {}),
-          },
+      const res = await fetch(ENDPOINTS.teacher.publishQuiz(quizId), {
+        method: "PUT",
+        headers: {
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
         },
-      );
+      });
       if (!res.ok) {
         const err = await res.json().catch(() => ({}));
         throw new Error(
           err.message || err.error || `Publish failed (${res.status})`,
         );
       }
-      const updatedQuiz = await res.json().catch(() => null);
-      if (updatedQuiz) replaceQuizInState(updatedQuiz);
+      // This backend action returns 204 No Content.
+      // Refresh the roster to reflect the authoritative server state.
+      await fetchQuizzes();
     } catch (err: any) {
       alert(`Could not publish quiz: ${err.message}`);
     } finally {
@@ -195,7 +191,7 @@ export default function TeacherDashboard() {
 
     try {
       const res = await fetch(
-        `${API_BASE}/api/v1/teacher/quizzes/${quizToEnd.quizId}/complete`,
+        ENDPOINTS.teacher.completeQuiz(quizToEnd.quizId),
         {
           method: "PUT",
           headers: {
@@ -221,29 +217,28 @@ export default function TeacherDashboard() {
 
   const handlePublishResults = async (quizId: number) => {
     setActionLoading(true);
+    setActionError(null);
     const token =
       typeof window !== "undefined"
         ? localStorage.getItem("dynoquizz_token")
         : null;
 
     try {
-      const res = await fetch(
-        `${API_BASE}/api/v1/teacher/quizzes/${quizId}/results/publish`,
-        {
-          method: "PUT",
-          headers: {
-            ...(token ? { Authorization: `Bearer ${token}` } : {}),
-          },
+      const res = await fetch(ENDPOINTS.teacher.publishResults(quizId), {
+        method: "PUT",
+        headers: {
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
         },
-      );
+      });
       if (!res.ok) {
         const err = await res.json().catch(() => ({}));
         throw new Error(
           err.message || err.error || `Publish results failed (${res.status})`,
         );
       }
-      const updatedQuiz = await res.json().catch(() => null);
-      if (updatedQuiz) replaceQuizInState(updatedQuiz);
+      // This backend action returns 204 No Content.
+      // Refresh the roster to reflect the authoritative server state.
+      await fetchQuizzes();
     } catch (err: any) {
       alert(`Could not publish results: ${err.message}`);
     } finally {
@@ -253,21 +248,19 @@ export default function TeacherDashboard() {
 
   const handleUnpublishResults = async (quizId: number) => {
     setActionLoading(true);
+    setActionError(null);
     const token =
       typeof window !== "undefined"
         ? localStorage.getItem("dynoquizz_token")
         : null;
 
     try {
-      const res = await fetch(
-        `${API_BASE}/api/v1/teacher/quizzes/${quizId}/results/unpublish`,
-        {
-          method: "PUT",
-          headers: {
-            ...(token ? { Authorization: `Bearer ${token}` } : {}),
-          },
+      const res = await fetch(ENDPOINTS.teacher.unpublishResults(quizId), {
+        method: "PUT",
+        headers: {
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
         },
-      );
+      });
       if (!res.ok) {
         const err = await res.json().catch(() => ({}));
         throw new Error(
@@ -276,8 +269,9 @@ export default function TeacherDashboard() {
             `Unpublish results failed (${res.status})`,
         );
       }
-      const updatedQuiz = await res.json().catch(() => null);
-      if (updatedQuiz) replaceQuizInState(updatedQuiz);
+      // This backend action returns 204 No Content.
+      // Refresh the roster to reflect the authoritative server state.
+      await fetchQuizzes();
     } catch (err: any) {
       alert(`Could not unpublish results: ${err.message}`);
     } finally {

@@ -1,134 +1,110 @@
-import { QuizTest, StudentTestResult } from "./types";
+/**
+ * Local storage compatibility layer.
+ *
+ * Quiz definitions, quiz settings, submissions, scores, and published
+ * results are backend-owned data. They must not be persisted as an
+ * authoritative local database in:
+ *
+ *   dynoquizz_tests
+ *   dynoquizz_results
+ *   dynoquizz_result_<code>
+ *
+ * The functions below are kept as no-op compatibility exports so any
+ * remaining legacy import does not break the frontend build. New code
+ * should read/write through the API instead.
+ */
+
+import type { QuizTest, StudentTestResult } from "./types";
 
 const TESTS_KEY = "dynoquizz_tests";
 const RESULTS_KEY = "dynoquizz_results";
+const RESULT_PREFIX = "dynoquizz_result_";
 
-// ─── Storage Utility Functions ────────────────────────────────────────────────
+function isBrowser(): boolean {
+  return typeof window !== "undefined";
+}
 
+/**
+ * Remove the old client-side quiz/result database.
+ *
+ * Safe to call during logout or application migration. It does not touch
+ * the authenticated token, user profile, or active attempt state.
+ */
+export function clearLegacyQuizStorage(): void {
+  if (!isBrowser()) return;
+
+  try {
+    localStorage.removeItem(TESTS_KEY);
+    localStorage.removeItem(RESULTS_KEY);
+
+    for (const key of Object.keys(localStorage)) {
+      if (key.startsWith(RESULT_PREFIX)) {
+        localStorage.removeItem(key);
+      }
+    }
+  } catch (error) {
+    console.warn("Unable to clear legacy quiz storage:", error);
+  }
+}
+
+/**
+ * @deprecated Quiz definitions must come from the teacher API.
+ */
 export function getStoredTests(): QuizTest[] {
-  if (typeof window === "undefined") return [];
-  try {
-    const raw = localStorage.getItem(TESTS_KEY);
-    if (!raw) return [];
-    const parsed: QuizTest[] = JSON.parse(raw);
-    return Array.isArray(parsed) ? parsed : [];
-  } catch (e) {
-    console.error("Error reading dynoquizz_tests from localStorage:", e);
-    return [];
-  }
+  return [];
 }
 
-export function saveTest(test: QuizTest): void {
-  if (typeof window === "undefined") return;
-  try {
-    const current = getStoredTests();
-    const updated = [test, ...current.filter((t) => t.testCode.toUpperCase() !== test.testCode.toUpperCase())];
-    localStorage.setItem(TESTS_KEY, JSON.stringify(updated));
-  } catch (e) {
-    console.error("Error saving test to localStorage:", e);
-  }
+/**
+ * @deprecated Quiz definitions must be created through the teacher API.
+ */
+export function saveTest(_test: QuizTest): void {
+  // Intentionally empty.
 }
 
+/**
+ * @deprecated Quiz settings must be updated through the teacher API.
+ */
 export function updateTestSettings(
-  code: string,
-  partialSettings: Partial<QuizTest["settings"]>
+  _code: string,
+  _partialSettings: Partial<QuizTest["settings"]>,
 ): QuizTest | null {
-  if (typeof window === "undefined") return null;
-  try {
-    const current = getStoredTests();
-    let updatedTest: QuizTest | null = null;
-    const updatedList = current.map((t) => {
-      if (t.testCode.toUpperCase() === code.toUpperCase()) {
-        updatedTest = {
-          ...t,
-          settings: {
-            ...t.settings,
-            ...partialSettings,
-          },
-        };
-        return updatedTest;
-      }
-      return t;
-    });
-    localStorage.setItem(TESTS_KEY, JSON.stringify(updatedList));
-    return updatedTest;
-  } catch (e) {
-    console.error("Error updating test settings in localStorage:", e);
-    return null;
-  }
+  return null;
 }
 
+/**
+ * @deprecated Quiz status is controlled by the backend lifecycle.
+ */
 export function updateTestStatus(
-  code: string,
-  status: "LIVE" | "ENDED"
+  _code: string,
+  _status: "LIVE" | "ENDED",
 ): QuizTest | null {
-  if (typeof window === "undefined") return null;
-  try {
-    const current = getStoredTests();
-    let updatedTest: QuizTest | null = null;
-    const updatedList = current.map((t) => {
-      if (t.testCode.toUpperCase() === code.toUpperCase()) {
-        updatedTest = {
-          ...t,
-          status,
-        };
-        return updatedTest;
-      }
-      return t;
-    });
-    localStorage.setItem(TESTS_KEY, JSON.stringify(updatedList));
-    return updatedTest;
-  } catch (e) {
-    console.error("Error updating test status in localStorage:", e);
-    return null;
-  }
+  return null;
 }
 
-export function getTestByCode(code: string): QuizTest | null {
-  const tests = getStoredTests();
-  const found = tests.find((t) => t.testCode.toUpperCase() === code.toUpperCase());
-  return found || null;
+/**
+ * @deprecated Quiz details must be resolved through the teacher API.
+ */
+export function getTestByCode(_code: string): QuizTest | null {
+  return null;
 }
 
+/**
+ * @deprecated Student submissions/results must come from the student API.
+ */
 export function getStoredResults(): StudentTestResult[] {
-  if (typeof window === "undefined") return [];
-  try {
-    const raw = localStorage.getItem(RESULTS_KEY);
-    if (!raw) return [];
-    const parsed: StudentTestResult[] = JSON.parse(raw);
-    return Array.isArray(parsed) ? parsed : [];
-  } catch (e) {
-    console.error("Error reading dynoquizz_results from localStorage:", e);
-    return [];
-  }
+  return [];
 }
 
-export function saveResult(result: StudentTestResult): void {
-  if (typeof window === "undefined") return;
-  try {
-    const current = getStoredResults();
-    const updated = [result, ...current.filter((r) => r.testCode.toUpperCase() !== result.testCode.toUpperCase() || r.studentName !== result.studentName)];
-    localStorage.setItem(RESULTS_KEY, JSON.stringify(updated));
-    // Also save as latest submission for fast lookup
-    localStorage.setItem(`dynoquizz_result_${result.testCode.toUpperCase()}`, JSON.stringify(result));
-  } catch (e) {
-    console.error("Error saving result to localStorage:", e);
-  }
+/**
+ * @deprecated Submission results must be read from the backend result APIs.
+ */
+export function saveResult(_result: StudentTestResult): void {
+  // Intentionally empty.
 }
 
-export function getResultByCode(code: string): StudentTestResult | null {
-  if (typeof window === "undefined") return null;
-  try {
-    // Check specific latest submission key first
-    const specificRaw = localStorage.getItem(`dynoquizz_result_${code.toUpperCase()}`);
-    if (specificRaw) return JSON.parse(specificRaw);
-
-    // Fall back to main array
-    const results = getStoredResults();
-    return results.find((r) => r.testCode.toUpperCase() === code.toUpperCase()) || null;
-  } catch (e) {
-    console.error("Error finding result in localStorage:", e);
-    return null;
-  }
+/**
+ * @deprecated Result lookup must use the backend attempt/result endpoints.
+ */
+export function getResultByCode(_code: string): StudentTestResult | null {
+  return null;
 }
-

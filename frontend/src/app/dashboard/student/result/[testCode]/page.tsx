@@ -15,14 +15,54 @@ import {
   FileQuestion,
 } from "lucide-react";
 import { Logo } from "@/components/Logo";
+import { ENDPOINTS } from "@/lib/api/endpoints";
 
-const API_BASE = (
-  process.env.NEXT_PUBLIC_API_URL || "http://localhost:8080"
-).replace(/\/+$/, "");
+type AttemptResult = {
+  attemptId: number | string;
+  quizId: number | string;
+  quizTitle: string;
+  status: string;
+  finalScore: number;
+  totalMarks: number;
+  percentage: number;
+  totalTimeTaken: number;
+  startedAt: string | null;
+  submittedAt: string | null;
+};
 
-function formatTime(s: number) {
-  if (!s || s < 60) return `${s || 0}s`;
-  return `${Math.floor(s / 60)}m ${s % 60}s`;
+type ResultDetail = {
+  questionId: number | string;
+  questionText: string;
+  displayOrder: number;
+  selectedOptionIds: Array<number | string>;
+  correctOptionIds: Array<number | string>;
+  answerStatus?: string;
+  correct: boolean;
+  marksAwarded: number;
+  questionMarks: number;
+  responseTimeSeconds: number | null;
+};
+
+function formatTime(seconds: number) {
+  const safe = Math.max(0, Number(seconds) || 0);
+  const minutes = Math.floor(safe / 60);
+  const secs = safe % 60;
+  return `${minutes}m ${secs}s`;
+}
+
+function formatDateTime(value: string | null) {
+  if (!value) return "Recently";
+
+  const date = new Date(value);
+
+  if (Number.isNaN(date.getTime())) {
+    return value;
+  }
+
+  return date.toLocaleString("en-IN", {
+    dateStyle: "medium",
+    timeStyle: "short",
+  });
 }
 
 function formatNumber(value: unknown, fallback = 0): number {
@@ -35,13 +75,25 @@ function formatDisplayNumber(value: unknown): string {
   return Number.isInteger(n) ? String(n) : n.toFixed(2);
 }
 
-function ScoreRing({ score, color }: { score: number; color: string }) {
+function formatOptionIds(ids: Array<number | string> | undefined) {
+  if (!ids || ids.length === 0) return "Not answered";
+  return ids.join(", ");
+}
+
+function ScoreRing({ score }: { score: number }) {
   const r = 80;
   const circ = 2 * Math.PI * r;
-  const dash = ((score || 0) / 100) * circ;
+  const safeScore = Math.max(0, Math.min(100, score || 0));
+  const dash = (safeScore / 100) * circ;
 
   return (
-    <svg width="200" height="200" viewBox="0 0 200 200" className="-rotate-90">
+    <svg
+      width="200"
+      height="200"
+      viewBox="0 0 200 200"
+      className="-rotate-90"
+      aria-label={`Score ${safeScore}%`}
+    >
       <circle
         cx="100"
         cy="100"
@@ -55,11 +107,13 @@ function ScoreRing({ score, color }: { score: number; color: string }) {
         cy="100"
         r={r}
         fill="none"
-        stroke={color}
+        stroke="#1d5237"
         strokeWidth="12"
         strokeLinecap="round"
         strokeDasharray={`${dash} ${circ}`}
-        style={{ transition: "stroke-dasharray 1.2s cubic-bezier(.4,0,.2,1)" }}
+        style={{
+          transition: "stroke-dasharray 1.2s cubic-bezier(.4,0,.2,1)",
+        }}
       />
     </svg>
   );
@@ -71,220 +125,198 @@ export default function StudentResultPage({
   params: Promise<{ testCode: string }>;
 }) {
   const { testCode } = use(params);
-  const [result, setResult] = useState<any | null>(null);
+
+  const [result, setResult] = useState<AttemptResult | null>(null);
+  const [details, setDetails] = useState<ResultDetail[]>([]);
+  const [detailsAvailable, setDetailsAvailable] = useState(false);
   const [loading, setLoading] = useState(true);
   const [mounted, setMounted] = useState(false);
+  const [pendingRelease, setPendingRelease] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     setMounted(true);
 
+    let cancelled = false;
+
     const fetchResult = async () => {
-      // This route is now intentionally attemptId-based.
-      // Do not treat quizCode or quizId as an attemptId.
-      const attemptId = (testCode || "").trim();
+      const attemptId = String(testCode || "").trim();
 
       if (!/^\d+$/.test(attemptId)) {
         setResult(null);
+        setPendingRelease(false);
+        setError("The result URL must contain a valid attempt ID.");
         setLoading(false);
         return;
       }
 
       try {
         const token = localStorage.getItem("dynoquizz_token");
+
+        if (!token) {
+          throw new Error(
+            "Your student session has expired. Please log in again.",
+          );
+        }
+
         const headers = {
-          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+          Authorization: `Bearer ${token}`,
           "Content-Type": "application/json",
         };
 
-        const attemptUrl = `${API_BASE}/api/v1/student/attempts/${attemptId}/result`;
-
-        console.log(`[Student Result] GET ${attemptUrl}`);
-
-        const res = await fetch(attemptUrl, { headers });
-        const rawText = await res.text();
-
-        console.log(
-          `[Student Result] Attempt result HTTP status: ${res.status}`,
+        const resultRes = await fetch(
+          ENDPOINTS.student.attemptResult(attemptId),
+          {
+            method: "GET",
+            headers,
+            cache: "no-store",
+          },
         );
-        console.log(`[Student Result] Attempt result raw response:`, rawText);
 
-        let data: any = null;
+        const rawText = await resultRes.text();
+
+        let body: any = null;
         try {
-          data = JSON.parse(rawText);
+          body = JSON.parse(rawText);
         } catch {
-          // Response was not JSON.
+          body = null;
         }
 
-        if (res.ok && data) {
-          // The details endpoint may legitimately return 400 when the
-          // instructor has not enabled question-wise result visibility.
-          // The summary result remains authoritative in that case.
-          // Question-wise details are only available when the backend releases
-          // question-wise results. The current AttemptResultResponse does not expose
-          // resultVisibility, so do not make a speculative /result/details request.
-          //
-          // The summary /result response is authoritative and is sufficient for the
-          // scorecard when solutions are locked.
+        if (!resultRes.ok) {
+          const code = String(body?.code ?? "").toUpperCase();
+          const message = String(
+            body?.message ?? body?.error ?? rawText ?? "",
+          ).toLowerCase();
 
-          let detailsList: any[] = [];
+          const isPending =
+            resultRes.status === 400 &&
+            (code === "RESULTS_NOT_PUBLISHED" ||
+              message.includes("results have not been published") ||
+              message.includes("not been published") ||
+              message.includes("not published"));
 
-          const resultVisibility = data.resultVisibility;
-
-          const questionWiseResultsEnabled =
-            resultVisibility === "BOTH" || resultVisibility === "QUESTION_WISE";
-
-          if (questionWiseResultsEnabled) {
-            const detailsUrl = `${API_BASE}/api/v1/student/attempts/${attemptId}/result/details`;
-
-            const detailsRes = await fetch(detailsUrl, { headers });
-
-            if (detailsRes.ok) {
-              try {
-                const detailsData = await detailsRes.json();
-
-                if (Array.isArray(detailsData)) {
-                  detailsList = detailsData;
-                }
-              } catch {
-                // Summary result remains usable if details cannot be parsed.
-              }
+          if (isPending) {
+            if (!cancelled) {
+              setResult(null);
+              setDetails([]);
+              setDetailsAvailable(false);
+              setPendingRelease(true);
+              setError(null);
             }
+            return;
           }
 
-          const correctCount = detailsList.filter(
-            (d: any) => d.correct === true,
-          ).length;
-
-          const totalQ =
-            formatNumber(data.totalQuestions, 0) || detailsList.length || 0;
-
-          const finalScore = formatNumber(data.finalScore, 0);
-          const totalMarks = formatNumber(data.totalMarks, 0);
-
-          const backendPercentage =
-            data.percentage !== null && data.percentage !== undefined
-              ? formatNumber(data.percentage, 0)
-              : totalMarks > 0
-                ? (finalScore / totalMarks) * 100
-                : 0;
-
-          const accuracy =
-            totalQ > 0
-              ? Math.round((correctCount / totalQ) * 100)
-              : backendPercentage;
-
-          const questionsMapped = detailsList.map((d: any) => ({
-            id: d.questionId,
-            questionId: d.questionId,
-            text: d.questionText,
-            questionText: d.questionText,
-            correctOption:
-              Array.isArray(d.correctOptionIds) && d.correctOptionIds.length > 0
-                ? `Option ${d.correctOptionIds.join(", ")}`
-                : "-",
-          }));
-
-          const answersMapped = detailsList.map((d: any) => ({
-            questionId: d.questionId,
-            selectedOption:
-              Array.isArray(d.selectedOptionIds) &&
-              d.selectedOptionIds.length > 0
-                ? `Option ${d.selectedOptionIds.join(", ")}`
-                : "Not answered",
-            correct: d.correct,
-            marksAwarded: d.marksAwarded,
-          }));
-
-          // A successful /result response means the backend has released the
-          // result. The current backend result DTO does not need a frontend-
-          // invented resultsAvailable field to determine this.
-          const resultsAvailable = true;
-
-          const canReveal =
-            resultsAvailable &&
-            (data.resultVisibility === "BOTH" ||
-              data.resultVisibility === "QUESTION_WISE");
-
-          let studentName = "Registered Student";
-          try {
-            const u = JSON.parse(
-              localStorage.getItem("dynoquizz_user") || "{}",
-            );
-            studentName = u.fullName || u.firstName || u.name || studentName;
-          } catch {
-            // Ignore malformed local user data.
-          }
-
-          setResult({
-            ...data,
-            finalScore,
-            totalMarks,
-            percentage: backendPercentage,
-            score: backendPercentage,
-            quizName:
-              data.quizTitle || `Assessment ${data.quizCode || attemptId}`,
-            quizCode: data.quizCode || data.code || null,
-            attemptId,
-            totalQuestions: totalQ,
-            correctCount,
-            accuracyPercentage: accuracy,
-            timeTakenTotalSeconds: formatNumber(data.totalTimeTaken, 0),
-            submittedAt: data.submittedAt || "Recently",
-            studentName: data.studentName || studentName,
-            questions: questionsMapped,
-            answers: answersMapped,
-            published: resultsAvailable,
-            resultsAvailable,
-            revealSolutions: canReveal,
-          });
-
-          setLoading(false);
-          return;
-        }
-
-        if (
-          (res.status === 400 || res.status === 403) &&
-          (data?.message?.toLowerCase().includes("not been published") ||
-            data?.message?.toLowerCase().includes("not published") ||
-            rawText.toLowerCase().includes("not been published") ||
-            rawText.toLowerCase().includes("not published"))
-        ) {
-          console.log(
-            "[Student Result] Result is pending publication by the instructor.",
+          throw new Error(
+            body?.message ||
+              body?.error ||
+              `Unable to load the assessment result (${resultRes.status}).`,
           );
-
-          let studentName = "Registered Student";
-          try {
-            const u = JSON.parse(
-              localStorage.getItem("dynoquizz_user") || "{}",
-            );
-            studentName = u.fullName || u.firstName || u.name || studentName;
-          } catch {
-            // Ignore malformed local user data.
-          }
-
-          setResult({
-            quizName: `Assessment Attempt ${attemptId}`,
-            attemptId,
-            published: false,
-            resultsAvailable: false,
-            revealSolutions: false,
-            submittedAt: "Submitted (Pending release)",
-            studentName,
-          });
-          setLoading(false);
-          return;
         }
-      } catch (e) {
-        console.warn("[Student Result] Result lookup error:", e);
-      }
 
-      setResult(null);
-      setLoading(false);
+        if (!body) {
+          throw new Error("The server returned an invalid result response.");
+        }
+
+        const normalized: AttemptResult = {
+          attemptId: body.attemptId ?? attemptId,
+          quizId: body.quizId,
+          quizTitle: String(body.quizTitle ?? "Assessment Results"),
+          status: String(body.status ?? "SUBMITTED").toUpperCase(),
+          finalScore: formatNumber(body.finalScore),
+          totalMarks: formatNumber(body.totalMarks),
+          percentage: formatNumber(
+            body.percentage,
+            formatNumber(body.totalMarks) > 0
+              ? (formatNumber(body.finalScore) /
+                  formatNumber(body.totalMarks)) *
+                  100
+              : 0,
+          ),
+          totalTimeTaken: formatNumber(body.totalTimeTaken),
+          startedAt: body.startedAt ?? null,
+          submittedAt: body.submittedAt ?? null,
+        };
+
+        let detailList: ResultDetail[] = [];
+
+        // The current AttemptResultResponse does not include resultVisibility.
+        // The details endpoint is the backend-authoritative way to determine
+        // whether question-wise results were released. A 400 here is expected
+        // when ResultVisibility is NONE or LEADERBOARD.
+        const detailsRes = await fetch(
+          ENDPOINTS.student.attemptResultDetails(attemptId),
+          {
+            method: "GET",
+            headers,
+            cache: "no-store",
+          },
+        );
+
+        if (detailsRes.ok) {
+          const detailsBody = await detailsRes.json().catch(() => null);
+
+          if (Array.isArray(detailsBody)) {
+            detailList = detailsBody.map((item: any) => ({
+              questionId: item.questionId,
+              questionText: String(item.questionText ?? ""),
+              displayOrder: Number(item.displayOrder ?? 0),
+              selectedOptionIds: Array.isArray(item.selectedOptionIds)
+                ? item.selectedOptionIds
+                : [],
+              correctOptionIds: Array.isArray(item.correctOptionIds)
+                ? item.correctOptionIds
+                : [],
+              answerStatus: item.answerStatus,
+              correct: item.correct === true,
+              marksAwarded: formatNumber(item.marksAwarded),
+              questionMarks: formatNumber(item.questionMarks),
+              responseTimeSeconds:
+                item.responseTimeSeconds != null
+                  ? Number(item.responseTimeSeconds)
+                  : null,
+            }));
+          }
+        }
+
+        if (!cancelled) {
+          setResult(normalized);
+          setDetails(detailList);
+          setDetailsAvailable(detailList.length > 0);
+          setPendingRelease(false);
+          setError(null);
+        }
+      } catch (err: any) {
+        if (cancelled) return;
+
+        console.error("[Student Result] Result lookup error:", err);
+        setResult(null);
+        setDetails([]);
+        setDetailsAvailable(false);
+        setPendingRelease(false);
+        setError(
+          err?.message ||
+            "We couldn't retrieve this assessment result from the server.",
+        );
+      } finally {
+        if (!cancelled) {
+          setLoading(false);
+        }
+      }
     };
 
-    fetchResult();
+    void fetchResult();
+
+    return () => {
+      cancelled = true;
+    };
   }, [testCode]);
+
+  const correctCount = details.filter((detail) => detail.correct).length;
+  const totalQuestions = details.length;
+  const accuracy =
+    totalQuestions > 0
+      ? Math.round((correctCount / totalQuestions) * 100)
+      : null;
 
   if (loading) {
     return (
@@ -294,44 +326,39 @@ export default function StudentResultPage({
     );
   }
 
-  // No result submitted
-  if (!result) {
+  if (error && !result && !pendingRelease) {
     return (
       <main className="flex min-h-screen items-center justify-center bg-[#f5f5f4] text-[#111111] p-4 font-sans">
         <motion.div
           initial={mounted ? { opacity: 0, y: 8 } : false}
           animate={mounted ? { opacity: 1, y: 0 } : false}
-          className="w-full max-w-md rounded-[14px] bg-white p-8 text-center border border-[#d1dee8]/70 shadow-sm space-y-4 text-left"
+          className="w-full max-w-md rounded-[14px] bg-white p-8 text-center border border-[#d1dee8]/70 shadow-sm space-y-4"
         >
           <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-[12px] bg-[#f5f5f4] border border-[#d1dee8]/80 text-[#78716b] shadow-xs">
             <FileQuestion className="h-6 w-6" />
           </div>
-          <div className="text-center space-y-1">
+
+          <div className="space-y-1">
             <span className="text-[10px] font-bold uppercase tracking-wider text-[#78716b]">
-              No Record Found
+              Result unavailable
             </span>
+
             <h1 className="text-xl font-black text-[#111111]">
-              Submission Not Found
+              Unable to Load Result
             </h1>
+
             <p className="text-xs text-[#78716b] leading-relaxed font-medium">
-              No recorded assessment submission found for attempt ID{" "}
-              <strong>&ldquo;{testCode}&rdquo;</strong>.
+              {error}
             </p>
           </div>
 
           <div className="pt-2 flex flex-col gap-2">
             <Link
-              href="/join"
+              href="/dashboard/student"
               className="flex w-full items-center justify-center gap-1.5 rounded-[10px] bg-[#165dfb] py-2.5 text-xs font-bold text-white hover:bg-[#0f4fd8] active:scale-[0.98] shadow-sm shadow-[#165dfb]/20 transition-all border-0"
             >
-              Take Assessment{" "}
-              <ChevronRight className="h-3.5 w-3.5 text-white" />
-            </Link>
-            <Link
-              href="/dashboard/student"
-              className="flex w-full items-center justify-center gap-1.5 rounded-[10px] bg-[#f5f5f4] py-2.5 text-xs font-bold text-[#111111] hover:bg-[#e6e3e2] hover:border-[#b9cbd9] active:scale-[0.98] shadow-xs transition-all border border-[#d1dee8]/80"
-            >
               Return to Dashboard
+              <ChevronRight className="h-3.5 w-3.5 text-white" />
             </Link>
           </div>
         </motion.div>
@@ -339,57 +366,38 @@ export default function StudentResultPage({
     );
   }
 
-  // Backend is authoritative for result release.
-  const isPublished = result.resultsAvailable === true;
-
-  const canRevealSolutions = isPublished && result.revealSolutions === true;
-
-  // If scores are not released yet
-  if (!isPublished) {
+  if (pendingRelease) {
     return (
       <main className="flex min-h-screen items-center justify-center bg-[#f5f5f4] text-[#111111] p-4 font-sans selection:bg-[#e6e3e2] selection:text-[#165dfb]">
         <motion.div
           initial={mounted ? { opacity: 0, y: 8 } : false}
           animate={mounted ? { opacity: 1, y: 0 } : false}
           transition={{ duration: 0.25, ease: "easeOut" }}
-          className="w-full max-w-md rounded-[14px] bg-white p-8 text-center border border-[#d1dee8]/70 shadow-sm space-y-5 text-left"
+          className="w-full max-w-md rounded-[14px] bg-white p-8 text-center border border-[#d1dee8]/70 shadow-sm space-y-5"
         >
           <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-[#fbeee8] border border-[#8c381c]/30 text-[#8c381c] shadow-xs">
             <Lock className="h-6 w-6" />
           </div>
+
           <div className="text-center space-y-1.5">
             <span className="inline-flex items-center gap-1 rounded-full bg-[#f5f5f4] border border-[#d1dee8]/80 px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wider text-[#78716b] shadow-xs">
               Pending Instructor Release
             </span>
+
             <h1 className="text-xl font-black text-[#111111]">
               Assessment Submitted Successfully
             </h1>
+
             <p className="text-xs text-[#78716b] leading-relaxed font-medium">
-              Your responses for{" "}
-              <strong>&ldquo;{result.quizName || testCode}&rdquo;</strong> have
-              been permanently recorded. Your score and detailed result will be
-              displayed once your instructor publishes the results.
+              Your result is recorded, but the instructor has not published the
+              results yet.
             </p>
           </div>
 
           <div className="rounded-[10px] bg-[#f5f5f4] border border-[#d1dee8]/80 p-3.5 text-xs space-y-1.5 font-medium text-[#78716b] shadow-xs">
-            <div className="flex justify-between">
-              <span>Session Code:</span>
-              <strong className="font-mono text-[#111111]">
-                {result.attemptId || testCode}
-              </strong>
-            </div>
-            <div className="flex justify-between">
-              <span>Candidate:</span>
-              <strong className="text-[#111111]">
-                {result.studentName || "Registered Student"}
-              </strong>
-            </div>
-            <div className="flex justify-between">
-              <span>Submitted At:</span>
-              <strong className="text-[#111111]">
-                {result.submittedAt || "Recently"}
-              </strong>
+            <div className="flex justify-between gap-3">
+              <span>Attempt ID:</span>
+              <strong className="font-mono text-[#111111]">{testCode}</strong>
             </div>
           </div>
 
@@ -397,7 +405,7 @@ export default function StudentResultPage({
             href="/dashboard/student"
             className="flex w-full items-center justify-center gap-1.5 rounded-[10px] bg-[#111111] py-2.5 text-xs font-bold text-white hover:bg-[#222222] active:scale-[0.98] shadow-sm transition-all border-0"
           >
-            Return to Student Dashboard{" "}
+            Return to Student Dashboard
             <ChevronRight className="h-3.5 w-3.5 text-white" />
           </Link>
         </motion.div>
@@ -405,14 +413,17 @@ export default function StudentResultPage({
     );
   }
 
+  if (!result) {
+    return null;
+  }
+
+  const percentage = result.percentage;
+  const canRevealSolutions = detailsAvailable;
   const gc = {
     text: "text-[#1d5237]",
     bg: "bg-[#e2ede8]",
-    border: "border-[#d1dee8]/30",
     ring: "#1d5237",
   };
-
-  const questions = result.questions || [];
 
   return (
     <div className="min-h-screen bg-[#f5f5f4] font-sans text-[#111111] selection:bg-[#e6e3e2] selection:text-[#165dfb]">
@@ -428,8 +439,9 @@ export default function StudentResultPage({
           <span className="text-[#d1dee8]">|</span>
           <Logo />
         </div>
+
         <span className="rounded-full bg-[#f5f5f4] border border-[#d1dee8]/80 px-3 py-1 font-mono text-xs font-bold text-[#111111] shadow-xs">
-          {result.attemptId || testCode}
+          Attempt #{result.attemptId}
         </span>
       </nav>
 
@@ -438,25 +450,29 @@ export default function StudentResultPage({
           <span className="text-xs font-bold uppercase tracking-widest text-[#78716b]">
             Verified Assessment Performance
           </span>
+
           <h1 className="mt-0.5 text-2xl font-extrabold tracking-tight text-[#111111]">
-            {result.quizName || "Assessment Results"}
+            {result.quizTitle}
           </h1>
+
           <p className="mt-0.5 text-xs text-[#78716b] font-medium flex items-center gap-2">
-            <CalendarDays className="h-3.5 w-3.5 text-[#78716b]" /> Submitted:{" "}
-            {result.submittedAt || "Recently"}
+            <CalendarDays className="h-3.5 w-3.5 text-[#78716b]" />
+            Submitted: {formatDateTime(result.submittedAt)}
           </p>
         </section>
 
         <section className="rounded-[14px] bg-white p-6 border border-[#d1dee8]/70 shadow-sm">
           <div className="flex flex-col items-center gap-5 sm:flex-row sm:items-start">
             <div className="relative shrink-0">
-              <ScoreRing score={result.score || 0} color={gc.ring} />
+              <ScoreRing score={percentage} />
+
               <div className="absolute inset-0 flex flex-col items-center justify-center text-center">
                 <span
                   className={`text-2xl font-black tracking-tight tabular-nums ${gc.text}`}
                 >
-                  {formatDisplayNumber(result.percentage)}%
+                  {formatDisplayNumber(percentage)}%
                 </span>
+
                 <span className="text-[9px] font-bold text-[#78716b] uppercase tracking-wider mt-0.5">
                   Percentage
                 </span>
@@ -466,12 +482,24 @@ export default function StudentResultPage({
             <div className="flex-1 space-y-3.5 w-full">
               <div>
                 <p className="text-xs text-[#111111] font-medium">
-                  You scored{" "}
-                  <strong className="text-[#111111] font-bold">
-                    {result.correctCount ?? 0} /{" "}
-                    {result.totalQuestions || questions.length || 0}
-                  </strong>{" "}
-                  questions correctly.
+                  {totalQuestions > 0 ? (
+                    <>
+                      You answered{" "}
+                      <strong className="font-bold">
+                        {correctCount} / {totalQuestions}
+                      </strong>{" "}
+                      questions correctly.
+                    </>
+                  ) : (
+                    <>
+                      Your final score is{" "}
+                      <strong className="font-bold">
+                        {formatDisplayNumber(result.finalScore)} /{" "}
+                        {formatDisplayNumber(result.totalMarks)}
+                      </strong>
+                      .
+                    </>
+                  )}
                 </p>
               </div>
 
@@ -480,15 +508,11 @@ export default function StudentResultPage({
                   <div className="mx-auto mb-1 inline-flex h-6 w-6 items-center justify-center rounded-[8px] bg-[#f5f5f4] border border-[#d1dee8]/70 text-[#165dfb] shadow-xs">
                     <CheckCircle2 className="h-3.5 w-3.5" />
                   </div>
+
                   <p className="text-base font-black text-[#111111]">
-                    {result.accuracyPercentage ??
-                      (result.totalQuestions > 0
-                        ? Math.round(
-                            (result.correctCount / result.totalQuestions) * 100,
-                          )
-                        : 0)}
-                    %
+                    {accuracy != null ? `${accuracy}%` : "—"}
                   </p>
+
                   <p className="text-[9px] text-[#78716b] font-bold uppercase tracking-wider">
                     Accuracy
                   </p>
@@ -498,10 +522,12 @@ export default function StudentResultPage({
                   <div className="mx-auto mb-1 inline-flex h-6 w-6 items-center justify-center rounded-[8px] bg-[#f5f5f4] border border-[#d1dee8]/70 text-[#1d5237] shadow-xs">
                     <Award className="h-3.5 w-3.5" />
                   </div>
+
                   <p className="text-base font-black text-[#111111]">
                     {formatDisplayNumber(result.finalScore)} /{" "}
                     {formatDisplayNumber(result.totalMarks)}
                   </p>
+
                   <p className="text-[9px] text-[#78716b] font-bold uppercase tracking-wider">
                     Score
                   </p>
@@ -511,9 +537,11 @@ export default function StudentResultPage({
                   <div className="mx-auto mb-1 inline-flex h-6 w-6 items-center justify-center rounded-[8px] bg-[#f5f5f4] border border-[#d1dee8]/70 text-[#111111] shadow-xs">
                     <Clock className="h-3.5 w-3.5" />
                   </div>
+
                   <p className="text-base font-black text-[#111111]">
-                    {formatTime(result.timeTakenTotalSeconds || 0)}
+                    {formatTime(result.totalTimeTaken)}
                   </p>
+
                   <p className="text-[9px] text-[#78716b] font-bold uppercase tracking-wider">
                     Total Time
                   </p>
@@ -523,34 +551,34 @@ export default function StudentResultPage({
           </div>
         </section>
 
-        {canRevealSolutions && questions.length > 0 ? (
+        {canRevealSolutions && details.length > 0 ? (
           <section className="space-y-2.5">
             <h2 className="text-xs font-bold text-[#111111] uppercase tracking-wider">
               Question Breakdown &amp; Solutions
             </h2>
-            <div className="rounded-[14px] bg-white border border-[#d1dee8]/70 overflow-hidden divide-y divide-[#d1dee8]/40 shadow-sm">
-              {questions.map((q: any, idx: number) => {
-                const studentAns = result.answers?.find(
-                  (a: any) =>
-                    a.questionId === (q.id || idx + 1) ||
-                    a.questionText === q.text,
-                );
-                const isCorrect =
-                  studentAns?.selectedOption === q.correctOption;
 
-                return (
-                  <div key={idx} className="p-4 sm:p-5 space-y-2.5 text-xs">
+            <div className="rounded-[14px] bg-white border border-[#d1dee8]/70 overflow-hidden divide-y divide-[#d1dee8]/40 shadow-sm">
+              {[...details]
+                .sort((a, b) => a.displayOrder - b.displayOrder)
+                .map((detail, idx) => (
+                  <div
+                    key={`${detail.questionId}-${idx}`}
+                    className="p-4 sm:p-5 space-y-2.5 text-xs"
+                  >
                     <div className="flex items-start justify-between gap-2">
                       <p className="font-bold text-[#111111] leading-snug">
-                        {idx + 1}. {q.text || q.questionText}
+                        {idx + 1}. {detail.questionText || "Question"}
                       </p>
-                      {isCorrect ? (
+
+                      {detail.correct ? (
                         <span className="inline-flex items-center gap-1 rounded-full bg-[#e2ede8] text-[#1d5237] px-2.5 py-0.5 text-[10px] font-bold shrink-0 shadow-xs">
-                          <CheckCircle2 className="h-3 w-3" /> Correct
+                          <CheckCircle2 className="h-3 w-3" />
+                          Correct
                         </span>
                       ) : (
                         <span className="inline-flex items-center gap-1 rounded-full bg-[#fbeee8] text-[#8c381c] px-2.5 py-0.5 text-[10px] font-bold shrink-0 shadow-xs">
-                          <XCircle className="h-3 w-3" /> Incorrect
+                          <XCircle className="h-3 w-3" />
+                          Incorrect
                         </span>
                       )}
                     </div>
@@ -558,24 +586,54 @@ export default function StudentResultPage({
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-[11px]">
                       <div className="rounded-[10px] bg-[#f5f5f4] p-2.5 border border-[#d1dee8]/80 shadow-xs">
                         <span className="text-[#78716b] block text-[9px] uppercase font-bold">
-                          Your Answer:
+                          Your Selected Option IDs:
                         </span>
+
                         <span className="font-semibold text-[#111111]">
-                          {studentAns?.selectedOption || "Not answered"}
+                          {formatOptionIds(detail.selectedOptionIds)}
                         </span>
                       </div>
+
                       <div className="rounded-[10px] bg-[#e2ede8]/60 p-2.5 border border-[#1d5237]/20 shadow-xs">
                         <span className="text-[#1d5237] block text-[9px] uppercase font-bold">
-                          Correct Answer:
+                          Correct Option IDs:
                         </span>
+
                         <span className="font-bold text-[#1d5237]">
-                          {q.correctOption || "Option A"}
+                          {formatOptionIds(detail.correctOptionIds)}
                         </span>
                       </div>
                     </div>
+
+                    <div className="flex flex-wrap gap-3 text-[10px] text-[#78716b] font-medium">
+                      <span>
+                        Marks:{" "}
+                        <strong className="text-[#111111]">
+                          {formatDisplayNumber(detail.marksAwarded)} /{" "}
+                          {formatDisplayNumber(detail.questionMarks)}
+                        </strong>
+                      </span>
+
+                      {detail.responseTimeSeconds != null && (
+                        <span>
+                          Response time:{" "}
+                          <strong className="text-[#111111]">
+                            {formatTime(detail.responseTimeSeconds)}
+                          </strong>
+                        </span>
+                      )}
+
+                      {detail.answerStatus && (
+                        <span>
+                          Status:{" "}
+                          <strong className="text-[#111111]">
+                            {detail.answerStatus}
+                          </strong>
+                        </span>
+                      )}
+                    </div>
                   </div>
-                );
-              })}
+                ))}
             </div>
           </section>
         ) : (
@@ -584,13 +642,15 @@ export default function StudentResultPage({
               <div className="flex h-10 w-10 items-center justify-center rounded-[10px] bg-[#f5f5f4] border border-[#d1dee8]/70 text-[#78716b] shadow-xs">
                 <FileQuestion className="h-5 w-5" />
               </div>
+
               <div>
                 <h3 className="text-xs font-bold text-[#111111]">
                   Question Solutions Locked
                 </h3>
+
                 <p className="text-[10px] text-[#78716b] font-medium">
-                  Detailed answer keys and explanations have been disabled by
-                  the instructor.
+                  Detailed question-wise results have not been released for this
+                  assessment.
                 </p>
               </div>
             </div>
@@ -602,7 +662,8 @@ export default function StudentResultPage({
             href="/dashboard/student"
             className="flex items-center gap-1.5 rounded-[10px] bg-[#165dfb] px-5 py-2.5 text-xs font-bold text-white hover:bg-[#0f4fd8] active:scale-[0.98] transition-all border-0 shadow-sm shadow-[#165dfb]/20"
           >
-            Return to Dashboard <ChevronRight className="h-4 w-4 text-white" />
+            Return to Dashboard
+            <ChevronRight className="h-4 w-4 text-white" />
           </Link>
         </section>
       </main>
