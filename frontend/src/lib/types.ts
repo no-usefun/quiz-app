@@ -1,9 +1,10 @@
 /**
- * Shared frontend types aligned with the current Spring Boot API contract.
- *
- * Backend is the source of truth for quiz state, questions, attempts,
- * scoring, and published results.
- */
+
+* Shared frontend types aligned with the current Spring Boot API contract.
+*
+* Backend is the source of truth for quiz state, questions, attempts,
+* scoring, and published results.
+  */
 
 export type UserRole = "STUDENT" | "TEACHER";
 
@@ -33,7 +34,7 @@ export type QuizAvailabilityStatus =
 export type Difficulty = "EASY" | "MEDIUM" | "HARD";
 
 /* -------------------------------------------------------------------------- */
-/* Authentication                                                            */
+/* Authentication                                                             */
 /* -------------------------------------------------------------------------- */
 
 export interface UserSummary {
@@ -95,78 +96,79 @@ export interface QuizPackageResponse {
   title: string;
   description?: string | null;
   instructions?: string | null;
-
   subject?: string | null;
   subjectCode?: string | null;
-
   totalStudents: number;
   totalQuestions: number;
   totalMarks: number;
-
   overallTimerSeconds: number;
-
   negativeMarking: boolean;
   negativeMarks?: number | null;
-
   randomQuestionOrder: boolean;
   randomOptionOrder: boolean;
   allowReview: boolean;
   allowResume: boolean;
   autoSubmit: boolean;
-
   startTime?: string | null;
   endTime?: string | null;
-
   questions: QuestionResponse[];
 }
 
 /* -------------------------------------------------------------------------- */
-/* Teacher quiz responses                                                    */
+/* Teacher quiz responses                                                     */
 /* -------------------------------------------------------------------------- */
 
 export interface QuizResponse {
   quizId: number;
   quizCode: string;
   teacherId: number;
-
   title: string;
   description?: string | null;
   instructions?: string | null;
-
   subject?: string | null;
   subjectCode?: string | null;
-
   totalStudents: number;
   totalQuestions: number;
   totalMarks: number;
-
   overallTimerSeconds: number;
-
   negativeMarking: boolean;
   negativeMarks?: number | null;
-
   timeBonusEnabled: boolean;
   randomQuestionOrder: boolean;
   randomOptionOrder: boolean;
   allowReview: boolean;
   allowResume: boolean;
   autoSubmit: boolean;
-
   startTime?: string | null;
   endTime?: string | null;
-
   resultVisibility: ResultVisibility;
   resultsPublished: boolean;
-
   acceptedEmailDomain?: string | null;
   allowedRegistrationNumbers?: string[];
-
   status: QuizStatus;
   examState: ExamState;
 }
 
-export interface TeacherQuestionDetail extends QuestionResponse {
+export interface TeacherOptionDetail {
+  optionId: number;
+  optionText?: string | null;
+  optionImage?: string | null;
+  correct: boolean;
+  optionOrder: number;
+}
+
+export interface TeacherQuestionDetail {
+  questionId: number;
+  questionText: string;
+  imageUrl?: string | null;
   explanation?: string | null;
+  questionType: QuestionType;
+  marks: number;
+  negativeMarks?: number | null;
+  questionTimerSeconds?: number | null;
+  difficulty?: Difficulty | null;
+  displayOrder: number;
+  options: TeacherOptionDetail[];
 }
 
 export interface TeacherQuizDetailResponse extends QuizResponse {
@@ -182,15 +184,11 @@ export interface AttemptResponse {
   attemptId: number;
   quizId: number;
   studentId: number;
-
   startedAt: string;
   submittedAt?: string | null;
-
   status: AttemptStatus;
   currentQuestion?: number | null;
   totalTimeTaken?: number | null;
-
-  effectiveDeadline: string;
 }
 
 export interface SubmitAnswerRequest {
@@ -204,7 +202,13 @@ export interface SubmitAttemptRequest {
 }
 
 export interface SubmitAttemptResponse {
-  [key: string]: unknown;
+  attemptId: number;
+  quizId: number;
+  status: AttemptStatus;
+  finalScore: number;
+  totalMarks: number;
+  totalTimeTaken: number;
+  submittedAt: string;
 }
 
 export interface StudentSubmissionResponse {
@@ -212,15 +216,12 @@ export interface StudentSubmissionResponse {
   quizId: number;
   quizTitle: string;
   status: AttemptStatus;
-
   finalScore?: number | null;
   totalMarks?: number | null;
   percentage?: number | null;
-
   totalTimeTaken?: number | null;
   startedAt: string;
   submittedAt?: string | null;
-
   resultsAvailable: boolean;
 }
 
@@ -229,13 +230,10 @@ export interface AttemptResultResponse {
   quizId: number;
   quizTitle: string;
   studentId: number;
-
   status: AttemptStatus;
-
   finalScore: number;
   totalMarks: number;
   percentage: number;
-
   totalTimeTaken: number;
   startedAt: string;
   submittedAt: string;
@@ -245,16 +243,12 @@ export interface AttemptResultDetailResponse {
   questionId: number;
   questionText: string;
   displayOrder: number;
-
   selectedOptionIds: number[];
   correctOptionIds: number[];
-
   answerStatus: AnswerStatus;
   correct: boolean;
-
   marksAwarded: number;
   questionMarks: number;
-
   responseTimeSeconds?: number | null;
 }
 
@@ -262,7 +256,6 @@ export interface LeaderboardEntryResponse {
   rank: number;
   studentId: number;
   studentName: string;
-
   score: number;
   totalMarks: number;
   percentage: number;
@@ -277,21 +270,21 @@ export interface QuizAvailabilityResponse {
   quizCode: string;
   available: boolean;
   status: QuizAvailabilityStatus;
-
   startTime?: string | null;
   endTime?: string | null;
 }
 
 /* -------------------------------------------------------------------------- */
-/* Legacy compatibility types                                                */
+/* Legacy compatibility types                                                 */
 /* -------------------------------------------------------------------------- */
 
 /**
- * @deprecated Use QuestionResponse.
- *
- * Kept temporarily so older UI code can compile while it is migrated
- * to the backend DTO shape.
- */
+
+* @deprecated Use QuestionResponse.
+*
+* Kept temporarily so older UI code can compile while it is migrated
+* to the backend DTO shape.
+  */
 export interface QuizQuestion {
   id: number;
   text: string;
@@ -303,8 +296,9 @@ export interface QuizQuestion {
 }
 
 /**
- * @deprecated Use QuizResponse / QuizPackageResponse.
- */
+
+* @deprecated Use QuizResponse / QuizPackageResponse.
+  */
 export interface QuizTest {
   testCode: string;
   quizName: string;
@@ -327,8 +321,9 @@ export interface QuizTest {
 }
 
 /**
- * @deprecated Backend scoring is authoritative.
- */
+
+* @deprecated Backend scoring is authoritative.
+  */
 export interface StudentAnswer {
   questionId: number;
   selectedOptionIds?: number[];
@@ -340,18 +335,16 @@ export interface StudentAnswer {
 }
 
 /**
- * @deprecated Use AttemptResultResponse and
- * AttemptResultDetailResponse.
- */
+
+* @deprecated Use AttemptResultResponse and
+* AttemptResultDetailResponse.
+  */
 export interface StudentTestResult {
   testCode?: string;
   quizName?: string;
   studentName?: string;
-
   answers: StudentAnswer[];
-
   submittedAt: string;
-
   score: number;
   accuracyPercentage?: number;
   totalQuestions?: number;
