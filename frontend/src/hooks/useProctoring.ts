@@ -1,20 +1,49 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useCallback, useMemo } from "react";
+
+type ProctoringFlags = {
+  tab_switch: number;
+  fullscreen_exit: number;
+  right_click: number;
+  copy_attempt: number;
+};
 
 export function useProctoring() {
-  const [warnings] = useState<string[]>([]);
-  const [violationCount] = useState(0);
-  const [flags] = useState({
-    tab_switch: 0,
-    fullscreen_exit: 0,
-    right_click: 0,
-    copy_attempt: 0,
-  });
+  const warnings = useMemo<string[]>(() => [], []);
 
-  const requestFullscreen = () => {
-    // Non-blocking no-op / optional
+  const violationCount = 0;
+
+  const flags = useMemo<ProctoringFlags>(
+    () => ({
+      tab_switch: 0,
+      fullscreen_exit: 0,
+      right_click: 0,
+      copy_attempt: 0,
+    }),
+    [],
+  );
+
+  const requestFullscreen = useCallback(async () => {
+    if (typeof document === "undefined") {
+      return;
+    }
+
+    ```
+try {
+  if (!document.fullscreenElement) {
+    await document.documentElement.requestFullscreen();
+  }
+} catch {
+  // Fullscreen is optional and may be denied by the browser.
+}
+```;
+  }, []);
+
+  return {
+    warnings,
+    violationCount,
+    flags,
+    requestFullscreen,
   };
-
-  return { warnings, violationCount, flags, requestFullscreen };
 }

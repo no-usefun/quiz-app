@@ -639,7 +639,7 @@ function SecurityPanel({ onSave }: { onSave: () => void }) {
   );
 }
 
-function DangerPanel({ logout }: { logout: () => Promise<void> }) {
+function DangerPanel({ logout }: { logout: () => void }) {
   const [confirmText, setConfirmText] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
