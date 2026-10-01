@@ -135,9 +135,7 @@ export default function IdentityVerificationPage({
 
         if (!availabilityRes.ok) {
           throw new Error(
-            data?.message ||
-              data?.error ||
-              `Unable to verify assessment (${availabilityRes.status}).`,
+            `Unable to verify assessment (${availabilityRes.status}).`,
           );
         }
 

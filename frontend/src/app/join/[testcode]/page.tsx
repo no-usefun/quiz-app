@@ -1,9 +1,13 @@
 "use client";
 
 import { use, useEffect, useState } from "react";
+
 import { useRouter } from "next/navigation";
+
 import Link from "next/link";
+
 import { motion } from "framer-motion";
+
 import {
   PlayCircle,
   Clock,
@@ -13,6 +17,7 @@ import {
   AlertCircle,
   Loader2,
 } from "lucide-react";
+
 import { ENDPOINTS } from "@/lib/api/endpoints";
 
 type AvailabilityStatus =
@@ -24,17 +29,25 @@ type AvailabilityStatus =
 
 type AvailabilityResponse = {
   quizCode?: string;
+
   available?: boolean;
+
   status?: AvailabilityStatus | string;
+
   startTime?: string | null;
+
   endTime?: string | null;
 };
 
 type QuizPackage = {
   title?: string;
+
   description?: string;
+
   totalQuestions?: number;
+
   overallTimerSeconds?: number;
+
   questions?: unknown[];
 };
 
@@ -59,6 +72,7 @@ function formatStartTime(value?: string | null) {
 
   return date.toLocaleString("en-IN", {
     dateStyle: "medium",
+
     timeStyle: "short",
   });
 }
@@ -69,16 +83,22 @@ export default function TestLandingPage({
   params: Promise<{ testcode: string }>;
 }) {
   const { testcode } = use(params);
+
   const router = useRouter();
 
   const [quizInfo, setQuizInfo] = useState<QuizPackage | null>(null);
+
   const [registrationNo, setRegistrationNo] = useState("");
+
   const [availabilityStatus, setAvailabilityStatus] =
     useState<AvailabilityStatus | null>(null);
 
   const [mounted, setMounted] = useState(false);
+
   const [loading, setLoading] = useState(true);
+
   const [submitting, setSubmitting] = useState(false);
+
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -86,12 +106,16 @@ export default function TestLandingPage({
 
     const cleanCode = String(testcode || "")
       .trim()
+
       .toUpperCase();
 
     if (!cleanCode) {
       setAvailabilityStatus("NOT_FOUND");
+
       setError("Assessment code is missing.");
+
       setLoading(false);
+
       return;
     }
 
@@ -101,6 +125,7 @@ export default function TestLandingPage({
       router.push(
         `/login?role=student&redirect=/join/${encodeURIComponent(cleanCode)}`,
       );
+
       return;
     }
 
@@ -127,34 +152,42 @@ export default function TestLandingPage({
     const loadAssessment = async () => {
       try {
         setLoading(true);
+
         setError(null);
+
         setAvailabilityStatus(null);
 
         const headers = {
           Authorization: `Bearer ${token}`,
+
           "Content-Type": "application/json",
         };
 
         // First use the backend's availability endpoint. It is the
+
         // authoritative check for published state and exam window.
+
         const availabilityRes = await fetch(
           ENDPOINTS.student.availability(cleanCode),
+
           {
             method: "GET",
+
             headers,
+
             cache: "no-store",
           },
         );
 
         const availability: AvailabilityResponse = await availabilityRes
+
           .json()
+
           .catch(() => ({}));
 
         if (!availabilityRes.ok) {
           throw new Error(
-            availability?.message ||
-              availability?.error ||
-              `Unable to check assessment availability (${availabilityRes.status}).`,
+            `Unable to check assessment availability (${availabilityRes.status}).`,
           );
         }
 
@@ -174,39 +207,55 @@ export default function TestLandingPage({
                     )}.`
                   : "This assessment has not started yet.",
               );
+
               break;
+
             case "ENDED":
               setError("This assessment has already ended.");
+
               break;
+
             case "NOT_PUBLISHED":
               setError(
                 "This assessment is not open yet. Ask your teacher to publish it.",
               );
+
               break;
+
             case "NOT_FOUND":
               setError(`Assessment session code "${cleanCode}" was not found.`);
+
               break;
+
             default:
               setError("This assessment is not currently available.");
           }
 
           setQuizInfo(null);
+
           return;
         }
 
         // The package endpoint is used only after the availability check says
+
         // the assessment is live. No mock/default package is created.
+
         const packageRes = await fetch(
           ENDPOINTS.student.quizPackageByCode(cleanCode),
+
           {
             method: "GET",
+
             headers,
+
             cache: "no-store",
           },
         );
 
         const packageData: QuizPackage = await packageRes
+
           .json()
+
           .catch(() => ({}));
 
         if (!packageRes.ok) {
@@ -224,8 +273,11 @@ export default function TestLandingPage({
         if (cancelled) return;
 
         console.error("Failed to load assessment:", e);
+
         setQuizInfo(null);
+
         setAvailabilityStatus(null);
+
         setError(
           e?.message ||
             "Could not connect to the assessment server. Please try again.",
@@ -249,10 +301,12 @@ export default function TestLandingPage({
 
     const cleanCode = String(testcode || "")
       .trim()
+
       .toUpperCase();
 
     if (availabilityStatus !== "LIVE") {
       setError("This assessment is not currently live.");
+
       return;
     }
 
@@ -260,6 +314,7 @@ export default function TestLandingPage({
 
     if (!cleanReg) {
       setError("Please enter your registered roll / registration number.");
+
       return;
     }
 
@@ -269,18 +324,25 @@ export default function TestLandingPage({
       router.push(
         `/login?role=student&redirect=/join/${encodeURIComponent(cleanCode)}`,
       );
+
       return;
     }
 
     setSubmitting(true);
+
     setError(null);
 
     try {
-      /*
-       * The current backend identifies the student from the JWT.
-       * The registration number is therefore only a local confirmation
-       * field; it is NOT sent as a request body to startAttempt.
-       */
+      /**
+
+ * The current backend identifies the student from the JWT.
+
+ * The registration number is therefore only a local confirmation
+
+ * field; it is NOT sent as a request body to startAttempt.
+
+ */
+
       const storedUser = JSON.parse(
         localStorage.getItem("dynoquizz_user") || "{}",
       );
@@ -300,20 +362,29 @@ export default function TestLandingPage({
       }
 
       localStorage.setItem("dynoquizz_regNo", cleanReg);
+
       sessionStorage.setItem("dynoquizz_student_reg", cleanReg);
 
-      /*
-       * Always let the backend create/resume the authenticated student's
-       * attempt. Do not trust a browser-cached attempt ID.
-       */
+      /**
+
+ * Always let the backend create/resume the authenticated student's
+
+ * attempt. Do not trust a browser-cached attempt ID.
+
+ */
+
       const attemptRes = await fetch(
         ENDPOINTS.student.startAttempt(cleanCode),
+
         {
           method: "POST",
+
           headers: {
             Authorization: `Bearer ${token}`,
+
             "Content-Type": "application/json",
           },
+
           cache: "no-store",
         },
       );
@@ -322,6 +393,7 @@ export default function TestLandingPage({
 
       if (!attemptRes.ok) {
         const code = String(attemptData?.error ?? "").toUpperCase();
+
         const message = String(
           attemptData?.message ?? attemptData?.error ?? "",
         );
@@ -370,35 +442,34 @@ export default function TestLandingPage({
         throw new Error("The server did not return an assessment attempt ID.");
       }
 
-      if (
-        typeof attemptData.effectiveDeadline !== "string" ||
-        !attemptData.effectiveDeadline
-      ) {
-        throw new Error(
-          "The server did not return the authoritative assessment deadline.",
-        );
-      }
-
       const attemptId = String(attemptData.attemptId);
 
       localStorage.setItem("dynoquizz_attemptId", attemptId);
+
       localStorage.setItem(`dynoquizz_attemptId_${cleanCode}`, attemptId);
 
       localStorage.setItem(
         `dynoquizz_attemptTiming_${attemptId}`,
+
         JSON.stringify({
           attemptId,
+
           startedAt: attemptData.startedAt ?? null,
+
           submittedAt: attemptData.submittedAt ?? null,
+
           status: attemptData.status ?? null,
+
           currentQuestion: attemptData.currentQuestion ?? null,
+
           totalTimeTaken: attemptData.totalTimeTaken ?? null,
-          effectiveDeadline: attemptData.effectiveDeadline,
         }),
       );
 
       // The lobby is responsible for the final attempt/package initialization
+
       // flow and will resume this same server-side attempt safely.
+
       router.push(`/test/${cleanCode}/lobby`);
     } catch (err: any) {
       console.error("Failed to start assessment:", err);
@@ -510,6 +581,7 @@ export default function TestLandingPage({
               <p className="text-[10px] text-steel-blue-gray font-medium">
                 Time Limit
               </p>
+
               <p className="font-bold text-midnight-navy text-xs">
                 {timeLimitMins} Minutes
               </p>
@@ -525,6 +597,7 @@ export default function TestLandingPage({
               <p className="text-[10px] text-steel-blue-gray font-medium">
                 Questions
               </p>
+
               <p className="font-bold text-midnight-navy text-xs">
                 {totalQuestions} Questions
               </p>
@@ -548,6 +621,7 @@ export default function TestLandingPage({
                 value={registrationNo}
                 onChange={(event) => {
                   setRegistrationNo(event.target.value.toUpperCase());
+
                   setError(null);
                 }}
                 placeholder="e.g. 21BCE1024"
@@ -570,6 +644,7 @@ export default function TestLandingPage({
             className="flex w-full items-center justify-center gap-2 rounded-[10px] bg-signal-green px-4 py-3 text-xs font-bold text-white hover:bg-signal-green/90 active:scale-[0.98] transition-all duration-200 shadow-sm shadow-signal-green/25 hover:shadow-md cursor-pointer border-0 disabled:opacity-50"
           >
             {submitting ? "Launching..." : "Continue to Assessment Lobby"}
+
             <PlayCircle className="h-4 w-4 text-white" />
           </button>
         </form>

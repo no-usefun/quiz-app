@@ -152,7 +152,7 @@ function ProfilePanel({
   user,
 }: {
   onSave: () => void;
-  refreshSession: () => Promise<void>;
+  refreshSession: ReturnType<typeof useSession>["refreshSession"];
   user: any;
 }) {
   const [fullName, setFullName] = useState("");
@@ -681,7 +681,7 @@ function DangerPanel({ logout }: { logout: () => void }) {
         );
       }
 
-      await logout();
+      logout();
     } catch (e: any) {
       console.error("Account deletion failed:", e);
       setError(e?.message || "Failed to delete account.");
@@ -707,7 +707,7 @@ function DangerPanel({ logout }: { logout: () => void }) {
 
         <button
           type="button"
-          onClick={logout}
+          onClick={() => logout()}
           className="shrink-0 rounded-[10px] border border-[#73561a]/30 bg-white px-3 py-1.5 text-[10px] font-bold text-[#73561a] hover:bg-[#f6efe1]/30 active:scale-[0.98] transition-all cursor-pointer shadow-xs"
         >
           Sign out
@@ -838,7 +838,7 @@ export default function SettingsPage() {
           <div className="flex items-center gap-2.5 px-2.5 py-1">
             <div className="flex h-8 w-8 items-center justify-center rounded-full bg-[#e6e3e2] border border-[#d1dee8]/70 text-xs font-bold text-[#111111]">
               {user?.fullName || user?.name
-                ? (user.fullName || user.name).charAt(0).toUpperCase()
+                ? (user?.fullName || user?.name)?.charAt(0).toUpperCase() || "U"
                 : "U"}
             </div>
 
@@ -854,7 +854,7 @@ export default function SettingsPage() {
 
           <button
             type="button"
-            onClick={logout}
+            onClick={() => logout()}
             className="w-full flex items-center justify-center gap-2 rounded-[10px] border border-[#d1dee8]/70 bg-white py-2 text-xs font-bold text-[#8c381c] hover:bg-[#fbeee8] active:scale-[0.98] transition-all cursor-pointer shadow-xs"
           >
             <LogOut className="h-3.5 w-3.5 text-[#8c381c]" />

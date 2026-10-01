@@ -111,6 +111,14 @@ function computeEndTime(
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
 }
 
+type EditableOption = {
+  optionId: number | null;
+  optionText: string;
+  optionImage: string;
+  optionOrder: number;
+  isCorrect: boolean;
+};
+
 function CreateAssessmentContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -306,13 +314,15 @@ function CreateAssessmentContent() {
         const questionType =
           rawType === "MULTIPLE_CHOICE" ? "MULTIPLE_CHOICE" : rawType;
 
-        let mappedOptions = (q.options || []).map((opt: any, oi: number) => ({
-          optionId: opt.optionId ?? opt.id ?? null,
-          optionText: String(opt.optionText || opt.text || ""),
-          optionImage: opt.optionImage || "",
-          optionOrder: Number(opt.optionOrder || opt.displayOrder || oi + 1),
-          isCorrect: Boolean(opt.isCorrect === true || opt.correct === true),
-        }));
+        let mappedOptions: EditableOption[] = (q.options || []).map(
+          (opt: any, oi: number): EditableOption => ({
+            optionId: opt.optionId ?? opt.id ?? null,
+            optionText: String(opt.optionText || opt.text || ""),
+            optionImage: opt.optionImage || "",
+            optionOrder: Number(opt.optionOrder || opt.displayOrder || oi + 1),
+            isCorrect: Boolean(opt.isCorrect === true || opt.correct === true),
+          }),
+        );
 
         // Keep the editor consistent with the create flow. MCQ/MSQ start with
         // at least four answer slots; TRUE/FALSE is always exactly two.
@@ -1549,7 +1559,9 @@ function CreateAssessmentContent() {
         const settingsPayload = {
           ...buildUpdatePayload(),
         };
-
+        if (!draftId) {
+          throw new Error("Quiz draft ID is missing.");
+        }
         const settingsRes = await fetch(ENDPOINTS.teacher.settings(draftId), {
           method: "PUT",
           headers: {

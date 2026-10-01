@@ -28,16 +28,13 @@ export function useProctoring() {
     if (typeof document === "undefined") {
       return;
     }
-
-    ```
-try {
-  if (!document.fullscreenElement) {
-    await document.documentElement.requestFullscreen();
-  }
-} catch {
-  // Fullscreen is optional and may be denied by the browser.
-}
-```;
+    try {
+      if (!document.fullscreenElement) {
+        await document.documentElement.requestFullscreen();
+      }
+    } catch {
+      // Fullscreen is optional and may be denied by the browser.
+    }
   }, []);
 
   return {

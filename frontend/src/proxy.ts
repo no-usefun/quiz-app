@@ -87,8 +87,15 @@ function clearInvalidToken(
 
 function redirectWithRole(
   request: NextRequest,
-  role: "teacher" | "student",
+  role: "teacher" | "student" | null,
 ): NextResponse {
+  if (!role) {
+    return clearInvalidToken(
+      request,
+      request.nextUrl.pathname + (request.nextUrl.search || ""),
+    );
+  }
+
   return NextResponse.redirect(
     new URL(
       role === "teacher" ? "/dashboard/teacher" : "/dashboard/student",
@@ -150,6 +157,10 @@ export function proxy(request: NextRequest) {
    * correct dashboard based on the role embedded in the backend-issued JWT.
    */
   if (path === "/dashboard") {
+    if (!role) {
+      return clearInvalidToken(request, path + (request.nextUrl.search || ""));
+    }
+
     return redirectWithRole(request, role);
   }
 
