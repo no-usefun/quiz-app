@@ -236,12 +236,15 @@ export function useSession() {
 
       return null;
     } catch (error) {
-      console.warn("Session verification failed:", error);
-
       /*
-       * Keep the cached user when the backend is temporarily unreachable.
-       * A rejected authentication response above still clears the session.
+       * A network-level failure means the backend could not be reached at
+       * all. Keep the cached user and avoid flooding the browser console.
+       * HTTP authentication failures are handled above from the response.
        */
+      if (!(error instanceof TypeError && /fetch|network/i.test(error.message))) {
+        console.warn("Session verification failed:", error);
+      }
+
       return null;
     } finally {
       setLoading(false);
