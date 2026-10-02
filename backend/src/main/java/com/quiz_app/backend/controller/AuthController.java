@@ -48,15 +48,19 @@ public class AuthController {
 
     @Operation(summary = "Register a student account", description = "Creates a student account and sends an email verification link. The account must be verified before login.")
     @PostMapping("/signup")
-    public ResponseEntity<SignupResponse> signup(@Valid @RequestBody SignupRequest request) {
-        SignupResponse response = authService.register(request);
+    public ResponseEntity<SignupResponse> signup(
+            @RequestParam String role,
+            @Valid @RequestBody SignupRequest request) {
+        SignupResponse response = authService.register(request, role);
         return ResponseEntity.status(HttpStatus.CREATED).body(response);
     }
 
     @Operation(summary = "Login user", description = "Authenticates the user and returns a JWT token.")
     @PostMapping("/login")
-    public ResponseEntity<AuthResponse> login(@Valid @RequestBody LoginRequest request) {
-        AuthResponse response = authService.login(request);
+    public ResponseEntity<AuthResponse> login(
+            @RequestParam String role,
+            @Valid @RequestBody LoginRequest request) {
+        AuthResponse response = authService.login(request, role);
         return ResponseEntity.ok(response);
     }
 
