@@ -18,6 +18,8 @@ import {
   ShieldAlert,
   Maximize2,
   RefreshCw,
+  Download,
+  ExternalLink,
 } from "lucide-react";
 import { useProctoring } from "@/hooks/useProctoring";
 
@@ -1417,7 +1419,7 @@ export default function TestArenaPage({
       {!isExtensionInstalled && mounted && !isSubmitted && !isLoadingTest && test && (
         <div className="fixed inset-0 z-50 bg-midnight-navy/95 backdrop-blur-md flex items-center justify-center p-4">
           <div className="w-full max-w-lg bg-paper-white rounded-[20px] p-6 text-center border-2 border-amber-500 shadow-2xl space-y-4">
-            <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-amber-100 text-amber-600">
+            <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-amber-100 text-amber-600 shadow-inner">
               <ShieldCheck className="h-8 w-8 animate-pulse" />
             </div>
             <div>
@@ -1429,15 +1431,33 @@ export default function TestArenaPage({
               </p>
             </div>
 
-            <div className="text-left bg-frost-surface p-3.5 rounded-xl border border-mist-blue/60 text-xs space-y-2">
+            {/* 1-Click Download Button */}
+            <a
+              href="/dynoquizz-proctor-shield.zip"
+              download="dynoquizz-proctor-shield.zip"
+              className="w-full py-3 px-4 rounded-[12px] bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs shadow-md shadow-emerald-600/20 active:scale-[0.98] transition-all cursor-pointer flex items-center justify-center gap-2 border-0 no-underline"
+            >
+              <Download className="h-4 w-4" />
+              <span>Download Extension Package (.zip)</span>
+            </a>
+
+            <div className="text-left bg-frost-surface p-4 rounded-xl border border-mist-blue/60 text-xs space-y-2.5">
               <p className="font-bold text-midnight-navy text-[11px] uppercase tracking-wide">
-                Quick Setup Steps:
+                Quick 4-Step Installation:
               </p>
-              <ol className="list-decimal list-inside space-y-1 text-[11px] text-steel-blue-gray font-medium">
-                <li>Open <code className="bg-white px-1.5 py-0.5 rounded border text-midnight-navy font-mono text-[10px]">chrome://extensions</code> in a new tab.</li>
-                <li>Enable <strong>Developer mode</strong> (toggle in top right corner).</li>
-                <li>Click <strong>Load unpacked</strong> and select the <code className="bg-white px-1.5 py-0.5 rounded border text-midnight-navy font-mono text-[10px]">database/extension</code> folder.</li>
-                <li>Return here and click the verification button below.</li>
+              <ol className="list-decimal list-inside space-y-1.5 text-[11px] text-steel-blue-gray font-medium leading-relaxed">
+                <li>
+                  Click the green button above to download <code className="bg-white px-1.5 py-0.5 rounded border text-midnight-navy font-mono text-[10px]">dynoquizz-proctor-shield.zip</code> and extract it to a folder.
+                </li>
+                <li>
+                  Open <code className="bg-white px-1.5 py-0.5 rounded border text-midnight-navy font-mono text-[10px]">chrome://extensions</code> in a new tab.
+                </li>
+                <li>
+                  Enable <strong>Developer mode</strong> (toggle in top right corner), click <strong>Load unpacked</strong>, and select the extracted folder (or <code className="bg-white px-1.5 py-0.5 rounded border text-midnight-navy font-mono text-[10px]">database/extension</code>).
+                </li>
+                <li>
+                  <strong>If using Incognito:</strong> Click <em>Details</em> on DynoQuizz Proctor Shield and turn ON <strong className="text-midnight-navy">&quot;Allow in Incognito&quot;</strong>.
+                </li>
               </ol>
             </div>
 
