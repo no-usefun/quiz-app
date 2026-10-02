@@ -127,8 +127,6 @@ export default function StudentDashboard() {
           return;
         }
 
-        console.error("Failed to load student submissions:", error);
-
         if (error instanceof ApiClientError && error.status === 401) {
           setResults([]);
           setFetchError(
@@ -139,9 +137,11 @@ export default function StudentDashboard() {
 
         setResults([]);
         setFetchError(
-          error instanceof Error
-            ? error.message
-            : "A network error occurred while loading your submission history.",
+          error instanceof ApiClientError && error.status === 0
+            ? "Quizly backend is unreachable. Start the Spring Boot server and verify NEXT_PUBLIC_API_URL."
+            : error instanceof Error
+              ? error.message
+              : "A network error occurred while loading your submission history.",
         );
       } finally {
         if (!cancelled) {
