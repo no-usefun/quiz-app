@@ -1,8 +1,6 @@
 package com.quiz_app.backend.security;
 
 import java.nio.charset.StandardCharsets;
-import java.security.MessageDigest;
-import java.security.NoSuchAlgorithmException;
 import java.util.Date;
 
 import javax.crypto.SecretKey;
@@ -34,16 +32,12 @@ public class JwtUtils {
     private long jwtExpirationMs;
 
     private SecretKey getSigningKey() {
+        if (jwtSecret == null || jwtSecret.isBlank()) {
+            throw new IllegalStateException("JWT_SECRET is not configured");
+        }
         byte[] keyBytes = jwtSecret.getBytes(StandardCharsets.UTF_8);
         if (keyBytes.length < 32) {
-            try {
-                MessageDigest sha256 = MessageDigest.getInstance("SHA-256");
-                keyBytes = sha256.digest(keyBytes);
-            } catch (NoSuchAlgorithmException e) {
-                byte[] padded = new byte[32];
-                System.arraycopy(keyBytes, 0, padded, 0, Math.min(keyBytes.length, 32));
-                keyBytes = padded;
-            }
+            throw new IllegalStateException("JWT_SECRET must be at least 32 bytes");
         }
         return Keys.hmacShaKeyFor(keyBytes);
     }
@@ -51,11 +45,10 @@ public class JwtUtils {
     public String generateToken(User user) {
         Date now = new Date();
         Date expiryDate = new Date(now.getTime() + jwtExpirationMs);
-
         String roleName = user.getRole() != null ? user.getRole().getName() : "STUDENT";
 
         return Jwts.builder()
-                .subject(user.getEmail())
+                .subject(String.valueOf(user.getId()))
                 .claim("userId", user.getId())
                 .claim("email", user.getEmail())
                 .claim("role", roleName)
@@ -67,16 +60,17 @@ public class JwtUtils {
                 .compact();
     }
 
-    public String getEmailFromToken(String token) {
-        return getClaims(token).getSubject();
+    public Long getUserIdFromToken(String token) {
+        String subject = getClaims(token).getSubject();
+        try {
+            return Long.valueOf(subject);
+        } catch (NumberFormatException e) {
+            throw new IllegalArgumentException("JWT subject does not contain a valid user id", e);
+        }
     }
 
-    public Long getUserIdFromToken(String token) {
-        Object userId = getClaims(token).get("userId");
-        if (userId instanceof Number number) {
-            return number.longValue();
-        }
-        return null;
+    public String getEmailFromToken(String token) {
+        return getClaims(token).get("email", String.class);
     }
 
     public String getRoleFromToken(String token) {
@@ -84,32 +78,18 @@ public class JwtUtils {
     }
 
     public Claims getClaims(String token) {
-        return Jwts.parser()
-                .verifyWith(getSigningKey())
-                .build()
-                .parseSignedClaims(token)
-                .getPayload();
+        return Jwts.parser().verifyWith(getSigningKey()).build().parseSignedClaims(token).getPayload();
     }
 
     public boolean validateToken(String authToken) {
         try {
-            Jwts.parser()
-                    .verifyWith(getSigningKey())
-                    .build()
-                    .parseSignedClaims(authToken);
+            getClaims(authToken);
             return true;
-        } catch (SignatureException e) {
-            logger.error("Invalid JWT signature: {}", e.getMessage());
-        } catch (MalformedJwtException e) {
-            logger.error("Invalid JWT token: {}", e.getMessage());
-        } catch (ExpiredJwtException e) {
-            logger.error("JWT token is expired: {}", e.getMessage());
-        } catch (UnsupportedJwtException e) {
-            logger.error("JWT token is unsupported: {}", e.getMessage());
-        } catch (IllegalArgumentException e) {
-            logger.error("JWT claims string is empty: {}", e.getMessage());
+        } catch (SignatureException | MalformedJwtException | ExpiredJwtException |
+                 UnsupportedJwtException | IllegalArgumentException e) {
+            logger.warn("Invalid JWT: {}", e.getMessage());
+            return false;
         }
-        return false;
     }
 
     public long getExpirationMs() {
