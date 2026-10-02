@@ -1,6 +1,6 @@
 FRONTEND_API_CONTRACT.md
 
-DynoQuizz — Current Frontend ↔ Backend API Contract
+Quizly — Current Frontend ↔ Backend API Contract
 
 Purpose: Authoritative frontend integration instructions for the current Spring Boot backend. Antigravity cannot inspect the backend repository, so it must follow this file rather than historical frontend assumptions.
 
