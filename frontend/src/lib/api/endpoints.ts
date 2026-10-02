@@ -48,6 +48,9 @@ export const ENDPOINTS = {
     saveAnswer: (attemptId: number | string, questionId: number | string) =>
       `${API_BASE}/api/v1/student/attempts/${attemptId}/questions/${questionId}/answer`,
 
+    heartbeat: (attemptId: number | string) =>
+      `${API_BASE}/api/v1/student/attempts/${attemptId}/heartbeat`,
+
     submissions: `${API_BASE}/api/v1/student/submissions`,
 
     attemptResult: (attemptId: number | string) =>
