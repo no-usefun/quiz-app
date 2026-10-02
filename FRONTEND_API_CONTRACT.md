@@ -103,7 +103,7 @@ Never interchange them.
 Examples:
 
 GET /api/v1/teacher/quizzes/35
-GET /api/v1/quizzes/code/957800/package
+GET /api/v1/student/quizzes/code/957800/package
 POST /api/v1/student/quizzes/957800/attempts
 POST /api/v1/student/attempts/17/submit
 
@@ -356,7 +356,7 @@ Create one shared frontend conversion helper and use it everywhere.
 
 11. STUDENT — QUIZ PACKAGE
 
-GET /api/v1/quizzes/code/{quizCode}/package
+GET /api/v1/student/quizzes/code/{quizCode}/package
 
 Headers:
 
@@ -646,7 +646,7 @@ Login
 ↓
 Enter quizCode
 ↓
-GET /api/v1/quizzes/code/{quizCode}/package
+GET /api/v1/student/quizzes/code/{quizCode}/package
 ↓
 Lobby
 ↓
@@ -828,3 +828,20 @@ Student receives backend result
 All identifiers, quiz state, attempts, scoring, and results must originate from the backend.
 
 The frontend is responsible for presentation, interaction, temporary recovery state, and sending requests that conform exactly to this contract.
+
+
+13. GOOGLE OAUTH
+
+The frontend starts Google authentication through:
+
+GET /oauth2/authorization/google?role=STUDENT
+
+or:
+
+GET /oauth2/authorization/google?role=TEACHER
+
+The selected role is required by the backend OAuth resolver.
+
+The current backend OAuth success handler generates the backend JWT and writes AuthResponse JSON directly to the OAuth response. The frontend must not generate another JWT.
+
+Because the current backend success handler does not redirect the browser to a Next.js callback route, the frontend can initiate the OAuth flow and preserve the requested role, but a browser-to-dashboard redirect after successful Google authentication is not fully controllable from the frontend alone. Do not invent a second OAuth callback or fabricate a frontend session token.
