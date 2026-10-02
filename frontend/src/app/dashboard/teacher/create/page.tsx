@@ -1152,6 +1152,8 @@ function CreateAssessmentContent() {
     if (!title.trim()) return "Please enter an assessment title.";
     if (!startTime) return "Please select a start time.";
     if (timeLimit <= 0) return "Time limit must be at least 1 minute.";
+    if (!Number.isFinite(maxTabSwitch) || maxTabSwitch < 0)
+      return "Maximum tab switches cannot be negative.";
     if (!endTime)
       return "Could not calculate end time — check start time and time limit.";
     if (parsedQuestions.length === 0)
@@ -2049,6 +2051,8 @@ function CreateAssessmentContent() {
                         </label>
                         <input
                           type="number"
+                          min="0"
+                          step="0.25"
                           value={q.marks}
                           onChange={(e) =>
                             handleUpdateQuestionField(
@@ -2057,8 +2061,32 @@ function CreateAssessmentContent() {
                               Number(e.target.value),
                             )
                           }
-                          className="w-14 rounded-[8px] border border-[#d1dee8]/80 bg-white px-2 py-1 text-center text-xs font-bold text-[#111111] outline-none transition-all focus:border-[#165dfb] focus:ring-4 focus:ring-[#165dfb]/10 shadow-xs"
+                          className="w-16 rounded-[8px] border border-[#d1dee8]/80 bg-white px-2 py-1 text-center text-xs font-bold text-[#111111] outline-none transition-all focus:border-[#165dfb] focus:ring-4 focus:ring-[#165dfb]/10 shadow-xs"
+                          aria-label={"Marks for question " + (idx + 1)}
                         />
+                        <label className="hidden text-[10px] font-bold uppercase tracking-wider text-[#78716b] sm:inline">
+                          Time
+                        </label>
+                        <div className="flex items-center gap-1 rounded-[8px] border border-[#d1dee8]/80 bg-white px-2 py-1 shadow-xs">
+                          <input
+                            type="number"
+                            min="1"
+                            step="1"
+                            value={Number(q.questionTimerSeconds ?? 60)}
+                            onChange={(e) =>
+                              handleUpdateQuestionField(
+                                idx,
+                                "questionTimerSeconds",
+                                Math.max(1, Number(e.target.value)),
+                              )
+                            }
+                            className="w-14 bg-transparent text-center text-xs font-bold text-[#111111] outline-none"
+                            aria-label={"Time limit in seconds for question " + (idx + 1)}
+                          />
+                          <span className="text-[9px] font-bold uppercase text-[#a8a29d]">
+                            sec
+                          </span>
+                        </div>
                         <button
                           type="button"
                           onClick={() => handleDeleteQuestion(idx)}
@@ -2101,6 +2129,52 @@ function CreateAssessmentContent() {
                           <option value="MSQ">MSQ — Multiple correct</option>
                           <option value="TRUE_FALSE">True / False</option>
                         </select>
+                      </div>
+
+                      <div className="grid gap-3 sm:grid-cols-2">
+                        <div>
+                          <label className="mb-1.5 block text-[10px] font-bold uppercase tracking-wider text-[#78716b]">
+                            Question Time (seconds)
+                          </label>
+                          <input
+                            type="number"
+                            min="1"
+                            step="1"
+                            value={Number(q.questionTimerSeconds ?? 60)}
+                            onChange={(e) =>
+                              handleUpdateQuestionField(
+                                idx,
+                                "questionTimerSeconds",
+                                Math.max(1, Number(e.target.value)),
+                              )
+                            }
+                            className={inputClass}
+                          />
+                          <p className="mt-1 text-[10px] text-[#a8a29d]">
+                            Enforced per question once the backend timer contract is active.
+                          </p>
+                        </div>
+                        {negativeMarking && (
+                          <div>
+                            <label className="mb-1.5 block text-[10px] font-bold uppercase tracking-wider text-[#78716b]">
+                              Negative Marks
+                            </label>
+                            <input
+                              type="number"
+                              min="0"
+                              step="0.01"
+                              value={Number(q.negativeMarks ?? negativeMarks ?? 0)}
+                              onChange={(e) =>
+                                handleUpdateQuestionField(
+                                  idx,
+                                  "negativeMarks",
+                                  Math.max(0, Number(e.target.value)),
+                                )
+                              }
+                              className={inputClass}
+                            />
+                          </div>
+                        )}
                       </div>
 
                       <div className="grid gap-2">
@@ -2338,14 +2412,44 @@ questionText,optionA,optionB,optionC,optionD,correctAnswer,marks,questionType,ne
                   <div className="p-4 grid gap-3 sm:grid-cols-2">
                     {[
                       {
-                        label: "Release Scores Instantly",
+                        label: "Show Leaderboard After Results",
                         val: publishScoresImmediately,
                         setter: setPublishScoresImmediately,
                       },
                       {
-                        label: "Allow Students to View Solutions",
+                        label: "Show Question-wise Results",
                         val: revealSolutions,
                         setter: setRevealSolutions,
+                      },
+                      {
+                        label: "Time Bonus Enabled",
+                        val: timeBonusEnabled,
+                        setter: setTimeBonusEnabled,
+                      },
+                      {
+                        label: "Randomize Questions",
+                        val: randomQuestionOrder,
+                        setter: setRandomQuestionOrder,
+                      },
+                      {
+                        label: "Randomize Options",
+                        val: randomOptionOrder,
+                        setter: setRandomOptionOrder,
+                      },
+                      {
+                        label: "Allow Review",
+                        val: allowReview,
+                        setter: setAllowReview,
+                      },
+                      {
+                        label: "Allow Resume",
+                        val: allowResume,
+                        setter: setAllowResume,
+                      },
+                      {
+                        label: "Auto Submit On Deadline",
+                        val: autoSubmit,
+                        setter: setAutoSubmit,
                       },
                       {
                         label: "Enable Negative Marking",
@@ -2379,10 +2483,32 @@ questionText,optionA,optionB,optionC,optionD,correctAnswer,marks,questionType,ne
                       </div>
                     ))}
                   </div>
-                  <div className="border-t border-[#d1dee8]/30 px-4 pb-4 pt-3 text-left">
-                    <label className="mb-1.5 block text-[11px] font-bold uppercase tracking-wider text-[#57534e]">
-                      Accepted Email Domain
-                    </label>
+                  <div className="border-t border-[#d1dee8]/30 px-4 pb-4 pt-3 text-left space-y-4">
+                    <div className="grid gap-3 sm:grid-cols-2">
+                      <div>
+                        <label className="mb-1.5 block text-[11px] font-bold uppercase tracking-wider text-[#57534e]">
+                          Maximum Tab Switches
+                        </label>
+                        <input
+                          type="number"
+                          min="0"
+                          step="1"
+                          value={maxTabSwitch}
+                          onChange={(e) =>
+                            setMaxTabSwitch(Math.max(0, Number(e.target.value)))
+                          }
+                          className={inputClass}
+                        />
+                        <p className="mt-1 text-[10px] text-[#78716b]">
+                          Backend should enforce this limit for the attempt.
+                        </p>
+                      </div>
+                    </div>
+
+                    <div>
+                      <label className="mb-1.5 block text-[11px] font-bold uppercase tracking-wider text-[#57534e]">
+                        Accepted Email Domain
+                      </label>
                     <input
                       type="text"
                       value={acceptedDomain}
