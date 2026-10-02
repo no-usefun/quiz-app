@@ -10,6 +10,7 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import org.mockito.Mock;
+import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 import org.mockito.junit.jupiter.MockitoExtension;
@@ -55,8 +56,8 @@ class StudentQuizControllerTest {
 
                 objectMapper = new ObjectMapper();
 
-                when(authentication.getPrincipal()).thenReturn(userDetails);
-                when(userDetails.getId()).thenReturn(1L);
+                lenient().when(authentication.getPrincipal()).thenReturn(userDetails);
+                lenient().when(userDetails.getId()).thenReturn(1L);
         }
 
         @Test
