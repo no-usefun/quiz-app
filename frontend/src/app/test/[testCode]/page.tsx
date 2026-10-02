@@ -323,6 +323,7 @@ export default function TestArenaPage({
     violationCount,
     isFullscreen,
     requestFullscreen,
+    exitFullscreen,
   } = useProctoring();
 
   useEffect(() => {
@@ -361,6 +362,12 @@ export default function TestArenaPage({
 
     return () => window.removeEventListener("beforeunload", handleBeforeUnload);
   }, [isSubmitted]);
+
+  useEffect(() => {
+    if (isSubmitted) {
+      void exitFullscreen();
+    }
+  }, [isSubmitted, exitFullscreen]);
 
   useEffect(() => {
     setMounted(true);
@@ -1129,7 +1136,36 @@ export default function TestArenaPage({
   }
 
   return (
-    <div className="flex min-h-screen bg-[#f5f5f4] text-[#111111] p-4 md:p-6 font-sans">
+    <div className="relative flex min-h-screen bg-[#f5f5f4] text-[#111111] p-4 md:p-6 font-sans">
+      {!isFullscreen && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-[#111111]/70 p-4 backdrop-blur-sm">
+          <div className="w-full max-w-md rounded-[16px] border border-[#d1dee8] bg-white p-6 text-center shadow-2xl">
+            <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-[#fbeee8] text-[#8c381c]">
+              <Maximize2 className="h-6 w-6" />
+            </div>
+            <h2 className="mt-4 text-lg font-black text-[#111111]">
+              Fullscreen Required
+            </h2>
+            <p className="mt-2 text-xs leading-relaxed text-[#78716b]">
+              The assessment must remain in fullscreen mode. Re-enter fullscreen to continue the attempt.
+            </p>
+            {violationCount > 0 && (
+              <p className="mt-2 text-[10px] font-bold text-[#8c381c]">
+                Suspicious activity events recorded: {violationCount}
+              </p>
+            )}
+            <button
+              type="button"
+              onClick={() => void requestFullscreen()}
+              className="mt-5 inline-flex items-center justify-center gap-2 rounded-lg bg-[#111111] px-5 py-2.5 text-xs font-bold text-white transition-all hover:bg-[#222222] active:scale-[0.98]"
+            >
+              <Maximize2 className="h-3.5 w-3.5" />
+              Re-enter Fullscreen
+            </button>
+          </div>
+        </div>
+      )}
+
       <motion.div
         initial={mounted ? { opacity: 0, y: 8 } : false}
         animate={mounted ? { opacity: 1, y: 0 } : false}
