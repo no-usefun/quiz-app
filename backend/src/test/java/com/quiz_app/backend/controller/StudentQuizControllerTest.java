@@ -26,12 +26,16 @@ import com.quiz_app.backend.entity.AttemptStatus;
 import com.quiz_app.backend.exception.GlobalExceptionHandler;
 import com.quiz_app.backend.security.CustomUserDetails;
 import com.quiz_app.backend.service.StudentAttemptService;
+import com.quiz_app.backend.service.StudentQuizService;
 
 @ExtendWith(MockitoExtension.class)
 class StudentQuizControllerTest {
 
     @Mock
     private StudentAttemptService attemptService;
+
+    @Mock
+    private StudentQuizService studentQuizService;
 
     @Mock
     private Authentication authentication;
@@ -45,7 +49,7 @@ class StudentQuizControllerTest {
     void setUp() {
         mockMvc = MockMvcBuilders
                 .standaloneSetup(
-                        new StudentQuizController(attemptService))
+                        new StudentQuizController(attemptService, studentQuizService))
                 .setControllerAdvice(
                         new GlobalExceptionHandler())
                 .build();
@@ -68,11 +72,13 @@ class StudentQuizControllerTest {
                 null,
                 AttemptStatus.IN_PROGRESS,
                 1,
-                0);
+                0,
+                LocalDateTime.now().plusMinutes(30));
 
         when(attemptService.startAttempt(
-                "123456",
-                1L))
+                eq("123456"),
+                eq(1L),
+                any()))
                 .thenReturn(response);
 
         mockMvc.perform(
@@ -83,7 +89,7 @@ class StudentQuizControllerTest {
                 .andExpect(status().isOk());
 
         verify(attemptService)
-                .startAttempt("123456", 1L);
+                .startAttempt(eq("123456"), eq(1L), any());
     }
 
     @Test

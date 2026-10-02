@@ -43,6 +43,7 @@ type AssessmentData = {
   resultsPublished: boolean;
   status: string;
   examState?: string;
+  allowedRegistrationNumbers?: string[];
 };
 
 type StudentRecord = {
@@ -329,6 +330,11 @@ export default function TeacherAssessmentPage({
         resultsPublished: Boolean(matched.resultsPublished),
         status: String(matched.status ?? "DRAFT"),
         examState: matched.examState,
+        allowedRegistrationNumbers: Array.isArray(matched.allowedRegistrationNumbers)
+          ? matched.allowedRegistrationNumbers
+          : Array.isArray(matched.allowedRegistrationNos)
+            ? matched.allowedRegistrationNos
+            : [],
       } satisfies AssessmentData,
     };
   };

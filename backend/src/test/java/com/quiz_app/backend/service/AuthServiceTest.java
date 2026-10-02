@@ -23,6 +23,7 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import com.quiz_app.backend.dto.auth.AuthResponse;
 import com.quiz_app.backend.dto.auth.LoginRequest;
 import com.quiz_app.backend.dto.auth.SignupRequest;
+import com.quiz_app.backend.dto.auth.SignupResponse;
 import com.quiz_app.backend.dto.auth.UserSummaryResponse;
 import com.quiz_app.backend.entity.Role;
 import com.quiz_app.backend.entity.User;
@@ -48,11 +49,14 @@ class AuthServiceTest {
     @Mock
     private JwtUtils jwtUtils;
 
+    @Mock
+    private EmailVerificationService emailVerificationService;
+
     private AuthService authService;
 
     @BeforeEach
     void setUp() {
-        authService = new AuthService(userRepository, roleRepository, passwordEncoder, jwtUtils);
+        authService = new AuthService(userRepository, roleRepository, passwordEncoder, jwtUtils, emailVerificationService);
     }
 
     @Test
@@ -72,10 +76,9 @@ class AuthServiceTest {
         when(jwtUtils.generateToken(any(User.class))).thenReturn("mock.jwt.token");
         when(jwtUtils.getExpirationMs()).thenReturn(86400000L);
 
-        AuthResponse response = authService.register(request);
+        SignupResponse response = authService.register(request);
 
         assertNotNull(response);
-        assertEquals("mock.jwt.token", response.token());
         assertEquals("alex@university.edu", response.user().email());
         assertEquals("STUDENT", response.user().role());
         verify(userRepository).save(any(User.class));
@@ -301,7 +304,7 @@ class AuthServiceTest {
         when(jwtUtils.getExpirationMs())
                 .thenReturn(86400000L);
 
-        AuthResponse response = authService.register(request);
+        SignupResponse response = authService.register(request);
 
         assertEquals("STUDENT", response.user().role());
 
@@ -344,7 +347,7 @@ class AuthServiceTest {
         when(jwtUtils.getExpirationMs())
                 .thenReturn(86400000L);
 
-        AuthResponse response = authService.register(request);
+        SignupResponse response = authService.register(request);
 
         assertEquals("STUDENT", response.user().role());
     }
@@ -384,7 +387,7 @@ class AuthServiceTest {
         when(jwtUtils.getExpirationMs())
                 .thenReturn(86400000L);
 
-        AuthResponse response = authService.register(request);
+        SignupResponse response = authService.register(request);
 
         assertEquals("TEACHER", response.user().role());
 

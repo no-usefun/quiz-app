@@ -26,6 +26,7 @@ type QuizData = {
   overallTimerSeconds?: number;
   status?: string;
   examState?: string;
+  allowedRegistrationNumbers?: string[];
 };
 
 function normalizeQuiz(raw: any): QuizData | null {
@@ -42,6 +43,11 @@ function normalizeQuiz(raw: any): QuizData | null {
       raw.totalQuestions ??
       (Array.isArray(raw.questions) ? raw.questions.length : 0),
     overallTimerSeconds: Number(raw.overallTimerSeconds ?? 0),
+    allowedRegistrationNumbers: Array.isArray(raw.allowedRegistrationNumbers)
+      ? raw.allowedRegistrationNumbers
+      : Array.isArray(raw.allowedRegistrationNos)
+        ? raw.allowedRegistrationNos
+        : [],
   };
 }
 

@@ -22,10 +22,12 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.quiz_app.backend.dto.auth.AuthResponse;
 import com.quiz_app.backend.dto.auth.LoginRequest;
 import com.quiz_app.backend.dto.auth.SignupRequest;
+import com.quiz_app.backend.dto.auth.SignupResponse;
 import com.quiz_app.backend.dto.auth.UserSummaryResponse;
 import com.quiz_app.backend.exception.BadRequestException;
 import com.quiz_app.backend.exception.GlobalExceptionHandler;
 import com.quiz_app.backend.service.AuthService;
+import com.quiz_app.backend.service.EmailVerificationService;
 
 @ExtendWith(MockitoExtension.class)
 class AuthControllerTest {
@@ -35,6 +37,9 @@ class AuthControllerTest {
         @Mock
         private AuthService authService;
 
+        @Mock
+        private EmailVerificationService emailVerificationService;
+
         private AuthController authController;
 
         private final ObjectMapper objectMapper = new ObjectMapper();
@@ -43,11 +48,12 @@ class AuthControllerTest {
         private LoginRequest validLoginRequest;
         private UserSummaryResponse teacherSummary;
         private AuthResponse authResponse;
+        private SignupResponse signupResponse;
 
         @BeforeEach
         void setUp() {
 
-                authController = new AuthController(authService);
+                authController = new AuthController(authService, emailVerificationService);
 
                 mockMvc = MockMvcBuilders
                                 .standaloneSetup(authController)
@@ -89,6 +95,11 @@ class AuthControllerTest {
                                 "mock.jwt.token",
                                 86400000L,
                                 teacherSummary);
+
+                signupResponse = new SignupResponse(
+                                "Registration successful",
+                                false,
+                                teacherSummary);
         }
 
         // =========================================================
@@ -99,7 +110,7 @@ class AuthControllerTest {
         void testSignupEndpointSuccess() throws Exception {
 
                 when(authService.register(any(SignupRequest.class)))
-                                .thenReturn(authResponse);
+                                .thenReturn(signupResponse);
 
                 mockMvc.perform(
                                 post("/api/v1/auth/signup")

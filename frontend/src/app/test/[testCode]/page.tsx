@@ -10,16 +10,17 @@ import {
   Clock,
   CheckCircle2,
   ChevronRight,
+  ChevronLeft,
   ShieldCheck,
   AlertTriangle,
-  Camera,
   Eye,
   Volume2,
   ShieldAlert,
   Maximize2,
   RefreshCw,
   Download,
-  ExternalLink,
+  Activity,
+  User,
 } from "lucide-react";
 import { useProctoring } from "@/hooks/useProctoring";
 
@@ -64,14 +65,6 @@ export default function TestArenaPage({
 
   /*
    * Active attempt is the storage boundary for this assessment.
-   *
-   * quizCode is shared by every student, so quizCode-based localStorage
-   * keys can leak one student's answers/progress into another student's
-   * session on the same browser.
-   *
-   * The lobby creates the authoritative attempt and stores its ID before
-   * navigating here. All active exam state below is therefore scoped to
-   * that attempt ID.
    */
   const [activeAttemptId] = useState<string | null>(() => {
     if (typeof window === "undefined") return null;
@@ -85,7 +78,6 @@ export default function TestArenaPage({
   });
 
   const [currentIndex, setCurrentIndex] = useState(0);
-
   const [selectedOption, setSelectedOption] = useState<number | null>(null);
 
   // Track answers as questionId -> optionId
@@ -96,7 +88,6 @@ export default function TestArenaPage({
   >({});
 
   // Backend-authoritative absolute attempt deadline.
-  // The backend returns effectiveDeadline = min(startedAt + overallTimerSeconds, quiz.endTime).
   const [effectiveDeadline, setEffectiveDeadline] = useState<string | null>(
     () => {
       if (typeof window === "undefined") return null;
@@ -129,15 +120,6 @@ export default function TestArenaPage({
   const expiryHandledRef = useRef(false);
   const questionElapsedRef = useRef(0);
 
-  /*
-   * Authoritative attempt ID returned by the backend after submission.
-   *
-   * IMPORTANT:
-   * testCode != quizId != attemptId
-   *
-   * The result page expects attemptId, so after successful submission
-   * we store the backend-returned attemptId here.
-   */
   const [submittedAttemptId, setSubmittedAttemptId] = useState<string | null>(
     null,
   );
@@ -145,29 +127,17 @@ export default function TestArenaPage({
   const [mounted, setMounted] = useState(false);
   const [isOnline, setIsOnline] = useState(true);
 
-  const [activeAttemptId, setActiveAttemptId] = useState<number | null>(() => {
-    if (typeof window !== "undefined") {
-      const cleanCode = testCode.toUpperCase();
-      const stored =
-        localStorage.getItem(`dynoquizz_attemptId_${cleanCode}`) ||
-        localStorage.getItem("dynoquizz_attemptId");
-      return stored ? Number(stored) : null;
-    }
-    return null;
-  });
-
   const {
     videoRef,
     warningsCount,
     maxWarnings,
-    violations,
     proctorStatus,
     statusMessage,
+    currentWarningMessage,
+    dismissWarning,
     faceStatus,
     isFullscreen,
-    hasCameraPermission,
     isExtensionInstalled,
-    isExtensionActive,
     displayCount,
     requestFullscreen,
   } = useProctoring({
@@ -187,24 +157,6 @@ export default function TestArenaPage({
     enabled: !isSubmitted,
   });
 
-  // Sync candidate ID snapshot to backend attempt once attempt is active
-  useEffect(() => {
-    if (!activeAttemptId) return;
-    const cleanCode = testCode.toUpperCase();
-    const idPhoto = sessionStorage.getItem(`dynoquizz_id_photo_${cleanCode}`);
-    if (idPhoto) {
-      const token = getClientAuthToken();
-      fetch(`${API_BASE}/api/v1/attempts/${activeAttemptId}/id-photo`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify({ idPhotoData: idPhoto }),
-      }).catch((err) => console.warn("Could not sync ID photo snapshot:", err));
-    }
-  }, [activeAttemptId, testCode]);
-
   const [saveStatus, setSaveStatus] = useState<"idle" | "saved">("idle");
   const [sessionExpired, setSessionExpired] = useState(false);
   const [deadlineNotice, setDeadlineNotice] = useState<string | null>(null);
@@ -212,10 +164,6 @@ export default function TestArenaPage({
 
   /*
    * Load the authoritative quiz package.
-   *
-   * The lobby downloads and caches the package before entering the Arena.
-   * The Arena therefore reads the cached package first and only falls back
-   * to the backend when the cache is missing or invalid.
    */
   useEffect(() => {
     setMounted(true);
@@ -260,10 +208,6 @@ export default function TestArenaPage({
         return;
       }
 
-      /*
-       * Restore the timing returned by POST /attempts.
-       * Never calculate a new deadline from question count or questionTimerSeconds.
-       */
       if (activeAttemptId) {
         try {
           const rawTiming = localStorage.getItem(
@@ -294,12 +238,6 @@ export default function TestArenaPage({
         );
       }
 
-      /*
-       * Restore only state belonging to the current backend attempt.
-       *
-       * Never restore quiz-code-only state here. That state belongs to the
-       * browser/device, not to the logged-in student's attempt.
-       */
       if (activeAttemptId) {
         const attemptStateKey = `dynoquizz_active_test_${activeAttemptId}`;
         const attemptIndexKey = `exam_index_${activeAttemptId}`;
@@ -340,9 +278,6 @@ export default function TestArenaPage({
       try {
         let packageData: any = null;
 
-        /*
-         * First source: package cached by the lobby.
-         */
         if (typeof window !== "undefined") {
           const cachedPackage = sessionStorage.getItem(
             `dynoquizz_pkg_${cleanCode}`,
@@ -365,10 +300,6 @@ export default function TestArenaPage({
           }
         }
 
-        /*
-         * Fallback: fetch the student-safe package directly if the lobby cache
-         * is unavailable. This keeps the Arena resilient on refresh.
-         */
         if (!packageData) {
           const token = getClientAuthToken();
 
@@ -491,8 +422,6 @@ export default function TestArenaPage({
     questionElapsedRef.current = 0;
   }, [currentIndex, currentQuestion?.id]);
 
-  // Track response time for the submission payload only. This does not
-  // control the exam deadline; the backend effectiveDeadline does.
   useEffect(() => {
     if (isSubmitted || !currentQuestion) return;
 
@@ -511,11 +440,6 @@ export default function TestArenaPage({
     nextAnswers: Record<number, number | null>,
     nextTimeTaken: Record<number, number>,
   ) => {
-    /*
-     * No attempt ID means there is no safe student-specific storage scope.
-     * Do not fall back to quizCode because that can leak another student's
-     * answers on a shared browser.
-     */
     if (!activeAttemptId) return;
 
     try {
@@ -534,9 +458,6 @@ export default function TestArenaPage({
 
   /*
    * Select an answer.
-   *
-   * Answers are kept locally during the assessment. The current backend
-   * accepts the complete answer sheet only when the attempt is submitted.
    */
   const handleSelectOption = (optionId: number | string) => {
     if (!currentQuestion) return;
@@ -550,11 +471,6 @@ export default function TestArenaPage({
       !Number.isFinite(safeOptionId) ||
       safeOptionId <= 0
     ) {
-      console.warn("[Assessment] Ignoring invalid question/option ID:", {
-        questionId: currentQuestion.id,
-        optionId,
-      });
-
       return;
     }
 
@@ -571,6 +487,37 @@ export default function TestArenaPage({
   };
 
   /*
+   * Jump directly to a question index
+   */
+  const handleJumpToQuestion = (targetIndex: number) => {
+    if (targetIndex < 0 || targetIndex >= questions.length) return;
+    persistLocalAnswerState(answers, timeTakenPerQuestion);
+    setCurrentIndex(targetIndex);
+
+    if (typeof window !== "undefined" && activeAttemptId) {
+      localStorage.setItem(
+        `exam_index_${activeAttemptId}`,
+        targetIndex.toString(),
+      );
+    }
+
+    const targetQuestion = questions[targetIndex];
+    setSelectedOption(
+      targetQuestion ? (answers[Number(targetQuestion.id)] ?? null) : null,
+    );
+    setSaveStatus("idle");
+  };
+
+  /*
+   * Previous Question handler
+   */
+  const handlePreviousQuestion = () => {
+    if (currentIndex > 0) {
+      handleJumpToQuestion(currentIndex - 1);
+    }
+  };
+
+  /*
    * Move to next question or submit
    */
   const advanceOrSubmit = (latestAnswers: Record<number, number | null>) => {
@@ -578,7 +525,6 @@ export default function TestArenaPage({
 
     if (currentIndex < questions.length - 1) {
       const nextIndex = currentIndex + 1;
-
       setCurrentIndex(nextIndex);
 
       if (typeof window !== "undefined" && activeAttemptId) {
@@ -589,11 +535,9 @@ export default function TestArenaPage({
       }
 
       const nextQuestion = questions[nextIndex];
-
       setSelectedOption(
         nextQuestion ? (latestAnswers[Number(nextQuestion.id)] ?? null) : null,
       );
-
       setSaveStatus("idle");
     } else {
       finishAssessment(latestAnswers);
@@ -602,9 +546,6 @@ export default function TestArenaPage({
 
   /*
    * Handle Next Question.
-   *
-   * Unanswered questions can be skipped. They are submitted as
-   * selectedOptionIds: [].
    */
   const handleNextQuestion = () => {
     if (!currentQuestion) return;
@@ -612,11 +553,6 @@ export default function TestArenaPage({
     const questionId = Number(currentQuestion.id);
 
     if (!Number.isFinite(questionId) || questionId <= 0) {
-      console.warn(
-        "[Assessment] Invalid current question ID:",
-        currentQuestion,
-      );
-
       return;
     }
 
@@ -660,13 +596,11 @@ export default function TestArenaPage({
     };
 
     document.addEventListener("visibilitychange", handleVisibilityChange);
-
     window.addEventListener("pagehide", flushActiveState);
     window.addEventListener("beforeunload", flushActiveState);
 
     return () => {
       document.removeEventListener("visibilitychange", handleVisibilityChange);
-
       window.removeEventListener("pagehide", flushActiveState);
       window.removeEventListener("beforeunload", flushActiveState);
     };
@@ -683,29 +617,21 @@ export default function TestArenaPage({
     setIsSubmitted(true);
 
     const cleanCode = testCode.toUpperCase();
-
-    // Keep local answers until the backend confirms the final submission.
     persistLocalAnswerState(latestAnswers, timeTakenPerQuestion);
 
     try {
       const token = getClientAuthToken();
-
       const attemptId = activeAttemptId;
 
       if (!attemptId) {
         console.warn("No attemptId found. Cannot submit attempt.");
-
         setIsSubmitted(false);
-
         setSubmissionNotice(
           "Your attempt session is missing. Your answers remain stored locally.",
         );
-
         return;
       }
 
-      // Build the payload from the authoritative backend quiz package.
-      // Never create questionId/optionId values such as 0.
       const completeAnswers: Array<{
         questionId: number;
         selectedOptionIds: number[];
@@ -716,16 +642,10 @@ export default function TestArenaPage({
         const questionId = Number(question.id);
 
         if (!Number.isFinite(questionId) || questionId <= 0) {
-          console.error(
-            "[Assessment Submission] Invalid backend question ID:",
-            question,
-          );
-
           continue;
         }
 
         const selectedOptionId = latestAnswers[questionId];
-
         const selectedOptionIds =
           selectedOptionId !== null &&
           selectedOptionId !== undefined &&
@@ -745,10 +665,6 @@ export default function TestArenaPage({
         answers: completeAnswers,
       };
 
-      console.log("[Assessment Submission] Attempt ID:", attemptId);
-
-      console.log("[Assessment Submission] Payload:", payload);
-
       const res = await fetch(
         `${API_BASE}/api/v1/student/attempts/${attemptId}/submit`,
         {
@@ -761,12 +677,7 @@ export default function TestArenaPage({
         },
       );
 
-      console.log("[Assessment Submission] HTTP status:", res.status);
-
       const rawText = await res.text();
-
-      console.log("[Assessment Submission] Raw response text:", rawText);
-
       let data: any = {};
 
       try {
@@ -780,32 +691,12 @@ export default function TestArenaPage({
 
       if (res.status === 401) {
         persistLocalAnswerState(latestAnswers, timeTakenPerQuestion);
-
         setIsSubmitted(false);
         setSessionExpired(true);
-
         return;
       }
 
       if (res.ok) {
-        /*
-         * IMPORTANT:
-         *
-         * The backend response is authoritative.
-         *
-         * We must NOT use:
-         *   testCode
-         *   quizId
-         *   or any inferred value
-         *
-         * as the result-page identifier.
-         *
-         * The result endpoint expects:
-         *
-         *   /api/v1/student/attempts/{attemptId}/result
-         *
-         * Therefore use the attemptId returned by the submission API.
-         */
         const returnedAttemptId = data?.attemptId;
 
         if (
@@ -813,58 +704,30 @@ export default function TestArenaPage({
           returnedAttemptId === null ||
           String(returnedAttemptId).trim() === ""
         ) {
-          console.error(
-            "[Assessment Submission] Backend submission succeeded but did not return attemptId:",
-            data,
-          );
-
           setIsSubmitted(false);
-
           setSubmissionNotice(
             "Your submission was received, but the attempt ID was not returned. Please contact the administrator before leaving this page.",
           );
-
           return;
         }
 
         const authoritativeAttemptId = String(returnedAttemptId);
-
-        /*
-         * Keep the authoritative attempt ID in React state so the
-         * scorecard button routes to the correct result.
-         */
         setSubmittedAttemptId(authoritativeAttemptId);
 
-        /*
-         * Preserve the submitted attempt ID in localStorage as a
-         * safety fallback if the result page is refreshed.
-         */
         localStorage.setItem(
           `dynoquizz_submittedAttemptId_${cleanCode}`,
           authoritativeAttemptId,
         );
-
         localStorage.setItem(
           "dynoquizz_submittedAttemptId",
           authoritativeAttemptId,
         );
 
-        /*
-         * Submission succeeded.
-         *
-         * The backend has returned the authoritative attemptId and
-         * we have already stored it separately as submittedAttemptId.
-         *
-         * The active attempt ID is no longer needed, so remove it.
-         * This prevents a later student account from inheriting
-         * this student's attempt ID from browser localStorage.
-         */
         localStorage.removeItem(`dynoquizz_attemptId_${cleanCode}`);
         localStorage.removeItem("dynoquizz_attemptId");
         localStorage.removeItem(
           `dynoquizz_attemptTiming_${authoritativeAttemptId}`,
         );
-
         localStorage.removeItem(
           `dynoquizz_active_test_${authoritativeAttemptId}`,
         );
@@ -883,7 +746,6 @@ export default function TestArenaPage({
         }
       } else {
         setIsSubmitted(false);
-
         setSubmissionNotice(
           data?.message ||
             "Submission failed. Your answers remain stored locally. Please try again.",
@@ -891,9 +753,7 @@ export default function TestArenaPage({
       }
     } catch (e) {
       console.error("[Assessment Submission] Submission failed:", e);
-
       setIsSubmitted(false);
-
       setSubmissionNotice(
         "Submission failed because the server could not be reached. Your answers remain stored locally. Please try again.",
       );
@@ -902,20 +762,14 @@ export default function TestArenaPage({
 
   /*
    * Handle backend-authoritative timer expiration.
-   * The timer belongs to the whole attempt, so changing questions never resets it.
    */
   const handleTimerExpired = () => {
     if (expiryHandledRef.current || isSubmitted || !currentQuestion) return;
 
     expiryHandledRef.current = true;
-
     const questionId = Number(currentQuestion.id);
 
     if (!Number.isFinite(questionId) || questionId <= 0) {
-      console.warn(
-        "[Assessment] Invalid question ID during timer expiry:",
-        currentQuestion,
-      );
       return;
     }
 
@@ -939,9 +793,6 @@ export default function TestArenaPage({
   };
 
   const parseBackendDeadline = (value: string): number => {
-    // Backend returns Java LocalDateTime without Z/offset. Do not add or subtract
-    // an arbitrary timezone offset. The browser interprets this local timestamp
-    // in its own local timezone, matching the current frontend/backend contract.
     const normalized = value.includes("T") ? value : value.replace(" ", "T");
     const timestamp = new Date(normalized).getTime();
     return Number.isFinite(timestamp) ? timestamp : NaN;
@@ -964,21 +815,12 @@ export default function TestArenaPage({
       .padStart(2, "0")}`;
   };
 
-  /*
-   * One countdown for the entire attempt.
-   * Recalculate on every tick and when the tab becomes visible again so a
-   * backgrounded browser cannot pause or extend the client-side countdown.
-   */
   useEffect(() => {
     if (isSubmitted || !effectiveDeadline) return;
 
     const deadlineMs = parseBackendDeadline(effectiveDeadline);
 
     if (!Number.isFinite(deadlineMs)) {
-      console.error(
-        "[Assessment Timing] Invalid backend effectiveDeadline:",
-        effectiveDeadline,
-      );
       setTestLoadError(
         "The server returned an invalid authoritative attempt deadline. Please return to the lobby and start the assessment again.",
       );
@@ -1146,11 +988,7 @@ export default function TestArenaPage({
   }
 
   /*
-   * Loading / package error / invalid package
-   *
-   * "Not Found" is only shown after loading has completed and the
-   * package is genuinely missing or empty. It is never used as the
-   * initial loading state.
+   * Loading state
    */
   if (isLoadingTest) {
     return (
@@ -1218,8 +1056,7 @@ export default function TestArenaPage({
 
             <p className="text-xs text-[#78716b] leading-relaxed font-medium">
               No valid questions were found for session code{" "}
-              <strong>&ldquo;{testCode?.toUpperCase()}&rdquo;</strong>. Please
-              return to the lobby and try again.
+              <strong>&ldquo;{testCode?.toUpperCase()}&rdquo;</strong>.
             </p>
           </div>
 
@@ -1238,16 +1075,27 @@ export default function TestArenaPage({
    * Main assessment UI
    */
   return (
-    <div className="flex min-h-screen bg-[#f5f5f4] text-[#111111] p-4 md:p-6 font-sans selection:bg-[#f5f5f4] selection:text-[#165dfb]">
+    <div className="flex min-h-screen bg-[#f5f5f4] text-[#111111] p-3 md:p-6 font-sans selection:bg-[#f5f5f4] selection:text-[#165dfb]">
+      {/* Hidden camera stream running background AI snapshot analysis without displaying mirror */}
+      <video
+        ref={videoRef}
+        autoPlay
+        playsInline
+        muted
+        className="hidden"
+        aria-hidden="true"
+      />
+
       <motion.div
         initial={mounted ? { opacity: 0, y: 8 } : false}
         animate={mounted ? { opacity: 1, y: 0 } : false}
         transition={{ duration: 0.25, ease: "easeOut" }}
-        className="flex flex-1 flex-col rounded-[14px] bg-white overflow-hidden border border-[#d1dee8]/70 shadow-sm text-left"
+        className="flex flex-1 flex-col rounded-[16px] bg-white overflow-hidden border border-[#d1dee8]/80 shadow-md text-left"
       >
-        <header className="flex flex-wrap items-center justify-between bg-white px-6 py-4 gap-3 border-b border-[#d1dee8]/50">
-          <div className="flex items-center gap-3.5">
-            <span className="rounded-full bg-[#f5f5f4] px-3 py-1 text-xs font-bold text-[#165dfb] font-mono border border-[#d1dee8]/70 shadow-xs">
+        {/* Header Bar */}
+        <header className="flex flex-wrap items-center justify-between bg-white px-5 py-3.5 gap-3 border-b border-[#d1dee8]/50">
+          <div className="flex items-center gap-3">
+            <span className="rounded-full bg-[#165dfb] px-3 py-1 text-xs font-bold text-white font-mono shadow-xs">
               {testCode.toUpperCase()}
             </span>
 
@@ -1256,42 +1104,59 @@ export default function TestArenaPage({
             </span>
 
             {saveStatus === "saved" && (
-              <span className="text-[11px] font-bold text-[#1d5237]">
-                ✓ Stored locally
+              <span className="text-[11px] font-bold text-[#1d5237] bg-[#e2ede8] px-2 py-0.5 rounded-full border border-[#1d5237]/20">
+                ✓ Saved locally
               </span>
             )}
           </div>
 
-          <div className="flex items-center gap-3.5 font-sans">
+          <div className="flex items-center gap-3 font-sans">
+            {/* Real-time Warning Sign Status Pill */}
+            <div
+              className={`flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-bold transition-all border shadow-xs ${
+                warningsCount > 0
+                  ? "bg-rose-600 text-white border-rose-700 animate-pulse"
+                  : "bg-[#e2ede8] text-[#1d5237] border-[#1d5237]/20"
+              }`}
+            >
+              <ShieldAlert className="h-3.5 w-3.5" />
+              <span>
+                {warningsCount > 0
+                  ? `⚠️ Warnings: ${warningsCount} / ${maxWarnings}`
+                  : "AI Proctor: Clear (0 Warnings)"}
+              </span>
+            </div>
+
             {isOnline ? (
-              <span className="flex items-center gap-1.5 rounded-full bg-[#e2ede8] text-[#1d5237] border border-[#1d5237]/20 px-2.5 py-0.5 text-xs font-bold shadow-xs">
+              <span className="flex items-center gap-1.5 rounded-full bg-[#f5f5f4] text-[#111111] border border-[#d1dee8] px-2.5 py-1 text-xs font-bold shadow-xs">
                 <span className="relative flex h-2 w-2">
                   <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-[#1d5237] opacity-75" />
                   <span className="relative inline-flex h-2 w-2 rounded-full bg-[#1d5237]" />
                 </span>
                 <Wifi className="h-3.5 w-3.5 text-[#1d5237]" />
-                Local Save Active
+                Online
               </span>
             ) : (
-              <span className="flex items-center gap-1.5 rounded-full bg-[#f6efe1] text-[#73561a] border border-[#73561a]/20 px-2.5 py-0.5 text-xs font-bold shadow-xs">
+              <span className="flex items-center gap-1.5 rounded-full bg-[#f6efe1] text-[#73561a] border border-[#73561a]/20 px-2.5 py-1 text-xs font-bold shadow-xs">
                 <WifiOff className="h-3.5 w-3.5 text-[#73561a]" />
-                Offline Mode
+                Offline
               </span>
             )}
 
             <div
               className={`flex items-center gap-1.5 rounded-full px-3 py-1 font-bold text-xs transition-colors border shadow-xs ${
-                timeLeft <= 10
-                  ? "bg-[#fbeee8] text-[#8c381c] border-[#8c381c]/30 animate-pulse"
-                  : "bg-[#f5f5f4] text-[#78716b] border-[#d1dee8]/70"
+                timeLeft <= 60
+                  ? "bg-rose-50 text-rose-700 border-rose-300 animate-pulse"
+                  : "bg-[#f5f5f4] text-[#111111] border-[#d1dee8]"
               }`}
             >
-              <Clock className="h-3.5 w-3.5" />
+              <Clock className="h-3.5 w-3.5 text-[#165dfb]" />
               {formatRemainingTime(timeLeft)}
             </div>
           </div>
         </header>
 
+        {/* Progress Bar */}
         <div className="h-1.5 w-full bg-[#e6e3e2]/40 border-b border-[#d1dee8]/30">
           <div
             className="h-full bg-[#165dfb] transition-all duration-300 ease-out"
@@ -1299,6 +1164,71 @@ export default function TestArenaPage({
           />
         </div>
 
+        {/* Active Warning Banner */}
+        <AnimatePresence>
+          {currentWarningMessage && (
+            <motion.div
+              initial={{ opacity: 0, height: 0 }}
+              animate={{ opacity: 1, height: "auto" }}
+              exit={{ opacity: 0, height: 0 }}
+              className="bg-rose-50 border-b-2 border-rose-500 px-6 py-3 flex items-center justify-between text-rose-900 shadow-sm"
+            >
+              <div className="flex items-center gap-2.5">
+                <AlertTriangle className="h-5 w-5 text-rose-600 shrink-0 animate-bounce" />
+                <div>
+                  <p className="text-xs font-bold leading-tight">
+                    {currentWarningMessage}
+                  </p>
+                  <p className="text-[11px] text-rose-700 font-medium">
+                    Warning {warningsCount} of {maxWarnings} recorded. Reaching {maxWarnings} warnings triggers instant assessment submission.
+                  </p>
+                </div>
+              </div>
+
+              <button
+                type="button"
+                onClick={dismissWarning}
+                className="text-[10px] font-bold bg-rose-200 hover:bg-rose-300 text-rose-900 px-3 py-1.5 rounded-[8px] transition-colors border border-rose-300 cursor-pointer shadow-xs"
+              >
+                Acknowledge
+              </button>
+            </motion.div>
+          )}
+        </AnimatePresence>
+
+        {/* Question Palette Row */}
+        <div className="px-6 py-2.5 bg-[#f5f5f4]/60 border-b border-[#d1dee8]/40 flex items-center gap-2 overflow-x-auto">
+          <span className="text-[10px] font-bold uppercase tracking-wider text-[#78716b] shrink-0">
+            Questions:
+          </span>
+          <div className="flex items-center gap-1.5 flex-wrap">
+            {questions.map((q: any, idx: number) => {
+              const isAnswered =
+                answers[Number(q.id)] !== undefined &&
+                answers[Number(q.id)] !== null;
+              const isCurrent = idx === currentIndex;
+
+              return (
+                <button
+                  key={q.id || idx}
+                  type="button"
+                  onClick={() => handleJumpToQuestion(idx)}
+                  className={`h-7 w-7 rounded-[8px] text-xs font-bold flex items-center justify-center transition-all cursor-pointer shadow-2xs border ${
+                    isCurrent
+                      ? "bg-[#165dfb] text-white border-[#165dfb] ring-2 ring-[#165dfb]/30"
+                      : isAnswered
+                      ? "bg-[#e2ede8] text-[#1d5237] border-[#1d5237]/30 hover:bg-[#d0e5db]"
+                      : "bg-white text-[#78716b] border-[#d1dee8] hover:border-[#165dfb]/40 hover:text-[#111111]"
+                  }`}
+                >
+                  {idx + 1}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+
+        {/* Question Area */}
         <div className="flex-1 overflow-y-auto px-6 py-6 md:px-10 md:py-8 bg-white">
           <AnimatePresence mode="wait">
             <motion.div
@@ -1308,14 +1238,22 @@ export default function TestArenaPage({
               exit={{ opacity: 0, y: -8 }}
               transition={{ duration: 0.2, ease: "easeOut" }}
             >
-              <h2 className="mb-5 text-lg font-bold leading-snug text-[#111111] md:text-xl tracking-tight">
+              <div className="flex items-center justify-between gap-2 mb-3">
+                <span className="text-[11px] font-bold text-[#165dfb] uppercase tracking-wider">
+                  Question {currentIndex + 1}
+                </span>
+                <span className="text-xs font-semibold text-[#78716b]">
+                  Marks: {currentQuestion.marks || 4}
+                </span>
+              </div>
+
+              <h2 className="mb-6 text-lg font-bold leading-snug text-[#111111] md:text-xl tracking-tight">
                 {currentQuestion.text}
               </h2>
 
-              <div className="space-y-2.5">
+              <div className="space-y-3">
                 {currentQuestion.options.map((option: any, idx: number) => {
                   const optId = Number(option.optionId ?? option.id);
-
                   const isSelected =
                     Number(selectedOption ?? answers[currentQuestion.id]) ===
                     optId;
@@ -1324,15 +1262,15 @@ export default function TestArenaPage({
                     <button
                       key={optId || idx}
                       onClick={() => handleSelectOption(optId)}
-                      className={`w-full rounded-[10px] border p-3.5 text-left text-xs font-bold transition-all duration-150 cursor-pointer shadow-xs ${
+                      className={`w-full rounded-[12px] border p-4 text-left text-xs font-bold transition-all duration-150 cursor-pointer shadow-xs ${
                         isSelected
                           ? "border-[#165dfb] bg-[#165dfb]/5 text-[#111111] ring-2 ring-[#165dfb]/20"
-                          : "border-[#d1dee8]/70 bg-white text-[#78716b] hover:border-[#165dfb]/40 hover:text-[#111111] hover:shadow-sm"
+                          : "border-[#d1dee8]/80 bg-white text-[#78716b] hover:border-[#165dfb]/40 hover:text-[#111111] hover:shadow-sm"
                       }`}
                     >
-                      <div className="flex items-center gap-2.5">
+                      <div className="flex items-center gap-3">
                         <span
-                          className={`flex h-7 w-7 items-center justify-center rounded-[8px] text-xs font-bold border transition-colors shadow-xs ${
+                          className={`flex h-7 w-7 items-center justify-center rounded-[8px] text-xs font-bold border transition-colors shadow-xs shrink-0 ${
                             isSelected
                               ? "bg-[#165dfb] border-[#165dfb] text-white"
                               : "bg-[#f5f5f4] text-[#78716b] border-[#d1dee8]/70"
@@ -1341,7 +1279,9 @@ export default function TestArenaPage({
                           {String.fromCharCode(65 + idx)}
                         </span>
 
-                        {option.optionText}
+                        <span className="text-sm font-medium text-[#111111]">
+                          {option.optionText}
+                        </span>
                       </div>
                     </button>
                   );
@@ -1351,152 +1291,183 @@ export default function TestArenaPage({
           </AnimatePresence>
         </div>
 
-        <footer className="border-t border-[#d1dee8]/50 bg-white px-6 py-3.5 flex justify-between items-center">
-          <span className="text-[10px] font-medium text-[#78716b]">
-            Question {currentIndex + 1} of {questions.length}
+        {/* Footer Navigation Bar with explicit Previous Question & Next Question buttons */}
+        <footer className="border-t border-[#d1dee8]/60 bg-[#fbfbfb] px-6 py-4 flex justify-between items-center">
+          <button
+            type="button"
+            onClick={handlePreviousQuestion}
+            disabled={currentIndex === 0}
+            className="flex items-center gap-1.5 rounded-[10px] border border-[#d1dee8] bg-white px-4 py-2.5 text-xs font-bold text-[#111111] hover:bg-[#f5f5f4] disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer shadow-xs transition-all active:scale-[0.98]"
+          >
+            <ChevronLeft className="h-4 w-4" />
+            <span>Previous Question</span>
+          </button>
+
+          <span className="text-xs font-semibold text-[#78716b]">
+            {currentIndex + 1} of {questions.length} Questions
           </span>
 
           <button
+            type="button"
             onClick={handleNextQuestion}
-            disabled={false}
-            className="flex items-center gap-1 rounded-[10px] bg-[#165dfb] px-4 py-2 text-xs font-bold text-white hover:bg-[#165dfb]/90 active:scale-[0.98] transition-all duration-200 shadow-xs disabled:opacity-40 cursor-pointer border-0"
+            className="flex items-center gap-1.5 rounded-[10px] bg-[#165dfb] px-5 py-2.5 text-xs font-bold text-white hover:bg-[#165dfb]/90 active:scale-[0.98] transition-all duration-200 shadow-md shadow-[#165dfb]/20 cursor-pointer border-0"
           >
             {currentIndex === questions.length - 1 ? (
               <>
-                Submit Assessment{" "}
-                <ChevronRight className="h-3.5 w-3.5 text-white" />
+                <span>Submit Assessment</span>
+                <ChevronRight className="h-4 w-4 text-white" />
               </>
             ) : (
               <>
-                Next Question{" "}
-                <ChevronRight className="h-3.5 w-3.5 text-white" />
+                <span>Next Question</span>
+                <ChevronRight className="h-4 w-4 text-white" />
               </>
             )}
           </button>
         </footer>
       </motion.div>
 
+      {/* Right Sidebar: AI Proctor Sentinel & Warnings Radar */}
       <aside className="hidden w-80 flex-col gap-4 pl-6 lg:flex text-left">
-        {/* Live Edge-AI Proctoring Webcam & Gaze Monitor */}
+        {/* Modern AI Proctor Sentinel Box without live webcam mirror */}
         <div className="overflow-hidden rounded-[16px] bg-white border border-[#d1dee8]/80 shadow-md">
-          <div className="p-3.5 border-b border-[#d1dee8]/50 bg-midnight-navy text-white flex items-center justify-between">
+          <div className="p-3.5 border-b border-[#d1dee8]/50 bg-[#111111] text-white flex items-center justify-between">
             <div className="flex items-center gap-2">
-              <span className="relative flex h-2 w-2">
-                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-signal-green opacity-75" />
-                <span className="relative inline-flex h-2 w-2 rounded-full bg-signal-green" />
+              <span className="relative flex h-2.5 w-2.5">
+                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75" />
+                <span className="relative inline-flex h-2.5 w-2.5 rounded-full bg-emerald-500" />
               </span>
               <span className="text-[11px] font-bold tracking-tight">
-                AI Proctor & Eye Tracker
+                AI Proctor Sentinel
               </span>
             </div>
-            <span className="text-[10px] font-mono bg-white/10 px-2 py-0.5 rounded text-white/90">
-              {faceStatus === "OK"
-                ? "TRACKING"
-                : faceStatus === "LOOKING_AWAY"
-                ? "AWAY"
-                : "ALERT"}
+            <span className="text-[10px] font-mono bg-white/15 px-2 py-0.5 rounded text-white font-bold">
+              ACTIVE
             </span>
           </div>
 
-          <div className="relative aspect-[4/3] bg-black overflow-hidden flex items-center justify-center">
-            <video
-              ref={videoRef}
-              autoPlay
-              playsInline
-              muted
-              className="w-full h-full object-cover transform -scale-x-100"
-            />
+          {/* Clean Proctoring Radar Visualizer */}
+          <div className="relative p-6 bg-gradient-to-b from-[#111111] to-[#1e1e1e] text-white flex flex-col items-center justify-center text-center overflow-hidden">
+            {/* Background Radar Rings */}
+            <div className="relative flex items-center justify-center h-28 w-28 my-2">
+              <div className="absolute inset-0 rounded-full border border-emerald-500/20 animate-ping" />
+              <div className="absolute inset-3 rounded-full border border-emerald-500/30" />
+              <div className="absolute inset-7 rounded-full border border-emerald-500/50" />
+              <div className="h-12 w-12 rounded-full bg-emerald-500/20 border border-emerald-400 flex items-center justify-center shadow-lg shadow-emerald-500/20">
+                <ShieldCheck className="h-6 w-6 text-emerald-400" />
+              </div>
+            </div>
 
-            {/* Live AI Overlay Status Pill */}
-            <div className="absolute top-2 left-2 right-2 flex items-center justify-between pointer-events-none">
+            <div className="space-y-1 mt-2">
               <span
-                className={`text-[9px] font-bold px-2 py-0.5 rounded-full flex items-center gap-1 shadow-sm ${
+                className={`text-[11px] font-bold px-3 py-1 rounded-full inline-flex items-center gap-1.5 shadow-sm ${
                   faceStatus === "OK"
                     ? "bg-emerald-600/90 text-white"
                     : faceStatus === "LOOKING_AWAY"
-                    ? "bg-amber-500/95 text-white animate-pulse"
-                    : "bg-rose-600/95 text-white animate-pulse"
+                    ? "bg-amber-500 text-white animate-pulse"
+                    : "bg-rose-600 text-white animate-pulse"
                 }`}
               >
-                <Eye className="h-3 w-3" />
+                <Eye className="h-3.5 w-3.5" />
                 {faceStatus === "OK"
-                  ? "Gaze Aligned"
+                  ? "Screen Focus Aligned"
                   : faceStatus === "LOOKING_AWAY"
-                  ? "Looking Away!"
+                  ? "Looking Away Detected!"
                   : faceStatus === "NO_FACE"
-                  ? "No Face Detected!"
-                  : "Multiple Faces!"}
+                  ? "Face Not Detected!"
+                  : "Multiple Faces Detected!"}
               </span>
 
-              <span className="text-[9px] font-mono bg-black/60 text-white/90 px-1.5 py-0.5 rounded">
-                LIVE
-              </span>
-            </div>
-
-            {/* Warnings Alert Counter */}
-            <div className="absolute bottom-2 left-2 right-2 flex items-center justify-between pointer-events-none">
-              <span
-                className={`text-[10px] font-bold px-2 py-0.5 rounded-md shadow-sm flex items-center gap-1 ${
-                  warningsCount > 0
-                    ? "bg-rose-600 text-white"
-                    : "bg-black/60 text-white/90"
-                }`}
-              >
-                <ShieldAlert className="h-3 w-3" />
-                Warnings: {warningsCount} / {maxWarnings}
-              </span>
-
-              <span className="text-[9px] text-white/80 bg-black/60 px-1.5 py-0.5 rounded flex items-center gap-1">
-                <Volume2 className="h-3 w-3 text-signal-green" />
-                Mic Active
-              </span>
+              <p className="text-[10px] text-gray-400 font-medium pt-1">
+                Background Snapshot &amp; Telemetry Active
+              </p>
             </div>
           </div>
 
-          {/* Real-time Status Details */}
-          <div className="p-3 bg-frost-surface border-t border-[#d1dee8]/50 text-[11px] font-medium text-steel-blue-gray space-y-1.5">
-            <div className="flex items-center justify-between text-midnight-navy font-semibold text-[10px]">
-              <span>Proctoring Engine:</span>
-              <span className="text-signal-green font-bold">Edge AI + Sentinel</span>
-            </div>
-            <div className="flex items-center justify-between text-midnight-navy font-semibold text-[10px]">
-              <span>Shield Sentinel:</span>
+          {/* Warnings Counter & Security Status */}
+          <div className="p-4 bg-white border-t border-[#d1dee8]/60 space-y-3">
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-bold text-[#111111]">
+                Integrity Warnings:
+              </span>
               <span
-                className={`font-bold flex items-center gap-1 ${
-                  isExtensionInstalled ? "text-signal-green" : "text-amber-600"
+                className={`text-xs font-extrabold px-2.5 py-0.5 rounded-full ${
+                  warningsCount > 0
+                    ? "bg-rose-100 text-rose-700 border border-rose-300 font-mono"
+                    : "bg-[#e2ede8] text-[#1d5237] border border-[#1d5237]/20 font-mono"
                 }`}
               >
-                <ShieldCheck className="h-3 w-3" />
-                {isExtensionInstalled ? "Extension Armed" : "In-Browser Mode"}
+                {warningsCount} / {maxWarnings}
               </span>
             </div>
-            {isExtensionInstalled && (
-              <div className="flex items-center justify-between text-midnight-navy font-semibold text-[10px]">
-                <span>Active Displays:</span>
+
+            <div className="w-full bg-gray-200 rounded-full h-2 overflow-hidden">
+              <div
+                className={`h-2 transition-all duration-300 ${
+                  warningsCount === 0
+                    ? "bg-emerald-500"
+                    : warningsCount === 1
+                    ? "bg-amber-500"
+                    : "bg-rose-600"
+                }`}
+                style={{
+                  width: `${Math.min(100, (warningsCount / maxWarnings) * 100)}%`,
+                }}
+              />
+            </div>
+
+            <div className="pt-2 border-t border-[#d1dee8]/40 space-y-1.5 text-[11px] font-medium text-[#78716b]">
+              <div className="flex items-center justify-between">
+                <span className="flex items-center gap-1">
+                  <Volume2 className="h-3.5 w-3.5 text-emerald-600" />
+                  Microphone Audio:
+                </span>
+                <span className="font-bold text-emerald-600">Active</span>
+              </div>
+
+              <div className="flex items-center justify-between">
+                <span className="flex items-center gap-1">
+                  <Activity className="h-3.5 w-3.5 text-[#165dfb]" />
+                  Sentinel Extension:
+                </span>
                 <span
                   className={`font-bold ${
-                    displayCount > 1
-                      ? "text-rose-600 animate-pulse"
-                      : "text-signal-green"
+                    isExtensionInstalled ? "text-emerald-600" : "text-amber-600"
                   }`}
                 >
-                  {displayCount} Display{displayCount > 1 ? "s (ALERT)" : " (Secure)"}
+                  {isExtensionInstalled ? "Armed" : "Standard"}
                 </span>
               </div>
-            )}
-            <p className="text-[10px] text-steel-blue-gray leading-tight pt-0.5">
+
+              {isExtensionInstalled && (
+                <div className="flex items-center justify-between">
+                  <span>Connected Displays:</span>
+                  <span
+                    className={`font-bold ${
+                      displayCount > 1 ? "text-rose-600" : "text-emerald-600"
+                    }`}
+                  >
+                    {displayCount} Display{displayCount > 1 ? "s (Alert)" : " (Secure)"}
+                  </span>
+                </div>
+              )}
+            </div>
+
+            <p className="text-[10px] text-[#78716b] leading-tight pt-1">
               {statusMessage}
             </p>
           </div>
         </div>
 
+        {/* Candidate Info Card */}
         <div className="overflow-hidden rounded-[14px] bg-white border border-[#d1dee8]/70 shadow-sm">
           <div className="p-4 border-b border-[#d1dee8]/50 bg-[#f5f5f4]">
             <span className="text-[10px] font-bold uppercase tracking-wider text-[#165dfb] block mb-1">
               Active Candidate
             </span>
 
-            <h3 className="font-bold text-[#111111] text-sm truncate font-mono">
+            <h3 className="font-bold text-[#111111] text-sm truncate font-mono flex items-center gap-1.5">
+              <User className="h-3.5 w-3.5 text-[#165dfb]" />
               {(typeof window !== "undefined"
                 ? localStorage.getItem("dynoquizz_regNo") ||
                   sessionStorage.getItem("dynoquizz_student_reg")
@@ -1504,7 +1475,7 @@ export default function TestArenaPage({
             </h3>
 
             <p className="mt-0.5 text-[10px] text-[#78716b] font-medium">
-              Session Code:{" "}
+              Assessment Code:{" "}
               <strong className="text-[#111111] font-bold">
                 {testCode.toUpperCase()}
               </strong>
@@ -1528,26 +1499,27 @@ export default function TestArenaPage({
           </div>
         </div>
 
+        {/* Directives Card */}
         <div className="rounded-[14px] border border-[#d1dee8]/70 bg-white p-4 shadow-sm space-y-2">
           <h3 className="flex items-center gap-1.5 font-bold text-[#111111] text-xs">
             <ShieldCheck className="h-3.5 w-3.5 text-[#165dfb]" />
-            Security & Integrity Directives
+            Integrity Regulations
           </h3>
 
           <ul className="space-y-1.5 text-[10px] font-medium text-[#78716b]">
             <li className="flex items-start gap-1 leading-relaxed">
-              <div className="mt-1 h-1 w-1 rounded-full bg-signal-green shrink-0" />
-              Do not switch tabs, minimize window, or exit fullscreen mode.
+              <div className="mt-1 h-1 w-1 rounded-full bg-emerald-500 shrink-0" />
+              Do not switch browser tabs, minimize window, or click outside.
             </li>
 
             <li className="flex items-start gap-1 leading-relaxed">
-              <div className="mt-1 h-1 w-1 rounded-full bg-signal-green shrink-0" />
-              Maintain eye contact with the screen. Looking away or multiple faces triggers warnings.
+              <div className="mt-1 h-1 w-1 rounded-full bg-emerald-500 shrink-0" />
+              Keep eye focus on the exam screen. Looking away triggers warnings.
             </li>
 
             <li className="flex items-start gap-1 leading-relaxed">
-              <div className="mt-1 h-1 w-1 rounded-full bg-signal-green shrink-0" />
-              Exceeding {maxWarnings} warnings results in automatic test submission.
+              <div className="mt-1 h-1 w-1 rounded-full bg-emerald-500 shrink-0" />
+              Exceeding {maxWarnings} warnings results in automated submission.
             </li>
           </ul>
         </div>
@@ -1555,26 +1527,26 @@ export default function TestArenaPage({
 
       {/* Fullscreen Integrity Enforcement Overlay */}
       {!isFullscreen && mounted && !isSubmitted && !isLoadingTest && test && (
-        <div className="fixed inset-0 z-50 bg-midnight-navy/95 backdrop-blur-md flex items-center justify-center p-4">
-          <div className="w-full max-w-md bg-paper-white rounded-[20px] p-6 text-center border-2 border-rose-500 shadow-2xl space-y-4">
+        <div className="fixed inset-0 z-50 bg-[#111111]/90 backdrop-blur-md flex items-center justify-center p-4">
+          <div className="w-full max-w-md bg-white rounded-[20px] p-6 text-center border-2 border-rose-500 shadow-2xl space-y-4">
             <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-rose-100 text-rose-600">
               <AlertTriangle className="h-8 w-8 animate-bounce" />
             </div>
             <div>
-              <h2 className="text-base font-bold text-midnight-navy">
+              <h2 className="text-base font-bold text-[#111111]">
                 Fullscreen Mode Required
               </h2>
-              <p className="mt-1 text-xs text-steel-blue-gray leading-relaxed font-medium">
+              <p className="mt-1 text-xs text-[#78716b] leading-relaxed font-medium">
                 To preserve examination integrity, you must remain in Fullscreen Mode throughout the assessment. Exiting fullscreen logs a security violation.
               </p>
             </div>
             <button
               type="button"
               onClick={requestFullscreen}
-              className="w-full py-3.5 px-4 rounded-[12px] bg-signal-green hover:bg-signal-green/90 text-white font-bold text-xs shadow-md shadow-signal-green/20 active:scale-[0.98] transition-all cursor-pointer flex items-center justify-center gap-2 border-0"
+              className="w-full py-3.5 px-4 rounded-[12px] bg-[#165dfb] hover:bg-[#165dfb]/90 text-white font-bold text-xs shadow-md shadow-[#165dfb]/20 active:scale-[0.98] transition-all cursor-pointer flex items-center justify-center gap-2 border-0"
             >
               <Maximize2 className="h-4 w-4" />
-              <span>Enter Fullscreen & Resume Assessment</span>
+              <span>Enter Fullscreen &amp; Resume Assessment</span>
             </button>
           </div>
         </div>
@@ -1582,38 +1554,38 @@ export default function TestArenaPage({
 
       {/* Multi-Monitor Setup Violation Overlay */}
       {displayCount > 1 && mounted && !isSubmitted && !isLoadingTest && test && (
-        <div className="fixed inset-0 z-50 bg-midnight-navy/95 backdrop-blur-md flex items-center justify-center p-4">
-          <div className="w-full max-w-md bg-paper-white rounded-[20px] p-6 text-center border-2 border-rose-500 shadow-2xl space-y-4">
+        <div className="fixed inset-0 z-50 bg-[#111111]/90 backdrop-blur-md flex items-center justify-center p-4">
+          <div className="w-full max-w-md bg-white rounded-[20px] p-6 text-center border-2 border-rose-500 shadow-2xl space-y-4">
             <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-rose-100 text-rose-600">
               <ShieldAlert className="h-8 w-8 animate-bounce" />
             </div>
             <div>
-              <h2 className="text-base font-bold text-midnight-navy">
+              <h2 className="text-base font-bold text-[#111111]">
                 Multi-Monitor Configuration Detected
               </h2>
-              <p className="mt-1 text-xs text-steel-blue-gray leading-relaxed font-medium">
-                DynoQuizz AI Proctor Shield detected <strong>{displayCount} active displays</strong>. Secondary monitors, HDMI splitters, and wireless screen sharing are strictly prohibited during assessments.
+              <p className="mt-1 text-xs text-[#78716b] leading-relaxed font-medium">
+                DynoQuizz AI Proctor Shield detected <strong>{displayCount} active displays</strong>. Secondary monitors and screen mirroring are strictly prohibited during assessments.
               </p>
             </div>
             <div className="py-2.5 px-4 rounded-xl bg-rose-50 border border-rose-200 text-rose-700 text-xs font-semibold">
-              Please disconnect external displays or disable mirror/extend mode to resume the assessment.
+              Please disconnect external displays or disable duplicate/extend display mode to resume.
             </div>
           </div>
         </div>
       )}
 
-      {/* Strict Extension Gate Overlay (Quiz cannot start without extension) */}
+      {/* Extension Gate Overlay */}
       {!isExtensionInstalled && mounted && !isSubmitted && !isLoadingTest && test && (
-        <div className="fixed inset-0 z-50 bg-midnight-navy/95 backdrop-blur-md flex items-center justify-center p-4">
-          <div className="w-full max-w-lg bg-paper-white rounded-[20px] p-6 text-center border-2 border-amber-500 shadow-2xl space-y-4">
+        <div className="fixed inset-0 z-50 bg-[#111111]/90 backdrop-blur-md flex items-center justify-center p-4">
+          <div className="w-full max-w-lg bg-white rounded-[20px] p-6 text-center border-2 border-amber-500 shadow-2xl space-y-4">
             <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-amber-100 text-amber-600 shadow-inner">
               <ShieldCheck className="h-8 w-8 animate-pulse" />
             </div>
             <div>
-              <h2 className="text-base font-bold text-midnight-navy">
+              <h2 className="text-base font-bold text-[#111111]">
                 DynoQuizz AI Proctor Shield Extension Required
               </h2>
-              <p className="mt-1 text-xs text-steel-blue-gray leading-relaxed font-medium">
+              <p className="mt-1 text-xs text-[#78716b] leading-relaxed font-medium">
                 This assessment enforces high-assurance AI proctoring. The exam <strong>will not start</strong> without the official <strong>DynoQuizz Proctor Shield</strong> Chrome Extension active in your browser.
               </p>
             </div>
@@ -1628,22 +1600,22 @@ export default function TestArenaPage({
               <span>Download Extension Package (.zip)</span>
             </a>
 
-            <div className="text-left bg-frost-surface p-4 rounded-xl border border-mist-blue/60 text-xs space-y-2.5">
-              <p className="font-bold text-midnight-navy text-[11px] uppercase tracking-wide">
+            <div className="text-left bg-[#f5f5f4] p-4 rounded-xl border border-[#d1dee8] text-xs space-y-2.5">
+              <p className="font-bold text-[#111111] text-[11px] uppercase tracking-wide">
                 Quick 4-Step Installation:
               </p>
-              <ol className="list-decimal list-inside space-y-1.5 text-[11px] text-steel-blue-gray font-medium leading-relaxed">
+              <ol className="list-decimal list-inside space-y-1.5 text-[11px] text-[#78716b] font-medium leading-relaxed">
                 <li>
-                  Click the green button above to download <code className="bg-white px-1.5 py-0.5 rounded border text-midnight-navy font-mono text-[10px]">dynoquizz-proctor-shield.zip</code> and extract it to a folder.
+                  Click the green button above to download <code className="bg-white px-1.5 py-0.5 rounded border text-[#111111] font-mono text-[10px]">dynoquizz-proctor-shield.zip</code> and extract it to a folder.
                 </li>
                 <li>
-                  Open <code className="bg-white px-1.5 py-0.5 rounded border text-midnight-navy font-mono text-[10px]">chrome://extensions</code> in a new tab.
+                  Open <code className="bg-white px-1.5 py-0.5 rounded border text-[#111111] font-mono text-[10px]">chrome://extensions</code> in a new tab.
                 </li>
                 <li>
-                  Enable <strong>Developer mode</strong> (toggle in top right corner), click <strong>Load unpacked</strong>, and select the extracted folder (or <code className="bg-white px-1.5 py-0.5 rounded border text-midnight-navy font-mono text-[10px]">database/extension</code>).
+                  Enable <strong>Developer mode</strong> (toggle in top right corner), click <strong>Load unpacked</strong>, and select the extracted folder (or <code className="bg-white px-1.5 py-0.5 rounded border text-[#111111] font-mono text-[10px]">database/extension</code>).
                 </li>
                 <li>
-                  <strong>If using Incognito:</strong> Click <em>Details</em> on DynoQuizz Proctor Shield and turn ON <strong className="text-midnight-navy">&quot;Allow in Incognito&quot;</strong>.
+                  <strong>If using Incognito:</strong> Click <em>Details</em> on DynoQuizz Proctor Shield and turn ON <strong className="text-[#111111]">&quot;Allow in Incognito&quot;</strong>.
                 </li>
               </ol>
             </div>
@@ -1658,7 +1630,7 @@ export default function TestArenaPage({
               className="w-full py-3.5 px-4 rounded-[12px] bg-[#165dfb] hover:bg-[#165dfb]/90 text-white font-bold text-xs shadow-md shadow-[#165dfb]/20 active:scale-[0.98] transition-all cursor-pointer flex items-center justify-center gap-2 border-0"
             >
               <RefreshCw className="h-4 w-4" />
-              <span>Verify Extension & Unlock Assessment</span>
+              <span>Verify Extension &amp; Unlock Assessment</span>
             </button>
           </div>
         </div>
