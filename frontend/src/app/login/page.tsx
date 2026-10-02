@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { ArrowLeft, ArrowRight, Eye, EyeOff } from "lucide-react";
 import { ENDPOINTS } from "@/lib/api/endpoints";
+import { APP_NAME } from "@/lib/constants";
 
 function GoogleIcon() {
   return (
@@ -293,7 +294,7 @@ function LoginContent() {
           </button>
 
           <div className="mb-6">
-            <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-neutral-400">DynoQuizz Authentication</p>
+            <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-neutral-400">{APP_NAME} Authentication</p>
             <h1 className="mt-1.5 text-2xl font-bold tracking-tight text-neutral-900">Log in as {roleLabel}</h1>
             <p className="mt-1.5 text-sm leading-relaxed text-neutral-500">Use your account credentials or continue with Google.</p>
           </div>
