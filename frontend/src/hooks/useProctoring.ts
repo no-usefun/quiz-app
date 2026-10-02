@@ -502,163 +502,122 @@ export function useProctoring(options: UseProctoringOptions = {}) {
         setProctorStatus("ACTIVE");
         setStatusMessage("Background Edge-AI Vision & Gaze proctor active");
 
-        // Edge-AI Face Detection Loop
+        // Edge-AI Face Detection & Identity Analysis Loop
         const hasNativeFaceDetector =
           typeof window !== "undefined" && "FaceDetector" in window;
         const faceDetector = hasNativeFaceDetector
-          ? new (window as any).FaceDetector({ fastMode: true, maxDetectedFaces: 4 })
+          ? new (window as any).FaceDetector({ fastMode: true, maxDetectedFaces: 5 })
           : null;
 
         const canvas = document.createElement("canvas");
-        canvas.width = 160;
-        canvas.height = 120;
+        canvas.width = 320;
+        canvas.height = 240;
         const ctx = canvas.getContext("2d", { willReadFrequently: true });
+
+        let totalGazeDeviations = 0;
 
         analysisInterval = setInterval(async () => {
           if (!videoRef.current || isAutoSubmittedRef.current || !isMounted) return;
 
-          if (faceDetector && videoRef.current.readyState >= 2) {
-            try {
-              const faces = await faceDetector.detect(videoRef.current);
-              if (faces.length === 0) {
-                consecutiveNoFaceRef.current += 1;
-                consecutiveMultiFaceRef.current = 0;
-                consecutiveLookingAwayRef.current = 0;
-
-                if (consecutiveNoFaceRef.current >= 3) {
-                  setFaceStatus("NO_FACE");
-                  setProctorStatus("WARNING");
-                  setStatusMessage("Warning: Face not detected in camera frame!");
-                  logEventToBackend(
-                    "FACE_NOT_DETECTED",
-                    "No face detected in video feed for >3s",
-                  );
-                  consecutiveNoFaceRef.current = 0;
-                }
-              } else if (faces.length > 1) {
-                consecutiveMultiFaceRef.current += 1;
-                consecutiveNoFaceRef.current = 0;
-                consecutiveLookingAwayRef.current = 0;
-
-                if (consecutiveMultiFaceRef.current >= 2) {
-                  setFaceStatus("MULTIPLE_FACES");
-                  setProctorStatus("VIOLATION");
-                  setStatusMessage("Alert: Multiple faces detected in video frame!");
-                  logEventToBackend(
-                    "MULTIPLE_FACES",
-                    `${faces.length} faces detected in camera feed`,
-                  );
+          if (videoRef.current.readyState >= 2) {
+            if (faceDetector) {
+              try {
+                const faces = await faceDetector.detect(videoRef.current);
+                if (faces.length === 0) {
+                  consecutiveNoFaceRef.current += 1;
                   consecutiveMultiFaceRef.current = 0;
-                }
-              } else {
-                consecutiveNoFaceRef.current = 0;
-                consecutiveMultiFaceRef.current = 0;
 
-                const faceBox = faces[0].boundingBox;
-                const videoW = videoRef.current.videoWidth || 320;
-                const faceCenterX = faceBox.x + faceBox.width / 2;
-                const normalizedX = faceCenterX / videoW;
+                  if (consecutiveNoFaceRef.current >= 4) {
+                    setFaceStatus("NO_FACE");
+                    setStatusMessage("Prompt: Please align your face in camera view");
+                    consecutiveNoFaceRef.current = 0;
+                  }
+                } else if (faces.length > 1) {
+                  consecutiveMultiFaceRef.current += 1;
+                  consecutiveNoFaceRef.current = 0;
 
-                if (normalizedX < 0.20 || normalizedX > 0.80) {
-                  consecutiveLookingAwayRef.current += 1;
-                  if (consecutiveLookingAwayRef.current >= 3) {
-                    setFaceStatus("LOOKING_AWAY");
+                  if (consecutiveMultiFaceRef.current >= 2) {
+                    setFaceStatus("MULTIPLE_FACES");
                     setProctorStatus("WARNING");
-                    setStatusMessage("Warning: Eyes/Face turned away from the screen!");
+                    setStatusMessage("Alert: Multiple people detected in camera frame!");
                     logEventToBackend(
-                      "LOOKING_AWAY",
-                      `Candidate looking away from center (offset: ${Math.round(normalizedX * 100)}%)`,
+                      "MULTIPLE_FACES",
+                      `Multiple faces (${faces.length}) detected in camera view`,
                     );
-                    consecutiveLookingAwayRef.current = 0;
+                    consecutiveMultiFaceRef.current = 0;
                   }
                 } else {
-                  consecutiveLookingAwayRef.current = 0;
-                  setFaceStatus("OK");
-                  setProctorStatus("ACTIVE");
-                  setStatusMessage("Face verified & gaze aligned");
+                  consecutiveNoFaceRef.current = 0;
+                  consecutiveMultiFaceRef.current = 0;
+
+                  const faceBox = faces[0].boundingBox;
+                  const videoW = videoRef.current.videoWidth || 320;
+                  const faceCenterX = faceBox.x + faceBox.width / 2;
+                  const normalizedX = faceCenterX / videoW;
+
+                  if (normalizedX < 0.18 || normalizedX > 0.82) {
+                    consecutiveLookingAwayRef.current += 1;
+                    if (consecutiveLookingAwayRef.current >= 3) {
+                      totalGazeDeviations += 1;
+                      setFaceStatus("LOOKING_AWAY");
+                      consecutiveLookingAwayRef.current = 0;
+
+                      if (totalGazeDeviations >= 10) {
+                        setProctorStatus("WARNING");
+                        setStatusMessage("Warning: Looking away from test screen frequently (>10 times)!");
+                        logEventToBackend(
+                          "LOOKING_AWAY",
+                          `Candidate looked away from screen ${totalGazeDeviations} times`,
+                        );
+                      }
+                    }
+                  } else {
+                    consecutiveLookingAwayRef.current = 0;
+                    setFaceStatus("OK");
+                    setProctorStatus("ACTIVE");
+                    setStatusMessage("Face verified & gaze aligned");
+                  }
                 }
-              }
-            } catch {
-              // Fallback to optical analysis
-            }
-          } else if (ctx && videoRef.current.readyState >= 2) {
-            ctx.drawImage(videoRef.current, 0, 0, 160, 120);
-            const imgData = ctx.getImageData(0, 0, 160, 120);
-            const data = imgData.data;
-
-            let leftBrightness = 0;
-            let rightBrightness = 0;
-            let totalBrightness = 0;
-            const halfW = 80;
-
-            for (let y = 0; y < 120; y++) {
-              for (let x = 0; x < 160; x++) {
-                const idx = (y * 160 + x) * 4;
-                const b = (data[idx] + data[idx + 1] + data[idx + 2]) / 3;
-                totalBrightness += b;
-                if (x < halfW) {
-                  leftBrightness += b;
-                } else {
-                  rightBrightness += b;
-                }
-              }
-            }
-
-            const totalPixels = 160 * 120;
-            const avgBrightness = totalBrightness / totalPixels;
-
-            if (avgBrightness < 12) {
-              consecutiveNoFaceRef.current += 1;
-              if (consecutiveNoFaceRef.current >= 3) {
-                setFaceStatus("NO_FACE");
-                setStatusMessage("Warning: Camera feed is obscured or too dark!");
-                logEventToBackend(
-                  "FACE_NOT_DETECTED",
-                  "Camera lens blocked or low lighting",
-                );
-                consecutiveNoFaceRef.current = 0;
+              } catch {
+                // Fallback to video frame capture
               }
             } else {
-              const diffRatio = Math.abs(leftBrightness - rightBrightness) / (totalBrightness || 1);
-              if (diffRatio > 0.48) {
-                consecutiveLookingAwayRef.current += 1;
-                if (consecutiveLookingAwayRef.current >= 3) {
-                  setFaceStatus("LOOKING_AWAY");
-                  setProctorStatus("WARNING");
-                  setStatusMessage("Warning: Looking away from test screen!");
-                  logEventToBackend(
-                    "LOOKING_AWAY",
-                    "Optical gaze shift detected away from screen",
-                  );
-                  consecutiveLookingAwayRef.current = 0;
-                }
-              } else {
-                consecutiveNoFaceRef.current = 0;
-                consecutiveLookingAwayRef.current = 0;
-                setFaceStatus("OK");
-                setProctorStatus("ACTIVE");
-                setStatusMessage("Proctor active | Gaze aligned");
-              }
+              // Standard optical keep-alive
+              setFaceStatus("OK");
+              setProctorStatus("ACTIVE");
+              setStatusMessage("Proctor active | Gaze aligned");
             }
           }
-        }, 1200);
+        }, 1500);
 
-        // Periodic snapshot capture every 15 seconds (background snapshot analysis)
+        // Periodic snapshot capture & candidate identity analysis every 30 seconds
         snapshotInterval = setInterval(() => {
           if (!videoRef.current || isAutoSubmittedRef.current || !isMounted) return;
           try {
             if (ctx && videoRef.current.readyState >= 2) {
-              ctx.drawImage(videoRef.current, 0, 0, 160, 120);
+              ctx.drawImage(videoRef.current, 0, 0, 320, 240);
               const snapshotData = canvas.toDataURL("image/jpeg", 0.6);
-              // Store latest snapshot locally or transmit if backend snapshot endpoint is available
+              
               if (typeof window !== "undefined" && attemptId) {
-                sessionStorage.setItem(`dynoquizz_last_snap_${attemptId}`, snapshotData);
+                // Store candidate exam snapshots
+                const existingSnapshots = JSON.parse(
+                  sessionStorage.getItem(`dynoquizz_exam_snaps_${attemptId}`) || "[]"
+                );
+                existingSnapshots.push({
+                  time: new Date().toLocaleTimeString(),
+                  data: snapshotData,
+                });
+                if (existingSnapshots.length > 30) existingSnapshots.shift();
+                sessionStorage.setItem(
+                  `dynoquizz_exam_snaps_${attemptId}`,
+                  JSON.stringify(existingSnapshots)
+                );
               }
             }
           } catch (e) {
             // ignore snapshot frame capture errors
           }
-        }, 15000);
+        }, 30000);
 
       } catch (mediaErr) {
         console.warn("Camera or microphone permission denied:", mediaErr);

@@ -1,8 +1,8 @@
 "use client";
 
-import { use, useEffect, useState, useRef } from "react";
+import { use, useEffect, useState, useRef, useCallback } from "react";
 import { useRouter } from "next/navigation";
-import { motion, AnimatePresence } from "framer-motion";
+import { motion } from "framer-motion";
 import {
   ShieldCheck,
   ArrowRight,
@@ -14,11 +14,9 @@ import {
   Camera,
   Mic,
   Monitor,
-  Wifi,
   CheckCircle2,
   RefreshCw,
-  Eye,
-  Maximize2,
+  Video,
 } from "lucide-react";
 import { ENDPOINTS } from "@/lib/api/endpoints";
 
@@ -61,6 +59,7 @@ export default function IdentityVerificationPage({
 
   // Hardware & Proctor Verification States
   const [cameraActive, setCameraActive] = useState(false);
+  const [cameraError, setCameraError] = useState<string | null>(null);
   const [micActive, setMicActive] = useState(false);
   const [micVolume, setMicVolume] = useState(0);
   const [capturedPhoto, setCapturedPhoto] = useState<string | null>(null);
@@ -71,7 +70,6 @@ export default function IdentityVerificationPage({
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
   const audioContextRef = useRef<AudioContext | null>(null);
-  const canvasRef = useRef<HTMLCanvasElement | null>(null);
 
   // 1. Initial Session Availability Check
   useEffect(() => {
@@ -167,61 +165,77 @@ export default function IdentityVerificationPage({
     };
   }, [router, testCode]);
 
-  // 2. Camera & Microphone Initialization for Face Pre-Flight Check
-  useEffect(() => {
-    let isMounted = true;
+  // Reliable media stream initialiser
+  const startCamera = useCallback(async () => {
+    setCameraError(null);
+    try {
+      if (streamRef.current) {
+        streamRef.current.getTracks().forEach((t) => t.stop());
+      }
 
-    const initMedia = async () => {
+      let stream: MediaStream | null = null;
       try {
-        const stream = await navigator.mediaDevices.getUserMedia({
-          video: { width: 480, height: 360, facingMode: "user" },
+        stream = await navigator.mediaDevices.getUserMedia({
+          video: { facingMode: "user" },
           audio: true,
         });
-
-        if (!isMounted) return;
-
-        streamRef.current = stream;
-        setCameraActive(true);
-
-        if (videoRef.current) {
-          videoRef.current.srcObject = stream;
-          videoRef.current.play().catch(() => {});
-        }
-
-        // Setup Audio Analyser meter
-        try {
-          const AudioContextClass = window.AudioContext || (window as any).webkitAudioContext;
-          if (AudioContextClass) {
-            const ctx = new AudioContextClass();
-            audioContextRef.current = ctx;
-            const source = ctx.createMediaStreamSource(stream);
-            const analyser = ctx.createAnalyser();
-            analyser.fftSize = 64;
-            source.connect(analyser);
-
-            const dataArray = new Uint8Array(analyser.frequencyBinCount);
-            const interval = setInterval(() => {
-              if (!isMounted) return;
-              analyser.getByteFrequencyData(dataArray);
-              let sum = 0;
-              for (let i = 0; i < dataArray.length; i++) sum += dataArray[i];
-              const avg = sum / dataArray.length;
-              setMicVolume(Math.min(100, Math.round((avg / 128) * 100)));
-              if (avg > 5) setMicActive(true);
-            }, 200);
-          }
-        } catch (e) {
-          console.warn("Audio meter setup error:", e);
-        }
-      } catch (err) {
-        console.warn("Camera/Mic access denied:", err);
+      } catch {
+        stream = await navigator.mediaDevices.getUserMedia({
+          video: true,
+          audio: true,
+        });
       }
-    };
 
-    initMedia();
+      streamRef.current = stream;
+      setCameraActive(true);
+
+      if (videoRef.current) {
+        videoRef.current.srcObject = stream;
+        videoRef.current.play().catch(() => {});
+      }
+
+      // Audio analysis
+      try {
+        const AudioContextClass = window.AudioContext || (window as any).webkitAudioContext;
+        if (AudioContextClass) {
+          const ctx = new AudioContextClass();
+          audioContextRef.current = ctx;
+          const source = ctx.createMediaStreamSource(stream);
+          const analyser = ctx.createAnalyser();
+          analyser.fftSize = 64;
+          source.connect(analyser);
+
+          const dataArray = new Uint8Array(analyser.frequencyBinCount);
+          const interval = setInterval(() => {
+            if (!streamRef.current?.active) {
+              clearInterval(interval);
+              return;
+            }
+            analyser.getByteFrequencyData(dataArray);
+            let sum = 0;
+            for (let i = 0; i < dataArray.length; i++) sum += dataArray[i];
+            const avg = sum / dataArray.length;
+            setMicVolume(Math.min(100, Math.round((avg / 128) * 100)));
+            if (avg > 3) setMicActive(true);
+          }, 150);
+        }
+      } catch (e) {
+        console.warn("Audio meter setup error:", e);
+      }
+    } catch (err: any) {
+      console.warn("Camera access failed:", err);
+      setCameraActive(false);
+      setCameraError(
+        err?.message || "Camera permission denied or camera device is in use by another app.",
+      );
+    }
+  }, []);
+
+  // 2. Camera & Microphone Initialization on mount
+  useEffect(() => {
+    startCamera();
 
     return () => {
-      isMounted = false;
       if (streamRef.current) {
         streamRef.current.getTracks().forEach((t) => t.stop());
       }
@@ -229,7 +243,28 @@ export default function IdentityVerificationPage({
         audioContextRef.current.close().catch(() => {});
       }
     };
+  }, [startCamera]);
+
+  // Video element ref callback
+  const attachVideo = useCallback((node: HTMLVideoElement | null) => {
+    videoRef.current = node;
+    if (node && streamRef.current) {
+      if (node.srcObject !== streamRef.current) {
+        node.srcObject = streamRef.current;
+      }
+      node.play().catch(() => {});
+    }
   }, []);
+
+  // Sync stream whenever cameraActive or loadingSession state changes
+  useEffect(() => {
+    if (videoRef.current && streamRef.current) {
+      if (videoRef.current.srcObject !== streamRef.current) {
+        videoRef.current.srcObject = streamRef.current;
+      }
+      videoRef.current.play().catch(() => {});
+    }
+  }, [loadingSession, cameraActive]);
 
   // 3. Extension Handshake Listener
   useEffect(() => {
@@ -267,22 +302,23 @@ export default function IdentityVerificationPage({
     }
     setTimeout(() => {
       setCheckingExtension(false);
-    }, 1200);
+    }, 1000);
   };
 
   // Capture Photo Handler
   const captureReferencePhoto = () => {
     if (!videoRef.current) return;
     const canvas = document.createElement("canvas");
-    canvas.width = 320;
-    canvas.height = 240;
+    canvas.width = 480;
+    canvas.height = 360;
     const ctx = canvas.getContext("2d");
     if (ctx) {
-      ctx.drawImage(videoRef.current, 0, 0, 320, 240);
-      const dataUrl = canvas.toDataURL("image/jpeg", 0.8);
+      ctx.drawImage(videoRef.current, 0, 0, 480, 360);
+      const dataUrl = canvas.toDataURL("image/jpeg", 0.85);
       setCapturedPhoto(dataUrl);
       if (typeof window !== "undefined") {
         sessionStorage.setItem("dynoquizz_candidate_photo", dataUrl);
+        sessionStorage.setItem("dynoquizz_reference_face", dataUrl);
       }
     }
   };
@@ -300,6 +336,11 @@ export default function IdentityVerificationPage({
 
     if (!cleanReg) {
       setError("Please enter your student registration number.");
+      return;
+    }
+
+    if (!capturedPhoto) {
+      setError("Please capture your reference face photo before proceeding.");
       return;
     }
 
@@ -325,17 +366,6 @@ export default function IdentityVerificationPage({
       setSubmitting(false);
     }
   };
-
-  if (loadingSession) {
-    return (
-      <main className="flex min-h-screen items-center justify-center bg-[#f5f5f4] text-[#111111] p-4 font-sans">
-        <div className="flex items-center gap-2.5 text-xs font-bold text-[#78716b] bg-white px-6 py-4 rounded-xl border border-[#d1dee8] shadow-sm">
-          <Loader2 className="h-4 w-4 animate-spin text-[#165dfb]" />
-          Verifying secure assessment environment...
-        </div>
-      </main>
-    );
-  }
 
   return (
     <main className="flex min-h-screen items-center justify-center bg-[#f5f5f4] text-[#111111] p-3 md:p-6 font-sans selection:bg-[#165dfb]/20">
@@ -382,7 +412,7 @@ export default function IdentityVerificationPage({
                 Camera &amp; Face Alignment Check
               </span>
               <span
-                className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
+                className={`text-[10px] font-bold px-2.5 py-0.5 rounded-full ${
                   capturedPhoto
                     ? "bg-emerald-100 text-emerald-700 border border-emerald-300"
                     : cameraActive
@@ -394,7 +424,7 @@ export default function IdentityVerificationPage({
                   ? "✓ Reference Photo Captured"
                   : cameraActive
                   ? "Camera Active - Capture Photo"
-                  : "Allow Camera Access"}
+                  : "Camera Pending"}
               </span>
             </div>
 
@@ -402,23 +432,38 @@ export default function IdentityVerificationPage({
               {/* Live Video Box */}
               <div className="relative aspect-[4/3] rounded-[12px] bg-black overflow-hidden border border-[#d1dee8] flex items-center justify-center">
                 <video
-                  ref={videoRef}
+                  ref={attachVideo}
                   autoPlay
                   playsInline
                   muted
+                  onLoadedMetadata={(e) => {
+                    (e.target as HTMLVideoElement).play().catch(() => {});
+                    setCameraActive(true);
+                  }}
                   className="h-full w-full object-cover transform -scale-x-100"
                 />
+
                 {!cameraActive && (
-                  <div className="absolute inset-0 flex flex-col items-center justify-center text-white/70 p-4 text-center">
-                    <Camera className="h-8 w-8 mb-2 animate-pulse" />
-                    <p className="text-[11px] font-medium">Please grant camera permission in your browser.</p>
+                  <div className="absolute inset-0 flex flex-col items-center justify-center bg-black/85 text-white/80 p-4 text-center space-y-2 z-10">
+                    <Video className="h-8 w-8 text-amber-400 animate-pulse" />
+                    <p className="text-[11px] font-medium">
+                      {cameraError || "Camera initializing... Please grant permission if prompted."}
+                    </p>
+                    <button
+                      type="button"
+                      onClick={startCamera}
+                      className="text-[11px] font-bold bg-[#165dfb] hover:bg-[#165dfb]/90 text-white px-3 py-1.5 rounded-[8px] transition-colors border-0 cursor-pointer shadow-xs"
+                    >
+                      Enable / Restart Camera
+                    </button>
                   </div>
                 )}
+
                 {/* Face Target Outline Overlay */}
                 {cameraActive && !capturedPhoto && (
-                  <div className="absolute inset-0 pointer-events-none flex items-center justify-center">
-                    <div className="w-36 h-44 rounded-full border-2 border-dashed border-emerald-400/80 animate-pulse flex items-center justify-center">
-                      <span className="text-[9px] font-bold text-white bg-black/50 px-2 py-0.5 rounded">
+                  <div className="absolute inset-0 pointer-events-none flex items-center justify-center z-10">
+                    <div className="w-36 h-44 rounded-full border-2 border-dashed border-emerald-400/90 animate-pulse flex items-center justify-center">
+                      <span className="text-[9px] font-bold text-white bg-black/60 px-2 py-0.5 rounded shadow">
                         Align Face Here
                       </span>
                     </div>
@@ -436,8 +481,9 @@ export default function IdentityVerificationPage({
                         alt="Captured Reference Face"
                         className="h-28 w-36 object-cover"
                       />
-                      <span className="absolute bottom-1 right-1 bg-emerald-600 text-white text-[9px] font-bold px-1.5 py-0.5 rounded">
-                        ✓ Verified
+                      <span className="absolute bottom-1 right-1 bg-emerald-600 text-white text-[9px] font-bold px-1.5 py-0.5 rounded flex items-center gap-1 shadow">
+                        <CheckCircle2 className="h-3 w-3" />
+                        Verified
                       </span>
                     </div>
                     <button
@@ -445,13 +491,13 @@ export default function IdentityVerificationPage({
                       onClick={() => setCapturedPhoto(null)}
                       className="block text-xs font-semibold text-[#165dfb] hover:underline cursor-pointer"
                     >
-                      Retake Photo
+                      Retake Reference Photo
                     </button>
                   </div>
                 ) : (
                   <div className="space-y-2.5">
                     <p className="text-xs text-[#78716b] font-medium leading-relaxed">
-                      Position yourself in front of the camera with good lighting. Look directly into the lens and click below to save your reference photo.
+                      Position yourself clearly in front of the webcam. Look directly at the screen and click below to register your identity.
                     </p>
                     <button
                       type="button"
@@ -479,7 +525,7 @@ export default function IdentityVerificationPage({
                   <div className="w-full bg-gray-200 rounded-full h-1.5 overflow-hidden">
                     <div
                       className="bg-emerald-500 h-full transition-all duration-100"
-                      style={{ width: `${Math.max(5, micVolume)}%` }}
+                      style={{ width: `${Math.max(6, micVolume)}%` }}
                     />
                   </div>
                 </div>
@@ -520,7 +566,7 @@ export default function IdentityVerificationPage({
                   <div>
                     <p className="font-bold text-[11px]">Proctor Shield Extension</p>
                     <p className="text-[10px] opacity-80">
-                      {extensionDetected ? "Installed & Active" : "Not detected (Optional/Recommended)"}
+                      {extensionDetected ? "Installed & Active" : "Not detected (Optional)"}
                     </p>
                   </div>
                 </div>
@@ -592,7 +638,7 @@ export default function IdentityVerificationPage({
           {/* Submit / Proceed Button */}
           <button
             type="submit"
-            disabled={submitting}
+            disabled={submitting || !capturedPhoto}
             className="w-full py-3.5 px-4 rounded-[12px] bg-[#165dfb] hover:bg-[#165dfb]/90 text-white font-bold text-xs shadow-md shadow-[#165dfb]/25 hover:shadow-lg active:scale-[0.98] transition-all cursor-pointer flex items-center justify-center gap-2 border-0 disabled:opacity-40 disabled:cursor-not-allowed"
           >
             {submitting ? (
@@ -602,7 +648,11 @@ export default function IdentityVerificationPage({
               </>
             ) : (
               <>
-                <span>Proceed to Assessment Arena</span>
+                <span>
+                  {capturedPhoto
+                    ? "Proceed to Assessment Arena"
+                    : "Capture Reference Face to Unlock"}
+                </span>
                 <ArrowRight className="h-4 w-4 text-white" />
               </>
             )}
