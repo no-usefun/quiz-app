@@ -194,8 +194,17 @@ function JoinForm() {
             type="text"
             value={testCode}
             onChange={(e) => {
-              setTestCode(e.target.value.toUpperCase());
+              setTestCode(e.target.value.toUpperCase().replace(/\s+/g, ""));
               setError(null);
+            }}
+            onPaste={(e) => {
+              e.stopPropagation();
+              const text = e.clipboardData?.getData("text") || "";
+              if (text) {
+                e.preventDefault();
+                setTestCode(text.trim().toUpperCase().replace(/\s+/g, ""));
+                setError(null);
+              }
             }}
             placeholder="e.g. 849201"
             maxLength={10}
@@ -222,6 +231,15 @@ function JoinForm() {
             onChange={(e) => {
               setRegistrationNo(e.target.value.toUpperCase());
               setError(null);
+            }}
+            onPaste={(e) => {
+              e.stopPropagation();
+              const text = e.clipboardData?.getData("text") || "";
+              if (text) {
+                e.preventDefault();
+                setRegistrationNo(text.trim().toUpperCase());
+                setError(null);
+              }
             }}
             placeholder="e.g. 21BCE1024"
             maxLength={20}

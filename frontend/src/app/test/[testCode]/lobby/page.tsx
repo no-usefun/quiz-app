@@ -442,17 +442,9 @@ function LobbyInner({ testCode }: { testCode: string }) {
       }
 
       /*
-       * Step 3: Only enter the Arena after the attempt and package
-       * are both ready.
+       * Step 3: Enter the Arena once the attempt and package are ready.
+       * Fullscreen is requested inside the Arena when the test begins.
        */
-      if (typeof document !== "undefined" && document.documentElement.requestFullscreen) {
-        try {
-          await document.documentElement.requestFullscreen();
-        } catch (e) {
-          // fullscreen gesture fallback
-        }
-      }
-
       router.push(`/test/${cleanCode}`);
     } catch (err: any) {
       console.error("Start assessment error:", err);

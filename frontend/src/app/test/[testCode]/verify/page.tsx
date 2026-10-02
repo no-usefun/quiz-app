@@ -359,15 +359,7 @@ export default function IdentityVerificationPage({
       localStorage.setItem("dynoquizz_regNo", cleanReg);
       sessionStorage.setItem("dynoquizz_student_reg", cleanReg);
 
-      if (typeof document !== "undefined" && document.documentElement.requestFullscreen) {
-        try {
-          await document.documentElement.requestFullscreen();
-        } catch (e) {
-          // fullscreen gesture fallback
-        }
-      }
-
-      // Transition to assessment lobby
+      // Transition to assessment lobby without entering fullscreen yet
       router.push(`/test/${cleanCode}/lobby?reg=${encodeURIComponent(cleanReg)}`);
     } catch (err: any) {
       console.error("Identity verification error:", err);
@@ -635,6 +627,15 @@ export default function IdentityVerificationPage({
                   onChange={(event) => {
                     setRegistrationNo(event.target.value.toUpperCase());
                     setError(null);
+                  }}
+                  onPaste={(e) => {
+                    e.stopPropagation();
+                    const text = e.clipboardData?.getData("text") || "";
+                    if (text) {
+                      e.preventDefault();
+                      setRegistrationNo(text.trim().toUpperCase());
+                      setError(null);
+                    }
                   }}
                   placeholder="e.g. 23BCE8830"
                   maxLength={30}
