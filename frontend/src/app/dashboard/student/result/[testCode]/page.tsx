@@ -16,6 +16,7 @@ import {
   ChevronRight,
   Lock,
   FileQuestion,
+  Trophy,
 } from "lucide-react";
 
 import { Logo } from "@/components/Logo";
@@ -459,6 +460,14 @@ export default function StudentResultPage({
             <CalendarDays className="h-3.5 w-3.5 text-[#78716b]" />
             Submitted: {formatDateTime(result.submittedAt)}
           </p>
+
+          <Link
+            href={"/dashboard/student/leaderboard/" + result.quizId}
+            className="mt-3 inline-flex items-center gap-1.5 rounded-[10px] border border-[#d1dee8]/80 bg-white px-3.5 py-2 text-xs font-bold text-[#111111] shadow-xs transition-all hover:border-[#165dfb] hover:text-[#165dfb]"
+          >
+            <Trophy className="h-3.5 w-3.5" />
+            View Leaderboard
+          </Link>
         </section>
 
         <section className="rounded-[14px] bg-white p-6 border border-[#d1dee8]/70 shadow-sm">
