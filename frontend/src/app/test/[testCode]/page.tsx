@@ -1091,7 +1091,7 @@ export default function TestArenaPage({
     }
   };
 
-  const handleTimerExpired = () => {
+  const handleOverallTimerExpired = () => {
     if (
       expiryHandledRef.current ||
       isSubmitted ||
@@ -1122,6 +1122,70 @@ export default function TestArenaPage({
   };
 
   useEffect(() => {
+    if (!currentQuestion || isSubmitted) {
+      return;
+    }
+
+    const questionId = Number(currentQuestion.questionId);
+    const configuredSeconds = Number(currentQuestion.questionTimerSeconds ?? 60);
+
+    if (!Number.isFinite(questionId) || questionId <= 0) {
+      return;
+    }
+
+    if (!Number.isFinite(configuredSeconds) || configuredSeconds <= 0) {
+      setQuestionTimeLeft(null);
+      return;
+    }
+
+    const elapsed = Math.max(
+      0,
+      Math.floor(timeTakenRef.current[questionId] ?? 0),
+    );
+    const remaining = Math.max(0, Math.ceil(configuredSeconds - elapsed));
+
+    if (expiredQuestionIdsRef.current[questionId] || remaining <= 0) {
+      setQuestionTimeLeft(0);
+
+      if (!expiredQuestionIdsRef.current[questionId]) {
+        window.setTimeout(
+          () => expireCurrentQuestion(currentQuestion),
+          0,
+        );
+      }
+
+      return;
+    }
+
+    setQuestionTimeLeft(remaining);
+
+    const interval = window.setInterval(() => {
+      const latestElapsed = Math.max(
+        0,
+        Math.floor(timeTakenRef.current[questionId] ?? 0),
+      );
+
+      const nextRemaining = Math.max(
+        0,
+        Math.ceil(configuredSeconds - latestElapsed),
+      );
+
+      setQuestionTimeLeft(nextRemaining);
+
+      if (nextRemaining <= 0) {
+        expireCurrentQuestion(currentQuestion);
+      }
+    }, 1000);
+
+    return () => window.clearInterval(interval);
+  }, [
+    currentQuestion?.questionId,
+    currentQuestion?.questionTimerSeconds,
+    isSubmitted,
+    expireCurrentQuestion,
+  ]);
+
+  useEffect(() => {
     if (isSubmitted || !effectiveDeadline) {
       return;
     }
@@ -1146,7 +1210,7 @@ export default function TestArenaPage({
       setTimeLeft(remainingSeconds);
 
       if (remainingSeconds <= 0) {
-        handleTimerExpired();
+        handleOverallTimerExpired();
       }
     };
 
