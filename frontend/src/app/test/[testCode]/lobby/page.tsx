@@ -341,6 +341,21 @@ function LobbyInner({ testCode }: { testCode: string }) {
             );
           }
 
+          if (
+            code === "ATTEMPT_RESUME_NOT_ALLOWED" ||
+            code === "RESUME_NOT_ALLOWED"
+          ) {
+            throw new Error(
+              "You already have an unfinished attempt for this assessment, but the instructor has disabled resume.",
+            );
+          }
+
+          if (code === "ATTEMPT_EXPIRED") {
+            throw new Error(
+              "Your previous assessment attempt has expired and cannot be resumed.",
+            );
+          }
+
           if (error.status === 403) {
             throw new Error(
               error.message ||
