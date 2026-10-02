@@ -12,12 +12,21 @@ try {
   console.warn("[DynoQuizz Content Script] Script injection failed:", e);
 }
 
+let isMonitoringActive = false;
+
+function isExamArenaActive() {
+  if (typeof window === "undefined") return false;
+  const path = window.location.pathname;
+  return isMonitoringActive || (path.startsWith("/test/") && !path.includes("/verify") && !path.includes("/lobby") && !path.includes("/join"));
+}
+
 // ─── 1. Bi-Directional Bridge with React Application ─────────────────────────
 window.addEventListener("message", async (event) => {
   if (!event.data || typeof event.data !== "object") return;
 
   // React App -> Extension: Start Monitoring
   if (event.data.type === "DYNOQUIZZ_INIT") {
+    isMonitoringActive = true;
     chrome.runtime.sendMessage(
       {
         type: "START_MONITORING",
@@ -42,6 +51,7 @@ window.addEventListener("message", async (event) => {
 
   // React App -> Extension: Finish / Stop Monitoring
   if (event.data.type === "DYNOQUIZZ_FINISH") {
+    isMonitoringActive = false;
     chrome.runtime.sendMessage({ type: "STOP_MONITORING" });
   }
 
@@ -83,6 +93,7 @@ chrome.runtime.onMessage.addListener((message) => {
 document.addEventListener(
   "contextmenu",
   (e) => {
+    if (!isExamArenaActive()) return;
     e.preventDefault();
     e.stopPropagation();
     chrome.runtime.sendMessage({
@@ -97,12 +108,13 @@ document.addEventListener(
 document.addEventListener(
   "copy",
   (e) => {
+    if (!isExamArenaActive()) return;
     e.preventDefault();
     e.stopPropagation();
     chrome.runtime.sendMessage({
       type: "LOG_VIOLATION",
       activityType: "COPY_ATTEMPT",
-      details: "Candidate attempted clipboard COPY operation",
+      details: "Candidate attempted clipboard COPY operation during exam",
     });
   },
   true,
@@ -111,12 +123,13 @@ document.addEventListener(
 document.addEventListener(
   "cut",
   (e) => {
+    if (!isExamArenaActive()) return;
     e.preventDefault();
     e.stopPropagation();
     chrome.runtime.sendMessage({
       type: "LOG_VIOLATION",
       activityType: "COPY_ATTEMPT",
-      details: "Candidate attempted clipboard CUT operation",
+      details: "Candidate attempted clipboard CUT operation during exam",
     });
   },
   true,
@@ -125,12 +138,13 @@ document.addEventListener(
 document.addEventListener(
   "paste",
   (e) => {
+    if (!isExamArenaActive()) return;
     e.preventDefault();
     e.stopPropagation();
     chrome.runtime.sendMessage({
       type: "LOG_VIOLATION",
       activityType: "COPY_ATTEMPT",
-      details: "Candidate attempted clipboard PASTE operation",
+      details: "Candidate attempted clipboard PASTE operation during exam",
     });
   },
   true,
@@ -140,6 +154,7 @@ document.addEventListener(
 document.addEventListener(
   "keydown",
   (e) => {
+    if (!isExamArenaActive()) return;
     const isDevTools =
       e.key === "F12" ||
       (e.ctrlKey && e.shiftKey && ["I", "i", "J", "j", "C", "c"].includes(e.key)) ||

@@ -359,6 +359,14 @@ export default function IdentityVerificationPage({
       localStorage.setItem("dynoquizz_regNo", cleanReg);
       sessionStorage.setItem("dynoquizz_student_reg", cleanReg);
 
+      if (typeof document !== "undefined" && document.documentElement.requestFullscreen) {
+        try {
+          await document.documentElement.requestFullscreen();
+        } catch (e) {
+          // fullscreen gesture fallback
+        }
+      }
+
       // Transition to assessment lobby
       router.push(`/test/${cleanCode}/lobby?reg=${encodeURIComponent(cleanReg)}`);
     } catch (err: any) {

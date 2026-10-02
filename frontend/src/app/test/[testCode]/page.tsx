@@ -1326,6 +1326,33 @@ export default function TestArenaPage({
           </button>
         </footer>
       </motion.div>
+
+      {/* Fullscreen Lockdown Modal */}
+      {!isFullscreen && !isSubmitted && mounted && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/75 backdrop-blur-sm p-4 text-center">
+          <div className="max-w-md w-full rounded-[16px] bg-white p-6 md:p-8 space-y-4 shadow-2xl border border-[#d1dee8]/80 text-left">
+            <div className="flex h-12 w-12 items-center justify-center rounded-[12px] bg-amber-50 border border-amber-200 text-amber-600 shadow-xs">
+              <Maximize2 className="h-6 w-6" />
+            </div>
+            <div>
+              <h2 className="text-base font-bold text-[#111111]">
+                Fullscreen Mode Required
+              </h2>
+              <p className="mt-1 text-xs text-[#78716b] leading-relaxed font-medium">
+                AI Proctoring security directives require this assessment to run in full screen without window switching.
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={requestFullscreen}
+              className="w-full py-3 px-4 rounded-[10px] bg-[#165dfb] hover:bg-[#165dfb]/90 text-white font-bold text-xs shadow-md shadow-[#165dfb]/20 hover:shadow-lg active:scale-[0.98] transition-all cursor-pointer border-0 flex items-center justify-center gap-2"
+            >
+              <Maximize2 className="h-4 w-4 text-white" />
+              <span>Enter Fullscreen Exam Mode</span>
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
