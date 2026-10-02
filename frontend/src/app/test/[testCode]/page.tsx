@@ -818,6 +818,32 @@ export default function TestArenaPage({
     [activeAttemptId],
   );
 
+  useEffect(() => {
+    if (!activeAttemptId || !currentQuestion || isSubmitted) {
+      return;
+    }
+
+    const questionId = Number(currentQuestion.questionId);
+    if (!Number.isFinite(questionId) || questionId <= 0) {
+      return;
+    }
+
+    const interval = window.setInterval(() => {
+      void syncAnswerToBackend(
+        questionId,
+        answersRef.current[questionId] ?? [],
+        timeTakenRef.current[questionId] ?? 0,
+      );
+    }, 5000);
+
+    return () => window.clearInterval(interval);
+  }, [
+    activeAttemptId,
+    currentQuestion?.questionId,
+    isSubmitted,
+    syncAnswerToBackend,
+  ]);
+
   const isQuestionExpired = (questionId: number) =>
     Boolean(expiredQuestionIdsRef.current[questionId]);
 
@@ -881,7 +907,7 @@ export default function TestArenaPage({
   };
 
   const handleSelectOption = (optionId: number) => {
-    if (!currentQuestion || isSubmitted) {
+    if (!currentQuestion || isSubmitted || timeLeft <= 0) {
       return;
     }
 
@@ -945,7 +971,7 @@ export default function TestArenaPage({
   };
 
   const clearCurrentAnswer = () => {
-    if (!currentQuestion || isSubmitted) {
+    if (!currentQuestion || isSubmitted || timeLeft <= 0) {
       return;
     }
 
@@ -1102,6 +1128,12 @@ export default function TestArenaPage({
 
     expiryHandledRef.current = true;
 
+    setDeadlineNotice(
+      test?.autoSubmit === false
+        ? "The overall assessment time has ended. Your answers are locked until you submit the attempt."
+        : "The overall assessment time has ended. Your attempt will be submitted automatically.",
+    );
+
     const question = currentQuestionRef.current;
     const questionId = Number(question.questionId);
 
@@ -1118,7 +1150,10 @@ export default function TestArenaPage({
     answersRef.current = latestAnswers;
 
     persistCurrentState(latestAnswers, timeTakenRef.current);
-    void finishAssessment(latestAnswers, timeTakenRef.current);
+
+    if (test?.autoSubmit !== false) {
+      void finishAssessment(latestAnswers, timeTakenRef.current);
+    }
   };
 
   useEffect(() => {
