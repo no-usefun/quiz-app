@@ -386,7 +386,7 @@ class StudentAttemptServiceTest {
         @Test
         void startAttempt_shouldRejectQuizThatHasEnded() {
 
-                quiz.setEndTime(LocalDateTime.now().minusMinutes(1));
+                quiz.setEndTime(LocalDateTime.of(2026, 9, 21, 20, 0));
 
                 when(userRepository.findById(1L))
                                 .thenReturn(Optional.of(student));
@@ -577,6 +577,8 @@ class StudentAttemptServiceTest {
         @Test
         void autoSubmitAttempt_shouldRejectWrongStudent() {
 
+                when(userRepository.findById(999L))
+                                .thenReturn(Optional.of(student));
                 when(quizAttemptRepository.findById(1000L))
                                 .thenReturn(Optional.of(attempt));
 
@@ -683,7 +685,7 @@ class StudentAttemptServiceTest {
                                 .thenReturn(Optional.of(attempt));
 
                 assertThrows(
-                                BadRequestException.class,
+                                AccessDeniedApplicationException.class,
                                 () -> attemptService.submitAttempt(
                                                 1000L,
                                                 new SubmitAttemptRequest(List.of()),
@@ -1068,7 +1070,7 @@ class StudentAttemptServiceTest {
         void submitAttempt_shouldAutoSubmitWhenOverallTimerExpires() {
 
                 attempt.setStartedAt(
-                                LocalDateTime.now().minusMinutes(31));
+                                LocalDateTime.of(2026, 9, 21, 19, 50));
 
                 quiz.setOverallTimerSeconds(1800);
 
@@ -1106,11 +1108,11 @@ class StudentAttemptServiceTest {
         void submitAttempt_shouldAutoSubmitWhenQuizEndTimeExpiresFirst() {
 
                 attempt.setStartedAt(
-                                LocalDateTime.now().minusMinutes(10));
+                                LocalDateTime.of(2026, 9, 21, 20, 20));
 
                 quiz.setOverallTimerSeconds(3600);
                 quiz.setEndTime(
-                                LocalDateTime.now().minusMinutes(1));
+                                LocalDateTime.of(2026, 9, 21, 20, 0));
 
                 when(quizAttemptRepository.findById(1000L))
                                 .thenReturn(Optional.of(attempt));
@@ -1357,9 +1359,6 @@ class StudentAttemptServiceTest {
         @Test
         void getQuizAvailability_shouldReturnNotFound() {
 
-                when(userRepository.findById(1L))
-                                .thenReturn(Optional.of(student));
-
                 when(quizRepository.findByQuizCode("999999"))
                                 .thenReturn(Optional.empty());
 
@@ -1375,9 +1374,6 @@ class StudentAttemptServiceTest {
         @Test
         void getQuizAvailability_shouldReturnNotPublished() {
 
-                when(userRepository.findById(1L))
-                                .thenReturn(Optional.of(student));
-
                 quiz.setStatus(QuizStatus.DRAFT);
 
                 when(quizRepository.findByQuizCode("123456"))
@@ -1391,9 +1387,6 @@ class StudentAttemptServiceTest {
 
         @Test
         void getQuizAvailability_shouldReturnNotStarted() {
-
-                when(userRepository.findById(1L))
-                                .thenReturn(Optional.of(student));
 
                 quiz.setStartTime(LocalDateTime.of(2026, 9, 21, 21, 0));
                 quiz.setEndTime(LocalDateTime.of(2026, 9, 21, 22, 0));
@@ -1413,9 +1406,6 @@ class StudentAttemptServiceTest {
                 quiz.setStartTime(LocalDateTime.of(2026, 9, 21, 20, 30));
                 quiz.setEndTime(LocalDateTime.of(2026, 9, 21, 21, 30));
 
-                when(userRepository.findById(1L))
-                                .thenReturn(Optional.of(student));
-
                 when(quizRepository.findByQuizCode("123456"))
                                 .thenReturn(Optional.of(quiz));
 
@@ -1427,9 +1417,6 @@ class StudentAttemptServiceTest {
 
         @Test
         void getQuizAvailability_shouldReturnLive() {
-
-                when(userRepository.findById(1L))
-                                .thenReturn(Optional.of(student));
 
                 quiz.setStartTime(LocalDateTime.of(2026, 9, 21, 19, 0));
                 quiz.setEndTime(LocalDateTime.of(2026, 9, 21, 21, 0));
@@ -1445,9 +1432,6 @@ class StudentAttemptServiceTest {
 
         @Test
         void getQuizAvailability_shouldReturnEndedAtExactEndTime() {
-
-                when(userRepository.findById(1L))
-                                .thenReturn(Optional.of(student));
 
                 quiz.setStartTime(LocalDateTime.of(2026, 9, 21, 19, 0));
                 quiz.setEndTime(LocalDateTime.of(2026, 9, 21, 20, 30));
@@ -1475,9 +1459,6 @@ class StudentAttemptServiceTest {
 
         @Test
         void getLeaderboard_shouldReturnSubmittedAttemptsSortedByScore() {
-
-                when(userRepository.findById(1L))
-                                .thenReturn(Optional.of(student));
 
                 QuizAttempt first = createLeaderboardAttempt(
                                 1001L,
@@ -1531,9 +1512,6 @@ class StudentAttemptServiceTest {
         @Test
         void getLeaderboard_shouldRejectNullQuizId() {
 
-                when(userRepository.findById(1L))
-                                .thenReturn(Optional.of(student));
-
                 assertThrows(
                                 BadRequestException.class,
                                 () -> attemptService.getLeaderboard(null, 1L));
@@ -1541,9 +1519,6 @@ class StudentAttemptServiceTest {
 
         @Test
         void getLeaderboard_shouldRejectUnknownQuiz() {
-
-                when(userRepository.findById(1L))
-                                .thenReturn(Optional.of(student));
 
                 when(quizRepository.findById(999L))
                                 .thenReturn(Optional.empty());
@@ -1555,9 +1530,6 @@ class StudentAttemptServiceTest {
 
         @Test
         void getLeaderboard_shouldRejectUnpublishedResults() {
-
-                when(userRepository.findById(1L))
-                                .thenReturn(Optional.of(student));
 
                 quiz.setResultsPublished(false);
 
@@ -1571,9 +1543,6 @@ class StudentAttemptServiceTest {
 
         @Test
         void getLeaderboard_shouldRejectUnavailableVisibility() {
-
-                when(userRepository.findById(1L))
-                                .thenReturn(Optional.of(student));
 
                 quiz.setResultVisibility(ResultVisibility.QUESTION_WISE);
 
