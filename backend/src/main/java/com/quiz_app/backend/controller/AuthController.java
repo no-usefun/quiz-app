@@ -18,6 +18,7 @@ import com.quiz_app.backend.dto.auth.DeleteAccountRequest;
 import com.quiz_app.backend.dto.auth.LoginRequest;
 import com.quiz_app.backend.dto.auth.ResendVerificationRequest;
 import com.quiz_app.backend.dto.auth.SignupRequest;
+import com.quiz_app.backend.dto.auth.SetPasswordRequest;
 import com.quiz_app.backend.dto.auth.SignupResponse;
 import com.quiz_app.backend.dto.auth.UpdateProfileRequest;
 import com.quiz_app.backend.dto.auth.UserSummaryResponse;
@@ -105,6 +106,15 @@ public class AuthController {
 
         emailVerificationService.resendVerification(request.email());
 
+        return ResponseEntity.ok().build();
+    }
+
+    @PostMapping("/set-password")
+    public ResponseEntity<Void> setPassword(
+            @AuthenticationPrincipal UserDetails userDetails,
+            @Valid @RequestBody SetPasswordRequest request) {
+
+        authService.setPassword(userDetails.getUsername(), request);
         return ResponseEntity.ok().build();
     }
 
