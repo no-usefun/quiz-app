@@ -568,6 +568,115 @@ export default function TestArenaPage({
           }
         }
 
+        if (activeAttemptId) {
+          try {
+            const serverState = await api.get<AttemptStateResponse>(
+              ENDPOINTS.student.attemptState(activeAttemptId),
+            );
+
+            if (!cancelled && serverState) {
+              if (serverState.effectiveDeadline) {
+                setEffectiveDeadline(serverState.effectiveDeadline);
+              }
+
+              if (Array.isArray(serverState.answers)) {
+                const serverAnswers =
+                  serverState.answers.reduce<ActiveAnswerState>(
+                    (accumulator, answer) => {
+                      const questionId = Number(answer.questionId);
+
+                      if (
+                        Number.isFinite(questionId) &&
+                        questionId > 0 &&
+                        Array.isArray(answer.selectedOptionIds)
+                      ) {
+                        accumulator[questionId] = answer.selectedOptionIds
+                          .map(Number)
+                          .filter((id) => Number.isFinite(id) && id > 0);
+                      }
+
+                      return accumulator;
+                    },
+                    {},
+                  );
+
+                const mergedAnswers = {
+                  ...answersRef.current,
+                  ...serverAnswers,
+                };
+
+                answersRef.current = mergedAnswers;
+                setAnswers(mergedAnswers);
+
+                const serverTimeTaken =
+                  serverState.answers.reduce<Record<number, number>>(
+                    (accumulator, answer) => {
+                      const questionId = Number(answer.questionId);
+                      const seconds = Number(answer.responseTimeSeconds ?? 0);
+
+                      if (
+                        Number.isFinite(questionId) &&
+                        questionId > 0 &&
+                        Number.isFinite(seconds) &&
+                        seconds >= 0
+                      ) {
+                        accumulator[questionId] = Math.floor(seconds);
+                      }
+
+                      return accumulator;
+                    },
+                    {},
+                  );
+
+                const mergedTimeTaken = {
+                  ...timeTakenRef.current,
+                  ...serverTimeTaken,
+                };
+
+                timeTakenRef.current = mergedTimeTaken;
+                setTimeTakenPerQuestion(mergedTimeTaken);
+              }
+
+              const serverQuestion = Number(serverState.currentQuestion ?? 0);
+
+              if (
+                Number.isInteger(serverQuestion) &&
+                serverQuestion >= 1 &&
+                serverQuestion <= packageData.questions.length
+              ) {
+                currentIndexRef.current = serverQuestion - 1;
+                setCurrentIndex(serverQuestion - 1);
+
+                if (typeof window !== "undefined") {
+                  localStorage.setItem(
+                    "exam_index_" + activeAttemptId,
+                    String(serverQuestion - 1),
+                  );
+                }
+              }
+            }
+          } catch (error) {
+            if (
+              error instanceof ApiClientError &&
+              (error.status === 404 || error.status === 405)
+            ) {
+              console.info(
+                "[Assessment] Server answer persistence is not available yet; local recovery remains active.",
+              );
+            } else if (
+              error instanceof ApiClientError &&
+              error.status === 401
+            ) {
+              throw error;
+            } else {
+              console.warn(
+                "[Assessment] Server attempt-state restore failed; local state remains active.",
+                error,
+              );
+            }
+          }
+        }
+
         if (!cancelled) {
           setTest(packageData);
         }
