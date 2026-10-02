@@ -313,7 +313,7 @@ function CreateAssessmentContent() {
       const mappedQuestions = rawQuestions.map((q: any, i: number) => {
         const rawType = String(q.questionType || "MCQ").toUpperCase();
         const questionType =
-          rawType === "MULTIPLE_CHOICE" ? "MULTIPLE_CHOICE" : rawType;
+          rawType === "MULTIPLE_CHOICE" ? "MCQ" : rawType;
 
         let mappedOptions: EditableOption[] = (q.options || []).map(
           (opt: any, oi: number): EditableOption => ({
@@ -1424,7 +1424,7 @@ function CreateAssessmentContent() {
           );
         }
       };
-      // Keep the legacy questions-only key for the preferLocalStorageQuestions helper
+      // Keep the question-specific cache separate from the full draft bundle.
       let rawQuizId: number | string | null = null;
       let quizCode = "";
       if (isEditing) {
