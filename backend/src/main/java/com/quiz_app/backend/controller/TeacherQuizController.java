@@ -6,12 +6,14 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 import com.quiz_app.backend.dto.attempt.LeaderboardEntryResponse;
+import com.quiz_app.backend.dto.quiz.CreateQuizRequest;
 import com.quiz_app.backend.dto.quiz.QuizResponse;
 import com.quiz_app.backend.dto.quiz.TeacherQuizDetailResponse;
 import com.quiz_app.backend.dto.quiz.UpdateQuizSettingsRequest;
@@ -135,5 +137,18 @@ public class TeacherQuizController {
 
                 return ResponseEntity.ok(
                                 teacherQuizService.getLeaderboard(quizId, userDetails.getId()));
+        }
+
+        @PostMapping("/quizzes")
+        public ResponseEntity<QuizResponse> createQuiz(
+                        @RequestBody CreateQuizRequest request,
+                        Authentication authentication) {
+
+                CustomUserDetails userDetails = (CustomUserDetails) authentication.getPrincipal();
+
+                QuizResponse response = teacherQuizService.createQuiz(
+                                request, userDetails.getId());
+
+                return ResponseEntity.ok(response);
         }
 }
