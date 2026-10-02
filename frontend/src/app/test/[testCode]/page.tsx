@@ -1502,9 +1502,22 @@ export default function TestArenaPage({
               Question {currentIndex + 1} of {questions.length}
             </span>
 
-            {saveStatus === "saved" && (
-              <span className="text-[11px] font-bold text-[#1d5237]">
-                ✓ Stored locally
+            {saveStatus !== "idle" && (
+              <span
+                className={
+                  "text-[11px] font-bold " +
+                  (saveStatus === "local"
+                    ? "text-[#73561a]"
+                    : saveStatus === "syncing"
+                      ? "text-[#165dfb]"
+                      : "text-[#1d5237]")
+                }
+              >
+                {saveStatus === "syncing"
+                  ? "Saving to server..."
+                  : saveStatus === "local"
+                    ? "Local recovery active"
+                    : "✓ Answer saved"}
               </span>
             )}
 
@@ -1529,15 +1542,34 @@ export default function TestArenaPage({
               </span>
             )}
 
-            <div
-              className={`flex items-center gap-1.5 rounded-full px-3 py-1 font-bold text-xs border ${
-                timeLeft <= 10
-                  ? "bg-[#fbeee8] text-[#8c381c] border-[#8c381c]/30 animate-pulse"
-                  : "bg-[#f5f5f4] text-[#78716b] border-[#d1dee8]/70"
-              }`}
-            >
-              <Clock className="h-3.5 w-3.5" />
-              {formatRemainingTime(timeLeft)}
+            <div className="flex items-center gap-2">
+              {questionTimeLeft !== null && (
+                <div
+                  className={
+                    "flex items-center gap-1.5 rounded-full px-3 py-1 font-bold text-xs border " +
+                    (questionTimeLeft <= 10
+                      ? "bg-[#fbeee8] text-[#8c381c] border-[#8c381c]/30 animate-pulse"
+                      : "bg-[#eef4ff] text-[#165dfb] border-[#165dfb]/20")
+                  }
+                  title="Time remaining for this question"
+                >
+                  <Clock className="h-3.5 w-3.5" />
+                  Q: {formatRemainingTime(questionTimeLeft)}
+                </div>
+              )}
+
+              <div
+                className={
+                  "flex items-center gap-1.5 rounded-full px-3 py-1 font-bold text-xs border " +
+                  (timeLeft <= 10
+                    ? "bg-[#fbeee8] text-[#8c381c] border-[#8c381c]/30 animate-pulse"
+                    : "bg-[#f5f5f4] text-[#78716b] border-[#d1dee8]/70")
+                }
+                title="Overall server-authoritative assessment deadline"
+              >
+                <Clock className="h-3.5 w-3.5" />
+                Total: {formatRemainingTime(timeLeft)}
+              </div>
             </div>
           </div>
         </header>
@@ -1571,7 +1603,10 @@ export default function TestArenaPage({
                   key={questionId}
                   type="button"
                   onClick={() => goToQuestion(index)}
-                  disabled={isSubmitted}
+                  disabled={
+                    isSubmitted ||
+                    (test?.allowReview === false && index < currentIndex)
+                  }
                   className={`relative flex h-8 min-w-8 items-center justify-center rounded-lg border px-2 text-[10px] font-bold transition-all ${
                     index === currentIndex
                       ? "border-[#165dfb] bg-[#165dfb] text-white"
