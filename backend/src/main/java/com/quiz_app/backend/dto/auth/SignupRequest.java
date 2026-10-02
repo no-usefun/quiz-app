@@ -13,8 +13,6 @@ public record SignupRequest(
 
                 @NotBlank(message = "Password is required") @Size(min = 6, max = 100) String password,
 
-                @NotBlank(message = "Role is required") String role,
-
                 @Size(max = 100) String college,
 
                 @Size(max = 100) String department,
