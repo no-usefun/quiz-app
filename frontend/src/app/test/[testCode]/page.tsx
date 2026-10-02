@@ -728,7 +728,7 @@ export default function TestArenaPage({
   }, [currentQuestion?.questionId]);
 
   useEffect(() => {
-    if (!currentQuestion || isSubmitted) {
+    if (!currentQuestion || isSubmitted || timeLeft <= 0) {
       return;
     }
 
@@ -1661,6 +1661,15 @@ export default function TestArenaPage({
             })}
           </div>
         </div>
+
+        {deadlineNotice && !isSubmitted && (
+          <div className="border-b border-[#73561a]/20 bg-[#f6efe1] px-4 py-3 md:px-6">
+            <div className="flex items-start gap-2 text-xs font-semibold text-[#73561a]">
+              <Clock className="mt-0.5 h-4 w-4 shrink-0" />
+              <span>{deadlineNotice}</span>
+            </div>
+          </div>
+        )}
 
         {!isFullscreen && (
           <div className="border-b border-[#8c381c]/20 bg-[#fbeee8] px-4 py-3 md:px-6">
