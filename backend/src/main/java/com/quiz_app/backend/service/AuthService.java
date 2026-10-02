@@ -118,9 +118,12 @@ public class AuthService {
 
                 User savedUser = userRepository.save(user);
 
+                // Local accounts must verify their email before they can log in.
+                emailVerificationService.createVerificationToken(savedUser);
+
                 return new SignupResponse(
-                                "Account created successfully.",
-                                false,
+                                "Account created successfully. Please verify your email before logging in.",
+                                true,
                                 UserSummaryResponse.fromEntity(savedUser));
         }
 
@@ -152,13 +155,20 @@ public class AuthService {
                         throw new BadCredentialsException("Invalid email or password");
                 }
 
-                // 3. Verify account active status
+                // 3. Verify email before issuing a JWT.
+                if (!user.isVerified()) {
+                        throw new BadRequestException(
+                                        "EMAIL_NOT_VERIFIED",
+                                        "Please verify your email before logging in");
+                }
+
+                // 4. Verify account active status
                 if (!user.isActive()) {
                         throw new BadRequestException(
                                         "Your account is currently disabled. Please contact administration.");
                 }
 
-                // 4. Generate JWT token
+                // 5. Generate JWT token
                 String token = jwtUtils.generateToken(user);
 
                 return new AuthResponse(
