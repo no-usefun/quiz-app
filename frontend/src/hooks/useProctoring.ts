@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef, useCallback } from "react";
+import { useState, useEffect, useRef, useCallback, useMemo } from "react";
 
 export interface ProctoringViolation {
   id: string;
@@ -10,8 +10,8 @@ export interface ProctoringViolation {
 }
 
 export interface UseProctoringOptions {
-  attemptId?: number | null;
-  quizId?: number | null;
+  attemptId?: number | string | null;
+  quizId?: number | string | null;
   testCode?: string;
   studentReg?: string;
   maxWarnings?: number;
@@ -20,26 +20,36 @@ export interface UseProctoringOptions {
   enabled?: boolean;
 }
 
+export type ProctoringFlags = {
+  tab_switch: number;
+  fullscreen_exit: number;
+  right_click: number;
+  copy_attempt: number;
+};
+
 const API_BASE = (
   process.env.NEXT_PUBLIC_API_URL || "http://localhost:8080"
 ).replace(/\/+$/, "");
 
-export function useProctoring({
-  attemptId,
-  testCode,
-  studentReg,
-  maxWarnings = 3,
-  onAutoSubmit,
-  enabled = true,
-}: UseProctoringOptions = {}) {
+export function useProctoring(options: UseProctoringOptions = {}) {
+  const {
+    attemptId,
+    testCode,
+    studentReg,
+    maxWarnings = 3,
+    onAutoSubmit,
+    enabled = true,
+  } = options;
+
   const [warningsCount, setWarningsCount] = useState(0);
   const [violations, setViolations] = useState<ProctoringViolation[]>([]);
   const [proctorStatus, setProctorStatus] = useState<
     "INITIALIZING" | "ACTIVE" | "WARNING" | "VIOLATION"
   >("INITIALIZING");
   const [statusMessage, setStatusMessage] = useState(
-    "Initializing Edge-AI proctor & gaze tracker...",
+    "Initializing Edge-AI proctor & background gaze analyzer...",
   );
+  const [currentWarningMessage, setCurrentWarningMessage] = useState<string | null>(null);
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [hasCameraPermission, setHasCameraPermission] = useState(false);
   const [faceStatus, setFaceStatus] = useState<
@@ -51,6 +61,13 @@ export function useProctoring({
   const [isExtensionActive, setIsExtensionActive] = useState(false);
   const [displayCount, setDisplayCount] = useState(1);
 
+  const [flags, setFlags] = useState<ProctoringFlags>({
+    tab_switch: 0,
+    fullscreen_exit: 0,
+    right_click: 0,
+    copy_attempt: 0,
+  });
+
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
   const audioContextRef = useRef<AudioContext | null>(null);
@@ -59,8 +76,14 @@ export function useProctoring({
   const consecutiveLookingAwayRef = useRef(0);
   const isAutoSubmittedRef = useRef(false);
   const lastAudioSpikeTimeRef = useRef(0);
+  const lastSnapshotTimeRef = useRef(0);
 
-  // ─── 1. Send Violation to Backend ──────────────────────────────────────────
+  // Dismiss banner
+  const dismissWarning = useCallback(() => {
+    setCurrentWarningMessage(null);
+  }, []);
+
+  // ─── 1. Send Violation to Backend & Trigger Warnings ─────────────────────────
   const logEventToBackend = useCallback(
     async (activityType: string, details: string) => {
       const newViolation: ProctoringViolation = {
@@ -71,6 +94,50 @@ export function useProctoring({
       };
 
       setViolations((prev) => [newViolation, ...prev.slice(0, 19)]);
+      setCurrentWarningMessage(`⚠️ Warning: ${details}`);
+
+      // Optimistically increment warnings for malicious integrity violations
+      const isCountableViolation = [
+        "TAB_SWITCH",
+        "WINDOW_BLUR",
+        "FULLSCREEN_EXIT",
+        "MULTIPLE_FACES",
+        "LOOKING_AWAY",
+        "DEVTOOLS_OPEN",
+        "MULTI_DISPLAY",
+      ].includes(activityType);
+
+      if (isCountableViolation) {
+        setWarningsCount((prev) => {
+          const next = prev + 1;
+          if (next >= maxWarnings && !isAutoSubmittedRef.current) {
+            isAutoSubmittedRef.current = true;
+            setProctorStatus("VIOLATION");
+            setStatusMessage("Exam limit exceeded. Auto-submitting assessment...");
+            if (onAutoSubmit) {
+              setTimeout(() => onAutoSubmit(), 1000);
+            }
+          }
+          return next;
+        });
+      }
+
+      // Update flags
+      setFlags((prev) => {
+        if (activityType === "TAB_SWITCH" || activityType === "WINDOW_BLUR") {
+          return { ...prev, tab_switch: prev.tab_switch + 1 };
+        }
+        if (activityType === "FULLSCREEN_EXIT") {
+          return { ...prev, fullscreen_exit: prev.fullscreen_exit + 1 };
+        }
+        if (activityType === "RIGHT_CLICK") {
+          return { ...prev, right_click: prev.right_click + 1 };
+        }
+        if (activityType === "COPY_ATTEMPT") {
+          return { ...prev, copy_attempt: prev.copy_attempt + 1 };
+        }
+        return prev;
+      });
 
       if (!attemptId) return;
 
@@ -97,7 +164,7 @@ export function useProctoring({
         );
 
         if (response.ok) {
-          const data = await response.json();
+          const data = await response.json().catch(() => ({}));
           if (data.currentWarningsCount !== undefined) {
             setWarningsCount(data.currentWarningsCount);
           }
@@ -114,7 +181,7 @@ export function useProctoring({
         console.warn("Could not sync proctoring event to backend:", err);
       }
     },
-    [attemptId, onAutoSubmit],
+    [attemptId, maxWarnings, onAutoSubmit],
   );
 
   // ─── 2. Register Device Footprint ─────────────────────────────────────────
@@ -200,6 +267,7 @@ export function useProctoring({
             setStatusMessage(
               `Alert: ${event.data.displays.length} displays detected by Proctor Shield!`,
             );
+            logEventToBackend("MULTI_DISPLAY", `${event.data.displays.length} displays detected`);
           }
         }
       }
@@ -217,6 +285,7 @@ export function useProctoring({
           if (v.type !== "WINDOW_FOCUS") {
             setProctorStatus("WARNING");
             setStatusMessage(`Shield Alert: ${v.details || v.type}`);
+            logEventToBackend(v.type || "EXTENSION_VIOLATION", v.details || "Extension alert");
           }
         }
       }
@@ -255,9 +324,9 @@ export function useProctoring({
       window.removeEventListener("message", handleWindowMessage);
       window.postMessage({ type: "DYNOQUIZZ_FINISH" }, "*");
     };
-  }, [attemptId, enabled, testCode, studentReg]);
+  }, [attemptId, enabled, testCode, studentReg, logEventToBackend]);
 
-  // ─── 3. Browser Integrity Listeners ───────────────────────────────────────
+  // ─── 3. Browser Integrity Listeners (Tab switch, Blur, ContextMenu, Keydown) ──
   useEffect(() => {
     if (!enabled) return;
 
@@ -274,7 +343,7 @@ export function useProctoring({
     const handleBlur = () => {
       setProctorStatus("WARNING");
       setStatusMessage("Warning: Window lost focus!");
-      logEventToBackend("WINDOW_BLUR", "Exam window lost focus");
+      logEventToBackend("WINDOW_BLUR", "Exam window lost focus / tab switched");
     };
 
     const handleFullscreenChange = () => {
@@ -321,7 +390,7 @@ export function useProctoring({
         (e.ctrlKey && (e.key === "U" || e.key === "u"))
       ) {
         e.preventDefault();
-        logEventToBackend("RIGHT_CLICK", `Blocked developer tool shortcut: ${e.key}`);
+        logEventToBackend("DEVTOOLS_OPEN", `Blocked developer tool shortcut: ${e.key}`);
       }
     };
 
@@ -346,12 +415,13 @@ export function useProctoring({
     };
   }, [enabled, logEventToBackend]);
 
-  // ─── 4. Edge-AI Webcam, Gaze & Audio Stream ───────────────────────────────
+  // ─── 4. Edge-AI Background Webcam, Periodic Snapshots & Gaze Analysis ────────
   useEffect(() => {
     if (!enabled) return;
 
     let isMounted = true;
     let analysisInterval: any = null;
+    let snapshotInterval: any = null;
 
     const startMedia = async () => {
       try {
@@ -383,8 +453,8 @@ export function useProctoring({
             source.connect(analyser);
 
             const dataArray = new Uint8Array(analyser.frequencyBinCount);
-            setInterval(() => {
-              if (isAutoSubmittedRef.current) return;
+            const audioInterval = setInterval(() => {
+              if (isAutoSubmittedRef.current || !isMounted) return;
               analyser.getByteFrequencyData(dataArray);
               let sum = 0;
               for (let i = 0; i < dataArray.length; i++) {
@@ -408,9 +478,9 @@ export function useProctoring({
         }
 
         setProctorStatus("ACTIVE");
-        setStatusMessage("Edge-AI Vision, Gaze & Audio proctor active");
+        setStatusMessage("Background Edge-AI Vision & Gaze proctor active");
 
-        // Edge-AI Face Detection Loop using native FaceDetector if available or Canvas frame analysis
+        // Edge-AI Face Detection Loop
         const hasNativeFaceDetector =
           typeof window !== "undefined" && "FaceDetector" in window;
         const faceDetector = hasNativeFaceDetector
@@ -423,7 +493,7 @@ export function useProctoring({
         const ctx = canvas.getContext("2d", { willReadFrequently: true });
 
         analysisInterval = setInterval(async () => {
-          if (!videoRef.current || isAutoSubmittedRef.current) return;
+          if (!videoRef.current || isAutoSubmittedRef.current || !isMounted) return;
 
           if (faceDetector && videoRef.current.readyState >= 2) {
             try {
@@ -459,7 +529,6 @@ export function useProctoring({
                   consecutiveMultiFaceRef.current = 0;
                 }
               } else {
-                // Single face detected: analyze bounding box alignment & gaze
                 consecutiveNoFaceRef.current = 0;
                 consecutiveMultiFaceRef.current = 0;
 
@@ -468,8 +537,7 @@ export function useProctoring({
                 const faceCenterX = faceBox.x + faceBox.width / 2;
                 const normalizedX = faceCenterX / videoW;
 
-                // If face center is outside the middle 25%-75% of the frame (looking far left/right)
-                if (normalizedX < 0.22 || normalizedX > 0.78) {
+                if (normalizedX < 0.20 || normalizedX > 0.80) {
                   consecutiveLookingAwayRef.current += 1;
                   if (consecutiveLookingAwayRef.current >= 3) {
                     setFaceStatus("LOOKING_AWAY");
@@ -477,7 +545,7 @@ export function useProctoring({
                     setStatusMessage("Warning: Eyes/Face turned away from the screen!");
                     logEventToBackend(
                       "LOOKING_AWAY",
-                      `Candidate looking away from center (head pose offset: ${Math.round(normalizedX * 100)}%)`,
+                      `Candidate looking away from center (offset: ${Math.round(normalizedX * 100)}%)`,
                     );
                     consecutiveLookingAwayRef.current = 0;
                   }
@@ -485,14 +553,13 @@ export function useProctoring({
                   consecutiveLookingAwayRef.current = 0;
                   setFaceStatus("OK");
                   setProctorStatus("ACTIVE");
-                  setStatusMessage("Face verified and aligned");
+                  setStatusMessage("Face verified & gaze aligned");
                 }
               }
             } catch {
               // Fallback to optical analysis
             }
           } else if (ctx && videoRef.current.readyState >= 2) {
-            // Lightweight optical motion, luminance & eye quadrant analysis
             ctx.drawImage(videoRef.current, 0, 0, 160, 120);
             const imgData = ctx.getImageData(0, 0, 160, 120);
             const data = imgData.data;
@@ -518,7 +585,7 @@ export function useProctoring({
             const totalPixels = 160 * 120;
             const avgBrightness = totalBrightness / totalPixels;
 
-            if (avgBrightness < 15) {
+            if (avgBrightness < 12) {
               consecutiveNoFaceRef.current += 1;
               if (consecutiveNoFaceRef.current >= 3) {
                 setFaceStatus("NO_FACE");
@@ -530,9 +597,8 @@ export function useProctoring({
                 consecutiveNoFaceRef.current = 0;
               }
             } else {
-              // Gaze lateral deviation heuristic (left vs right imbalance)
               const diffRatio = Math.abs(leftBrightness - rightBrightness) / (totalBrightness || 1);
-              if (diffRatio > 0.45) {
+              if (diffRatio > 0.48) {
                 consecutiveLookingAwayRef.current += 1;
                 if (consecutiveLookingAwayRef.current >= 3) {
                   setFaceStatus("LOOKING_AWAY");
@@ -554,6 +620,24 @@ export function useProctoring({
             }
           }
         }, 1200);
+
+        // Periodic snapshot capture every 15 seconds (background snapshot analysis)
+        snapshotInterval = setInterval(() => {
+          if (!videoRef.current || isAutoSubmittedRef.current || !isMounted) return;
+          try {
+            if (ctx && videoRef.current.readyState >= 2) {
+              ctx.drawImage(videoRef.current, 0, 0, 160, 120);
+              const snapshotData = canvas.toDataURL("image/jpeg", 0.6);
+              // Store latest snapshot locally or transmit if backend snapshot endpoint is available
+              if (typeof window !== "undefined" && attemptId) {
+                sessionStorage.setItem(`dynoquizz_last_snap_${attemptId}`, snapshotData);
+              }
+            }
+          } catch (e) {
+            // ignore snapshot frame capture errors
+          }
+        }, 15000);
+
       } catch (mediaErr) {
         console.warn("Camera or microphone permission denied:", mediaErr);
         setProctorStatus("WARNING");
@@ -566,6 +650,7 @@ export function useProctoring({
     return () => {
       isMounted = false;
       if (analysisInterval) clearInterval(analysisInterval);
+      if (snapshotInterval) clearInterval(snapshotInterval);
       if (streamRef.current) {
         streamRef.current.getTracks().forEach((track) => track.stop());
       }
@@ -576,13 +661,22 @@ export function useProctoring({
         audioContextRef.current.close().catch(() => {});
       }
     };
-  }, [enabled, logEventToBackend]);
+  }, [enabled, attemptId, logEventToBackend]);
 
-  const requestFullscreen = () => {
-    if (document.documentElement.requestFullscreen) {
-      document.documentElement.requestFullscreen().catch(() => {});
+  const requestFullscreen = useCallback(async () => {
+    if (typeof document === "undefined") return;
+    try {
+      if (!document.fullscreenElement) {
+        await document.documentElement.requestFullscreen();
+      }
+    } catch {
+      // Fullscreen is optional and may be denied by the browser.
     }
-  };
+  }, []);
+
+  const warnings = useMemo(() => {
+    return violations.map((v) => `${v.timestamp} - ${v.message}`);
+  }, [violations]);
 
   return {
     videoRef,
@@ -591,6 +685,8 @@ export function useProctoring({
     violations,
     proctorStatus,
     statusMessage,
+    currentWarningMessage,
+    dismissWarning,
     faceStatus,
     isFullscreen,
     hasCameraPermission,
@@ -598,5 +694,9 @@ export function useProctoring({
     isExtensionActive,
     displayCount,
     requestFullscreen,
+    // Backward-compatibility properties:
+    warnings,
+    violationCount: warningsCount,
+    flags,
   };
 }

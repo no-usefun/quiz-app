@@ -19,15 +19,23 @@ import { ENDPOINTS } from "@/lib/api/endpoints";
 
 function isTokenValid(token: string): boolean {
   if (!token) return false;
+
   const parts = token.split(".");
   if (parts.length !== 3) return false;
+
   try {
     let base64 = parts[1].replace(/-/g, "+").replace(/_/g, "/");
-    while (base64.length % 4) base64 += "=";
+
+    while (base64.length % 4) {
+      base64 += "=";
+    }
+
     const payload = JSON.parse(atob(base64));
+
     if (payload.exp && Date.now() / 1000 > payload.exp) {
       return false;
     }
+
     return true;
   } catch {
     return false;
@@ -39,6 +47,7 @@ function SignupContent() {
   const searchParams = useSearchParams();
 
   const qRole = searchParams?.get("role");
+
   const activeRole: "teacher" | "student" | null =
     qRole === "teacher" || qRole === "instructor" || qRole === "educator"
       ? "teacher"
@@ -46,11 +55,14 @@ function SignupContent() {
         ? "student"
         : null;
 
-  // Form Fields - Split into First and Last Name
+  // Form Fields
   const [firstName, setFirstName] = useState("");
   const [lastName, setLastName] = useState("");
   const [email, setEmail] = useState("");
   const [registrationNo, setRegistrationNo] = useState("");
+  const [college, setCollege] = useState("");
+  const [department, setDepartment] = useState("");
+  const [phone, setPhone] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
 
@@ -58,15 +70,19 @@ function SignupContent() {
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const [success, setSuccess] = useState("");
 
   useEffect(() => {
     if (typeof window !== "undefined") {
       const token = localStorage.getItem("dynoquizz_token");
       const role = (localStorage.getItem("dynoquizz_role") || "").toUpperCase();
+
       if (token && isTokenValid(token)) {
         const destination =
           role === "TEACHER" ? "/dashboard/teacher" : "/dashboard/student";
+
         const redirectTarget = searchParams?.get("redirect");
+
         window.location.href = redirectTarget || destination;
       } else if (token) {
         localStorage.removeItem("dynoquizz_token");
@@ -76,97 +92,139 @@ function SignupContent() {
     }
   }, [searchParams]);
 
+  // Password validation
+  const passwordRequirements = {
+    minLength: password.length >= 8,
+    uppercase: /[A-Z]/.test(password),
+    lowercase: /[a-z]/.test(password),
+    number: /[0-9]/.test(password),
+    special: /[^A-Za-z0-9]/.test(password),
+  };
+
+  const isPasswordValid =
+    passwordRequirements.minLength &&
+    passwordRequirements.uppercase &&
+    passwordRequirements.lowercase &&
+    passwordRequirements.number &&
+    passwordRequirements.special;
+
+  const passwordsMatch =
+    password.length > 0 &&
+    confirmPassword.length > 0 &&
+    password === confirmPassword;
+
   const handleSignupSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+
     if (!activeRole) return;
 
     if (!firstName.trim() || !lastName.trim()) {
       setError("Please enter both your first and last name.");
+      setSuccess("");
       return;
     }
 
+    // Registration number is required by the backend for students,
+    // but is optional for teacher accounts.
     if (activeRole === "student" && !registrationNo.trim()) {
       setError("Please enter your student registration / roll number.");
+      setSuccess("");
       return;
     }
 
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
     if (!emailRegex.test(email.trim())) {
       setError("Please enter a valid email address format.");
+      setSuccess("");
       return;
     }
 
-    if (password.length < 6) {
-      setError("Password must be at least 6 characters long.");
+    if (phone.trim() && !/^[0-9+()\-\s]{7,15}$/.test(phone.trim())) {
+      setError("Please enter a valid phone number.");
+      setSuccess("");
       return;
     }
 
-    if (confirmPassword && password !== confirmPassword) {
+    if (password.length > 100) {
+      setError("Password must not exceed 100 characters.");
+      setSuccess("");
+      return;
+    }
+
+    if (!isPasswordValid) {
+      setError(
+        "Password must be at least 8 characters and include an uppercase letter, lowercase letter, number, and special character.",
+      );
+      setSuccess("");
+      return;
+    }
+
+    if (!passwordsMatch) {
       setError("Passwords do not match.");
+      setSuccess("");
       return;
     }
 
     setError("");
+    setSuccess("");
     setLoading(true);
 
-    const backendRole = activeRole === "teacher" ? "TEACHER" : "STUDENT";
-    const combinedName = `${firstName.trim()} ${lastName.trim()}`;
-
     try {
+      // Backend SignupRequest does not contain a role field.
       const res = await fetch(ENDPOINTS.auth.signup, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+        },
         body: JSON.stringify({
           firstName: firstName.trim(),
           lastName: lastName.trim(),
           email: email.trim(),
           password,
-          role: backendRole,
-          ...(backendRole === "STUDENT" && registrationNo
-            ? { registrationNo: registrationNo.trim().toUpperCase() }
-            : {}),
+          role: activeRole === "teacher" ? "TEACHER" : "STUDENT",
+          college: college.trim() || null,
+          department: department.trim() || null,
+          registrationNo: registrationNo.trim()
+            ? registrationNo.trim().toUpperCase()
+            : null,
+          phone: phone.trim() || null,
         }),
       });
 
       const data = await res.json().catch(() => ({}));
 
       if (res.ok) {
-        const returnedRole = (
-          data.user?.role ||
-          data.role ||
-          backendRole
-        ).toUpperCase();
+        // Current backend requires email verification before password login.
+        setSuccess(
+          data.message ||
+            "Account created. Please verify your email before logging in.",
+        );
+        setError("");
+
+        // Signup does not return an authenticated JWT.
         if (typeof window !== "undefined") {
-          const userObj = data.user || {
-            email: email.trim(),
-            role: returnedRole,
-            name: combinedName,
-          };
-          localStorage.setItem("dynoquizz_role", returnedRole);
-          localStorage.setItem("dynoquizz_user", JSON.stringify(userObj));
-          if (data.user?.registrationNo || (backendRole === "STUDENT" && registrationNo)) {
-            localStorage.setItem(
-              "dynoquizz_regNo",
-              data.user?.registrationNo || registrationNo.trim().toUpperCase(),
-            );
-          }
-          if (data.token) {
-            localStorage.setItem("dynoquizz_token", data.token);
-            document.cookie = `dynoquizz_token=${data.token}; path=/; max-age=86400`;
+          localStorage.removeItem("dynoquizz_token");
+          localStorage.removeItem("dynoquizz_user");
+          localStorage.removeItem("dynoquizz_role");
+          const normalizedRegistrationNo = registrationNo.trim().toUpperCase();
+
+          if (normalizedRegistrationNo) {
+            localStorage.setItem("dynoquizz_regNo", normalizedRegistrationNo);
+          } else {
+            localStorage.removeItem("dynoquizz_regNo");
           }
         }
-        router.refresh();
-        const redirectTarget = searchParams?.get("redirect");
-        const destination =
-          returnedRole === "TEACHER"
-            ? "/dashboard/teacher"
-            : "/dashboard/student";
-        window.location.href = redirectTarget || destination;
       } else {
-        setError(data.message || data.error || "Signup failed.");
+        setSuccess("");
+        setError(
+          data.message ||
+            data.error ||
+            "Signup failed. Please check your details and try again.",
+        );
       }
     } catch (err) {
       console.error("Signup connection error:", err);
+      setSuccess("");
       setError(
         "Cannot connect to the authentication server. Please ensure the backend is running.",
       );
@@ -177,6 +235,11 @@ function SignupContent() {
 
   const fieldClass =
     "w-full rounded-lg border border-neutral-200 bg-neutral-50/70 px-3.5 py-2.5 text-sm text-neutral-900 outline-none transition-all placeholder:text-neutral-400 hover:border-neutral-300 focus:bg-white focus:border-neutral-900 focus:ring-4 focus:ring-neutral-900/10";
+
+  const requirementClass = (valid: boolean) =>
+    `flex items-center gap-2 text-[11px] transition-colors ${
+      valid ? "text-green-600" : "text-neutral-400"
+    }`;
 
   if (!activeRole) {
     return (
@@ -194,18 +257,22 @@ function SignupContent() {
                 "radial-gradient(circle at 50% 45%, rgba(17,24,39,0.06), transparent 60%)",
             }}
           />
+
           <div className="relative w-full max-w-xs space-y-6">
             <span className="mx-auto flex h-12 w-12 items-center justify-center rounded-xl bg-[#111827]/5 text-[#111827] ring-1 ring-[#111827]/10 transition-transform duration-300 group-hover:-translate-y-0.5">
               <GraduationCap className="h-6 w-6" />
             </span>
+
             <div className="space-y-2">
               <h1 className="text-3xl sm:text-4xl font-bold tracking-tight text-[#111827]">
                 Student
               </h1>
+
               <p className="text-sm leading-relaxed text-[#6B7280]">
                 Take quizzes with an access code
               </p>
             </div>
+
             <button
               type="button"
               onClick={() => {
@@ -229,18 +296,22 @@ function SignupContent() {
                 "radial-gradient(circle at 50% 45%, rgba(255,255,255,0.07), transparent 60%)",
             }}
           />
+
           <div className="relative w-full max-w-xs space-y-6">
             <span className="mx-auto flex h-12 w-12 items-center justify-center rounded-xl bg-white/10 text-white ring-1 ring-white/15 transition-transform duration-300 group-hover:-translate-y-0.5">
               <Presentation className="h-6 w-6" />
             </span>
+
             <div className="space-y-2">
               <h1 className="text-3xl sm:text-4xl font-bold tracking-tight text-white">
                 Instructor
               </h1>
+
               <p className="text-sm leading-relaxed text-[#94A3B8]">
                 Create and manage quizzes
               </p>
             </div>
+
             <button
               type="button"
               onClick={() => {
@@ -268,6 +339,7 @@ function SignupContent() {
             "radial-gradient(circle at 50% 0%, rgba(17,24,39,0.05), transparent 55%)",
         }}
       />
+
       <div className="relative w-full max-w-md bg-white rounded-2xl shadow-[0_18px_50px_-20px_rgba(15,23,42,0.18)] ring-1 ring-neutral-900/5 border border-neutral-100 p-8 space-y-6">
         <div>
           <div className="mb-5">
@@ -279,10 +351,11 @@ function SignupContent() {
               }}
               className="group text-xs font-medium text-neutral-400 hover:text-neutral-700 transition-colors cursor-pointer bg-transparent border-0 p-0 inline-flex items-center gap-1.5"
             >
-              <ArrowLeft className="h-3.5 w-3.5 transition-transform duration-200 group-hover:-translate-x-0.5" />{" "}
+              <ArrowLeft className="h-3.5 w-3.5 transition-transform duration-200 group-hover:-translate-x-0.5" />
               Back to roles
             </button>
           </div>
+
           <span
             className={`mb-4 flex h-11 w-11 items-center justify-center rounded-xl ring-1 ${
               activeRole === "teacher"
@@ -296,13 +369,17 @@ function SignupContent() {
               <GraduationCap className="h-5 w-5" />
             )}
           </span>
+
           <h1 className="text-2xl font-bold tracking-tight text-neutral-900">
             {activeRole === "teacher"
               ? "Sign up as Instructor"
               : "Sign up as Student"}
           </h1>
+
           <p className="text-sm text-neutral-500 mt-1.5 leading-relaxed">
-            Create your account to get started.
+            {activeRole === "teacher"
+              ? "Create your instructor account to manage assessments."
+              : "Create your student account to take assessments."}
           </p>
         </div>
 
@@ -315,7 +392,17 @@ function SignupContent() {
               aria-hidden
               className="mt-0.5 h-1.5 w-1.5 shrink-0 rounded-full bg-red-500"
             />
+
             <span>{error}</span>
+          </div>
+        )}
+
+        {success && (
+          <div
+            role="status"
+            className="rounded-lg bg-green-50 p-3.5 text-sm text-green-700 font-medium border border-green-200/70"
+          >
+            {success}
           </div>
         )}
 
@@ -325,6 +412,7 @@ function SignupContent() {
               <label className="text-xs font-semibold text-neutral-700 block">
                 First name
               </label>
+
               <input
                 type="text"
                 value={firstName}
@@ -335,10 +423,12 @@ function SignupContent() {
                 className={fieldClass}
               />
             </div>
+
             <div className="space-y-1.5">
               <label className="text-xs font-semibold text-neutral-700 block">
                 Last name
               </label>
+
               <input
                 type="text"
                 value={lastName}
@@ -354,6 +444,7 @@ function SignupContent() {
             <label className="text-xs font-semibold text-neutral-700 block">
               Email address
             </label>
+
             <input
               type="email"
               value={email}
@@ -369,30 +460,98 @@ function SignupContent() {
               <label className="text-xs font-semibold text-neutral-700 block">
                 Registration / Roll number
               </label>
+
               <input
                 type="text"
                 value={registrationNo}
                 onChange={(e) => setRegistrationNo(e.target.value)}
-                placeholder="e.g. 21CS042"
+                placeholder="e.g. 21BCE1024"
                 required
+                maxLength={30}
                 className={fieldClass}
               />
             </div>
           )}
 
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div className="space-y-1.5">
+              <label className="text-xs font-semibold text-neutral-700 block">
+                College
+                <span className="ml-1 font-normal text-neutral-400">
+                  (optional)
+                </span>
+              </label>
+
+              <input
+                type="text"
+                value={college}
+                onChange={(e) => setCollege(e.target.value)}
+                placeholder="Example University"
+                maxLength={100}
+                className={fieldClass}
+              />
+            </div>
+
+            <div className="space-y-1.5">
+              <label className="text-xs font-semibold text-neutral-700 block">
+                Department
+                <span className="ml-1 font-normal text-neutral-400">
+                  (optional)
+                </span>
+              </label>
+
+              <input
+                type="text"
+                value={department}
+                onChange={(e) => setDepartment(e.target.value)}
+                placeholder="CSE"
+                maxLength={100}
+                className={fieldClass}
+              />
+            </div>
+          </div>
+
+          <div className="space-y-1.5">
+            <label className="text-xs font-semibold text-neutral-700 block">
+              Phone number
+              <span className="ml-1 font-normal text-neutral-400">
+                (optional)
+              </span>
+            </label>
+
+            <input
+              type="tel"
+              value={phone}
+              onChange={(e) => setPhone(e.target.value)}
+              placeholder="9876543210"
+              inputMode="tel"
+              maxLength={15}
+              className={fieldClass}
+            />
+          </div>
+
           <div className="space-y-1.5">
             <label className="text-xs font-semibold text-neutral-700 block">
               Password
             </label>
+
             <div className="relative">
               <input
                 type={showPassword ? "text" : "password"}
                 value={password}
-                onChange={(e) => setPassword(e.target.value)}
+                onChange={(e) => {
+                  setPassword(e.target.value);
+
+                  if (error) {
+                    setError("");
+                  }
+                }}
                 placeholder="••••••••"
                 required
+                aria-describedby="password-requirements"
                 className={`${fieldClass} pr-10`}
               />
+
               <button
                 type="button"
                 onClick={() => setShowPassword(!showPassword)}
@@ -406,24 +565,69 @@ function SignupContent() {
                 )}
               </button>
             </div>
-            <p className="text-[11px] text-neutral-400">
-              At least 6 characters.
-            </p>
+
+            <div
+              id="password-requirements"
+              className="grid grid-cols-1 gap-1 pt-1"
+            >
+              <p className={requirementClass(passwordRequirements.minLength)}>
+                <span className="w-3 text-center">
+                  {passwordRequirements.minLength ? "✓" : "○"}
+                </span>
+                At least 8 characters
+              </p>
+
+              <p className={requirementClass(passwordRequirements.uppercase)}>
+                <span className="w-3 text-center">
+                  {passwordRequirements.uppercase ? "✓" : "○"}
+                </span>
+                At least 1 uppercase letter
+              </p>
+
+              <p className={requirementClass(passwordRequirements.lowercase)}>
+                <span className="w-3 text-center">
+                  {passwordRequirements.lowercase ? "✓" : "○"}
+                </span>
+                At least 1 lowercase letter
+              </p>
+
+              <p className={requirementClass(passwordRequirements.number)}>
+                <span className="w-3 text-center">
+                  {passwordRequirements.number ? "✓" : "○"}
+                </span>
+                At least 1 number
+              </p>
+
+              <p className={requirementClass(passwordRequirements.special)}>
+                <span className="w-3 text-center">
+                  {passwordRequirements.special ? "✓" : "○"}
+                </span>
+                At least 1 special character
+              </p>
+            </div>
           </div>
 
           <div className="space-y-1.5">
             <label className="text-xs font-semibold text-neutral-700 block">
               Confirm password
             </label>
+
             <div className="relative">
               <input
                 type={showConfirmPassword ? "text" : "password"}
                 value={confirmPassword}
-                onChange={(e) => setConfirmPassword(e.target.value)}
+                onChange={(e) => {
+                  setConfirmPassword(e.target.value);
+
+                  if (error) {
+                    setError("");
+                  }
+                }}
                 placeholder="••••••••"
                 required
                 className={`${fieldClass} pr-10`}
               />
+
               <button
                 type="button"
                 onClick={() => setShowConfirmPassword(!showConfirmPassword)}
@@ -439,11 +643,25 @@ function SignupContent() {
                 )}
               </button>
             </div>
+
+            {confirmPassword.length > 0 && (
+              <p
+                className={`text-[11px] ${
+                  passwordsMatch ? "text-green-600" : "text-red-500"
+                }`}
+              >
+                {passwordsMatch
+                  ? "✓ Passwords match"
+                  : "Passwords do not match"}
+              </p>
+            )}
           </div>
 
           <button
             type="submit"
-            disabled={loading}
+            disabled={
+              loading || !isPasswordValid || !passwordsMatch || !!success
+            }
             className="w-full rounded-lg bg-gradient-to-b from-neutral-800 to-neutral-900 py-3 px-4 text-sm font-semibold text-white shadow-sm transition-all hover:from-neutral-900 hover:to-black hover:shadow-md active:scale-[0.99] disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-neutral-900 focus-visible:ring-offset-2 cursor-pointer border-0 mt-5"
           >
             {loading ? (
@@ -451,6 +669,8 @@ function SignupContent() {
                 <span className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-white/30 border-t-white" />
                 Creating account...
               </span>
+            ) : success ? (
+              "Account Created"
             ) : (
               "Create Account"
             )}
@@ -459,6 +679,7 @@ function SignupContent() {
 
         <div className="pt-1">
           <div className="h-px w-full bg-neutral-100" />
+
           <p className="text-center text-sm text-neutral-500 pt-4">
             Already have an account?{" "}
             <Link

@@ -63,7 +63,8 @@ function JoinForm() {
         const rawUser = localStorage.getItem("dynoquizz_user");
         if (rawUser) userObj = JSON.parse(rawUser);
       } catch {}
-      const stored = userObj?.registrationNo || localStorage.getItem("dynoquizz_regNo");
+      const stored =
+        userObj?.registrationNo || localStorage.getItem("dynoquizz_regNo");
       if (stored) setRegistrationNo(stored);
     }
   }, [queryCode, router]);
@@ -89,19 +90,22 @@ function JoinForm() {
     try {
       const token = localStorage.getItem("dynoquizz_token");
 
-      const pkgUrl = `${API_BASE}/api/v1/quizzes/code/${cleanCode}/package`;
+      const availabilityUrl = `${API_BASE}/api/v1/student/quizzes/${encodeURIComponent(cleanCode)}/availability`;
 
-      // Ping the live backend to see if this quiz exists
-      const res = await fetch(pkgUrl, {
+      // Student API contract: check quiz availability before entering the assessment.
+      // The backend keeps the student-facing endpoint under /api/v1/student.
+      const res = await fetch(availabilityUrl, {
+        method: "GET",
         headers: {
           ...(token ? { Authorization: `Bearer ${token}` } : {}),
           "Content-Type": "application/json",
         },
+        cache: "no-store",
       });
 
       if (res.status === 404) {
         setError(
-          `Assessment session code "${cleanCode}" was not found. Please verify the code.`,
+          `Assessment session code "${cleanCode}" was not found or is not available.`,
         );
         setLoading(false);
         return;
@@ -116,9 +120,7 @@ function JoinForm() {
           /* not JSON */
         }
         const serverMsg =
-          bodyJson?.message ||
-          bodyJson?.error ||
-          bodyText.slice(0, 200);
+          bodyJson?.message || bodyJson?.error || bodyText.slice(0, 200);
 
         if (
           typeof serverMsg === "string" &&
@@ -153,7 +155,7 @@ function JoinForm() {
         sessionStorage.setItem("dynoquizz_student_reg", cleanReg);
       }
 
-      // Route directly to the new LOBBY page to initialize the attempt
+      // Availability is valid. The next page handles the attempt/lobby flow.
       router.push(`/test/${cleanCode}/lobby`);
     } catch (err: any) {
       console.error("Join validation error:", err);
@@ -165,10 +167,7 @@ function JoinForm() {
         setError(
           "This assessment is not open yet. Ask your teacher to publish it.",
         );
-      } else if (
-        typeof msg === "string" &&
-        msg.includes("QUIZ_NOT_ACTIVE")
-      ) {
+      } else if (typeof msg === "string" && msg.includes("QUIZ_NOT_ACTIVE")) {
         setError("This assessment is not open right now.");
       } else {
         setError(
@@ -251,7 +250,7 @@ function JoinForm() {
       >
         {loading ? (
           <>
-            <Loader2 className="h-4 w-4 animate-spin" /> Verifying Session...
+            <Loader2 className="h-4 w-4 animate-spin" /> Checking Assessment...
           </>
         ) : (
           <>

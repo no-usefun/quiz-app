@@ -1,87 +1,183 @@
 import { NextResponse } from "next/server";
-import { signJWT } from "@/lib/jwt";
-import { cookies } from "next/headers";
 
 const API_BASE = (
   process.env.NEXT_PUBLIC_API_URL || "http://localhost:8080"
 ).replace(/\/+$/, "");
 
+function getErrorMessage(data: any): string {
+  if (typeof data?.message === "string" && data.message.trim()) {
+    return data.message;
+  }
+
+  if (typeof data?.error === "string" && data.error.trim()) {
+    return data.error;
+  }
+
+  return "Signup failed.";
+}
+
 export async function POST(request: Request) {
+  let body: {
+    firstName?: unknown;
+    lastName?: unknown;
+    name?: unknown;
+    email?: unknown;
+    password?: unknown;
+    role?: unknown;
+    registrationNo?: unknown;
+    college?: unknown;
+    department?: unknown;
+    phone?: unknown;
+  };
+
   try {
-    const { firstName, lastName, name, email, password, role, registrationNo, college, department, phone } = await request.json();
-    const normalizedRole = (role || "STUDENT").toUpperCase();
-    const fName = firstName || name?.split(" ")[0] || "User";
-    const lName = lastName || name?.split(" ").slice(1).join(" ") || "";
+    body = await request.json();
+  } catch {
+    return NextResponse.json(
+      {
+        success: false,
+        error: "Invalid request body.",
+      },
+      { status: 400 },
+    );
+  }
 
-    // 1. Attempt Spring Boot backend registration
-    try {
-      const backendRes = await fetch(`${API_BASE}/api/v1/auth/signup`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          firstName: fName,
-          lastName: lName,
-          email,
-          password,
-          role: normalizedRole,
-          ...(college ? { college } : {}),
-          ...(department ? { department } : {}),
-          ...(phone ? { phone } : {}),
-          ...(normalizedRole === "STUDENT" && registrationNo
-            ? { registrationNo: registrationNo.trim().toUpperCase() }
-            : {}),
-        }),
-      });
+  const firstName =
+    typeof body.firstName === "string"
+      ? body.firstName.trim()
+      : typeof body.name === "string"
+        ? body.name.trim().split(/\s+/)[0] || ""
+        : "";
 
-      if (backendRes.ok) {
-        const backendData = await backendRes.json();
-        const returnedRole = (backendData.role || backendData.user?.role || normalizedRole).toUpperCase();
-        const finalToken = backendData.token || backendData.accessToken;
+  const lastName =
+    typeof body.lastName === "string"
+      ? body.lastName.trim()
+      : typeof body.name === "string"
+        ? body.name.trim().split(/\s+/).slice(1).join(" ")
+        : "";
 
-        if (!finalToken) {
-          return NextResponse.json(
-            { success: false, error: "Authentication server did not return a session token." },
-            { status: 500 }
-          );
-        }
+  const email = typeof body.email === "string" ? body.email.trim() : "";
+  const password = typeof body.password === "string" ? body.password : "";
 
-        const payload = {
-          userId: backendData.user?.id || backendData.userId || email,
-          email,
-          role: returnedRole,
-          name: backendData.name || backendData.user?.fullName || backendData.user?.firstName || name || "New User",
-          exp: Math.floor(Date.now() / 1000) + 60 * 60 * 24,
-        };
+  const requestedRole =
+    typeof body.role === "string" ? body.role.trim().toUpperCase() : "STUDENT";
 
-        const cookieStore = await cookies();
-        cookieStore.set("dynoquizz_token", finalToken, {
-          httpOnly: false,
-          secure: process.env.NODE_ENV === "production",
-          sameSite: "lax",
-          maxAge: 60 * 60 * 24,
-          path: "/",
-        });
+  if (!firstName || !email || !password) {
+    return NextResponse.json(
+      {
+        success: false,
+        error: "First name, email, and password are required.",
+      },
+      { status: 400 },
+    );
+  }
 
-        return NextResponse.json({
-          success: true,
-          token: finalToken,
-          user: payload,
-          role: returnedRole,
-        });
-      } else {
-        const errorData = await backendRes.json().catch(() => ({}));
-        return NextResponse.json(
-          { success: false, error: errorData.message || errorData.error || "Signup failed." },
-          { status: backendRes.status },
-        );
-      }
-    } catch {
+  if (requestedRole !== "STUDENT" && requestedRole !== "TEACHER") {
+    return NextResponse.json(
+      {
+        success: false,
+        error: "Role must be STUDENT or TEACHER.",
+      },
+      { status: 400 },
+    );
+  }
+
+  const registrationNo =
+    typeof body.registrationNo === "string"
+      ? body.registrationNo.trim().toUpperCase()
+      : "";
+
+  const college = typeof body.college === "string" ? body.college.trim() : "";
+
+  const department =
+    typeof body.department === "string" ? body.department.trim() : "";
+
+  const phone = typeof body.phone === "string" ? body.phone.trim() : "";
+
+  try {
+    /*
+     * Spring Boot is the sole registration authority.
+     *
+     * The backend returns SignupResponse:
+     *   {
+     *     message,
+     *     verificationRequired,
+     *     user
+     *   }
+     *
+     * It does NOT return a JWT because email verification is required
+     * before login. Therefore this route must never generate a token or
+     * create an authenticated cookie.
+     */
+    const backendResponse = await fetch(`${API_BASE}/api/v1/auth/signup`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Accept: "application/json",
+      },
+      body: JSON.stringify({
+        firstName,
+        lastName,
+        email,
+        password,
+        role: requestedRole,
+        ...(college ? { college } : {}),
+        ...(department ? { department } : {}),
+        ...(phone ? { phone } : {}),
+        ...(requestedRole === "STUDENT" && registrationNo
+          ? { registrationNo }
+          : {}),
+      }),
+      cache: "no-store",
+    });
+
+    const data = await backendResponse.json().catch(() => ({}));
+
+    if (!backendResponse.ok) {
       return NextResponse.json(
-        { success: false, error: "Cannot connect to the authentication server." },
-        { status: 503 }
+        {
+          success: false,
+          error: getErrorMessage(data),
+          message: data?.message,
+          code: data?.error,
+        },
+        {
+          status: backendResponse.status,
+        },
       );
     }
-  } catch {
-    return NextResponse.json({ success: false, error: "Signup failed." }, { status: 400 });
+
+    /*
+     * Compatibility response for the older AuthForm.
+     *
+     * `success` means account creation succeeded, NOT that the user is
+     * authenticated. Consumers must inspect verificationRequired and route
+     * to the email-verification/login flow rather than a dashboard.
+     */
+    return NextResponse.json(
+      {
+        success: true,
+        message:
+          data?.message ||
+          "Account created. Please verify your email before logging in.",
+        verificationRequired: data?.verificationRequired === true,
+        user: data?.user ?? null,
+        role: data?.user?.role
+          ? String(data.user.role).toUpperCase()
+          : requestedRole,
+        token: null,
+      },
+      { status: backendResponse.status },
+    );
+  } catch (error) {
+    console.error("Signup proxy error:", error);
+
+    return NextResponse.json(
+      {
+        success: false,
+        error: "Cannot connect to the authentication server.",
+      },
+      { status: 503 },
+    );
   }
 }

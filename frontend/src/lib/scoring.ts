@@ -1,69 +1,99 @@
+/**
+ * Frontend scoring contract.
+ *
+ * IMPORTANT:
+ * The Spring Boot backend is the authoritative source for quiz scoring.
+ * The frontend must not reproduce the backend's final score calculation.
+ *
+ * This module therefore contains:
+ * - a legacy-compatible question score helper for UI previews only;
+ * - duration formatting for exam timers.
+ *
+ * Never use calculateQuestionScore() as the submitted/final quiz score.
+ * Final score, percentage, negative marking, and marks awarded come from:
+ *   GET /api/v1/student/attempts/{attemptId}/result
+ *   GET /api/v1/student/attempts/{attemptId}/result/details
+ */
+
 export interface QuestionScoreParams {
   isCorrect: boolean;
   isAnswered: boolean;
-  timeTakenSeconds: number;
-  allottedTimeSeconds: number;
+
+  /**
+   * Retained for compatibility with existing callers.
+   * Backend timing/scoring is authoritative and these values are not used
+   * to invent a frontend time-decay formula.
+   */
+  timeTakenSeconds?: number;
+  allottedTimeSeconds?: number;
+
   marks?: number;
   negativeMarks?: number;
   negativeMarkingEnabled?: boolean;
 }
 
 export interface QuestionScoreResult {
+  /**
+   * Basic UI preview only.
+   *
+   * This is NOT the authoritative attempt score returned by the backend.
+   */
   score: number;
+
+  /**
+   * Explicitly identifies this value as a frontend preview.
+   */
+  authoritative: false;
 }
 
 /**
- * Calculates a time-decay score for a single question.
+ * Returns a basic question-score preview for UI compatibility.
  *
- * Rules:
- * - Unanswered → 0
- * - Incorrect  → negative penalty (if negative marking is on), else 0
- * - Correct    → decaying mark in range (0, baseMark].
+ * The previous implementation applied a custom time-decay formula
+ * (100% / 95% / 85% / 70%). That formula is not part of the current
+ * frontend/backend contract and must not be used to calculate final results.
  *
- * Decay tiers (fraction of allotted time consumed):
- *   ≤ 25%  → full mark  (1.00 × baseMark)
- *   ≤ 50%  → 0.95 × baseMark
- *   ≤ 75%  → 0.85 × baseMark
- *   > 75%  → 0.70 × baseMark
- *
- * The result is always capped at baseMark — no bonus marks are ever awarded above it.
+ * The backend determines the actual marksAwarded/finalScore.
  */
-export function calculateQuestionScore(params: QuestionScoreParams): QuestionScoreResult {
-  const baseMark = params.marks ?? 1;
-  const neg = params.negativeMarks ?? 1;
-
+export function calculateQuestionScore(
+  params: QuestionScoreParams,
+): QuestionScoreResult {
   if (!params.isAnswered) {
-    return { score: 0 };
+    return {
+      score: 0,
+      authoritative: false,
+    };
   }
 
-  if (!params.isCorrect) {
-    const penalty = params.negativeMarkingEnabled ? -neg : 0;
-    return { score: penalty };
+  const baseMarks = params.marks ?? 0;
+  const negativeMarks = params.negativeMarks ?? 0;
+
+  if (params.isCorrect) {
+    return {
+      score: baseMarks,
+      authoritative: false,
+    };
   }
 
-  // Correct answer — apply time-decay
-  const allotted = Math.max(1, params.allottedTimeSeconds || 30);
-  const timeTaken = Math.min(allotted, Math.max(0, params.timeTakenSeconds));
-  const ratio = timeTaken / allotted; // 0 (instant) → 1 (full time used)
-
-  let multiplier: number;
-  if (ratio <= 0.25) {
-    multiplier = 1.0;
-  } else if (ratio <= 0.5) {
-    multiplier = 0.95;
-  } else if (ratio <= 0.75) {
-    multiplier = 0.85;
-  } else {
-    multiplier = 0.70;
-  }
-
-  // Never exceed the base mark
-  const score = Math.min(baseMark, Number((baseMark * multiplier).toFixed(2)));
-  return { score };
+  return {
+    score: params.negativeMarkingEnabled ? -negativeMarks : 0,
+    authoritative: false,
+  };
 }
 
+/**
+ * Formats a non-negative duration as MM:SS.
+ *
+ * This is a display helper only; the authoritative attempt deadline is
+ * returned by the backend in AttemptResponse.effectiveDeadline.
+ */
 export function formatDuration(seconds: number): string {
-  const mins = Math.floor(seconds / 60);
-  const secs = seconds % 60;
+  const safeSeconds = Number.isFinite(seconds)
+    ? Math.max(0, Math.floor(seconds))
+    : 0;
+
+  const mins = Math.floor(safeSeconds / 60);
+  const secs = safeSeconds % 60;
+
   return `${String(mins).padStart(2, "0")}:${String(secs).padStart(2, "0")}`;
 }

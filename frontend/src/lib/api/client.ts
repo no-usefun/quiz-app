@@ -1,11 +1,21 @@
-// src/lib/api/client.ts
+/**
+ * Shared frontend API client.
+ *
+ * The Spring Boot backend is the authority for authentication, authorization,
+ * quiz state, attempts, scoring, and results.
+ */
 
 export class ApiClientError extends Error {
-  status: number;
-  errorCode?: string;
-  data?: any;
+  readonly status: number;
+  readonly errorCode?: string;
+  readonly data?: unknown;
 
-  constructor(status: number, message: string, errorCode?: string, data?: any) {
+  constructor(
+    status: number,
+    message: string,
+    errorCode?: string,
+    data?: unknown,
+  ) {
     super(message);
     this.name = "ApiClientError";
     this.status = status;
@@ -14,106 +24,179 @@ export class ApiClientError extends Error {
   }
 }
 
+/**
+ * Read the backend-issued JWT from the frontend session.
+ *
+ * The frontend never signs or verifies JWTs. It only forwards the token
+ * returned by Spring Boot in the Authorization header.
+ */
 export function getAuthToken(): string | null {
-  if (typeof window === "undefined") return null;
-  let token = localStorage.getItem("dynoquizz_token") || localStorage.getItem("token");
-  if (!token || token === "undefined" || token === "null" || !token.trim()) {
-    const match = document.cookie.match(/(?:^|;\s*)dynoquizz_token=([^;]+)/);
-    if (match && match[1] && match[1] !== "undefined" && match[1] !== "null") {
-      token = match[1];
-      try {
-        localStorage.setItem("dynoquizz_token", token);
-      } catch {
-        // ignore
-      }
-    } else {
-      return null;
-    }
+  if (typeof window === "undefined") {
+    return null;
   }
-  const clean = token ? token.replace(/^["']|["']$/g, "").trim() : null;
-  if (!clean || clean === "undefined" || clean === "null") return null;
-  return clean;
+
+  const rawToken = localStorage.getItem("dynoquizz_token");
+
+  if (!rawToken || rawToken === "undefined" || rawToken === "null") {
+    return null;
+  }
+
+  const token = rawToken.replace(/^["']|["']$/g, "").trim();
+
+  if (!token || token === "undefined" || token === "null") {
+    localStorage.removeItem("dynoquizz_token");
+    return null;
+  }
+
+  return token;
 }
 
 export interface RequestOptions extends RequestInit {
+  /**
+   * Override the stored backend JWT for this request.
+   */
   token?: string | null;
+
+  /**
+   * Prevent Authorization from being added.
+   */
   skipAuth?: boolean;
 }
 
-export async function apiRequest<T = any>(
+async function parseResponseBody(response: Response): Promise<unknown> {
+  if (response.status === 204 || response.status === 205) {
+    return null;
+  }
+
+  const text = await response.text();
+
+  if (!text.trim()) {
+    return null;
+  }
+
+  const contentType = response.headers.get("content-type") || "";
+
+  if (contentType.includes("application/json")) {
+    try {
+      return JSON.parse(text);
+    } catch {
+      return text;
+    }
+  }
+
+  try {
+    return JSON.parse(text);
+  } catch {
+    return text;
+  }
+}
+
+function normalizeToken(token: string | null | undefined): string | null {
+  if (!token) {
+    return null;
+  }
+
+  const clean = token.replace(/^["']|["']$/g, "").trim();
+
+  if (!clean || clean === "undefined" || clean === "null") {
+    return null;
+  }
+
+  return clean;
+}
+
+export async function apiRequest<T = unknown>(
   url: string,
-  options: RequestOptions = {}
+  options: RequestOptions = {},
 ): Promise<T> {
-  const { token: customToken, skipAuth = false, headers: customHeaders, ...rest } = options;
+  const {
+    token: customToken,
+    skipAuth = false,
+    headers: customHeaders,
+    body,
+    ...rest
+  } = options;
 
-  const token = skipAuth ? null : (customToken ?? getAuthToken());
+  const token = skipAuth ? null : normalizeToken(customToken ?? getAuthToken());
 
-  const headers: Record<string, string> = {
-    "Content-Type": "application/json",
-    ...(token ? { Authorization: `Bearer ${token}` } : {}),
-    ...(customHeaders as Record<string, string>),
-  };
+  const headers = new Headers(customHeaders);
 
-  const response = await fetch(url, {
-    ...rest,
-    headers,
-  });
+  headers.set("Accept", "application/json");
+
+  if (body !== undefined && body !== null && !headers.has("Content-Type")) {
+    headers.set("Content-Type", "application/json");
+  }
+
+  if (token) {
+    headers.set("Authorization", `Bearer ${token}`);
+  } else {
+    headers.delete("Authorization");
+  }
+
+  let response: Response;
+
+  try {
+    response = await fetch(url, {
+      ...rest,
+      body,
+      headers,
+    });
+  } catch (error) {
+    throw new ApiClientError(
+      0,
+      error instanceof Error
+        ? error.message
+        : "Unable to reach the backend server.",
+    );
+  }
+
+  const data = await parseResponseBody(response);
 
   if (response.ok) {
-    // 204 No Content
-    if (response.status === 204) {
-      return {} as T;
-    }
-    const text = await response.text();
-    if (!text) {
-      return {} as T;
-    }
-    try {
-      return JSON.parse(text) as T;
-    } catch {
-      return text as unknown as T;
-    }
+    return (data ?? {}) as T;
   }
 
-  // Parse standard backend error:
-  // { "status": 409, "error": "ATTEMPT_ALREADY_SUBMITTED", "message": "human readable text", "path": "..." }
-  let errorJson: any = null;
-  try {
-    errorJson = await response.json();
-  } catch {
-    // Not JSON
-  }
+  const errorObject =
+    data && typeof data === "object" ? (data as Record<string, unknown>) : null;
 
-  const errorCode: string | undefined =
-    typeof errorJson?.error === "string" ? errorJson.error : undefined;
+  const errorCode =
+    typeof errorObject?.error === "string" ? errorObject.error : undefined;
 
-  // Show the user message FIRST, then fall back to error code
-  const message: string =
-    errorJson?.message ||
-    errorCode ||
-    `Request failed with status ${response.status}`;
+  const message =
+    typeof errorObject?.message === "string"
+      ? errorObject.message
+      : errorCode ||
+        (typeof data === "string" && data.trim()
+          ? data
+          : `Request failed with status ${response.status}`);
 
-  throw new ApiClientError(response.status, message, errorCode, errorJson);
+  throw new ApiClientError(response.status, message, errorCode, data);
 }
 
 export const api = {
-  get: <T = any>(url: string, options?: RequestOptions) =>
-    apiRequest<T>(url, { ...options, method: "GET" }),
+  get: <T = unknown>(url: string, options?: RequestOptions) =>
+    apiRequest<T>(url, {
+      ...options,
+      method: "GET",
+    }),
 
-  post: <T = any>(url: string, body?: any, options?: RequestOptions) =>
+  post: <T = unknown>(url: string, body?: unknown, options?: RequestOptions) =>
     apiRequest<T>(url, {
       ...options,
       method: "POST",
       body: body !== undefined ? JSON.stringify(body) : undefined,
     }),
 
-  put: <T = any>(url: string, body?: any, options?: RequestOptions) =>
+  put: <T = unknown>(url: string, body?: unknown, options?: RequestOptions) =>
     apiRequest<T>(url, {
       ...options,
       method: "PUT",
       body: body !== undefined ? JSON.stringify(body) : undefined,
     }),
 
-  delete: <T = any>(url: string, options?: RequestOptions) =>
-    apiRequest<T>(url, { ...options, method: "DELETE" }),
+  delete: <T = unknown>(url: string, options?: RequestOptions) =>
+    apiRequest<T>(url, {
+      ...options,
+      method: "DELETE",
+    }),
 };

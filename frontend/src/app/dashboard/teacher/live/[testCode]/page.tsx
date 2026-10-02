@@ -1,6 +1,6 @@
 "use client";
 
-import { use, useState, useEffect } from "react";
+import { use, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { motion } from "framer-motion";
 import {
@@ -11,37 +11,45 @@ import {
   Activity,
   AlertTriangle,
   Monitor,
-  Copy,
-  Eye,
   TrendingUp,
   StopCircle,
   RefreshCw,
 } from "lucide-react";
 import { Logo } from "@/components/Logo";
-import { getStoredTests } from "@/lib/storage";
-import { resolveQuizIdentifiers } from "@/lib/quizCache";
+import { ENDPOINTS } from "@/lib/api/endpoints";
 
-const API_BASE = (
-  process.env.NEXT_PUBLIC_API_URL || "http://localhost:8080"
-).replace(/\/+$/, "");
+type QuizSummary = {
+  quizId: number | string;
+  quizCode: string;
+  title: string;
+  totalStudents: number;
+  totalQuestions: number;
+  totalMarks: number;
+  overallTimerSeconds: number;
+  status?: string;
+  examState?: string;
+  resultsPublished?: boolean;
+};
 
-interface SuspicionFlag {
-  type: "tab_switch" | "fullscreen_exit" | "right_click" | "copy_attempt";
-  label: string;
-  at: string;
-}
+type LeaderboardEntry = {
+  rank?: number;
+  studentId?: number | string;
+  studentName?: string;
+  score?: number | string;
+  totalMarks?: number | string;
+  percentage?: number | string;
+  totalTimeTaken?: number | null;
+};
 
-interface StudentRow {
-  id: number;
+type StudentRow = {
+  id: number | string;
   name: string;
   avatar: string;
   answered: number;
   total: number;
   score: number;
-  timeLeft: string;
-  status: "active" | "submitted" | "disconnected";
-  flags: SuspicionFlag[];
-}
+  timeTaken: string;
+};
 
 function nowTime(): string {
   return new Date().toLocaleTimeString("en-IN", {
@@ -52,104 +60,62 @@ function nowTime(): string {
   });
 }
 
-function riskLevel(flags: SuspicionFlag[]): "clean" | "warn" | "danger" {
-  if (flags.length === 0) return "clean";
-  if (flags.length <= 2) return "warn";
-  return "danger";
+function formatTimeTaken(seconds: number | null | undefined): string {
+  const safeSeconds = Math.max(0, Number(seconds ?? 0));
+  const minutes = Math.floor(safeSeconds / 60);
+  const secs = safeSeconds % 60;
+
+  return `${String(minutes).padStart(2, "0")}:${String(secs).padStart(2, "0")}`;
 }
 
-function FlagIcon({ type }: { type: SuspicionFlag["type"] }) {
-  const cls = "h-3 w-3";
-  if (type === "tab_switch") return <Monitor className={cls} />;
-  if (type === "fullscreen_exit") return <Eye className={cls} />;
-  if (type === "copy_attempt") return <Copy className={cls} />;
-  return <AlertTriangle className={cls} />;
+function normalizeQuiz(raw: any): QuizSummary | null {
+  if (!raw || typeof raw !== "object") return null;
+
+  const quizId = raw.quizId ?? raw.id;
+  const quizCode = String(raw.quizCode ?? raw.testCode ?? "").trim();
+
+  if (quizId == null || !quizCode) return null;
+
+  return {
+    quizId,
+    quizCode,
+    title: raw.title ?? "Assessment Session",
+    totalStudents: Number(raw.totalStudents ?? 0),
+    totalQuestions: Number(raw.totalQuestions ?? 0),
+    totalMarks: Number(raw.totalMarks ?? 0),
+    overallTimerSeconds: Number(raw.overallTimerSeconds ?? 0),
+    status: raw.status,
+    examState: raw.examState,
+    resultsPublished: Boolean(raw.resultsPublished),
+  };
 }
 
-// =================================================================================================
-// LIVE MONITOR TELEMETRY STATUS:
-// Original Implementation: The original component attempted to poll backend endpoints
-// (`GET /api/v1/teacher/quizzes/{id}/leaderboard`) every 3 seconds.
-// Reason for Demo Mock: The student exam flow is offline-first (cached in localStorage and submitted
-// in a single final bulk POST). Because in-progress per-question telemetry is not transmitted to the
-// backend, real-time streaming endpoints return 404/unavailable. This screen has been converted to
-// a clean static mock demo so instructors can experience the live telemetry UI without network errors.
-// =================================================================================================
+function mapLeaderboardEntry(
+  entry: LeaderboardEntry,
+  fallbackTotalQuestions: number,
+  index: number,
+): StudentRow {
+  const name = entry.studentName?.trim() || "Candidate";
+  const total = Math.max(0, fallbackTotalQuestions);
+  const percentage = Math.round(Number(entry.percentage ?? 0));
 
-const DEMO_STUDENTS: StudentRow[] = [
-  {
-    id: 1,
-    name: "Suryanshu Saini",
-    avatar: "SS",
-    answered: 18,
-    total: 20,
-    score: 90,
-    timeLeft: "04:12",
-    status: "active",
-    flags: [],
-  },
-  {
-    id: 2,
-    name: "Manish Bhargava",
-    avatar: "MB",
-    answered: 20,
-    total: 20,
-    score: 85,
-    timeLeft: "00:00",
-    status: "submitted",
-    flags: [
-      {
-        type: "tab_switch",
-        label: "Tab switch detected",
-        at: "14:22:05",
-      },
-    ],
-  },
-  {
-    id: 3,
-    name: "Aarav Sharma",
-    avatar: "AS",
-    answered: 15,
-    total: 20,
-    score: 75,
-    timeLeft: "06:40",
-    status: "active",
-    flags: [],
-  },
-  {
-    id: 4,
-    name: "Priya Patel",
-    avatar: "PP",
-    answered: 20,
-    total: 20,
-    score: 95,
-    timeLeft: "00:00",
-    status: "submitted",
-    flags: [],
-  },
-  {
-    id: 5,
-    name: "Rohan Verma",
-    avatar: "RV",
-    answered: 9,
-    total: 20,
-    score: 45,
-    timeLeft: "11:20",
-    status: "disconnected",
-    flags: [
-      {
-        type: "fullscreen_exit",
-        label: "Fullscreen exit",
-        at: "14:15:30",
-      },
-      {
-        type: "copy_attempt",
-        label: "Copy attempt",
-        at: "14:18:12",
-      },
-    ],
-  },
-];
+  return {
+    id: entry.studentId ?? entry.rank ?? index + 1,
+    name,
+    avatar:
+      name
+        .split(/\s+/)
+        .filter(Boolean)
+        .slice(0, 2)
+        .map((part) => part[0])
+        .join("")
+        .toUpperCase() || "ST",
+    answered: total,
+    total,
+    score: percentage,
+    timeTaken: formatTimeTaken(entry.totalTimeTaken),
+  };
+}
 
 export default function LiveLeaderboard({
   params,
@@ -157,137 +123,304 @@ export default function LiveLeaderboard({
   params: Promise<{ testCode: string }>;
 }) {
   const { testCode } = use(params);
-  const [testTitle, setTestTitle] = useState("Assessment Session");
 
-  const [students, setStudents] = useState<StudentRow[]>(DEMO_STUDENTS);
-  const [elapsed, setElapsed] = useState(0);
-  const [isLive, setIsLive] = useState(true);
-  const [lastSync, setLastSync] = useState(nowTime());
+  const [quiz, setQuiz] = useState<QuizSummary | null>(null);
+  const [students, setStudents] = useState<StudentRow[]>([]);
+  const [lastSync, setLastSync] = useState("--:--:--");
+  const [refreshElapsed, setRefreshElapsed] = useState(0);
+  const [autoRefresh, setAutoRefresh] = useState(true);
   const [mounted, setMounted] = useState(false);
-  const [loading, setLoading] = useState(false);
-  const [leaderboardUnavailable, setLeaderboardUnavailable] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  const displayCode = quiz?.quizCode || testCode;
 
   useEffect(() => {
     setMounted(true);
-    let isCancelled = false;
+  }, []);
 
-    const fetchLeaderboard = async () => {
-      try {
-        const token = localStorage.getItem("dynoquizz_token");
-        const headers: Record<string, string> = {
-          "Content-Type": "application/json",
-          ...(token ? { Authorization: `Bearer ${token}` } : {}),
-        };
+  useEffect(() => {
+    let cancelled = false;
 
-        const { quizId: resolvedId, quizCode } = resolveQuizIdentifiers(testCode);
-        let numericId = resolvedId;
+    const fetchQuiz = async () => {
+      const token = localStorage.getItem("dynoquizz_token");
 
-        // If numericId not resolved from local cache, query teacher quizzes to find it
-        if (!numericId) {
-          const listRes = await fetch(`${API_BASE}/api/v1/teacher/quizzes`, { headers }).catch(() => null);
-          if (listRes && listRes.ok) {
-            const list = await listRes.json();
-            const found = Array.isArray(list)
-              ? list.find((q: any) => q.quizCode === quizCode || String(q.id) === quizCode)
-              : null;
-            if (found) {
-              numericId = String(found.id);
-              if (found.title) setTestTitle(found.title);
-            }
-          }
-        }
-
-        const localTest = getStoredTests().find(
-          (t) =>
-            t.testCode.toUpperCase() === quizCode.toUpperCase() ||
-            (numericId && String((t as any).quizId ?? (t as any).id) === numericId),
+      if (!token) {
+        throw new Error(
+          "Your teacher session has expired. Please log in again.",
         );
-        if (localTest) {
-          setTestTitle(localTest.quizName);
+      }
+
+      const headers: Record<string, string> = {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${token}`,
+      };
+
+      const listRes = await fetch(ENDPOINTS.teacher.quizzes, {
+        method: "GET",
+        headers,
+        cache: "no-store",
+      });
+
+      if (!listRes.ok) {
+        const body = await listRes.json().catch(() => ({}));
+        throw new Error(
+          body?.message ||
+            body?.error ||
+            `Unable to load your assessments (${listRes.status}).`,
+        );
+      }
+
+      const payload = await listRes.json();
+
+      const list: any[] = Array.isArray(payload)
+        ? payload
+        : Array.isArray(payload?.content)
+          ? payload.content
+          : Array.isArray(payload?.data)
+            ? payload.data
+            : [];
+
+      let matched = list.find(
+        (item) =>
+          String(item?.quizCode ?? "") === String(testCode) ||
+          String(item?.quizId ?? item?.id ?? "") === String(testCode),
+      );
+
+      if (!matched && /^\d+$/.test(String(testCode))) {
+        const detailRes = await fetch(ENDPOINTS.teacher.quizDetail(testCode), {
+          method: "GET",
+          headers,
+          cache: "no-store",
+        });
+
+        if (detailRes.ok) {
+          matched = await detailRes.json();
         }
+      }
 
-        if (!numericId) return;
+      const normalized = normalizeQuiz(matched);
 
-        const res = await fetch(`${API_BASE}/api/v1/teacher/quizzes/${numericId}/leaderboard`, { headers });
-        if (isCancelled) return;
+      if (!normalized) {
+        throw new Error(
+          "Assessment not found. Check the assessment URL or return to the teacher dashboard.",
+        );
+      }
 
-        if (res.ok) {
-          const data = await res.json();
-          const list = Array.isArray(data) ? data : data.content || [];
-          const mapped: StudentRow[] = list.map((entry: any, idx: number) => ({
-            id: entry.studentId || entry.rank || idx + 1,
-            name: entry.studentName || "Candidate",
-            avatar: String(entry.studentName || "C").slice(0, 2).toUpperCase(),
-            answered: Number(entry.totalMarks || 0),
-            total: Number(entry.totalMarks || 0),
-            score: Math.round(Number(entry.percentage ?? entry.score ?? 0)),
-            timeLeft: "00:00",
-            status: "submitted",
-            flags: [],
-          }));
-          setStudents(mapped);
-          setLeaderboardUnavailable(false);
-        } else if (res.status === 404) {
-          setLeaderboardUnavailable(false);
-          setStudents([]);
-        }
-      } catch {
-        // network issue
+      if (!cancelled) {
+        setQuiz(normalized);
+      }
+
+      return normalized;
+    };
+
+    const fetchLeaderboard = async (quizId: number | string) => {
+      const token = localStorage.getItem("dynoquizz_token");
+
+      if (!token) {
+        throw new Error(
+          "Your teacher session has expired. Please log in again.",
+        );
+      }
+
+      const headers: Record<string, string> = {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${token}`,
+      };
+
+      const res = await fetch(ENDPOINTS.teacher.leaderboard(quizId), {
+        method: "GET",
+        headers,
+        cache: "no-store",
+      });
+
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}));
+        throw new Error(
+          body?.message ||
+            body?.error ||
+            `Unable to load the leaderboard (${res.status}).`,
+        );
+      }
+
+      const data = await res.json();
+      const entries: LeaderboardEntry[] = Array.isArray(data)
+        ? data
+        : Array.isArray(data?.content)
+          ? data.content
+          : [];
+
+      if (cancelled) return;
+
+      setStudents(
+        entries.map((entry, index) =>
+          mapLeaderboardEntry(entry, quiz?.totalQuestions ?? 0, index),
+        ),
+      );
+      setLastSync(nowTime());
+      setError(null);
+    };
+
+    const initialize = async () => {
+      try {
+        setLoading(true);
+        setError(null);
+
+        const resolvedQuiz = await fetchQuiz();
+        await fetchLeaderboard(resolvedQuiz.quizId);
+      } catch (err: any) {
+        if (cancelled) return;
+
+        console.error("Failed to load teacher live leaderboard:", err);
+        setStudents([]);
+        setError(
+          err?.message ||
+            "We couldn't retrieve the assessment leaderboard from the server.",
+        );
       } finally {
-        if (!isCancelled) {
+        if (!cancelled) {
           setLoading(false);
           setLastSync(nowTime());
         }
       }
     };
 
-    fetchLeaderboard();
-    const interval = setInterval(fetchLeaderboard, 4000);
+    void initialize();
 
     return () => {
-      isCancelled = true;
-      clearInterval(interval);
+      cancelled = true;
     };
   }, [testCode]);
 
   useEffect(() => {
-    if (!isLive) return;
+    if (!autoRefresh || !quiz?.quizId) return;
 
-    const ticker = setInterval(() => {
-      setElapsed((s) => s + 1);
-      setLastSync(nowTime());
+    let cancelled = false;
+
+    const refresh = async () => {
+      try {
+        const token = localStorage.getItem("dynoquizz_token");
+
+        if (!token) {
+          throw new Error(
+            "Your teacher session has expired. Please log in again.",
+          );
+        }
+
+        const res = await fetch(ENDPOINTS.teacher.leaderboard(quiz.quizId), {
+          method: "GET",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${token}`,
+          },
+          cache: "no-store",
+        });
+
+        if (!res.ok) {
+          const body = await res.json().catch(() => ({}));
+          throw new Error(
+            body?.message ||
+              body?.error ||
+              `Unable to refresh the leaderboard (${res.status}).`,
+          );
+        }
+
+        const data = await res.json();
+        const entries: LeaderboardEntry[] = Array.isArray(data)
+          ? data
+          : Array.isArray(data?.content)
+            ? data.content
+            : [];
+
+        if (cancelled) return;
+
+        setStudents(
+          entries.map((entry, index) =>
+            mapLeaderboardEntry(entry, quiz.totalQuestions, index),
+          ),
+        );
+        setLastSync(nowTime());
+        setError(null);
+      } catch (err: any) {
+        if (cancelled) return;
+
+        console.error("Leaderboard refresh failed:", err);
+        setError(
+          err?.message || "Unable to refresh the leaderboard right now.",
+        );
+      }
+    };
+
+    const interval = window.setInterval(() => {
+      void refresh();
+    }, 4000);
+
+    return () => {
+      cancelled = true;
+      window.clearInterval(interval);
+    };
+  }, [autoRefresh, quiz]);
+
+  useEffect(() => {
+    if (!autoRefresh) return;
+
+    const ticker = window.setInterval(() => {
+      setRefreshElapsed((value) => value + 1);
     }, 1000);
 
-    return () => clearInterval(ticker);
-  }, [isLive]);
+    return () => window.clearInterval(ticker);
+  }, [autoRefresh]);
 
-  const sorted = [...students].sort((a, b) => {
-    if (a.status === "submitted" && b.status !== "submitted") return 1;
-    if (b.status === "submitted" && a.status !== "submitted") return -1;
-    return (b.score || 0) - (a.score || 0);
-  });
+  const sorted = useMemo(
+    () =>
+      [...students].sort((a, b) => {
+        if (b.score !== a.score) return b.score - a.score;
+        return a.timeTaken.localeCompare(b.timeTaken);
+      }),
+    [students],
+  );
 
-  const activeCount = students.filter((s) => s.status === "active").length;
-  const submittedCount = students.filter(
-    (s) => s.status === "submitted",
-  ).length;
-  const flaggedCount = students.filter(
-    (s) => (s.flags || []).length > 0,
-  ).length;
+  const submittedCount = students.length;
+
   const avgScore =
     students.length > 0
       ? Math.round(
-          students.reduce((acc, s) => acc + (s.score || 0), 0) /
+          students.reduce((acc, student) => acc + student.score, 0) /
             students.length,
         )
       : 0;
 
-  const elapsedLabel = `${String(Math.floor(elapsed / 60)).padStart(2, "0")}:${String(elapsed % 60).padStart(2, "0")}`;
+  const examDurationMins = Math.floor((quiz?.overallTimerSeconds ?? 0) / 60);
+
+  const refreshElapsedLabel = `${String(
+    Math.floor(refreshElapsed / 60),
+  ).padStart(2, "0")}:${String(refreshElapsed % 60).padStart(2, "0")}`;
 
   if (loading) {
     return (
       <div className="min-h-screen bg-frost-surface flex items-center justify-center text-xs text-steel-blue-gray">
-        Loading live monitoring stream...
+        Loading assessment results...
+      </div>
+    );
+  }
+
+  if (error && !quiz) {
+    return (
+      <div className="min-h-screen bg-frost-surface font-sans text-midnight-navy flex items-center justify-center p-4">
+        <div className="w-full max-w-md rounded-[14px] bg-paper-white border border-mist-blue/70 p-7 text-center shadow-sm">
+          <AlertTriangle className="mx-auto h-10 w-10 text-pastel-pink-text" />
+          <h1 className="mt-4 text-lg font-bold">Unable to load assessment</h1>
+          <p className="mt-2 text-xs leading-relaxed text-steel-blue-gray">
+            {error}
+          </p>
+          <Link
+            href="/dashboard/teacher"
+            className="mt-5 inline-flex items-center gap-2 rounded-[10px] bg-midnight-navy px-4 py-2.5 text-xs font-bold text-white transition-all hover:opacity-90"
+          >
+            <ArrowLeft className="h-3.5 w-3.5" />
+            Back to Dashboard
+          </Link>
+        </div>
       </div>
     );
   }
@@ -308,30 +441,34 @@ export default function LiveLeaderboard({
         </div>
 
         <div className="flex items-center gap-2.5">
-          {isLive && (
+          {autoRefresh && (
             <span className="flex items-center gap-1.5 rounded-full bg-pastel-mint px-3 py-1 text-xs font-bold text-pastel-mint-text shadow-xs">
               <span className="relative flex h-2 w-2">
                 <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-pastel-mint-text opacity-75" />
                 <span className="relative inline-flex h-2 w-2 rounded-full bg-pastel-mint-text" />
               </span>
-              LIVE STREAM
+              AUTO REFRESH
             </span>
           )}
+
           <button
-            onClick={() => setIsLive((v) => !v)}
+            type="button"
+            onClick={() => setAutoRefresh((value) => !value)}
             className={`flex items-center gap-2 rounded-[10px] px-3.5 py-1.5 text-xs font-bold transition-all duration-200 border cursor-pointer shadow-xs active:scale-[0.98] ${
-              isLive
+              autoRefresh
                 ? "bg-pastel-pink border-transparent text-pastel-pink-text hover:bg-pastel-pink/90"
                 : "bg-pastel-mint border-transparent text-pastel-mint-text hover:bg-pastel-mint/90"
             }`}
           >
-            {isLive ? (
+            {autoRefresh ? (
               <>
-                <StopCircle className="h-3.5 w-3.5" /> Pause Stream
+                <StopCircle className="h-3.5 w-3.5" />
+                Pause Refresh
               </>
             ) : (
               <>
-                <RefreshCw className="h-3.5 w-3.5 animate-spin" /> Resume Stream
+                <RefreshCw className="h-3.5 w-3.5" />
+                Resume Refresh
               </>
             )}
           </button>
@@ -342,19 +479,20 @@ export default function LiveLeaderboard({
         <div className="flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">
           <div>
             <span className="text-xs font-bold uppercase tracking-widest text-signal-green">
-              Real-time Proctoring Telemetry
+              Live Results Monitoring
             </span>
             <h1 className="mt-0.5 text-2xl font-bold tracking-tight text-midnight-navy">
-              {testCode}
+              {displayCode}
             </h1>
             <p className="mt-0.5 text-xs text-steel-blue-gray font-medium">
-              {testTitle}
+              {quiz?.title || "Assessment Session"}
             </p>
           </div>
-          <div className="flex items-center gap-3.5 text-xs text-steel-blue-gray font-medium bg-paper-white border border-mist-blue/80 px-3.5 py-1.5 rounded-full shadow-xs mt-2 sm:mt-0">
+
+          <div className="flex flex-wrap items-center gap-3.5 text-xs text-steel-blue-gray font-medium bg-paper-white border border-mist-blue/80 px-3.5 py-1.5 rounded-full shadow-xs mt-2 sm:mt-0">
             <span className="flex items-center gap-1">
               <Activity className="h-3.5 w-3.5 text-signal-green" />
-              Last sync:{" "}
+              Last sync:
               <strong className="text-midnight-navy font-bold">
                 {lastSync}
               </strong>
@@ -362,20 +500,26 @@ export default function LiveLeaderboard({
             <span className="text-mist-blue/30">·</span>
             <span className="flex items-center gap-1">
               <Clock className="h-3.5 w-3.5 text-signal-green" />
-              Duration:{" "}
+              Refresh:
               <strong className="text-midnight-navy font-bold">
-                {elapsedLabel}
+                {refreshElapsedLabel}
               </strong>
             </span>
           </div>
         </div>
 
+        {error && (
+          <div className="rounded-[12px] border border-pastel-pink/40 bg-pastel-pink/10 px-4 py-3 text-xs font-medium text-pastel-pink-text">
+            {error}
+          </div>
+        )}
+
         <div className="grid grid-cols-2 gap-3.5 lg:grid-cols-4">
           {[
             {
               icon: <Users className="h-4 w-4 text-signal-green" />,
-              label: "Active Candidates",
-              value: activeCount,
+              label: "Target Students",
+              value: quiz?.totalStudents ?? 0,
             },
             {
               icon: <ShieldCheck className="h-4 w-4 text-pastel-mint-text" />,
@@ -383,9 +527,9 @@ export default function LiveLeaderboard({
               value: submittedCount,
             },
             {
-              icon: <AlertTriangle className="h-4 w-4 text-pastel-pink-text" />,
-              label: "Flagged Students",
-              value: flaggedCount,
+              icon: <Clock className="h-4 w-4 text-signal-green" />,
+              label: "Exam Duration",
+              value: `${examDurationMins}m`,
             },
             {
               icon: <TrendingUp className="h-4 w-4 text-signal-green" />,
@@ -415,120 +559,65 @@ export default function LiveLeaderboard({
         </div>
 
         <div className="rounded-[14px] bg-paper-white border border-[#d1dee8]/70 overflow-hidden shadow-sm text-left">
-          <div className="grid grid-cols-[2rem_1fr_8rem_7rem_8rem_12rem] items-center gap-4 bg-paper-white px-6 py-2.5 text-xs font-bold uppercase tracking-wider text-steel-blue-gray border-b border-[#d1dee8]/40">
+          <div className="grid grid-cols-[2rem_1fr_8rem_7rem_8rem] items-center gap-4 bg-paper-white px-6 py-2.5 text-xs font-bold uppercase tracking-wider text-steel-blue-gray border-b border-[#d1dee8]/40">
             <span>#</span>
             <span>Student</span>
             <span className="text-center">Progress</span>
             <span className="text-center">Score</span>
-            <span className="text-center">Status</span>
-            <span className="text-center">Suspicion Flags</span>
+            <span className="text-center">Time Taken</span>
           </div>
 
           <ul className="divide-y divide-[#d1dee8]/30 bg-paper-white">
-            {leaderboardUnavailable ? (
+            {sorted.length === 0 ? (
               <li className="p-8 text-center text-xs text-steel-blue-gray">
-                Leaderboard not available yet
-              </li>
-            ) : sorted.length === 0 ? (
-              <li className="p-8 text-center text-xs text-steel-blue-gray">
-                No candidates currently streaming.
+                No submitted attempts are available yet.
               </li>
             ) : (
-              sorted.map((student, idx) => {
-                const flags = student.flags || [];
-                const risk = riskLevel(flags);
-                const rowBg =
-                  risk === "danger"
-                    ? "bg-pastel-pink/10 hover:bg-pastel-pink/20"
-                    : risk === "warn"
-                      ? "bg-pastel-yellow/10 hover:bg-pastel-yellow/20"
-                      : "hover:bg-frost-surface/30";
+              sorted.map((student, idx) => (
+                <motion.li
+                  key={student.id || idx}
+                  layout
+                  className="grid grid-cols-[2rem_1fr_8rem_7rem_8rem] items-center gap-4 px-6 py-2.5 transition-colors hover:bg-frost-surface/30"
+                >
+                  <span className="text-xs font-bold font-mono text-steel-blue-gray">
+                    {idx + 1}
+                  </span>
 
-                return (
-                  <motion.li
-                    key={student.id || idx}
-                    layout
-                    className={`grid grid-cols-[2rem_1fr_8rem_7rem_8rem_12rem] items-center gap-4 px-6 py-2.5 transition-colors ${rowBg}`}
-                  >
-                    <span className="text-xs font-bold font-mono text-steel-blue-gray">
-                      {idx + 1}
+                  <div className="flex items-center gap-2 min-w-0">
+                    <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-frost-surface border border-mist-blue/30 text-midnight-navy font-bold text-[10px] shadow-xs">
+                      {student.avatar}
+                    </div>
+                    <span className="truncate text-xs font-bold text-midnight-navy">
+                      {student.name}
                     </span>
+                  </div>
 
-                    <div className="flex items-center gap-2 min-w-0">
-                      <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-frost-surface border border-mist-blue/30 text-midnight-navy font-bold text-[10px] shadow-xs">
-                        {student.avatar || "ST"}
-                      </div>
-                      <span className="truncate text-xs font-bold text-midnight-navy">
-                        {student.name}
-                      </span>
+                  <div className="flex flex-col items-center gap-0.5">
+                    <div className="h-1.5 w-full rounded-full bg-frost-surface border border-mist-blue/20 overflow-hidden">
+                      <div
+                        className="h-full bg-signal-green transition-all duration-500"
+                        style={{ width: "100%" }}
+                      />
                     </div>
+                    <span className="text-[10px] text-steel-blue-gray font-medium">
+                      {student.answered}/{student.total || 0} Q
+                    </span>
+                  </div>
 
-                    <div className="flex flex-col items-center gap-0.5">
-                      <div className="h-1.5 w-full rounded-full bg-frost-surface border border-mist-blue/20 overflow-hidden">
-                        <div
-                          className="h-full bg-signal-green transition-all duration-500"
-                          style={{
-                            width: `${((student.answered || 0) / Math.max(1, student.total || 20)) * 100}%`,
-                          }}
-                        />
-                      </div>
-                      <span className="text-[10px] text-steel-blue-gray font-medium">
-                        {student.answered || 0}/{student.total || 20} Q
-                      </span>
-                    </div>
+                  <div className="flex items-center justify-center">
+                    <span className="inline-flex items-center justify-center rounded-full px-2.5 py-0.5 text-xs font-bold min-w-[3rem] bg-pastel-mint text-pastel-mint-text shadow-xs">
+                      {student.score}%
+                    </span>
+                  </div>
 
-                    <div className="flex items-center justify-center">
-                      <span className="inline-flex items-center justify-center rounded-full px-2.5 py-0.5 text-xs font-bold min-w-[3rem] bg-pastel-mint text-pastel-mint-text shadow-xs">
-                        {student.score || 0}%
-                      </span>
-                    </div>
-
-                    <div className="flex items-center justify-center">
-                      {student.status === "active" && (
-                        <span className="flex items-center gap-1 rounded-full bg-pastel-mint px-2.5 py-0.5 text-[10px] font-bold text-pastel-mint-text shadow-xs">
-                          <span className="relative flex h-1.5 w-1.5">
-                            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-pastel-mint-text opacity-75" />
-                            <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-pastel-mint-text" />
-                          </span>
-                          Active
-                        </span>
-                      )}
-                      {student.status === "submitted" && (
-                        <span className="flex items-center gap-1 rounded-full bg-pastel-lavender px-2.5 py-0.5 text-[10px] font-bold text-pastel-lavender-text shadow-xs">
-                          <ShieldCheck className="h-3 w-3 text-pastel-lavender-text" />
-                          Submitted
-                        </span>
-                      )}
-                      {student.status === "disconnected" && (
-                        <span className="flex items-center gap-1 rounded-full bg-pastel-pink px-2.5 py-0.5 text-[10px] font-bold text-pastel-pink-text shadow-xs">
-                          <span className="h-1.5 w-1.5 rounded-full bg-pastel-pink-text" />
-                          Offline
-                        </span>
-                      )}
-                    </div>
-
-                    <div className="flex flex-col items-center gap-1 w-full">
-                      {flags.length === 0 ? (
-                        <span className="text-[10px] text-steel-blue-gray font-medium">
-                          —
-                        </span>
-                      ) : (
-                        <div className="flex flex-col gap-1 w-full text-left">
-                          {flags.slice(-3).map((flag, fi) => (
-                            <div
-                              key={fi}
-                              className="flex items-center gap-1 rounded-full px-2 py-0.5 text-[9px] font-bold bg-pastel-pink text-pastel-pink-text shadow-xs"
-                            >
-                              <FlagIcon type={flag.type} />
-                              <span className="truncate">{flag.label}</span>
-                            </div>
-                          ))}
-                        </div>
-                      )}
-                    </div>
-                  </motion.li>
-                );
-              })
+                  <div className="flex items-center justify-center">
+                    <span className="flex items-center gap-1 rounded-full bg-pastel-lavender px-2.5 py-0.5 text-[10px] font-bold text-pastel-lavender-text shadow-xs">
+                      <Clock className="h-3 w-3 text-pastel-lavender-text" />
+                      {student.timeTaken}
+                    </span>
+                  </div>
+                </motion.li>
+              ))
             )}
           </ul>
         </div>

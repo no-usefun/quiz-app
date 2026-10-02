@@ -1,80 +1,97 @@
-// src/lib/quizCache.ts
-// The backend has no "list quizzes for teacher" endpoint yet, so we keep
-// every quiz returned by POST /api/v1/teacher/quizzes in localStorage.
+/**
+ * Legacy quiz-cache compatibility layer.
+ *
+ * The current application uses the Spring Boot backend as the source of
+ * truth for quiz definitions, quiz state, publication state, leaderboards,
+ * attempts, and results.
+ *
+ * This module intentionally does NOT persist quiz objects in localStorage.
+ * It remains as a compatibility export for older imports until those imports
+ * are removed from the codebase.
+ */
 
-const keyFor = (teacherId?: string | number | null) =>
-  `dynoquizz_quizzes_${teacherId ?? "anon"}`;
+type QuizLike = Record<string, unknown>;
 
-export function getCachedQuizzes(teacherId?: string | number | null): any[] {
-  if (typeof window === "undefined") return [];
-  try {
-    const raw = localStorage.getItem(keyFor(teacherId));
-    const parsed = raw ? JSON.parse(raw) : [];
-    return Array.isArray(parsed) ? parsed : [];
-  } catch {
-    return [];
-  }
-}
+const LEGACY_PREFIX = "dynoquizz_quizzes_";
+const LEGACY_TEACHER_KEY = "dynoquizz_teacher_quizzes";
 
-export function cacheQuiz(
-  teacherId: string | number | null | undefined,
-  quiz: any,
-) {
-  if (typeof window === "undefined" || !quiz) return;
-  const id = quiz.quizId ?? quiz.id;
-  if (id == null) return;
-  const list = getCachedQuizzes(teacherId).filter(
-    (q) => (q.quizId ?? q.id) !== id,
-  );
-  list.unshift(quiz); // newest first
-  localStorage.setItem(keyFor(teacherId), JSON.stringify(list));
-}
-
-export function replaceCache(
-  teacherId: string | number | null | undefined,
-  quizzes: any[],
-) {
-  if (typeof window === "undefined") return;
-  localStorage.setItem(keyFor(teacherId), JSON.stringify(quizzes));
+function isBrowser(): boolean {
+  return typeof window !== "undefined";
 }
 
 /**
- * Given a URL param that may be either a numeric quizId (e.g. "42") or an
- * access code (e.g. "482910"), scan every dynoquizz_quizzes_* cache key and
- * return the matching entry's real identifiers.
+ * Removes legacy quiz-cache records created by older frontend versions.
+ */
+export function clearQuizCache(): void {
+  if (!isBrowser()) return;
+
+  try {
+    for (const key of Object.keys(localStorage)) {
+      if (key.startsWith(LEGACY_PREFIX) || key === LEGACY_TEACHER_KEY) {
+        localStorage.removeItem(key);
+      }
+    }
+  } catch {
+    // Ignore localStorage failures.
+  }
+}
+
+/**
+ * @deprecated Fetch teacher quizzes from:
+ * GET /api/v1/teacher/quizzes
+ */
+export function getCachedQuizzes(
+  _teacherId?: string | number | null,
+): QuizLike[] {
+  return [];
+}
+
+/**
+ * @deprecated Quiz creation must be persisted through:
+ * POST /api/v1/teacher/quizzes
+ */
+export function cacheQuiz(
+  _teacherId: string | number | null | undefined,
+  _quiz: QuizLike,
+): void {
+  // Intentionally empty: backend is authoritative.
+}
+
+/**
+ * @deprecated Quiz collections must be refreshed from:
+ * GET /api/v1/teacher/quizzes
+ */
+export function replaceCache(
+  _teacherId: string | number | null | undefined,
+  _quizzes: QuizLike[],
+): void {
+  // Intentionally empty: backend is authoritative.
+}
+
+/**
+ * Resolves a route parameter without trusting local browser cache.
  *
- * Returns:
- *   quizId   – numeric DB id for endpoints like /teacher/quizzes/{quizId}/…
- *   quizCode – human-readable access code for /quizzes/code/{code}/… endpoints
- *              (falls back to the original urlParam if no match found)
+ * Because an access code may itself be numeric, a numeric URL parameter
+ * cannot safely be assumed to be a database quizId.
+ *
+ * Therefore this compatibility helper returns no database id unless a
+ * caller explicitly resolves the id through the teacher API.
  */
 export function resolveQuizIdentifiers(urlParam: string): {
   quizId: string | null;
   quizCode: string;
 } {
-  if (typeof window === "undefined") {
-    return { quizId: null, quizCode: urlParam };
+  const cleanParam = String(urlParam ?? "").trim();
+
+  if (!cleanParam) {
+    return {
+      quizId: null,
+      quizCode: "",
+    };
   }
-  try {
-    const allKeys = Object.keys(localStorage).filter(
-      (k) => k.startsWith("dynoquizz_quizzes_") || k === "dynoquizz_teacher_quizzes",
-    );
-    for (const key of allKeys) {
-      const list: any[] = JSON.parse(localStorage.getItem(key) || "[]");
-      const found = list.find(
-        (q) =>
-          String(q.quizId ?? q.id) === String(urlParam) ||
-          String(q.quizCode ?? q.testCode ?? "") === String(urlParam),
-      );
-      if (found) {
-        const quizId = found.quizId ?? found.id ?? null;
-        const quizCode = found.quizCode || found.testCode || urlParam;
-        return { quizId: quizId != null ? String(quizId) : null, quizCode };
-      }
-    }
-  } catch {
-    // Ignore – fall through to the safe default
-  }
-  const isNumeric = /^\d+$/.test(urlParam);
-  return { quizId: isNumeric ? urlParam : null, quizCode: urlParam };
+
+  return {
+    quizId: null,
+    quizCode: cleanParam.toUpperCase(),
+  };
 }
