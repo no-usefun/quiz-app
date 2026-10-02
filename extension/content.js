@@ -48,13 +48,17 @@ window.addEventListener("message", async (event) => {
   // React App -> Extension: Heartbeat / Ping Check
   if (event.data.type === "DYNOQUIZZ_PING_EXTENSION") {
     chrome.runtime.sendMessage({ type: "GET_STATUS" }, (response) => {
+      const displayList =
+        response && response.state && Array.isArray(response.state.displays) && response.state.displays.length > 0
+          ? response.state.displays
+          : [{ id: "primary", name: "Primary Display", isPrimary: true }];
       window.postMessage(
         {
           type: "DYNOQUIZZ_EXTENSION_PONG",
           installed: true,
           version: "1.0.0",
           state: response ? response.state : null,
-          displays: response && response.state ? response.state.displays : [],
+          displays: displayList,
         },
         "*",
       );

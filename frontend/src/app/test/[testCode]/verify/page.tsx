@@ -281,8 +281,10 @@ export default function IdentityVerificationPage({
         event.data.type === "DYNOQUIZZ_INIT_ACK"
       ) {
         setExtensionDetected(true);
-        if (event.data.displays && Array.isArray(event.data.displays)) {
+        if (event.data.displays && Array.isArray(event.data.displays) && event.data.displays.length > 0) {
           setDisplayCount(event.data.displays.length);
+        } else {
+          setDisplayCount(1);
         }
       }
     };
@@ -584,24 +586,24 @@ export default function IdentityVerificationPage({
               {/* Display Count Status Card */}
               <div
                 className={`p-3 rounded-[10px] border flex items-center justify-between ${
-                  displayCount === 1
+                  displayCount <= 1
                     ? "bg-emerald-50 border-emerald-200 text-emerald-900"
                     : "bg-rose-50 border-rose-200 text-rose-900"
                 }`}
               >
                 <div className="flex items-center gap-2">
                   <Monitor
-                    className={`h-4 w-4 ${displayCount === 1 ? "text-emerald-600" : "text-rose-600"}`}
+                    className={`h-4 w-4 ${displayCount <= 1 ? "text-emerald-600" : "text-rose-600"}`}
                   />
                   <div>
                     <p className="font-bold text-[11px]">Active Monitors</p>
                     <p className="text-[10px] opacity-80">
-                      {displayCount === 1 ? "1 Display (Secure)" : `${displayCount} Displays (Disconnect extra)`}
+                      {displayCount <= 1 ? "1 Display (Secure)" : `${displayCount} Displays (Disconnect extra)`}
                     </p>
                   </div>
                 </div>
                 <span className="font-mono font-bold text-[11px]">
-                  {displayCount === 1 ? "✓ OK" : "⚠️ ALERT"}
+                  {displayCount <= 1 ? "✓ OK" : "⚠️ ALERT"}
                 </span>
               </div>
             </div>

@@ -178,9 +178,16 @@ public class StudentAttemptService {
                 if ((registrationNo == null || registrationNo.isBlank())
                                 && explicitRegNo != null
                                 && !explicitRegNo.isBlank()) {
-                        registrationNo = explicitRegNo.trim();
-                        student.setRegistrationNo(registrationNo);
-                        userRepository.save(student);
+                        String trimmed = explicitRegNo.trim();
+                        Optional<User> existingWithReg = userRepository.findByRegistrationNo(trimmed);
+                        if (existingWithReg.isEmpty() || existingWithReg.get().getId().equals(student.getId())) {
+                                try {
+                                        student.setRegistrationNo(trimmed);
+                                        userRepository.save(student);
+                                } catch (Exception ignored) {
+                                }
+                        }
+                        registrationNo = trimmed;
                 }
 
                 boolean whitelistConfigured = quizAllowedStudentRepository.existsByQuizId(quiz.getId());
@@ -201,8 +208,16 @@ public class StudentAttemptService {
                                                                 quiz.getId(),
                                                                 explicitRegNo.trim());
                                 if (isAllowed) {
-                                        student.setRegistrationNo(explicitRegNo.trim());
-                                        userRepository.save(student);
+                                        String trimmed = explicitRegNo.trim();
+                                        Optional<User> existingWithReg = userRepository.findByRegistrationNo(trimmed);
+                                        if (existingWithReg.isEmpty() || existingWithReg.get().getId().equals(student.getId())) {
+                                                try {
+                                                        student.setRegistrationNo(trimmed);
+                                                        userRepository.save(student);
+                                                } catch (Exception ignored) {
+                                                }
+                                        }
+                                        registrationNo = trimmed;
                                 }
                         }
 

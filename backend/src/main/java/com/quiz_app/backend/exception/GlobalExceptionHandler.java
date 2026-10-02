@@ -112,6 +112,25 @@ public class GlobalExceptionHandler {
                                 .body(response);
         }
 
+        @ExceptionHandler(org.springframework.dao.DataIntegrityViolationException.class)
+        public ResponseEntity<ErrorResponse> handleDataIntegrityViolation(
+                        org.springframework.dao.DataIntegrityViolationException ex,
+                        HttpServletRequest request) {
+
+                logger.warn("Data integrity violation: {}", ex.getMessage());
+
+                ErrorResponse response = new ErrorResponse(
+                                HttpStatus.CONFLICT.value(),
+                                "DATA_INTEGRITY_VIOLATION",
+                                "Conflict",
+                                "A record with this registration number or email already exists.",
+                                request.getRequestURI());
+
+                return ResponseEntity
+                                .status(HttpStatus.CONFLICT)
+                                .body(response);
+        }
+
         @ExceptionHandler(IllegalArgumentException.class)
         public ResponseEntity<ErrorResponse> handleIllegalArgument(
                         IllegalArgumentException ex,
