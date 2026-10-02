@@ -13,6 +13,7 @@ import com.quiz_app.backend.dto.auth.DeleteAccountRequest;
 import com.quiz_app.backend.dto.auth.LoginRequest;
 import com.quiz_app.backend.dto.auth.SignupRequest;
 import com.quiz_app.backend.dto.auth.SignupResponse;
+import com.quiz_app.backend.dto.auth.SetPasswordRequest;
 import com.quiz_app.backend.dto.auth.UpdateProfileRequest;
 import com.quiz_app.backend.dto.auth.UserSummaryResponse;
 import com.quiz_app.backend.entity.Role;
@@ -31,14 +32,12 @@ public class AuthService {
         private final RoleRepository roleRepository;
         private final PasswordEncoder passwordEncoder;
         private final JwtUtils jwtUtils;
-        private final EmailVerificationService emailVerificationService;
 
         public AuthService(
                         UserRepository userRepository,
                         RoleRepository roleRepository,
                         PasswordEncoder passwordEncoder,
-                        JwtUtils jwtUtils,
-                        EmailVerificationService emailVerificationService) {
+                        JwtUtils jwtUtils) {
 
                 this.userRepository = userRepository;
                 this.roleRepository = roleRepository;
@@ -117,22 +116,31 @@ public class AuthService {
 
                 User savedUser = userRepository.save(user);
 
-                // 5. Create email verification token and send email
-                emailVerificationService.createVerificationToken(savedUser);
-
                 return new SignupResponse(
-                                "Account created. Please verify your email before logging in.",
-                                true,
+                                "Account created successfully.",
+                                false,
                                 UserSummaryResponse.fromEntity(savedUser));
         }
 
         @Transactional(readOnly = true)
         public AuthResponse login(LoginRequest request) {
                 String normalizedEmail = request.email().trim().toLowerCase(Locale.ROOT);
+                String requestedRole = request.role().trim().toUpperCase(Locale.ROOT);
+
+                if (!requestedRole.equals("STUDENT") && !requestedRole.equals("TEACHER")) {
+                        throw new BadRequestException("INVALID_ROLE", "Role must be STUDENT or TEACHER");
+                }
 
                 // 1. Fetch user by email
                 User user = userRepository.findByEmail(normalizedEmail)
                                 .orElseThrow(() -> new BadCredentialsException("Invalid email or password"));
+
+                if (user.getRole() == null
+                                || !requestedRole.equals(user.getRole().getName())) {
+                        throw new BadRequestException(
+                                        "ROLE_MISMATCH",
+                                        "The selected role does not match this account");
+                }
 
                 // 2. Validate password
                 if (user.getPasswordHash() == null
@@ -144,12 +152,6 @@ public class AuthService {
                 if (!user.isActive()) {
                         throw new BadRequestException(
                                         "Your account is currently disabled. Please contact administration.");
-                }
-
-                if (!user.isVerified()) {
-                        throw new BadRequestException(
-                                        "EMAIL_NOT_VERIFIED",
-                                        "Please verify your email before logging in");
                 }
 
                 // 4. Generate JWT token
@@ -222,6 +224,24 @@ public class AuthService {
                 User savedUser = userRepository.save(user);
 
                 return UserSummaryResponse.fromEntity(savedUser);
+        }
+
+        @Transactional
+        public void setPassword(String email, SetPasswordRequest request) {
+                User user = userRepository.findByEmail(
+                                email.trim().toLowerCase(Locale.ROOT)).orElseThrow(
+                                                () -> new ResourceNotFoundException(
+                                                                "USER_NOT_FOUND",
+                                                                "User not found"));
+
+                if (user.getPasswordHash() != null) {
+                        throw new BadRequestException(
+                                        "PASSWORD_ALREADY_SET",
+                                        "A password is already configured. Use change-password instead");
+                }
+
+                user.setPasswordHash(passwordEncoder.encode(request.newPassword()));
+                userRepository.save(user);
         }
 
         @Transactional
