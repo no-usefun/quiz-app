@@ -222,6 +222,104 @@ class AuthServiceTest {
     }
 
     @Test
+    void setPassword_shouldRejectWhenPasswordAlreadyExists() {
+        User user = new User();
+        user.setEmail("user@example.com");
+        user.setPasswordHash("existing");
+
+        when(userRepository.findByEmail("user@example.com")).thenReturn(Optional.of(user));
+
+        BadRequestException ex = assertThrows(
+                BadRequestException.class,
+                () -> authService.setPassword(
+                        "user@example.com",
+                        new SetPasswordRequest("newpassword")));
+
+        assertEquals("PASSWORD_ALREADY_SET", ex.getCode());
+        verify(passwordEncoder, never()).encode(any());
+        verify(userRepository, never()).save(any(User.class));
+    }
+
+    @Test
+    void changePassword_shouldUpdatePassword() {
+        User user = new User();
+        user.setEmail("user@example.com");
+        user.setPasswordHash("old-hash");
+
+        when(userRepository.findByEmail("user@example.com")).thenReturn(Optional.of(user));
+        when(passwordEncoder.matches("old-password", "old-hash")).thenReturn(true);
+        when(passwordEncoder.matches("new-password", "old-hash")).thenReturn(false);
+        when(passwordEncoder.encode("new-password")).thenReturn("new-hash");
+
+        authService.changePassword(
+                "user@example.com",
+                new com.quiz_app.backend.dto.auth.ChangePasswordRequest(
+                        "old-password", "new-password"));
+
+        assertEquals("new-hash", user.getPasswordHash());
+        verify(userRepository).save(user);
+    }
+
+    @Test
+    void changePassword_shouldRejectWrongCurrentPassword() {
+        User user = new User();
+        user.setEmail("user@example.com");
+        user.setPasswordHash("old-hash");
+
+        when(userRepository.findByEmail("user@example.com")).thenReturn(Optional.of(user));
+        when(passwordEncoder.matches("wrong", "old-hash")).thenReturn(false);
+
+        BadRequestException ex = assertThrows(
+                BadRequestException.class,
+                () -> authService.changePassword(
+                        "user@example.com",
+                        new com.quiz_app.backend.dto.auth.ChangePasswordRequest(
+                                "wrong", "new-password")));
+
+        assertEquals("INVALID_CURRENT_PASSWORD", ex.getCode());
+        verify(userRepository, never()).save(any(User.class));
+    }
+
+    @Test
+    void changePassword_shouldRejectSamePassword() {
+        User user = new User();
+        user.setEmail("user@example.com");
+        user.setPasswordHash("old-hash");
+
+        when(userRepository.findByEmail("user@example.com")).thenReturn(Optional.of(user));
+        when(passwordEncoder.matches("old-password", "old-hash")).thenReturn(true);
+        when(passwordEncoder.matches("old-password", "old-hash")).thenReturn(true);
+
+        BadRequestException ex = assertThrows(
+                BadRequestException.class,
+                () -> authService.changePassword(
+                        "user@example.com",
+                        new com.quiz_app.backend.dto.auth.ChangePasswordRequest(
+                                "old-password", "old-password")));
+
+        assertEquals("PASSWORD_UNCHANGED", ex.getCode());
+        verify(userRepository, never()).save(any(User.class));
+    }
+
+    @Test
+    void deleteAccount_shouldDeactivateAccount() {
+        User user = new User();
+        user.setEmail("user@example.com");
+        user.setPasswordHash("hash");
+        user.setActive(true);
+
+        when(userRepository.findByEmail("user@example.com")).thenReturn(Optional.of(user));
+        when(passwordEncoder.matches("password", "hash")).thenReturn(true);
+
+        authService.deleteAccount(
+                "user@example.com",
+                new com.quiz_app.backend.dto.auth.DeleteAccountRequest("password"));
+
+        assertEquals(false, user.isActive());
+        verify(userRepository).save(user);
+    }
+
+    @Test
     void setPassword_shouldSetPasswordForGoogleFirstAccount() {
         User user = new User();
         user.setEmail("google@example.com");
