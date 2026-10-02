@@ -29,6 +29,7 @@ import com.quiz_app.backend.entity.QuestionType;
 import com.quiz_app.backend.entity.Quiz;
 import com.quiz_app.backend.entity.QuizStatus;
 import com.quiz_app.backend.entity.User;
+import com.quiz_app.backend.exception.AccessDeniedApplicationException;
 import com.quiz_app.backend.exception.BadRequestException;
 import com.quiz_app.backend.exception.ResourceNotFoundException;
 import com.quiz_app.backend.repository.OptionRepository;
@@ -178,7 +179,7 @@ class TeacherQuizServiceTest {
                 when(quiz.getTeacher()).thenReturn(null);
 
                 assertThrows(
-                                BadRequestException.class,
+                                AccessDeniedApplicationException.class,
                                 () -> teacherQuizService.publishQuiz(10L, 2L));
 
                 verify(quizRepository, never()).save(any());
@@ -193,7 +194,7 @@ class TeacherQuizServiceTest {
                 when(teacher.getId()).thenReturn(999L);
 
                 assertThrows(
-                                BadRequestException.class,
+                                AccessDeniedApplicationException.class,
                                 () -> teacherQuizService.publishQuiz(10L, 2L));
 
                 verify(quizRepository, never()).save(any());
@@ -768,7 +769,7 @@ class TeacherQuizServiceTest {
                 when(quiz.getStatus()).thenReturn(QuizStatus.COMPLETED);
 
                 assertThrows(
-                                BadRequestException.class,
+                                AccessDeniedApplicationException.class,
                                 () -> teacherQuizService.publishResults(10L, 2L));
 
                 verify(quizRepository, never()).save(any());
@@ -829,7 +830,7 @@ class TeacherQuizServiceTest {
                 when(quiz.getStatus()).thenReturn(QuizStatus.COMPLETED);
 
                 assertThrows(
-                                BadRequestException.class,
+                                AccessDeniedApplicationException.class,
                                 () -> teacherQuizService.unpublishResults(10L, 2L));
 
                 verify(quizRepository, never()).save(any());
@@ -968,7 +969,7 @@ class TeacherQuizServiceTest {
                 when(teacher.getId()).thenReturn(999L);
 
                 assertThrows(
-                                BadRequestException.class,
+                                AccessDeniedApplicationException.class,
                                 () -> teacherQuizService.updateQuizSettings(
                                                 10L,
                                                 2L,
@@ -1339,7 +1340,7 @@ class TeacherQuizServiceTest {
                 when(teacher.getId()).thenReturn(999L);
 
                 assertThrows(
-                                BadRequestException.class,
+                                AccessDeniedApplicationException.class,
                                 () -> teacherQuizService.completeQuiz(10L, 2L));
 
                 verify(quizRepository, never()).save(any());
