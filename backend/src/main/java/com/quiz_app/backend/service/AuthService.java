@@ -49,7 +49,7 @@ public class AuthService {
         }
 
         @Transactional
-        public SignupResponse register(SignupRequest request) {
+        public SignupResponse register(SignupRequest request, String role) {
                 String normalizedEmail = request.email().trim().toLowerCase(Locale.ROOT);
 
                 int atIndex = normalizedEmail.lastIndexOf('@');
@@ -66,9 +66,9 @@ public class AuthService {
                 }
 
                 // 2. Resolve Role
-                String requestedRole = request.role()
-                                .trim()
-                                .toUpperCase(Locale.ROOT);
+                String requestedRole = role == null
+                                ? ""
+                                : role.trim().toUpperCase(Locale.ROOT);
 
                 if (!requestedRole.equals("STUDENT")
                                 && !requestedRole.equals("TEACHER")) {
@@ -125,9 +125,11 @@ public class AuthService {
         }
 
         @Transactional(readOnly = true)
-        public AuthResponse login(LoginRequest request) {
+        public AuthResponse login(LoginRequest request, String role) {
                 String normalizedEmail = request.email().trim().toLowerCase(Locale.ROOT);
-                String requestedRole = request.role().trim().toUpperCase(Locale.ROOT);
+                String requestedRole = role == null
+                                ? ""
+                                : role.trim().toUpperCase(Locale.ROOT);
 
                 if (!requestedRole.equals("STUDENT") && !requestedRole.equals("TEACHER")) {
                         throw new BadRequestException("INVALID_ROLE", "Role must be STUDENT or TEACHER");
