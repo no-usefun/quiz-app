@@ -109,12 +109,24 @@ function Toggle({
   label,
   description,
   defaultChecked = false,
+  checked,
+  onToggle,
 }: {
   label: string;
   description?: string;
   defaultChecked?: boolean;
+  checked?: boolean;
+  onToggle?: () => void;
 }) {
   const [on, setOn] = useState(defaultChecked);
+
+  useEffect(() => {
+    if (checked !== undefined) {
+      setOn(checked);
+    }
+  }, [checked]);
+
+  const active = checked ?? on;
 
   return (
     <div className="flex items-start justify-between gap-4 rounded-[10px] border border-[#d1dee8]/70 bg-[#e6e3e2]/40 px-4 py-3.5 transition-colors shadow-xs">
@@ -130,15 +142,15 @@ function Toggle({
       <button
         type="button"
         role="switch"
-        aria-checked={on}
-        onClick={() => setOn((value) => !value)}
+        aria-checked={active}
+        onClick={() => (onToggle ? onToggle() : setOn((value) => !value))}
         className={`relative mt-0.5 inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-150 focus:outline-none ${
-          on ? "bg-[#165dfb]" : "bg-[#d1dee8]"
+          active ? "bg-[#165dfb]" : "bg-[#d1dee8]"
         }`}
       >
         <span
           className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform duration-150 ${
-            on ? "translate-x-4" : "translate-x-0"
+            active ? "translate-x-4" : "translate-x-0"
           }`}
         />
       </button>
@@ -593,18 +605,13 @@ function PreferencesPanel({
             ].map(([key, label, description]) => {
               const preferenceKey = key as keyof typeof preferences;
               return (
-                <button
+                <Toggle
                   key={key}
-                  type="button"
-                  onClick={() => updatePreference(preferenceKey)}
-                  className="w-full text-left"
-                >
-                  <Toggle
-                    label={label}
-                    description={description}
-                    defaultChecked={preferences[preferenceKey]}
-                  />
-                </button>
+                  label={label}
+                  description={description}
+                  checked={preferences[preferenceKey]}
+                  onToggle={() => updatePreference(preferenceKey)}
+                />
               );
             })}
           </div>
