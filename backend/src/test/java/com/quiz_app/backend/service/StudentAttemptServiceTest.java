@@ -1460,6 +1460,9 @@ class StudentAttemptServiceTest {
         @Test
         void getLeaderboard_shouldReturnSubmittedAttemptsSortedByScore() {
 
+                when(userRepository.findById(1L))
+                                .thenReturn(Optional.of(student));
+
                 QuizAttempt first = createLeaderboardAttempt(
                                 1001L,
                                 1L,
@@ -1512,6 +1515,9 @@ class StudentAttemptServiceTest {
         @Test
         void getLeaderboard_shouldRejectNullQuizId() {
 
+                when(userRepository.findById(1L))
+                                .thenReturn(Optional.of(student));
+
                 assertThrows(
                                 BadRequestException.class,
                                 () -> attemptService.getLeaderboard(null, 1L));
@@ -1520,6 +1526,9 @@ class StudentAttemptServiceTest {
         @Test
         void getLeaderboard_shouldRejectUnknownQuiz() {
 
+                // Student validation occurs before quiz lookup in the service.
+                when(userRepository.findById(1L))
+                                .thenReturn(Optional.of(student));
                 when(quizRepository.findById(999L))
                                 .thenReturn(Optional.empty());
 
@@ -1530,6 +1539,9 @@ class StudentAttemptServiceTest {
 
         @Test
         void getLeaderboard_shouldRejectUnpublishedResults() {
+
+                when(userRepository.findById(1L))
+                                .thenReturn(Optional.of(student));
 
                 quiz.setResultsPublished(false);
 
@@ -1543,6 +1555,9 @@ class StudentAttemptServiceTest {
 
         @Test
         void getLeaderboard_shouldRejectUnavailableVisibility() {
+
+                when(userRepository.findById(1L))
+                                .thenReturn(Optional.of(student));
 
                 quiz.setResultVisibility(ResultVisibility.QUESTION_WISE);
 
