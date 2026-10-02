@@ -247,6 +247,15 @@ function LobbyInner({ testCode }: { testCode: string }) {
     setStartError(null);
 
     try {
+      // The request comes from the user's Start button, so the browser may
+      // grant fullscreen permission here.
+      try {
+        if (typeof document !== "undefined" && !document.fullscreenElement) {
+          await document.documentElement.requestFullscreen();
+        }
+      } catch {
+        console.warn("Fullscreen request was denied by the browser.");
+      }
       const storedUser = JSON.parse(
         localStorage.getItem("dynoquizz_user") || "{}",
       );
@@ -620,6 +629,10 @@ function LobbyInner({ testCode }: { testCode: string }) {
                 </li>
                 <li>
                   The exam package is loaded only after the attempt is ready.
+                </li>
+                <li>
+                  Fullscreen is requested before entering the assessment. Leaving
+                  fullscreen may be recorded as suspicious activity.
                 </li>
               </ul>
             </div>
