@@ -892,7 +892,7 @@ export default function TestArenaPage({
         !Number.isFinite(questionId) ||
         questionId <= 0 ||
         isSubmitted ||
-        expiryHandledRef.current
+        expiredQuestionIdsRef.current[questionId]
       ) {
         return;
       }
