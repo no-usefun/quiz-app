@@ -73,7 +73,7 @@ class AuthControllerTest {
 
         @Test
         void signup_shouldReturnCreated() throws Exception {
-                when(authService.register(any(SignupRequest.class), org.mockito.ArgumentMatchers.eq("TEACHER"))
+                when(authService.register(any(SignupRequest.class), org.mockito.ArgumentMatchers.eq("TEACHER")))
                                 .thenReturn(new SignupResponse("Account created successfully. Please verify your email before logging in.", true, summary));
 
                 mockMvc.perform(post("/api/v1/auth/signup").param("role", "TEACHER")
@@ -87,7 +87,7 @@ class AuthControllerTest {
 
         @Test
         void login_shouldRequireRole() throws Exception {
-                mockMvc.perform(post("/api/v1/auth/login").param("role", "TEACHER")
+                mockMvc.perform(post("/api/v1/auth/login")
                                 .contentType(MediaType.APPLICATION_JSON)
                                 .content("""
                                                 {"email":"jane@example.com","password":"password123"}
@@ -101,7 +101,7 @@ class AuthControllerTest {
         void login_shouldReturnToken() throws Exception {
                 when(authService.login(any(LoginRequest.class), org.mockito.ArgumentMatchers.eq("TEACHER"))).thenReturn(authResponse);
 
-                mockMvc.perform(post("/api/v1/auth/login")
+                mockMvc.perform(post("/api/v1/auth/login").param("role", "TEACHER")
                                 .contentType(MediaType.APPLICATION_JSON)
                                 .content(objectMapper.writeValueAsString(loginRequest)))
                                 .andExpect(status().isOk())
