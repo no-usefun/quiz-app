@@ -247,14 +247,26 @@ function LobbyInner({ testCode }: { testCode: string }) {
     setStartError(null);
 
     try {
-      // The request comes from the user's Start button, so the browser may
-      // grant fullscreen permission here.
+      // Fullscreen is required before the server creates the attempt.
+      // Starting an attempt outside fullscreen would bypass the exam UI
+      // protection, so a denied fullscreen request stops the flow here.
       try {
         if (typeof document !== "undefined" && !document.fullscreenElement) {
           await document.documentElement.requestFullscreen();
         }
       } catch {
-        console.warn("Fullscreen request was denied by the browser.");
+        throw new Error(
+          "Fullscreen permission is required to start this assessment. Please allow fullscreen and try again.",
+        );
+      }
+
+      if (
+        typeof document !== "undefined" &&
+        !document.fullscreenElement
+      ) {
+        throw new Error(
+          "The assessment can only start in fullscreen mode. Please re-enter fullscreen and try again.",
+        );
       }
       const storedUser = JSON.parse(
         localStorage.getItem("dynoquizz_user") || "{}",
