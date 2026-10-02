@@ -11,9 +11,13 @@ import com.quiz_app.backend.entity.UserIdentity;
 @Repository
 public interface UserIdentityRepository extends JpaRepository<UserIdentity, Long> {
 
-    Optional<UserIdentity> findByIssuerAndSubject(String issuer, String subject);
+    Optional<UserIdentity> findByIssuerAndSubject(
+            String issuer,
+            String subject);
 
-    boolean existsByIssuerAndSubject(String issuer, String subject);
+    boolean existsByIssuerAndSubject(
+            String issuer,
+            String subject);
 
     List<UserIdentity> findByUserId(Long userId);
 }

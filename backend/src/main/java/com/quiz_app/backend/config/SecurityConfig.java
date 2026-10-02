@@ -23,62 +23,74 @@ import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
 import com.quiz_app.backend.security.AccessDeniedHandlerJwt;
 import com.quiz_app.backend.security.AuthEntryPointJwt;
 import com.quiz_app.backend.security.JwtAuthenticationFilter;
+import com.quiz_app.backend.security.OAuth2AuthenticationSuccessHandler;
 
 @Configuration
 @EnableWebSecurity
 @EnableMethodSecurity
 public class SecurityConfig {
 
-    private final JwtAuthenticationFilter jwtAuthenticationFilter;
-    private final AuthEntryPointJwt authEntryPointJwt;
-    private final AccessDeniedHandlerJwt accessDeniedHandlerJwt;
+        private final JwtAuthenticationFilter jwtAuthenticationFilter;
+        private final AuthEntryPointJwt authEntryPointJwt;
+        private final AccessDeniedHandlerJwt accessDeniedHandlerJwt;
 
-    public SecurityConfig(JwtAuthenticationFilter jwtAuthenticationFilter, AuthEntryPointJwt authEntryPointJwt,
-            AccessDeniedHandlerJwt accessDeniedHandlerJwt) {
-        this.jwtAuthenticationFilter = jwtAuthenticationFilter;
-        this.authEntryPointJwt = authEntryPointJwt;
-        this.accessDeniedHandlerJwt = accessDeniedHandlerJwt;
-    }
+        public SecurityConfig(JwtAuthenticationFilter jwtAuthenticationFilter, AuthEntryPointJwt authEntryPointJwt,
+                        AccessDeniedHandlerJwt accessDeniedHandlerJwt) {
+                this.jwtAuthenticationFilter = jwtAuthenticationFilter;
+                this.authEntryPointJwt = authEntryPointJwt;
+                this.accessDeniedHandlerJwt = accessDeniedHandlerJwt;
+        }
 
-    @Bean
-    public PasswordEncoder passwordEncoder() {
-        return new BCryptPasswordEncoder();
-    }
+        @Bean
+        public PasswordEncoder passwordEncoder() {
+                return new BCryptPasswordEncoder();
+        }
 
-    @Bean
-    public AuthenticationManager authenticationManager(AuthenticationConfiguration authConfig) throws Exception {
-        return authConfig.getAuthenticationManager();
-    }
+        @Bean
+        public AuthenticationManager authenticationManager(AuthenticationConfiguration authConfig) throws Exception {
+                return authConfig.getAuthenticationManager();
+        }
 
-    @Bean
-    public CorsConfigurationSource corsConfigurationSource() {
-        CorsConfiguration configuration = new CorsConfiguration();
-        configuration.setAllowedOriginPatterns(List.of("*"));
-        configuration.setAllowedMethods(Arrays.asList("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"));
-        configuration.setAllowedHeaders(Arrays.asList("Authorization", "Content-Type", "X-Requested-With", "Accept",
-                "Origin", "Access-Control-Request-Method", "Access-Control-Request-Headers"));
-        configuration.setExposedHeaders(List.of("Authorization"));
-        configuration.setAllowCredentials(true);
-        configuration.setMaxAge(3600L);
+        @Bean
+        public CorsConfigurationSource corsConfigurationSource() {
+                CorsConfiguration configuration = new CorsConfiguration();
+                configuration.setAllowedOriginPatterns(List.of("*"));
+                configuration.setAllowedMethods(Arrays.asList("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"));
+                configuration.setAllowedHeaders(Arrays.asList("Authorization", "Content-Type", "X-Requested-With",
+                                "Accept",
+                                "Origin", "Access-Control-Request-Method", "Access-Control-Request-Headers"));
+                configuration.setExposedHeaders(List.of("Authorization"));
+                configuration.setAllowCredentials(true);
+                configuration.setMaxAge(3600L);
 
-        UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
-        source.registerCorsConfiguration("/**", configuration);
-        return source;
-    }
+                UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
+                source.registerCorsConfiguration("/**", configuration);
+                return source;
+        }
 
-    @Bean
-    public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
-        http
-                .cors(cors -> cors.configurationSource(corsConfigurationSource()))
-                .csrf(csrf -> csrf.disable())
-                .exceptionHandling(exception -> exception
-                        .authenticationEntryPoint(authEntryPointJwt)
-                        .accessDeniedHandler(accessDeniedHandlerJwt))
-                .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
-                .authorizeHttpRequests(auth -> auth
+        @Bean
+        public SecurityFilterChain securityFilterChain(HttpSecurity http,
+                        OAuth2AuthenticationSuccessHandler oAuth2AuthenticationSuccessHandler) throws Exception {
+                http
+                                .cors(cors -> cors.configurationSource(corsConfigurationSource()))
+                                .csrf(csrf -> csrf.disable())
+                                .exceptionHandling(exception -> exception
+                                                .authenticationEntryPoint(authEntryPointJwt)
+                                                .accessDeniedHandler(accessDeniedHandlerJwt))
+                                .sessionManagement(session -> session
+                                                .sessionCreationPolicy(SessionCreationPolicy.STATELESS))
+                                .authorizeHttpRequests(auth -> auth
 
                         // Public Auth Endpoints
-                        .requestMatchers("/api/v1/auth/**", "/", "/api/v1/health").permitAll()
+                        .requestMatchers(
+                                "/api/v1/auth/**",
+                                "/api/v1/auth/login",
+                                "/api/v1/auth/signup",
+                                "/api/v1/auth/verify-email",
+                                "/api/v1/auth/resend-verification",
+                                "/",
+                                "/api/v1/health")
+                        .permitAll()
 
                         // Public Quiz metadata & package endpoints for candidate links
                         .requestMatchers(HttpMethod.GET, "/api/v1/quizzes/**").permitAll()
@@ -99,7 +111,7 @@ public class SecurityConfig {
                         .requestMatchers("/api/v1/student/**")
                         .hasRole("STUDENT")
 
-                        // Teacher-specific endpoints (including proctoring overviews)
+                        // Teacher-specific endpoints
                         .requestMatchers("/api/v1/teacher/**")
                         .hasRole("TEACHER")
 
@@ -108,12 +120,15 @@ public class SecurityConfig {
                         .authenticated()
 
                         // Everything else requires authentication
-                        .anyRequest().authenticated());
+                        .anyRequest().authenticated())
 
-        http.addFilterBefore(
-                jwtAuthenticationFilter,
-                UsernamePasswordAuthenticationFilter.class);
+                .oauth2Login(oauth2 -> oauth2
+                        .successHandler(oAuth2AuthenticationSuccessHandler));
 
-        return http.build();
-    }
+                http.addFilterBefore(
+                        jwtAuthenticationFilter,
+                        UsernamePasswordAuthenticationFilter.class);
+
+                return http.build();
+        }
 }
