@@ -847,6 +847,40 @@ export default function TestArenaPage({
     syncAnswerToBackend,
   ]);
 
+  useEffect(() => {
+    if (!activeAttemptId || isSubmitted) {
+      return;
+    }
+
+    const syncHeartbeat = async () => {
+      try {
+        await api.post(
+          ENDPOINTS.student.heartbeat(activeAttemptId),
+          {
+            currentQuestion: currentIndexRef.current + 1,
+          },
+        );
+      } catch (error) {
+        if (
+          error instanceof ApiClientError &&
+          (error.status === 404 || error.status === 405)
+        ) {
+          return;
+        }
+
+        console.warn("[Assessment] Heartbeat sync failed.", error);
+      }
+    };
+
+    void syncHeartbeat();
+
+    const interval = window.setInterval(() => {
+      void syncHeartbeat();
+    }, 10000);
+
+    return () => window.clearInterval(interval);
+  }, [activeAttemptId, isSubmitted]);
+
   const isQuestionExpired = (questionId: number) =>
     Boolean(expiredQuestionIdsRef.current[questionId]);
 
