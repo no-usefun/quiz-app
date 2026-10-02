@@ -73,7 +73,9 @@ export async function POST(request: Request) {
      *
      * Do NOT generate another JWT in Next.js.
      */
-    const backendResponse = await fetch(`${API_BASE}/api/v1/auth/login`, {
+    const backendResponse = await fetch(
+      `${API_BASE}/api/v1/auth/login?role=${encodeURIComponent(requestedRole)}`,
+      {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -82,7 +84,6 @@ export async function POST(request: Request) {
       body: JSON.stringify({
         email,
         password,
-        role: requestedRole,
       }),
       cache: "no-store",
     });
