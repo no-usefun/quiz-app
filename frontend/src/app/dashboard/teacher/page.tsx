@@ -40,7 +40,7 @@ export default function TeacherDashboard() {
     title: string;
   } | null>(null);
 
-  const [actionLoadingQuizId === quizIdQuizId, setActionLoadingQuizId] = useState<number | null>(null);
+  const [actionLoadingQuizId, setActionLoadingQuizId] = useState<number | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
 
   const normalizeQuiz = (quiz: QuizResponse): TeacherDashboardQuiz => ({
@@ -645,7 +645,7 @@ export default function TeacherDashboard() {
                   setQuizToEnd(null);
                   setActionError(null);
                 }}
-                disabled={actionLoadingQuizId === quizId}
+                disabled={actionLoadingQuizId === quizToEnd.quizId}
                 className="rounded-[10px] border border-[#d1dee8]/80 bg-white px-3.5 py-1.5 text-xs font-bold text-[#78716b] hover:bg-[#f5f5f4] hover:border-[#b9cbd9] shadow-xs transition-all disabled:opacity-50 cursor-pointer"
               >
                 Cancel
@@ -654,10 +654,10 @@ export default function TeacherDashboard() {
               <button
                 type="button"
                 onClick={confirmEndQuiz}
-                disabled={actionLoadingQuizId === quizId}
+                disabled={actionLoadingQuizId === quizToEnd.quizId}
                 className="inline-flex items-center gap-1.5 rounded-[10px] bg-[#8c381c] px-3.5 py-1.5 text-xs font-bold text-white hover:bg-[#6e2b14] shadow-xs active:scale-[0.98] transition-all disabled:opacity-50 cursor-pointer border-0"
               >
-                {actionLoadingQuizId === quizId && (
+                {actionLoadingQuizId === quizToEnd.quizId && (
                   <span className="h-3 w-3 animate-spin rounded-full border-2 border-white/30 border-t-white" />
                 )}
                 End Assessment
