@@ -17,6 +17,7 @@ import {
 } from "lucide-react";
 import { Logo } from "@/components/Logo";
 import { ENDPOINTS } from "@/lib/api/endpoints";
+import type { LiveAttemptResponse } from "@/lib/types";
 
 type QuizSummary = {
   quizId: number | string;
@@ -126,6 +127,9 @@ export default function LiveLeaderboard({
 
   const [quiz, setQuiz] = useState<QuizSummary | null>(null);
   const [students, setStudents] = useState<StudentRow[]>([]);
+  const [activeAttempts, setActiveAttempts] = useState<LiveAttemptResponse[]>([]);
+  const [liveMonitoringAvailable, setLiveMonitoringAvailable] = useState(true);
+  const [liveMonitoringError, setLiveMonitoringError] = useState<string | null>(null);
   const [lastSync, setLastSync] = useState("--:--:--");
   const [refreshElapsed, setRefreshElapsed] = useState(0);
   const [autoRefresh, setAutoRefresh] = useState(true);
@@ -293,6 +297,89 @@ export default function LiveLeaderboard({
   }, [testCode]);
 
   useEffect(() => {
+    if (!quiz?.quizId) return;
+
+    let cancelled = false;
+
+    const loadLiveAttempts = async () => {
+      const token = localStorage.getItem("dynoquizz_token");
+
+      if (!token) {
+        if (!cancelled) {
+          setLiveMonitoringError("Your teacher session has expired. Please log in again.");
+        }
+        return;
+      }
+
+      try {
+        const res = await fetch(ENDPOINTS.teacher.liveAttempts(quiz.quizId), {
+          method: "GET",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: "Bearer " + token,
+          },
+          cache: "no-store",
+        });
+
+        if (res.status === 404 || res.status === 405) {
+          if (!cancelled) {
+            setLiveMonitoringAvailable(false);
+            setLiveMonitoringError(null);
+          }
+          return;
+        }
+
+        const data = await res.json().catch(() => []);
+        if (!res.ok) {
+          throw new Error(
+            data?.message ||
+              data?.error ||
+              "Unable to load active student attempts.",
+          );
+        }
+
+        const rows: LiveAttemptResponse[] = Array.isArray(data)
+          ? data
+          : Array.isArray(data?.content)
+            ? data.content
+            : Array.isArray(data?.data)
+              ? data.data
+              : [];
+
+        if (!cancelled) {
+          setActiveAttempts(rows);
+          setLiveMonitoringAvailable(true);
+          setLiveMonitoringError(null);
+        }
+      } catch (err: any) {
+        if (cancelled) return;
+
+        console.warn("Live attempt refresh failed:", err);
+        setLiveMonitoringError(
+          err?.message || "Unable to refresh active student attempts.",
+        );
+      }
+    };
+
+    void loadLiveAttempts();
+
+    if (!autoRefresh) {
+      return () => {
+        cancelled = true;
+      };
+    }
+
+    const interval = window.setInterval(() => {
+      void loadLiveAttempts();
+    }, 4000);
+
+    return () => {
+      cancelled = true;
+      window.clearInterval(interval);
+    };
+  }, [autoRefresh, quiz]);
+
+  useEffect(() => {
     if (!autoRefresh || !quiz?.quizId) return;
 
     let cancelled = false;
@@ -381,6 +468,9 @@ export default function LiveLeaderboard({
   );
 
   const submittedCount = students.length;
+  const activeCount = activeAttempts.filter(
+    (attempt) => attempt.status === "IN_PROGRESS",
+  ).length;
 
   const avgScore =
     students.length > 0
@@ -514,7 +604,7 @@ export default function LiveLeaderboard({
           </div>
         )}
 
-        <div className="grid grid-cols-2 gap-3.5 lg:grid-cols-4">
+        <div className="grid grid-cols-2 gap-3.5 lg:grid-cols-5">
           {[
             {
               icon: <Users className="h-4 w-4 text-signal-green" />,
@@ -527,14 +617,19 @@ export default function LiveLeaderboard({
               value: submittedCount,
             },
             {
+              icon: <Monitor className="h-4 w-4 text-signal-green" />,
+              label: "Active Now",
+              value: activeCount,
+            },
+            {
               icon: <Clock className="h-4 w-4 text-signal-green" />,
               label: "Exam Duration",
-              value: `${examDurationMins}m`,
+              value: examDurationMins + "m",
             },
             {
               icon: <TrendingUp className="h-4 w-4 text-signal-green" />,
               label: "Class Avg Score",
-              value: `${avgScore}%`,
+              value: avgScore + "%",
             },
           ].map((stat) => (
             <motion.div
@@ -557,6 +652,85 @@ export default function LiveLeaderboard({
             </motion.div>
           ))}
         </div>
+
+        <section className="rounded-[14px] bg-paper-white border border-mist-blue/70 overflow-hidden shadow-sm text-left">
+          <div className="flex items-center justify-between gap-3 border-b border-mist-blue/40 px-6 py-3">
+            <div>
+              <h2 className="text-xs font-bold uppercase tracking-wider text-midnight-navy">
+                Active Students
+              </h2>
+              <p className="mt-0.5 text-[10px] font-medium text-steel-blue-gray">
+                Server-backed live attempt state, updated every 4 seconds.
+              </p>
+            </div>
+            <span className="rounded-full bg-pastel-mint px-2.5 py-1 text-[10px] font-bold text-pastel-mint-text">
+              {activeCount} active
+            </span>
+          </div>
+
+          {liveMonitoringError && (
+            <div className="border-b border-mist-blue/40 bg-pastel-pink/10 px-6 py-2.5 text-[10px] font-semibold text-pastel-pink-text">
+              {liveMonitoringError}
+            </div>
+          )}
+
+          {!liveMonitoringAvailable ? (
+            <div className="px-6 py-8 text-center text-xs font-medium text-steel-blue-gray">
+              Live attempt monitoring is waiting for the backend live-attempt endpoint.
+              Submitted leaderboard data remains available below.
+            </div>
+          ) : activeAttempts.length === 0 ? (
+            <div className="px-6 py-8 text-center text-xs font-medium text-steel-blue-gray">
+              No students are currently in an active server attempt.
+            </div>
+          ) : (
+            <ul className="divide-y divide-mist-blue/30">
+              {activeAttempts.map((attempt) => {
+                const suspicious =
+                  Number(attempt.warningCount ?? 0) +
+                  Number(attempt.tabSwitchCount ?? 0) +
+                  Number(attempt.fullscreenExitCount ?? 0) +
+                  Number(attempt.focusLossCount ?? 0) +
+                  Number(attempt.copyAttemptCount ?? 0) +
+                  Number(attempt.cutAttemptCount ?? 0) +
+                  Number(attempt.pasteAttemptCount ?? 0) +
+                  Number(attempt.keyboardAttemptCount ?? 0);
+
+                return (
+                  <li
+                    key={attempt.attemptId}
+                    className="grid grid-cols-[1fr_7rem_7rem_7rem] items-center gap-3 px-6 py-3 transition-colors hover:bg-frost-surface/30"
+                  >
+                    <div className="min-w-0">
+                      <p className="truncate text-xs font-bold text-midnight-navy">
+                        {attempt.studentName || "Student"}
+                      </p>
+                      <p className="mt-0.5 text-[10px] font-medium text-steel-blue-gray">
+                        Question {attempt.currentQuestion ?? "—"} · Attempt #{attempt.attemptId}
+                      </p>
+                    </div>
+                    <span className="text-center text-[10px] font-bold text-signal-green">
+                      {attempt.status}
+                    </span>
+                    <span className="text-center text-[10px] font-mono font-semibold text-steel-blue-gray">
+                      {formatTimeTaken(attempt.totalTimeTaken)}
+                    </span>
+                    <span
+                      className={
+                        "rounded-full px-2 py-1 text-center text-[9px] font-bold " +
+                        (suspicious > 0
+                          ? "bg-pastel-pink text-pastel-pink-text"
+                          : "bg-pastel-mint text-pastel-mint-text")
+                      }
+                    >
+                      {suspicious} flags
+                    </span>
+                  </li>
+                );
+              })}
+            </ul>
+          )}
+        </section>
 
         <div className="rounded-[14px] bg-paper-white border border-[#d1dee8]/70 overflow-hidden shadow-sm text-left">
           <div className="grid grid-cols-[2rem_1fr_8rem_7rem_8rem] items-center gap-4 bg-paper-white px-6 py-2.5 text-xs font-bold uppercase tracking-wider text-steel-blue-gray border-b border-[#d1dee8]/40">
