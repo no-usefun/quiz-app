@@ -24,6 +24,7 @@ import com.quiz_app.backend.security.AccessDeniedHandlerJwt;
 import com.quiz_app.backend.security.AuthEntryPointJwt;
 import com.quiz_app.backend.security.JwtAuthenticationFilter;
 import com.quiz_app.backend.security.OAuth2AuthenticationSuccessHandler;
+import com.quiz_app.backend.security.RoleAwareOAuth2AuthorizationRequestResolver;
 
 @Configuration
 @EnableWebSecurity
@@ -70,7 +71,8 @@ public class SecurityConfig {
 
         @Bean
         public SecurityFilterChain securityFilterChain(HttpSecurity http,
-                        OAuth2AuthenticationSuccessHandler oAuth2AuthenticationSuccessHandler) throws Exception {
+                        OAuth2AuthenticationSuccessHandler oAuth2AuthenticationSuccessHandler,
+                        RoleAwareOAuth2AuthorizationRequestResolver roleAwareOAuth2AuthorizationRequestResolver) throws Exception {
                 http
                                 .cors(cors -> cors.configurationSource(corsConfigurationSource()))
                                 .csrf(csrf -> csrf.disable())
@@ -113,6 +115,8 @@ public class SecurityConfig {
                                                 .anyRequest().authenticated())
 
                                 .oauth2Login(oauth2 -> oauth2
+                                                .authorizationEndpoint(endpoint -> endpoint
+                                                                .authorizationRequestResolver(roleAwareOAuth2AuthorizationRequestResolver))
                                                 .successHandler(oAuth2AuthenticationSuccessHandler));
 
                 http.addFilterBefore(
