@@ -156,21 +156,3 @@ document.addEventListener(
   },
   true,
 );
-
-// DevTools Inspection Heuristic based on outer vs inner dimensions
-let devToolsWarningLogged = false;
-setInterval(() => {
-  const widthThreshold = window.outerWidth - window.innerWidth > 160;
-  const heightThreshold = window.outerHeight - window.innerHeight > 160;
-
-  if ((widthThreshold || heightThreshold) && !devToolsWarningLogged) {
-    devToolsWarningLogged = true;
-    chrome.runtime.sendMessage({
-      type: "LOG_VIOLATION",
-      activityType: "RIGHT_CLICK",
-      details: "Browser developer tools panel or inspection window detected open",
-    });
-  } else if (!widthThreshold && !heightThreshold) {
-    devToolsWarningLogged = false;
-  }
-}, 2000);

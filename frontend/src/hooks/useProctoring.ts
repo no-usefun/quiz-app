@@ -77,6 +77,8 @@ export function useProctoring(options: UseProctoringOptions = {}) {
   const isAutoSubmittedRef = useRef(false);
   const lastAudioSpikeTimeRef = useRef(0);
   const lastSnapshotTimeRef = useRef(0);
+  const mountTimeRef = useRef<number>(Date.now());
+  const lastFocusViolationTimeRef = useRef<number>(0);
 
   // Dismiss banner
   const dismissWarning = useCallback(() => {
@@ -86,6 +88,27 @@ export function useProctoring(options: UseProctoringOptions = {}) {
   // ─── 1. Send Violation to Backend & Trigger Warnings ─────────────────────────
   const logEventToBackend = useCallback(
     async (activityType: string, details: string) => {
+      const now = Date.now();
+      const isInitialGracePeriod = now - mountTimeRef.current < 5000;
+
+      // During initial 5-second grace period, suppress focus/blur false alarms on page load
+      if (
+        isInitialGracePeriod &&
+        ["TAB_SWITCH", "WINDOW_BLUR", "WINDOW_FOCUS", "FULLSCREEN_EXIT"].includes(
+          activityType,
+        )
+      ) {
+        return;
+      }
+
+      // Throttle window blur and tab switch so a single alt-tab doesn't trigger 2 warnings simultaneously
+      if (activityType === "TAB_SWITCH" || activityType === "WINDOW_BLUR") {
+        if (now - lastFocusViolationTimeRef.current < 2500) {
+          return;
+        }
+        lastFocusViolationTimeRef.current = now;
+      }
+
       const newViolation: ProctoringViolation = {
         id: Math.random().toString(36).substring(2, 9),
         type: activityType,
@@ -94,9 +117,11 @@ export function useProctoring(options: UseProctoringOptions = {}) {
       };
 
       setViolations((prev) => [newViolation, ...prev.slice(0, 19)]);
-      setCurrentWarningMessage(`⚠️ Warning: ${details}`);
+      if (activityType !== "WINDOW_FOCUS") {
+        setCurrentWarningMessage(`⚠️ Warning: ${details}`);
+      }
 
-      // Optimistically increment warnings for malicious integrity violations
+      // Optimistically increment warnings for integrity violations
       const isCountableViolation = [
         "TAB_SWITCH",
         "WINDOW_BLUR",
@@ -115,7 +140,7 @@ export function useProctoring(options: UseProctoringOptions = {}) {
             setProctorStatus("VIOLATION");
             setStatusMessage("Exam limit exceeded. Auto-submitting assessment...");
             if (onAutoSubmit) {
-              setTimeout(() => onAutoSubmit(), 1000);
+              setTimeout(() => onAutoSubmit(), 800);
             }
           }
           return next;
