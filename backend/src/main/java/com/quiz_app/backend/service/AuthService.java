@@ -77,7 +77,7 @@ public class AuthService {
                                         "Role must be STUDENT or TEACHER");
                 }
 
-                Role role = roleRepository.findByName(requestedRole)
+                Role roleEntity = roleRepository.findByName(requestedRole)
                                 .orElseThrow(() -> new IllegalStateException(
                                                 requestedRole + " role is not configured in the database"));
 
@@ -106,7 +106,7 @@ public class AuthService {
                 user.setLastName(request.lastName() != null ? request.lastName().trim() : null);
                 user.setEmail(normalizedEmail);
                 user.setPasswordHash(passwordEncoder.encode(request.password()));
-                user.setRole(role);
+                user.setRole(roleEntity);
                 user.setAuthProvider("LOCAL");
                 user.setCollege(request.college() != null ? request.college().trim() : null);
                 user.setDepartment(request.department() != null ? request.department().trim() : null);
