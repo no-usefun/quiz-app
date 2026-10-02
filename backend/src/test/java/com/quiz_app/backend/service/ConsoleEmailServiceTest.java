@@ -9,9 +9,8 @@ class ConsoleEmailServiceTest {
     void sendVerificationEmail_shouldCompleteWithoutThrowing() {
         ConsoleEmailService service = new ConsoleEmailService();
 
-        assertDoesNotThrow(() ->
-                service.sendVerificationEmail(
-                        "user@example.com",
-                        "verification-token"));
+        assertDoesNotThrow(() -> service.sendVerificationEmail(
+                "user@example.com",
+                "verification-token"));
     }
 }

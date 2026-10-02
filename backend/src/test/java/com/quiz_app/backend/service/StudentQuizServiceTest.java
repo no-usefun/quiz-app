@@ -19,18 +19,21 @@ import com.quiz_app.backend.entity.Question;
 import com.quiz_app.backend.entity.QuestionType;
 import com.quiz_app.backend.entity.Quiz;
 import com.quiz_app.backend.entity.QuizStatus;
+import com.quiz_app.backend.exception.BadRequestException;
+import com.quiz_app.backend.exception.ResourceNotFoundException;
 import com.quiz_app.backend.repository.OptionRepository;
 import com.quiz_app.backend.repository.QuestionRepository;
 import com.quiz_app.backend.repository.QuizRepository;
-import com.quiz_app.backend.exception.BadRequestException;
-import com.quiz_app.backend.exception.ResourceNotFoundException;
 
 @ExtendWith(MockitoExtension.class)
 class StudentQuizServiceTest {
 
-    @Mock private QuizRepository quizRepository;
-    @Mock private QuestionRepository questionRepository;
-    @Mock private OptionRepository optionRepository;
+    @Mock
+    private QuizRepository quizRepository;
+    @Mock
+    private QuestionRepository questionRepository;
+    @Mock
+    private OptionRepository optionRepository;
 
     @Test
     void getQuizPackage_shouldBuildPublishedPackage() {
@@ -81,7 +84,7 @@ class StudentQuizServiceTest {
         assertEquals("Java Test", response.title());
         assertEquals(1, response.questions().size());
         assertEquals(1, response.questions().get(0).options().size());
-        assertEquals(101L, response.questions().get(0).options().get(0).id());
+        assertEquals(101L, response.questions().get(0).options().get(0).optionId());
         verify(optionRepository).findByQuestionIdOrderByOptionOrder(100L);
     }
 
