@@ -1,8 +1,11 @@
 "use client";
 
 import { use, useEffect, useState } from "react";
+
 import Link from "next/link";
+
 import { motion } from "framer-motion";
+
 import {
   ArrowLeft,
   Clock,
@@ -14,39 +17,38 @@ import {
   Lock,
   FileQuestion,
 } from "lucide-react";
+
 import { Logo } from "@/components/Logo";
+
+import { ApiClientError, api } from "@/lib/api/client";
+
 import { ENDPOINTS } from "@/lib/api/endpoints";
 
-type AttemptResult = {
-  attemptId: number | string;
-  quizId: number | string;
-  quizTitle: string;
-  status: string;
-  finalScore: number;
-  totalMarks: number;
-  percentage: number;
-  totalTimeTaken: number;
-  startedAt: string | null;
-  submittedAt: string | null;
-};
+import type {
+  AttemptResultResponse,
+  AttemptResultDetailResponse,
+} from "@/lib/types";
 
-type ResultDetail = {
-  questionId: number | string;
-  questionText: string;
-  displayOrder: number;
-  selectedOptionIds: Array<number | string>;
-  correctOptionIds: Array<number | string>;
-  answerStatus?: string;
-  correct: boolean;
-  marksAwarded: number;
-  questionMarks: number;
-  responseTimeSeconds: number | null;
-};
+type AttemptResult = AttemptResultResponse;
+type ResultDetail = AttemptResultDetailResponse;
+
+function getErrorMessage(error: unknown, fallback: string): string {
+  if (error instanceof ApiClientError) {
+    return error.message || fallback;
+  }
+
+  if (error instanceof Error) {
+    return error.message || fallback;
+  }
+
+  return fallback;
+}
 
 function formatTime(seconds: number) {
   const safe = Math.max(0, Number(seconds) || 0);
   const minutes = Math.floor(safe / 60);
   const secs = safe % 60;
+
   return `${minutes}m ${secs}s`;
 }
 
@@ -67,16 +69,21 @@ function formatDateTime(value: string | null) {
 
 function formatNumber(value: unknown, fallback = 0): number {
   const n = Number(value);
+
   return Number.isFinite(n) ? n : fallback;
 }
 
 function formatDisplayNumber(value: unknown): string {
   const n = formatNumber(value);
+
   return Number.isInteger(n) ? String(n) : n.toFixed(2);
 }
 
 function formatOptionIds(ids: Array<number | string> | undefined) {
-  if (!ids || ids.length === 0) return "Not answered";
+  if (!ids || ids.length === 0) {
+    return "Not answered";
+  }
+
   return ids.join(", ");
 }
 
@@ -102,6 +109,7 @@ function ScoreRing({ score }: { score: number }) {
         stroke="#e5e7eb"
         strokeWidth="12"
       />
+
       <circle
         cx="100"
         cy="100"
@@ -127,11 +135,17 @@ export default function StudentResultPage({
   const { testCode } = use(params);
 
   const [result, setResult] = useState<AttemptResult | null>(null);
+
   const [details, setDetails] = useState<ResultDetail[]>([]);
+
   const [detailsAvailable, setDetailsAvailable] = useState(false);
+
   const [loading, setLoading] = useState(true);
+
   const [mounted, setMounted] = useState(false);
+
   const [pendingRelease, setPendingRelease] = useState(false);
+
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -144,6 +158,8 @@ export default function StudentResultPage({
 
       if (!/^\d+$/.test(attemptId)) {
         setResult(null);
+        setDetails([]);
+        setDetailsAvailable(false);
         setPendingRelease(false);
         setError("The result URL must contain a valid attempt ID.");
         setLoading(false);
@@ -151,123 +167,56 @@ export default function StudentResultPage({
       }
 
       try {
-        const token = localStorage.getItem("dynoquizz_token");
-
-        if (!token) {
-          throw new Error(
-            "Your student session has expired. Please log in again.",
-          );
-        }
-
-        const headers = {
-          Authorization: `Bearer ${token}`,
-          "Content-Type": "application/json",
-        };
-
-        const resultRes = await fetch(
+        const resultData = await api.get<AttemptResultResponse>(
           ENDPOINTS.student.attemptResult(attemptId),
-          {
-            method: "GET",
-            headers,
-            cache: "no-store",
-          },
         );
 
-        const rawText = await resultRes.text();
-
-        let body: any = null;
-        try {
-          body = JSON.parse(rawText);
-        } catch {
-          body = null;
-        }
-
-        if (!resultRes.ok) {
-          const code = String(body?.code ?? "").toUpperCase();
-          const message = String(
-            body?.message ?? body?.error ?? rawText ?? "",
-          ).toLowerCase();
-
-          const isPending =
-            resultRes.status === 400 &&
-            (code === "RESULTS_NOT_PUBLISHED" ||
-              message.includes("results have not been published") ||
-              message.includes("not been published") ||
-              message.includes("not published"));
-
-          if (isPending) {
-            if (!cancelled) {
-              setResult(null);
-              setDetails([]);
-              setDetailsAvailable(false);
-              setPendingRelease(true);
-              setError(null);
-            }
-            return;
-          }
-
-          throw new Error(
-            body?.message ||
-              body?.error ||
-              `Unable to load the assessment result (${resultRes.status}).`,
-          );
-        }
-
-        if (!body) {
+        if (!resultData) {
           throw new Error("The server returned an invalid result response.");
         }
 
         const normalized: AttemptResult = {
-          attemptId: body.attemptId ?? attemptId,
-          quizId: body.quizId,
-          quizTitle: String(body.quizTitle ?? "Assessment Results"),
-          status: String(body.status ?? "SUBMITTED").toUpperCase(),
-          finalScore: formatNumber(body.finalScore),
-          totalMarks: formatNumber(body.totalMarks),
+          ...resultData,
+          attemptId: Number(resultData.attemptId),
+          quizId: Number(resultData.quizId),
+          quizTitle: String(resultData.quizTitle ?? "Assessment Results"),
+          status: String(
+            resultData.status ?? "SUBMITTED",
+          ).toUpperCase() as AttemptResult["status"],
+          finalScore: formatNumber(resultData.finalScore),
+          totalMarks: formatNumber(resultData.totalMarks),
           percentage: formatNumber(
-            body.percentage,
-            formatNumber(body.totalMarks) > 0
-              ? (formatNumber(body.finalScore) /
-                  formatNumber(body.totalMarks)) *
+            resultData.percentage,
+            formatNumber(resultData.totalMarks) > 0
+              ? (formatNumber(resultData.finalScore) /
+                  formatNumber(resultData.totalMarks)) *
                   100
               : 0,
           ),
-          totalTimeTaken: formatNumber(body.totalTimeTaken),
-          startedAt: body.startedAt ?? null,
-          submittedAt: body.submittedAt ?? null,
+          totalTimeTaken: formatNumber(resultData.totalTimeTaken),
+          startedAt: resultData.startedAt,
+          submittedAt: resultData.submittedAt,
         };
 
         let detailList: ResultDetail[] = [];
 
-        // The current AttemptResultResponse does not include resultVisibility.
-        // The details endpoint is the backend-authoritative way to determine
-        // whether question-wise results were released. A 400 here is expected
-        // when ResultVisibility is NONE or LEADERBOARD.
-        const detailsRes = await fetch(
-          ENDPOINTS.student.attemptResultDetails(attemptId),
-          {
-            method: "GET",
-            headers,
-            cache: "no-store",
-          },
-        );
+        try {
+          const detailData = await api.get<AttemptResultDetailResponse[]>(
+            ENDPOINTS.student.attemptResultDetails(attemptId),
+          );
 
-        if (detailsRes.ok) {
-          const detailsBody = await detailsRes.json().catch(() => null);
-
-          if (Array.isArray(detailsBody)) {
-            detailList = detailsBody.map((item: any) => ({
-              questionId: item.questionId,
+          if (Array.isArray(detailData)) {
+            detailList = detailData.map((item) => ({
+              ...item,
+              questionId: Number(item.questionId),
               questionText: String(item.questionText ?? ""),
               displayOrder: Number(item.displayOrder ?? 0),
               selectedOptionIds: Array.isArray(item.selectedOptionIds)
-                ? item.selectedOptionIds
+                ? item.selectedOptionIds.map(Number)
                 : [],
               correctOptionIds: Array.isArray(item.correctOptionIds)
-                ? item.correctOptionIds
+                ? item.correctOptionIds.map(Number)
                 : [],
-              answerStatus: item.answerStatus,
-              correct: item.correct === true,
               marksAwarded: formatNumber(item.marksAwarded),
               questionMarks: formatNumber(item.questionMarks),
               responseTimeSeconds:
@@ -276,6 +225,18 @@ export default function StudentResultPage({
                   : null,
             }));
           }
+        } catch (detailsError) {
+          if (
+            detailsError instanceof ApiClientError &&
+            detailsError.status === 401
+          ) {
+            throw detailsError;
+          }
+
+          console.info(
+            "[Student Result] Question-wise details unavailable:",
+            detailsError,
+          );
         }
 
         if (!cancelled) {
@@ -285,17 +246,47 @@ export default function StudentResultPage({
           setPendingRelease(false);
           setError(null);
         }
-      } catch (err: any) {
-        if (cancelled) return;
+      } catch (error) {
+        if (cancelled) {
+          return;
+        }
 
-        console.error("[Student Result] Result lookup error:", err);
+        console.error("[Student Result] Result lookup error:", error);
+
+        if (error instanceof ApiClientError && error.status === 401) {
+          setResult(null);
+          setDetails([]);
+          setDetailsAvailable(false);
+          setPendingRelease(false);
+          setError("Your student session has expired. Please log in again.");
+          setLoading(false);
+          return;
+        }
+
+        if (
+          error instanceof ApiClientError &&
+          error.status === 400 &&
+          String(error.errorCode || "").toUpperCase() ===
+            "RESULTS_NOT_PUBLISHED"
+        ) {
+          setResult(null);
+          setDetails([]);
+          setDetailsAvailable(false);
+          setPendingRelease(true);
+          setError(null);
+          setLoading(false);
+          return;
+        }
+
         setResult(null);
         setDetails([]);
         setDetailsAvailable(false);
         setPendingRelease(false);
         setError(
-          err?.message ||
+          getErrorMessage(
+            error,
             "We couldn't retrieve this assessment result from the server.",
+          ),
         );
       } finally {
         if (!cancelled) {
@@ -312,7 +303,9 @@ export default function StudentResultPage({
   }, [testCode]);
 
   const correctCount = details.filter((detail) => detail.correct).length;
+
   const totalQuestions = details.length;
+
   const accuracy =
     totalQuestions > 0
       ? Math.round((correctCount / totalQuestions) * 100)
@@ -372,7 +365,10 @@ export default function StudentResultPage({
         <motion.div
           initial={mounted ? { opacity: 0, y: 8 } : false}
           animate={mounted ? { opacity: 1, y: 0 } : false}
-          transition={{ duration: 0.25, ease: "easeOut" }}
+          transition={{
+            duration: 0.25,
+            ease: "easeOut",
+          }}
           className="w-full max-w-md rounded-[14px] bg-white p-8 text-center border border-[#d1dee8]/70 shadow-sm space-y-5"
         >
           <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-[#fbeee8] border border-[#8c381c]/30 text-[#8c381c] shadow-xs">
@@ -397,6 +393,7 @@ export default function StudentResultPage({
           <div className="rounded-[10px] bg-[#f5f5f4] border border-[#d1dee8]/80 p-3.5 text-xs space-y-1.5 font-medium text-[#78716b] shadow-xs">
             <div className="flex justify-between gap-3">
               <span>Attempt ID:</span>
+
               <strong className="font-mono text-[#111111]">{testCode}</strong>
             </div>
           </div>
@@ -419,6 +416,7 @@ export default function StudentResultPage({
 
   const percentage = result.percentage;
   const canRevealSolutions = detailsAvailable;
+
   const gc = {
     text: "text-[#1d5237]",
     bg: "bg-[#e2ede8]",
@@ -436,7 +434,9 @@ export default function StudentResultPage({
             <ArrowLeft className="h-3.5 w-3.5" />
             Dashboard
           </Link>
+
           <span className="text-[#d1dee8]">|</span>
+
           <Logo />
         </div>
 

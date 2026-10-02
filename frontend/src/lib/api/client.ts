@@ -170,6 +170,14 @@ export async function apiRequest<T = unknown>(
           ? data
           : `Request failed with status ${response.status}`);
 
+  if (response.status === 401 && typeof window !== "undefined") {
+    localStorage.removeItem("dynoquizz_token");
+    localStorage.removeItem("token");
+
+    document.cookie =
+      "dynoquizz_token=; expires=Thu, 01 Jan 1970 00:00:00 GMT; path=/;";
+  }
+
   throw new ApiClientError(response.status, message, errorCode, data);
 }
 

@@ -60,8 +60,7 @@ export async function POST(request: Request) {
   const password = typeof body.password === "string" ? body.password : "";
 
   const requestedRole =
-    typeof body.role === "string" ? body.role.trim().toUpperCase() : "STUDENT";
-
+    typeof body.role === "string" ? body.role.trim().toUpperCase() : "";
   if (!firstName || !email || !password) {
     return NextResponse.json(
       {
@@ -105,9 +104,8 @@ export async function POST(request: Request) {
      *     user
      *   }
      *
-     * It does NOT return a JWT because email verification is required
-     * before login. Therefore this route must never generate a token or
-     * create an authenticated cookie.
+     * Signup does not return a JWT, so this route must never generate
+     * a token or create an authenticated cookie.
      */
     const backendResponse = await fetch(`${API_BASE}/api/v1/auth/signup`, {
       method: "POST",
@@ -159,7 +157,9 @@ export async function POST(request: Request) {
         success: true,
         message:
           data?.message ||
-          "Account created. Please verify your email before logging in.",
+          (data?.verificationRequired === true
+            ? "Account created. Please verify your email before logging in."
+            : "Account created successfully. You can now log in."),
         verificationRequired: data?.verificationRequired === true,
         user: data?.user ?? null,
         role: data?.user?.role

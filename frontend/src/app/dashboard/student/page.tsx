@@ -11,26 +11,19 @@ import {
   Lock,
   CheckCircle2,
 } from "lucide-react";
+
 import { TopNav } from "@/components/TopNav";
 import { useSession } from "@/hooks/useSession";
+import { ApiClientError, api } from "@/lib/api/client";
 import { ENDPOINTS } from "@/lib/api/endpoints";
+import type { StudentSubmissionResponse } from "@/lib/types";
 
-type Submission = {
-  attemptId: number | string;
-  quizId: number | string;
-  quizTitle: string;
-  status: string;
-  finalScore: number | null;
-  totalMarks: number | null;
-  percentage: number | null;
-  totalTimeTaken: number | null;
-  startedAt: string | null;
-  submittedAt: string | null;
-  resultsAvailable: boolean;
-};
+type Submission = StudentSubmissionResponse;
 
-function formatDate(value: string | null): string {
-  if (!value) return "Recently";
+function formatDate(value: string | null | undefined): string {
+  if (!value) {
+    return "Recently";
+  }
 
   const date = new Date(value);
 
@@ -44,45 +37,67 @@ function formatDate(value: string | null): string {
   });
 }
 
-function formatPercentage(value: number | null): string | null {
-  if (value == null || !Number.isFinite(value)) return null;
-  return Number.isInteger(value) ? String(value) : value.toFixed(2);
+function formatPercentage(value: number | null | undefined): string | null {
+  if (value == null || !Number.isFinite(Number(value))) {
+    return null;
+  }
+
+  const numericValue = Number(value);
+
+  return Number.isInteger(numericValue)
+    ? String(numericValue)
+    : numericValue.toFixed(2);
 }
 
-function normalizeSubmission(item: any): Submission | null {
-  const attemptId = item?.attemptId ?? item?.id;
-  const quizId = item?.quizId;
+function formatDuration(seconds: number | null | undefined): string {
+  if (seconds == null || !Number.isFinite(Number(seconds))) {
+    return "Time unavailable";
+  }
 
-  if (attemptId == null || quizId == null) {
+  const safeSeconds = Math.max(0, Math.floor(Number(seconds)));
+
+  const minutes = Math.floor(safeSeconds / 60);
+  const remainingSeconds = safeSeconds % 60;
+
+  return `${minutes}m ${remainingSeconds}s`;
+}
+
+function normalizeSubmission(
+  item: StudentSubmissionResponse,
+): Submission | null {
+  if (item?.attemptId == null || item?.quizId == null) {
     return null;
   }
 
   return {
-    attemptId,
-    quizId,
-    quizTitle: String(
-      item?.quizTitle ?? item?.quizName ?? item?.title ?? "Assessment Session",
-    ),
-    status: String(item?.status ?? "SUBMITTED").toUpperCase(),
-    finalScore: item?.finalScore != null ? Number(item.finalScore) : null,
-    totalMarks: item?.totalMarks != null ? Number(item.totalMarks) : null,
-    percentage: item?.percentage != null ? Number(item.percentage) : null,
+    attemptId: Number(item.attemptId),
+    quizId: Number(item.quizId),
+    quizTitle: String(item.quizTitle || "Assessment Session"),
+    status: item.status,
+    finalScore: item.finalScore != null ? Number(item.finalScore) : null,
+    totalMarks: item.totalMarks != null ? Number(item.totalMarks) : null,
+    percentage: item.percentage != null ? Number(item.percentage) : null,
     totalTimeTaken:
-      item?.totalTimeTaken != null ? Number(item.totalTimeTaken) : null,
-    startedAt: item?.startedAt ?? null,
-    submittedAt: item?.submittedAt ?? null,
-    resultsAvailable: item?.resultsAvailable === true,
+      item.totalTimeTaken != null ? Number(item.totalTimeTaken) : null,
+    startedAt: item.startedAt ?? null,
+    submittedAt: item.submittedAt ?? null,
+    resultsAvailable: item.resultsAvailable === true,
   };
 }
 
 export default function StudentDashboard() {
   const { user, loading: sessionLoading } = useSession();
+
   const [results, setResults] = useState<Submission[]>([]);
+
   const [loading, setLoading] = useState(true);
+
   const [fetchError, setFetchError] = useState<string | null>(null);
 
   useEffect(() => {
-    if (sessionLoading) return;
+    if (sessionLoading) {
+      return;
+    }
 
     let cancelled = false;
 
@@ -91,62 +106,42 @@ export default function StudentDashboard() {
       setFetchError(null);
 
       try {
-        const token = localStorage.getItem("dynoquizz_token");
+        const data = await api.get<StudentSubmissionResponse[]>(
+          ENDPOINTS.student.submissions,
+        );
 
-        if (!token) {
-          if (!cancelled) {
-            setResults([]);
-            setLoading(false);
-          }
+        if (cancelled) {
           return;
         }
 
-        const res = await fetch(ENDPOINTS.student.submissions, {
-          method: "GET",
-          headers: {
-            Authorization: `Bearer ${token}`,
-            "Content-Type": "application/json",
-          },
-          cache: "no-store",
-        });
-
-        if (!res.ok) {
-          const body = await res.json().catch(() => ({}));
-          throw new Error(
-            body?.message ||
-              body?.error ||
-              `Unable to load submission history (${res.status}).`,
-          );
-        }
-
-        const data = await res.json();
-
-        const backendList: any[] = Array.isArray(data)
-          ? data
-          : Array.isArray(data?.content)
-            ? data.content
-            : Array.isArray(data?.submissions)
-              ? data.submissions
-              : Array.isArray(data?.data)
-                ? data.data
-                : [];
+        const backendList = Array.isArray(data) ? data : [];
 
         const normalizedResults = backendList
           .map(normalizeSubmission)
           .filter((item): item is Submission => item !== null);
 
-        if (!cancelled) {
-          setResults(normalizedResults);
-          setFetchError(null);
+        setResults(normalizedResults);
+        setFetchError(null);
+      } catch (error) {
+        if (cancelled) {
+          return;
         }
-      } catch (error: any) {
-        if (cancelled) return;
 
         console.error("Failed to load student submissions:", error);
+
+        if (error instanceof ApiClientError && error.status === 401) {
+          setResults([]);
+          setFetchError(
+            "Your student session has expired. Please log in again.",
+          );
+          return;
+        }
+
         setResults([]);
         setFetchError(
-          error?.message ||
-            "A network error occurred while loading your submission history.",
+          error instanceof Error
+            ? error.message
+            : "A network error occurred while loading your submission history.",
         );
       } finally {
         if (!cancelled) {
@@ -348,6 +343,7 @@ export default function StudentDashboard() {
               ) : (
                 results.map((result) => {
                   const score = formatPercentage(result.percentage);
+
                   const dateLabel = formatDate(result.submittedAt);
 
                   if (result.resultsAvailable) {
@@ -370,9 +366,7 @@ export default function StudentDashboard() {
 
                               <span className="flex items-center gap-1">
                                 <Clock className="h-3 w-3 text-[#a8a29d]" />
-                                {result.totalTimeTaken != null
-                                  ? `${Math.floor(result.totalTimeTaken / 60)}m ${result.totalTimeTaken % 60}s`
-                                  : "Time unavailable"}
+                                {formatDuration(result.totalTimeTaken)}
                               </span>
                             </div>
                           </div>
@@ -417,9 +411,7 @@ export default function StudentDashboard() {
 
                             <span className="flex items-center gap-1">
                               <Clock className="h-3 w-3 text-[#c9c5c2]" />
-                              {result.totalTimeTaken != null
-                                ? `${Math.floor(result.totalTimeTaken / 60)}m ${result.totalTimeTaken % 60}s`
-                                : "Time unavailable"}
+                              {formatDuration(result.totalTimeTaken)}
                             </span>
                           </div>
                         </div>

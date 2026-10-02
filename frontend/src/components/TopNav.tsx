@@ -45,7 +45,6 @@ export function TopNavbar({ role: propRole }: TopNavbarProps = {}) {
             <AppWordmark size="default" />{" "}
           </Link>{" "}
         </div>
-        ```
         <nav className="hidden items-center space-x-1.5 md:flex">
           {isTeacher ? (
             <>

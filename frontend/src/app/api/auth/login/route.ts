@@ -17,7 +17,11 @@ function getErrorMessage(data: any): string {
 }
 
 export async function POST(request: Request) {
-  let body: { email?: unknown; password?: unknown };
+  let body: {
+    email?: unknown;
+    password?: unknown;
+    role?: unknown;
+  };
 
   try {
     body = await request.json();
@@ -33,12 +37,24 @@ export async function POST(request: Request) {
 
   const email = typeof body.email === "string" ? body.email.trim() : "";
   const password = typeof body.password === "string" ? body.password : "";
+  const requestedRole =
+    typeof body.role === "string" ? body.role.trim().toUpperCase() : "";
 
-  if (!email || !password) {
+  if (!email || !password || !requestedRole) {
     return NextResponse.json(
       {
         success: false,
-        error: "Email and password are required.",
+        error: "Email, password, and role are required.",
+      },
+      { status: 400 },
+    );
+  }
+
+  if (requestedRole !== "STUDENT" && requestedRole !== "TEACHER") {
+    return NextResponse.json(
+      {
+        success: false,
+        error: "Role must be STUDENT or TEACHER.",
       },
       { status: 400 },
     );
@@ -50,7 +66,7 @@ export async function POST(request: Request) {
      *
      * Spring Boot owns:
      * - credential validation;
-     * - email verification;
+     * - requested-role validation;
      * - account status;
      * - JWT generation;
      * - authenticated user/role.
@@ -66,6 +82,7 @@ export async function POST(request: Request) {
       body: JSON.stringify({
         email,
         password,
+        role: requestedRole,
       }),
       cache: "no-store",
     });
@@ -102,6 +119,18 @@ export async function POST(request: Request) {
     const role =
       typeof user?.role === "string" ? user.role.toUpperCase() : undefined;
 
+    if (role !== requestedRole) {
+      return NextResponse.json(
+        {
+          success: false,
+          error:
+            "Authenticated account role does not match the requested role.",
+          message: "Please use the correct login role for this account.",
+        },
+        { status: 403 },
+      );
+    }
+
     /*
      * AuthResponse.expiresIn is returned by the backend in milliseconds.
      * Convert it to cookie max-age seconds, with a safe one-day fallback.
@@ -126,11 +155,11 @@ export async function POST(request: Request) {
     );
 
     /*
-     * Keep the cookie readable because the current route-protection proxy
-     * and browser session helpers use dynoquizz_token.
+     * Keep the cookie available for the current route-protection/session
+     * compatibility layer.
      *
-     * The token itself is still created and cryptographically signed only
-     * by Spring Boot.
+     * The JWT is still created and cryptographically signed only by Spring
+     * Boot. The frontend never signs or verifies it with a secret.
      */
     response.cookies.set("dynoquizz_token", token, {
       httpOnly: false,

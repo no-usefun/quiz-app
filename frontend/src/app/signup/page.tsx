@@ -170,7 +170,7 @@ function SignupContent() {
     setLoading(true);
 
     try {
-      // Backend SignupRequest does not contain a role field.
+      // Backend SignupRequest includes role and validates STUDENT/TEACHER.
       const res = await fetch(ENDPOINTS.auth.signup, {
         method: "POST",
         headers: {
@@ -194,18 +194,24 @@ function SignupContent() {
       const data = await res.json().catch(() => ({}));
 
       if (res.ok) {
-        // Current backend requires email verification before password login.
+        const verificationRequired = data?.verificationRequired === true;
+
         setSuccess(
-          data.message ||
-            "Account created. Please verify your email before logging in.",
+          verificationRequired
+            ? data?.message ||
+                "Account created. Please verify your email before logging in."
+            : data?.message ||
+                "Account created successfully. You can now log in.",
         );
         setError("");
 
         // Signup does not return an authenticated JWT.
         if (typeof window !== "undefined") {
           localStorage.removeItem("dynoquizz_token");
+          localStorage.removeItem("token");
           localStorage.removeItem("dynoquizz_user");
           localStorage.removeItem("dynoquizz_role");
+
           const normalizedRegistrationNo = registrationNo.trim().toUpperCase();
 
           if (normalizedRegistrationNo) {
@@ -662,7 +668,7 @@ function SignupContent() {
             disabled={
               loading || !isPasswordValid || !passwordsMatch || !!success
             }
-            className="w-full rounded-lg bg-gradient-to-b from-neutral-800 to-neutral-900 py-3 px-4 text-sm font-semibold text-white shadow-sm transition-all hover:from-neutral-900 hover:to-black hover:shadow-md active:scale-[0.99] disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-neutral-900 focus-visible:ring-offset-2 cursor-pointer border-0 mt-5"
+            className="w-full rounded-lg bg-linear-to-b from-neutral-800 to-neutral-900 py-3 px-4 text-sm font-semibold text-white shadow-sm transition-all hover:from-neutral-900 hover:to-black hover:shadow-md active:scale-[0.99] disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-neutral-900 focus-visible:ring-offset-2 cursor-pointer border-0 mt-5"
           >
             {loading ? (
               <span className="inline-flex items-center justify-center gap-2">

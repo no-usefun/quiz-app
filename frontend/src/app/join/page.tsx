@@ -1,5 +1,7 @@
 "use client";
+
 // join/page.tsx
+
 import { useState, useEffect, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
@@ -14,27 +16,9 @@ import {
   Loader2,
 } from "lucide-react";
 
-const API_BASE = (
-  process.env.NEXT_PUBLIC_API_URL || "http://localhost:8080"
-).replace(/\/+$/, "");
-
-function getClientAuthToken(): string | null {
-  if (typeof window === "undefined") return null;
-  let token = localStorage.getItem("dynoquizz_token");
-  if (!token) {
-    const match = document.cookie.match(/(?:^|;\s*)dynoquizz_token=([^;]+)/);
-    if (match) {
-      token = match[1];
-      try {
-        localStorage.setItem("dynoquizz_token", token);
-      } catch {
-        // ignore
-      }
-    }
-  }
-  if (token) return token;
-  return null;
-}
+import { ApiClientError, api, getAuthToken } from "@/lib/api/client";
+import { ENDPOINTS } from "@/lib/api/endpoints";
+import type { QuizAvailabilityResponse } from "@/lib/types";
 
 function JoinForm() {
   const router = useRouter();
@@ -50,27 +34,42 @@ function JoinForm() {
     if (queryCode) {
       setTestCode(queryCode.toUpperCase());
     }
+
     if (typeof window !== "undefined") {
-      const token = getClientAuthToken();
+      const token = getAuthToken();
+
       if (!token) {
         router.push(
-          `/login?role=student&redirect=/join${queryCode ? `?code=${queryCode}` : ""}`,
+          `/login?role=student&redirect=/join${
+            queryCode ? `?code=${encodeURIComponent(queryCode)}` : ""
+          }`,
         );
         return;
       }
-      let userObj: any = null;
+
       try {
-        const rawUser = localStorage.getItem("dynoquizz_user");
-        if (rawUser) userObj = JSON.parse(rawUser);
-      } catch {}
-      const stored =
-        userObj?.registrationNo || localStorage.getItem("dynoquizz_regNo");
-      if (stored) setRegistrationNo(stored);
+        const storedUser = JSON.parse(
+          localStorage.getItem("dynoquizz_user") || "{}",
+        );
+
+        const storedRegistration =
+          storedUser?.registrationNo ||
+          localStorage.getItem("dynoquizz_regNo") ||
+          sessionStorage.getItem("dynoquizz_student_reg") ||
+          "";
+
+        if (storedRegistration) {
+          setRegistrationNo(String(storedRegistration).toUpperCase());
+        }
+      } catch {
+        // Ignore malformed cached user data.
+      }
     }
   }, [queryCode, router]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+
     const cleanCode = testCode.trim().toUpperCase();
     const cleanReg = registrationNo.trim().toUpperCase();
 
@@ -84,97 +83,129 @@ function JoinForm() {
       return;
     }
 
+    const token = getAuthToken();
+
+    if (!token) {
+      router.push(
+        `/login?role=student&redirect=/join${
+          cleanCode ? `?code=${encodeURIComponent(cleanCode)}` : ""
+        }`,
+      );
+      return;
+    }
+
     setLoading(true);
     setError(null);
 
     try {
-      const token = localStorage.getItem("dynoquizz_token");
+      /*
+       * The backend identifies the student from the authenticated JWT.
+       * The registration number entered here is only a local confirmation;
+       * eligibility/whitelist enforcement happens later in startAttempt.
+       */
+      const storedUser = JSON.parse(
+        localStorage.getItem("dynoquizz_user") || "{}",
+      );
 
-      const availabilityUrl = `${API_BASE}/api/v1/student/quizzes/${encodeURIComponent(cleanCode)}/availability`;
+      const accountRegistration =
+        storedUser?.registrationNo ||
+        localStorage.getItem("dynoquizz_regNo") ||
+        sessionStorage.getItem("dynoquizz_student_reg") ||
+        "";
 
-      // Student API contract: check quiz availability before entering the assessment.
-      // The backend keeps the student-facing endpoint under /api/v1/student.
-      const res = await fetch(availabilityUrl, {
-        method: "GET",
-        headers: {
-          ...(token ? { Authorization: `Bearer ${token}` } : {}),
-          "Content-Type": "application/json",
-        },
-        cache: "no-store",
-      });
-
-      if (res.status === 404) {
+      if (
+        accountRegistration &&
+        String(accountRegistration).trim().toUpperCase() !== cleanReg
+      ) {
         setError(
-          `Assessment session code "${cleanCode}" was not found or is not available.`,
+          "The registration number does not match the registration number linked to your account.",
         );
-        setLoading(false);
         return;
       }
 
-      if (!res.ok) {
-        const bodyText = await res.text().catch(() => "(unreadable body)");
-        let bodyJson: any = null;
-        try {
-          bodyJson = JSON.parse(bodyText);
-        } catch {
-          /* not JSON */
-        }
-        const serverMsg =
-          bodyJson?.message || bodyJson?.error || bodyText.slice(0, 200);
+      localStorage.setItem("dynoquizz_regNo", cleanReg);
+      sessionStorage.setItem("dynoquizz_student_reg", cleanReg);
 
-        if (
-          typeof serverMsg === "string" &&
-          serverMsg.toLowerCase().includes("not available to students")
-        ) {
+      /*
+       * Availability is authoritative on the backend.
+       *
+       * The endpoint returns HTTP 200 with a typed status:
+       * NOT_FOUND, NOT_PUBLISHED, NOT_STARTED, LIVE, or ENDED.
+       */
+      const availability = await api.get<QuizAvailabilityResponse>(
+        ENDPOINTS.student.availability(cleanCode),
+      );
+
+      switch (availability.status) {
+        case "NOT_FOUND":
+          setError(
+            `Assessment session code "${cleanCode}" was not found or is not available.`,
+          );
+          return;
+
+        case "NOT_PUBLISHED":
           setError(
             "This assessment is not open yet. Ask your teacher to publish it.",
           );
-          setLoading(false);
+          return;
+
+        case "NOT_STARTED":
+          setError(
+            availability.startTime
+              ? `This assessment has not started yet. It starts at ${formatStartTime(
+                  availability.startTime,
+                )}.`
+              : "This assessment has not started yet.",
+          );
+          return;
+
+        case "ENDED":
+          setError("This assessment has already ended.");
+          return;
+
+        case "LIVE":
+          if (availability.available !== true) {
+            setError("This assessment is not currently available.");
+            return;
+          }
+          break;
+
+        default:
+          setError("The assessment availability could not be determined.");
+          return;
+      }
+
+      router.push(`/test/${encodeURIComponent(cleanCode)}/lobby`);
+    } catch (err) {
+      console.error("Join validation error:", err);
+
+      if (err instanceof ApiClientError) {
+        if (err.status === 401) {
+          router.push(
+            `/login?role=student&redirect=/join?code=${encodeURIComponent(
+              cleanCode,
+            )}`,
+          );
           return;
         }
 
-        if (
-          res.status === 409 &&
-          (bodyJson?.error === "QUIZ_NOT_ACTIVE" ||
-            (typeof serverMsg === "string" &&
-              serverMsg.includes("QUIZ_NOT_ACTIVE")))
-        ) {
-          setError("This assessment is not open right now.");
-          setLoading(false);
+        if (err.status === 403) {
+          setError("You are not authorized to access this assessment.");
           return;
         }
 
-        setError(serverMsg || `Server returned status: ${res.status}`);
-        setLoading(false);
+        setError(
+          err.message ||
+            "Could not connect to the assessment server. Please try again.",
+        );
         return;
       }
 
-      // Save Student Registration info
-      if (typeof window !== "undefined") {
-        localStorage.setItem("dynoquizz_regNo", cleanReg);
-        sessionStorage.setItem("dynoquizz_student_reg", cleanReg);
-      }
-
-      // Availability is valid. The next page handles the attempt/lobby flow.
-      router.push(`/test/${cleanCode}/lobby`);
-    } catch (err: any) {
-      console.error("Join validation error:", err);
-      const msg = err.message || "";
-      if (
-        typeof msg === "string" &&
-        msg.toLowerCase().includes("not available to students")
-      ) {
-        setError(
-          "This assessment is not open yet. Ask your teacher to publish it.",
-        );
-      } else if (typeof msg === "string" && msg.includes("QUIZ_NOT_ACTIVE")) {
-        setError("This assessment is not open right now.");
-      } else {
-        setError(
-          msg ||
-            "An error occurred while connecting to the assessment server. Please check your network.",
-        );
-      }
+      setError(
+        err instanceof Error
+          ? err.message
+          : "An error occurred while connecting to the assessment server. Please check your network.",
+      );
     } finally {
       setLoading(false);
     }
@@ -186,10 +217,12 @@ function JoinForm() {
         <label className="text-[10px] font-bold uppercase tracking-wider text-steel-blue-gray block">
           Assessment Access Code
         </label>
+
         <div className="relative">
           <div className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3.5 text-steel-blue-gray/70">
             <KeyRound className="h-4 w-4" />
           </div>
+
           <input
             type="text"
             value={testCode}
@@ -203,6 +236,7 @@ function JoinForm() {
             required
           />
         </div>
+
         <p className="text-[10.5px] text-steel-blue-gray/80 font-medium pl-0.5">
           Provided by your instructor for this session
         </p>
@@ -212,10 +246,12 @@ function JoinForm() {
         <label className="text-[10px] font-bold uppercase tracking-wider text-steel-blue-gray block">
           Student Registration / Roll Number
         </label>
+
         <div className="relative">
           <div className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3.5 text-steel-blue-gray/70">
             <UserCheck className="h-4 w-4" />
           </div>
+
           <input
             type="text"
             value={registrationNo}
@@ -224,7 +260,7 @@ function JoinForm() {
               setError(null);
             }}
             placeholder="e.g. 21BCE1024"
-            maxLength={20}
+            maxLength={30}
             className="w-full rounded-[10px] border border-mist-blue/80 bg-frost-surface py-3 pl-10 pr-3 text-xs font-bold uppercase text-midnight-navy outline-none transition-all placeholder:text-steel-blue-gray/50 hover:border-mist-blue focus:border-signal-green focus:bg-white focus:ring-4 focus:ring-signal-green/15 shadow-xs"
             required
           />
@@ -237,6 +273,7 @@ function JoinForm() {
           className="flex items-start gap-2.5 rounded-[10px] border border-pastel-pink-text/25 bg-pastel-pink/20 p-3 text-left shadow-xs"
         >
           <AlertCircle className="h-4 w-4 shrink-0 mt-px text-pastel-pink-text" />
+
           <p className="text-xs font-bold leading-relaxed text-pastel-pink-text">
             {error}
           </p>
@@ -250,7 +287,8 @@ function JoinForm() {
       >
         {loading ? (
           <>
-            <Loader2 className="h-4 w-4 animate-spin" /> Checking Assessment...
+            <Loader2 className="h-4 w-4 animate-spin" />
+            Checking Assessment...
           </>
         ) : (
           <>
@@ -261,6 +299,19 @@ function JoinForm() {
       </button>
     </form>
   );
+}
+
+function formatStartTime(value: string): string {
+  const date = new Date(value);
+
+  if (Number.isNaN(date.getTime())) {
+    return value;
+  }
+
+  return date.toLocaleString("en-IN", {
+    dateStyle: "medium",
+    timeStyle: "short",
+  });
 }
 
 export default function JoinPage() {
@@ -307,16 +358,20 @@ export default function JoinPage() {
               aria-hidden
               className="absolute inset-0 rounded-2xl bg-signal-green/25 blur-lg animate-pulse"
             />
+
             <div className="relative flex h-14 w-14 items-center justify-center rounded-2xl bg-gradient-to-br from-signal-green to-[#0e7a53] text-white shadow-md shadow-signal-green/30 ring-1 ring-signal-green/20">
               <ShieldCheck className="h-6 w-6 text-white" />
             </div>
           </div>
+
           <span className="text-[10px] font-bold uppercase tracking-wider text-signal-green block mb-1.5">
             Student Gate
           </span>
+
           <h1 className="text-2xl font-extrabold tracking-tight text-midnight-navy">
             Join Assessment
           </h1>
+
           <p className="mt-1.5 max-w-xs text-xs text-steel-blue-gray leading-relaxed font-medium">
             Enter the test code provided by your instructor to begin identity
             verification.

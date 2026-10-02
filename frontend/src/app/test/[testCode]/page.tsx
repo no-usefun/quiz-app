@@ -1,44 +1,241 @@
 "use client";
+
 // frontend/src/app/test/[testCode]/page.tsx
-import { use, useState, useEffect, useRef } from "react";
+
+import { use, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { motion, AnimatePresence } from "framer-motion";
+import { AnimatePresence, motion } from "framer-motion";
 import {
-  Wifi,
-  WifiOff,
-  Clock,
+  AlertTriangle,
   CheckCircle2,
   ChevronRight,
+  Clock,
   ShieldCheck,
-  AlertTriangle,
+  Wifi,
+  WifiOff,
 } from "lucide-react";
+
 import { useProctoring } from "@/hooks/useProctoring";
+import { ApiClientError, api, getAuthToken } from "@/lib/api/client";
+import { ENDPOINTS } from "@/lib/api/endpoints";
+import type {
+  AttemptResponse,
+  QuizPackageResponse,
+  QuestionResponse,
+  SubmitAttemptResponse,
+} from "@/lib/types";
 
-const API_BASE = (
-  process.env.NEXT_PUBLIC_API_URL || "http://localhost:8080"
-).replace(/\/+$/, "");
+type AuthoritativeAttemptResponse = AttemptResponse & {
+  effectiveDeadline: string;
+};
 
-function getClientAuthToken(): string | null {
-  if (typeof window === "undefined") return null;
+type ActiveAnswerState = Record<number, number[]>;
 
-  let token = localStorage.getItem("dynoquizz_token");
+function formatRemainingTime(seconds: number): string {
+  const safe = Math.max(0, Math.floor(seconds));
+  const hours = Math.floor(safe / 3600);
+  const minutes = Math.floor((safe % 3600) / 60);
+  const secs = safe % 60;
 
-  if (!token) {
-    const match = document.cookie.match(/(?:^|;\s*)dynoquizz_token=([^;]+)/);
-    if (match) {
-      token = match[1];
-      try {
-        localStorage.setItem("dynoquizz_token", token);
-      } catch {
-        // ignore
-      }
+  if (hours > 0) {
+    return `${hours.toString().padStart(2, "0")}:${minutes
+      .toString()
+      .padStart(2, "0")}:${secs.toString().padStart(2, "0")}`;
+  }
+
+  return `${minutes.toString().padStart(2, "0")}:${secs
+    .toString()
+    .padStart(2, "0")}`;
+}
+
+function parseBackendDeadline(value: string): number {
+  /*
+   * Spring LocalDateTime is returned without an offset.
+   * Treat it as the browser's local wall-clock time. This matches the
+   * current India-focused backend/frontend contract.
+   */
+  const normalized = value.includes("T") ? value : value.replace(" ", "T");
+  const timestamp = new Date(normalized).getTime();
+
+  return Number.isFinite(timestamp) ? timestamp : NaN;
+}
+
+function getLoginRedirect(testCode: string): string {
+  return `/login?role=student&redirect=${encodeURIComponent(
+    `/test/${testCode}/lobby`,
+  )}`;
+}
+
+function getErrorMessage(error: unknown, fallback: string): string {
+  if (error instanceof ApiClientError) {
+    return error.message || fallback;
+  }
+
+  if (error instanceof Error) {
+    return error.message || fallback;
+  }
+
+  return fallback;
+}
+
+function normalizeAnswers(raw: unknown): ActiveAnswerState {
+  if (!raw || typeof raw !== "object") {
+    return {};
+  }
+
+  const result: ActiveAnswerState = {};
+
+  for (const [key, value] of Object.entries(raw as Record<string, unknown>)) {
+    const questionId = Number(key);
+
+    if (!Number.isFinite(questionId) || questionId <= 0) {
+      continue;
+    }
+
+    /*
+     * Current format is number[].
+     * Older frontend state could contain a single number, so normalize it.
+     */
+    if (Array.isArray(value)) {
+      const ids = value
+        .map(Number)
+        .filter((id) => Number.isFinite(id) && id > 0);
+
+      result[questionId] = [...new Set(ids)];
+      continue;
+    }
+
+    const legacyId = Number(value);
+
+    if (Number.isFinite(legacyId) && legacyId > 0) {
+      result[questionId] = [legacyId];
+    } else {
+      result[questionId] = [];
     }
   }
 
-  if (token) return token;
+  return result;
+}
 
-  return null;
+function normalizeTimeTaken(raw: unknown): Record<number, number> {
+  if (!raw || typeof raw !== "object") {
+    return {};
+  }
+
+  const result: Record<number, number> = {};
+
+  for (const [key, value] of Object.entries(raw as Record<string, unknown>)) {
+    const questionId = Number(key);
+    const seconds = Number(value);
+
+    if (
+      Number.isFinite(questionId) &&
+      questionId > 0 &&
+      Number.isFinite(seconds) &&
+      seconds >= 0
+    ) {
+      result[questionId] = Math.floor(seconds);
+    }
+  }
+
+  return result;
+}
+
+function persistAttemptState(
+  attemptId: string | null,
+  answers: ActiveAnswerState,
+  timeTaken: Record<number, number>,
+) {
+  if (typeof window === "undefined" || !attemptId) {
+    return;
+  }
+
+  try {
+    localStorage.setItem(
+      `dynoquizz_active_test_${attemptId}`,
+      JSON.stringify({
+        answers,
+        timeTaken,
+        lastUpdated: Date.now(),
+      }),
+    );
+  } catch {
+    // Ignore browser storage failures.
+  }
+}
+
+function saveAttemptTiming(attempt: AuthoritativeAttemptResponse) {
+  if (typeof window === "undefined") {
+    return;
+  }
+
+  const attemptId = String(attempt.attemptId);
+
+  localStorage.setItem("dynoquizz_attemptId", attemptId);
+  localStorage.setItem(`dynoquizz_attemptId_${attempt.quizId}`, attemptId);
+
+  localStorage.setItem(
+    `dynoquizz_attemptTiming_${attemptId}`,
+    JSON.stringify({
+      attemptId: attempt.attemptId,
+      quizId: attempt.quizId,
+      studentId: attempt.studentId,
+      startedAt: attempt.startedAt,
+      submittedAt: attempt.submittedAt ?? null,
+      status: attempt.status,
+      currentQuestion: attempt.currentQuestion ?? null,
+      totalTimeTaken: attempt.totalTimeTaken ?? null,
+      effectiveDeadline: attempt.effectiveDeadline,
+    }),
+  );
+}
+
+function cachePackage(testCode: string, packageData: QuizPackageResponse) {
+  if (typeof window === "undefined") {
+    return;
+  }
+
+  try {
+    sessionStorage.setItem(
+      `dynoquizz_pkg_${testCode}`,
+      JSON.stringify(packageData),
+    );
+  } catch {
+    // Ignore sessionStorage failures.
+  }
+}
+
+function readCachedPackage(testCode: string): QuizPackageResponse | null {
+  if (typeof window === "undefined") {
+    return null;
+  }
+
+  const key = `dynoquizz_pkg_${testCode}`;
+  const raw = sessionStorage.getItem(key);
+
+  if (!raw) {
+    return null;
+  }
+
+  try {
+    const parsed = JSON.parse(raw) as QuizPackageResponse;
+
+    if (
+      parsed &&
+      typeof parsed.quizId === "number" &&
+      Array.isArray(parsed.questions) &&
+      parsed.questions.length > 0
+    ) {
+      return parsed;
+    }
+
+    sessionStorage.removeItem(key);
+    return null;
+  } catch {
+    sessionStorage.removeItem(key);
+    return null;
+  }
 }
 
 export default function TestArenaPage({
@@ -49,26 +246,18 @@ export default function TestArenaPage({
   const { testCode } = use(params);
   const router = useRouter();
 
-  // Test data and question indexing
-  const [test, setTest] = useState<any>(null);
+  const cleanCode = String(testCode || "")
+    .trim()
+    .toUpperCase();
+
+  const [test, setTest] = useState<QuizPackageResponse | null>(null);
   const [isLoadingTest, setIsLoadingTest] = useState(true);
   const [testLoadError, setTestLoadError] = useState<string | null>(null);
 
-  /*
-   * Active attempt is the storage boundary for this assessment.
-   *
-   * quizCode is shared by every student, so quizCode-based localStorage
-   * keys can leak one student's answers/progress into another student's
-   * session on the same browser.
-   *
-   * The lobby creates the authoritative attempt and stores its ID before
-   * navigating here. All active exam state below is therefore scoped to
-   * that attempt ID.
-   */
   const [activeAttemptId] = useState<string | null>(() => {
-    if (typeof window === "undefined") return null;
-
-    const cleanCode = testCode.toUpperCase();
+    if (typeof window === "undefined") {
+      return null;
+    }
 
     return (
       localStorage.getItem(`dynoquizz_attemptId_${cleanCode}`) ||
@@ -77,276 +266,167 @@ export default function TestArenaPage({
   });
 
   const [currentIndex, setCurrentIndex] = useState(0);
-
-  const [selectedOption, setSelectedOption] = useState<number | null>(null);
-
-  // Track answers as questionId -> optionId
-  const [answers, setAnswers] = useState<Record<number, number | null>>({});
-
+  const [answers, setAnswers] = useState<ActiveAnswerState>({});
   const [timeTakenPerQuestion, setTimeTakenPerQuestion] = useState<
     Record<number, number>
   >({});
-
-  // Backend-authoritative absolute attempt deadline.
-  // The backend returns effectiveDeadline = min(startedAt + overallTimerSeconds, quiz.endTime).
   const [effectiveDeadline, setEffectiveDeadline] = useState<string | null>(
-    () => {
-      if (typeof window === "undefined") return null;
-
-      const cleanCode = testCode.toUpperCase();
-      const attemptId =
-        localStorage.getItem(`dynoquizz_attemptId_${cleanCode}`) ||
-        localStorage.getItem("dynoquizz_attemptId");
-
-      if (!attemptId) return null;
-
-      try {
-        const raw = localStorage.getItem(
-          `dynoquizz_attemptTiming_${attemptId}`,
-        );
-        if (!raw) return null;
-
-        const timing = JSON.parse(raw);
-        return typeof timing?.effectiveDeadline === "string"
-          ? timing.effectiveDeadline
-          : null;
-      } catch {
-        return null;
-      }
-    },
+    null,
   );
-
   const [timeLeft, setTimeLeft] = useState(0);
-  const [isSubmitted, setIsSubmitted] = useState(false);
-  const expiryHandledRef = useRef(false);
-  const questionElapsedRef = useRef(0);
 
-  /*
-   * Authoritative attempt ID returned by the backend after submission.
-   *
-   * IMPORTANT:
-   * testCode != quizId != attemptId
-   *
-   * The result page expects attemptId, so after successful submission
-   * we store the backend-returned attemptId here.
-   */
+  const [isSubmitted, setIsSubmitted] = useState(false);
   const [submittedAttemptId, setSubmittedAttemptId] = useState<string | null>(
     null,
   );
-
   const [mounted, setMounted] = useState(false);
   const [isOnline, setIsOnline] = useState(true);
-
-  const { flags } = useProctoring();
-
   const [saveStatus, setSaveStatus] = useState<"idle" | "saved">("idle");
   const [sessionExpired, setSessionExpired] = useState(false);
   const [deadlineNotice, setDeadlineNotice] = useState<string | null>(null);
   const [submissionNotice, setSubmissionNotice] = useState<string | null>(null);
 
-  /*
-   * Load the authoritative quiz package.
-   *
-   * The lobby downloads and caches the package before entering the Arena.
-   * The Arena therefore reads the cached package first and only falls back
-   * to the backend when the cache is missing or invalid.
-   */
+  const answersRef = useRef<ActiveAnswerState>({});
+  const timeTakenRef = useRef<Record<number, number>>({});
+  const currentIndexRef = useRef(0);
+  const currentQuestionRef = useRef<QuestionResponse | null>(null);
+  const expiryHandledRef = useRef(false);
+  const submissionInFlightRef = useRef(false);
+  const { flags } = useProctoring();
+
+  useEffect(() => {
+    answersRef.current = answers;
+  }, [answers]);
+
+  useEffect(() => {
+    timeTakenRef.current = timeTakenPerQuestion;
+  }, [timeTakenPerQuestion]);
+
+  useEffect(() => {
+    currentIndexRef.current = currentIndex;
+  }, [currentIndex]);
+
+  const questions = test?.questions ?? [];
+  const currentQuestion = questions[currentIndex] ?? null;
+
+  useEffect(() => {
+    currentQuestionRef.current = currentQuestion;
+  }, [currentQuestion]);
+
+  const progressPercentage =
+    questions.length > 0 ? ((currentIndex + 1) / questions.length) * 100 : 0;
+
   useEffect(() => {
     setMounted(true);
-    const cleanCode = testCode.toUpperCase();
+
+    if (!cleanCode) {
+      setTestLoadError("Assessment code is missing.");
+      setIsLoadingTest(false);
+      return;
+    }
+
+    const token = getAuthToken();
+
+    if (!token) {
+      router.replace(getLoginRedirect(cleanCode));
+      return;
+    }
 
     let cancelled = false;
 
-    const normalizePackage = (data: any) => {
-      const normalizedQuestions = (data.questions || []).map(
-        (q: any, qIdx: number) => ({
-          id: Number(q.questionId ?? q.id),
-          text: q.questionText || `Question ${qIdx + 1}`,
-          options: (q.options || []).map((opt: any) => ({
-            ...opt,
-            optionId: Number(opt.optionId ?? opt.id),
-            optionText: opt.optionText ?? opt.text ?? "",
-          })),
-          marks: q.marks || 4,
-          negativeMarks: q.negativeMarks || (data.negativeMarking ? 1 : 0),
-          questionTimerSeconds: q.questionTimerSeconds || 30,
-        }),
-      );
-
-      return {
-        testCode: cleanCode,
-        quizName: data.title || `Assessment ${cleanCode}`,
-        totalTimeLimitMinutes: Math.floor(
-          (data.overallTimerSeconds || 1800) / 60,
-        ),
-        settings: {
-          allowResume: data.allowResume ?? true,
-        },
-        questions: normalizedQuestions,
-      };
-    };
-
-    if (typeof window !== "undefined") {
-      const token = getClientAuthToken();
-
-      if (!token) {
-        router.push(`/login?role=student&redirect=/test/${cleanCode}`);
-        return;
-      }
-
-      /*
-       * Restore the timing returned by POST /attempts.
-       * Never calculate a new deadline from question count or questionTimerSeconds.
-       */
-      if (activeAttemptId) {
-        try {
-          const rawTiming = localStorage.getItem(
-            `dynoquizz_attemptTiming_${activeAttemptId}`,
-          );
-          const timing = rawTiming ? JSON.parse(rawTiming) : null;
-
-          if (typeof timing?.effectiveDeadline !== "string") {
-            throw new Error(
-              "The server did not return the authoritative attempt timing information.",
-            );
-          }
-
-          setEffectiveDeadline(timing.effectiveDeadline);
-        } catch (timingError: any) {
-          console.error(
-            "[Assessment Timing] Invalid attempt timing:",
-            timingError,
-          );
-          setTestLoadError(
-            timingError?.message ||
-              "The server did not return the authoritative attempt timing information.",
-          );
-        }
-      } else {
+    const restoreLocalState = () => {
+      if (!activeAttemptId) {
         setTestLoadError(
           "No active server attempt was found. Please return to the lobby and start the assessment again.",
         );
+        return;
       }
-
-      /*
-       * Restore only state belonging to the current backend attempt.
-       *
-       * Never restore quiz-code-only state here. That state belongs to the
-       * browser/device, not to the logged-in student's attempt.
-       */
-      if (activeAttemptId) {
-        const attemptStateKey = `dynoquizz_active_test_${activeAttemptId}`;
-        const attemptIndexKey = `exam_index_${activeAttemptId}`;
-
-        const cached = localStorage.getItem(attemptStateKey);
-
-        if (cached) {
-          try {
-            const parsed = JSON.parse(cached);
-
-            if (parsed.answers) {
-              setAnswers(parsed.answers);
-            }
-
-            if (parsed.timeTaken) {
-              setTimeTakenPerQuestion(parsed.timeTaken);
-            }
-          } catch {
-            localStorage.removeItem(attemptStateKey);
-          }
-        }
-
-        const savedIndex = localStorage.getItem(attemptIndexKey);
-        if (savedIndex) {
-          const parsedIndex = Number.parseInt(savedIndex, 10);
-
-          if (Number.isInteger(parsedIndex) && parsedIndex >= 0) {
-            setCurrentIndex(parsedIndex);
-          }
-        }
-      }
-    }
-
-    const loadTest = async () => {
-      setIsLoadingTest(true);
-      setTestLoadError(null);
 
       try {
-        let packageData: any = null;
+        const timingRaw = localStorage.getItem(
+          `dynoquizz_attemptTiming_${activeAttemptId}`,
+        );
 
-        /*
-         * First source: package cached by the lobby.
-         */
-        if (typeof window !== "undefined") {
-          const cachedPackage = sessionStorage.getItem(
-            `dynoquizz_pkg_${cleanCode}`,
+        if (!timingRaw) {
+          throw new Error(
+            "The authoritative assessment timing could not be restored.",
           );
-
-          if (cachedPackage) {
-            try {
-              const parsed = JSON.parse(cachedPackage);
-
-              if (
-                parsed &&
-                Array.isArray(parsed.questions) &&
-                parsed.questions.length > 0
-              ) {
-                packageData = parsed;
-              }
-            } catch {
-              sessionStorage.removeItem(`dynoquizz_pkg_${cleanCode}`);
-            }
-          }
         }
 
-        /*
-         * Fallback: fetch the student-safe package directly if the lobby cache
-         * is unavailable. This keeps the Arena resilient on refresh.
-         */
-        if (!packageData) {
-          const token = getClientAuthToken();
+        const timing = JSON.parse(timingRaw);
 
-          if (!token) {
-            throw new Error(
-              "Your login session has expired. Please log in again.",
-            );
+        if (
+          typeof timing?.effectiveDeadline !== "string" ||
+          !timing.effectiveDeadline
+        ) {
+          throw new Error(
+            "The server did not return the authoritative assessment deadline.",
+          );
+        }
+
+        setEffectiveDeadline(timing.effectiveDeadline);
+      } catch (error) {
+        console.error("[Assessment Timing] Restore failed:", error);
+
+        setTestLoadError(
+          getErrorMessage(
+            error,
+            "The authoritative assessment timing could not be restored.",
+          ),
+        );
+      }
+
+      try {
+        const stateRaw = localStorage.getItem(
+          `dynoquizz_active_test_${activeAttemptId}`,
+        );
+
+        if (stateRaw) {
+          const parsed = JSON.parse(stateRaw);
+
+          const restoredAnswers = normalizeAnswers(parsed?.answers);
+          const restoredTimeTaken = normalizeTimeTaken(parsed?.timeTaken);
+
+          answersRef.current = restoredAnswers;
+          timeTakenRef.current = restoredTimeTaken;
+
+          setAnswers(restoredAnswers);
+          setTimeTakenPerQuestion(restoredTimeTaken);
+        }
+
+        const indexRaw = localStorage.getItem(`exam_index_${activeAttemptId}`);
+
+        if (indexRaw) {
+          const restoredIndex = Number.parseInt(indexRaw, 10);
+
+          if (Number.isInteger(restoredIndex) && restoredIndex >= 0) {
+            currentIndexRef.current = restoredIndex;
+            setCurrentIndex(restoredIndex);
           }
+        }
+      } catch (error) {
+        console.warn("[Assessment] Local state restore failed:", error);
 
-          const res = await fetch(
-            `${API_BASE}/api/v1/student/quizzes/code/${cleanCode}/package`,
-            {
-              method: "GET",
-              headers: {
-                Authorization: `Bearer ${token}`,
-                "Content-Type": "application/json",
-              },
-              cache: "no-store",
-            },
+        localStorage.removeItem(`dynoquizz_active_test_${activeAttemptId}`);
+        localStorage.removeItem(`exam_index_${activeAttemptId}`);
+      }
+    };
+
+    restoreLocalState();
+
+    const loadTest = async () => {
+      try {
+        setIsLoadingTest(true);
+        setTestLoadError(null);
+
+        let packageData = readCachedPackage(cleanCode);
+
+        if (!packageData) {
+          packageData = await api.get<QuizPackageResponse>(
+            ENDPOINTS.student.quizPackageByCode(cleanCode),
           );
 
-          const data = await res.json().catch(() => ({}));
-
-          if (!res.ok) {
-            throw new Error(
-              data.message ||
-                data.error ||
-                "Unable to load the assessment package.",
-            );
-          }
-
-          packageData = data;
-
-          if (
-            typeof window !== "undefined" &&
-            packageData &&
-            Array.isArray(packageData.questions) &&
-            packageData.questions.length > 0
-          ) {
-            sessionStorage.setItem(
-              `dynoquizz_pkg_${cleanCode}`,
-              JSON.stringify(packageData),
-            );
-          }
+          cachePackage(cleanCode, packageData);
         }
 
         if (
@@ -354,36 +434,65 @@ export default function TestArenaPage({
           !Array.isArray(packageData.questions) ||
           packageData.questions.length === 0
         ) {
-          throw new Error("The assessment package is empty or invalid.");
+          throw new Error(
+            "The server returned an empty or invalid assessment package.",
+          );
         }
 
-        const normalizedTest = normalizePackage(packageData);
-
-        const hasInvalidQuestion = normalizedTest.questions.some(
-          (question: any) =>
-            !Number.isFinite(Number(question.id)) ||
-            Number(question.id) <= 0 ||
+        const invalidQuestion = packageData.questions.find(
+          (question) =>
+            !Number.isFinite(Number(question.questionId)) ||
+            Number(question.questionId) <= 0 ||
             !Array.isArray(question.options),
         );
 
-        if (hasInvalidQuestion) {
+        if (invalidQuestion) {
           throw new Error(
             "The assessment package contains invalid question data.",
           );
         }
 
-        if (!cancelled) {
-          setTest(normalizedTest);
-          setTestLoadError(null);
+        if (activeAttemptId) {
+          try {
+            const timingRaw = localStorage.getItem(
+              `dynoquizz_attemptTiming_${activeAttemptId}`,
+            );
+
+            if (timingRaw) {
+              const timing = JSON.parse(timingRaw);
+
+              if (
+                timing?.quizId != null &&
+                Number(timing.quizId) !== Number(packageData.quizId)
+              ) {
+                throw new Error(
+                  "The active attempt does not belong to this assessment.",
+                );
+              }
+            }
+          } catch (error) {
+            throw error;
+          }
         }
-      } catch (error: any) {
-        console.error("Assessment package load error:", error);
 
         if (!cancelled) {
+          setTest(packageData);
+        }
+      } catch (error) {
+        console.error("[Assessment Package] Load failed:", error);
+
+        if (!cancelled) {
+          if (error instanceof ApiClientError && error.status === 401) {
+            router.replace(getLoginRedirect(cleanCode));
+            return;
+          }
+
           setTest(null);
           setTestLoadError(
-            error?.message ||
+            getErrorMessage(
+              error,
               "Unable to load the assessment package. Please return to the lobby and try again.",
+            ),
           );
         }
       } finally {
@@ -393,7 +502,7 @@ export default function TestArenaPage({
       }
     };
 
-    loadTest();
+    void loadTest();
 
     const handleOnline = () => setIsOnline(true);
     const handleOffline = () => setIsOnline(false);
@@ -403,518 +512,273 @@ export default function TestArenaPage({
 
     return () => {
       cancelled = true;
-
       window.removeEventListener("online", handleOnline);
       window.removeEventListener("offline", handleOffline);
     };
-  }, [testCode, router, activeAttemptId]);
-
-  const questions = test?.questions || [];
-  const currentQuestion = questions[currentIndex];
-
-  const progressPercentage =
-    questions.length > 0 ? ((currentIndex + 1) / questions.length) * 100 : 0;
+  }, [cleanCode, activeAttemptId, router]);
 
   useEffect(() => {
-    if (!currentQuestion) return;
+    if (!currentQuestion) {
+      return;
+    }
 
-    setSelectedOption(answers[currentQuestion.id] ?? null);
-  }, [currentIndex, currentQuestion?.id, answers]);
+    setSaveStatus("idle");
+  }, [currentQuestion?.questionId]);
 
   useEffect(() => {
-    questionElapsedRef.current = 0;
-  }, [currentIndex, currentQuestion?.id]);
+    if (!currentQuestion || isSubmitted) {
+      return;
+    }
 
-  // Track response time for the submission payload only. This does not
-  // control the exam deadline; the backend effectiveDeadline does.
-  useEffect(() => {
-    if (isSubmitted || !currentQuestion) return;
+    const questionId = Number(currentQuestion.questionId);
+
+    if (!Number.isFinite(questionId) || questionId <= 0) {
+      return;
+    }
 
     const interval = window.setInterval(() => {
-      questionElapsedRef.current += 1;
-      setTimeTakenPerQuestion((prev) => ({
-        ...prev,
-        [currentQuestion.id]: questionElapsedRef.current,
-      }));
+      setTimeTakenPerQuestion((previous) => {
+        const nextValue = (previous[questionId] ?? 0) + 1;
+        const next = {
+          ...previous,
+          [questionId]: nextValue,
+        };
+
+        timeTakenRef.current = next;
+        return next;
+      });
     }, 1000);
 
     return () => window.clearInterval(interval);
-  }, [currentQuestion?.id, isSubmitted]);
+  }, [currentQuestion?.questionId, isSubmitted]);
 
-  const persistLocalAnswerState = (
-    nextAnswers: Record<number, number | null>,
-    nextTimeTaken: Record<number, number>,
+  const persistCurrentState = (
+    nextAnswers: ActiveAnswerState = answersRef.current,
+    nextTimeTaken: Record<number, number> = timeTakenRef.current,
   ) => {
-    /*
-     * No attempt ID means there is no safe student-specific storage scope.
-     * Do not fall back to quizCode because that can leak another student's
-     * answers on a shared browser.
-     */
-    if (!activeAttemptId) return;
-
-    try {
-      localStorage.setItem(
-        `dynoquizz_active_test_${activeAttemptId}`,
-        JSON.stringify({
-          answers: nextAnswers,
-          timeTaken: nextTimeTaken,
-          lastUpdated: Date.now(),
-        }),
-      );
-    } catch {
-      // ignore localStorage failures
-    }
+    persistAttemptState(activeAttemptId, nextAnswers, nextTimeTaken);
   };
 
-  /*
-   * Select an answer.
-   *
-   * Answers are kept locally during the assessment. The current backend
-   * accepts the complete answer sheet only when the attempt is submitted.
-   */
-  const handleSelectOption = (optionId: number | string) => {
-    if (!currentQuestion) return;
+  const setCurrentAnswers = (
+    next: ActiveAnswerState,
+    selectedForCurrentQuestion?: number[],
+  ) => {
+    answersRef.current = next;
+    setAnswers(next);
 
-    const safeQuestionId = Number(currentQuestion.id);
+    if (selectedForCurrentQuestion) {
+      // The current answer is also represented in answersRef, so no separate
+      // selectedOption state is required.
+    }
+
+    setSaveStatus("saved");
+    persistCurrentState(next, timeTakenRef.current);
+  };
+
+  const handleSelectOption = (optionId: number) => {
+    if (!currentQuestion || isSubmitted) {
+      return;
+    }
+
+    const questionId = Number(currentQuestion.questionId);
     const safeOptionId = Number(optionId);
 
     if (
-      !Number.isFinite(safeQuestionId) ||
-      safeQuestionId <= 0 ||
+      !Number.isFinite(questionId) ||
+      questionId <= 0 ||
       !Number.isFinite(safeOptionId) ||
       safeOptionId <= 0
     ) {
-      console.warn("[Assessment] Ignoring invalid question/option ID:", {
-        questionId: currentQuestion.id,
-        optionId,
-      });
-
       return;
     }
 
-    const nextAnswers: Record<number, number | null> = {
-      ...answers,
-      [safeQuestionId]: safeOptionId,
-    };
+    const currentSelections = answersRef.current[questionId] ?? [];
+    const isMultiSelect = currentQuestion.questionType === "MSQ";
 
-    setSelectedOption(safeOptionId);
-    setAnswers(nextAnswers);
-    setSaveStatus("saved");
+    let nextSelections: number[];
 
-    persistLocalAnswerState(nextAnswers, timeTakenPerQuestion);
-  };
-
-  /*
-   * Move to next question or submit
-   */
-  const advanceOrSubmit = (latestAnswers: Record<number, number | null>) => {
-    persistLocalAnswerState(latestAnswers, timeTakenPerQuestion);
-
-    if (currentIndex < questions.length - 1) {
-      const nextIndex = currentIndex + 1;
-
-      setCurrentIndex(nextIndex);
-
-      if (typeof window !== "undefined" && activeAttemptId) {
-        localStorage.setItem(
-          `exam_index_${activeAttemptId}`,
-          nextIndex.toString(),
-        );
+    if (isMultiSelect) {
+      if (currentSelections.includes(safeOptionId)) {
+        nextSelections = currentSelections.filter((id) => id !== safeOptionId);
+      } else {
+        nextSelections = [...currentSelections, safeOptionId];
       }
-
-      const nextQuestion = questions[nextIndex];
-
-      setSelectedOption(
-        nextQuestion ? (latestAnswers[Number(nextQuestion.id)] ?? null) : null,
-      );
-
-      setSaveStatus("idle");
     } else {
-      finishAssessment(latestAnswers);
+      nextSelections = [safeOptionId];
     }
+
+    const nextAnswers: ActiveAnswerState = {
+      ...answersRef.current,
+      [questionId]: nextSelections,
+    };
+
+    setCurrentAnswers(nextAnswers);
   };
 
-  /*
-   * Handle Next Question.
-   *
-   * Unanswered questions can be skipped. They are submitted as
-   * selectedOptionIds: [].
-   */
-  const handleNextQuestion = () => {
-    if (!currentQuestion) return;
-
-    const questionId = Number(currentQuestion.id);
-
-    if (!Number.isFinite(questionId) || questionId <= 0) {
-      console.warn(
-        "[Assessment] Invalid current question ID:",
-        currentQuestion,
-      );
-
+  const goToQuestion = (nextIndex: number) => {
+    if (nextIndex < 0 || nextIndex >= questions.length || isSubmitted) {
       return;
     }
 
-    const latestAnswers: Record<number, number | null> = {
-      ...answers,
-      [questionId]:
-        selectedOption !== null && selectedOption !== undefined
-          ? Number(selectedOption)
-          : (answers[questionId] ?? null),
-    };
+    currentIndexRef.current = nextIndex;
+    setCurrentIndex(nextIndex);
 
-    setAnswers(latestAnswers);
-    advanceOrSubmit(latestAnswers);
+    if (activeAttemptId && typeof window !== "undefined") {
+      localStorage.setItem(`exam_index_${activeAttemptId}`, String(nextIndex));
+    }
+
+    setSaveStatus("idle");
   };
 
-  /*
-   * Save active assessment state when leaving tab/page
-   */
-  useEffect(() => {
-    if (!activeAttemptId) return;
-
-    const flushActiveState = () => {
-      try {
-        localStorage.setItem(
-          `dynoquizz_active_test_${activeAttemptId}`,
-          JSON.stringify({
-            answers,
-            timeTaken: timeTakenPerQuestion,
-            lastUpdated: Date.now(),
-          }),
-        );
-      } catch {
-        // ignore
-      }
-    };
-
-    const handleVisibilityChange = () => {
-      if (document.visibilityState === "hidden") {
-        flushActiveState();
-      }
-    };
-
-    document.addEventListener("visibilitychange", handleVisibilityChange);
-
-    window.addEventListener("pagehide", flushActiveState);
-    window.addEventListener("beforeunload", flushActiveState);
-
-    return () => {
-      document.removeEventListener("visibilitychange", handleVisibilityChange);
-
-      window.removeEventListener("pagehide", flushActiveState);
-      window.removeEventListener("beforeunload", flushActiveState);
-    };
-  }, [answers, timeTakenPerQuestion, activeAttemptId]);
-
-  /*
-   * Submit assessment
-   */
   const finishAssessment = async (
-    latestAnswers: Record<number, number | null>,
+    latestAnswers: ActiveAnswerState = answersRef.current,
+    latestTimeTaken: Record<number, number> = timeTakenRef.current,
   ) => {
-    if (isSubmitted || !test) return;
+    if (
+      submissionInFlightRef.current ||
+      isSubmitted ||
+      !test ||
+      !activeAttemptId
+    ) {
+      if (!activeAttemptId && !isSubmitted) {
+        setSubmissionNotice(
+          "Your server attempt is missing. Your answers remain stored locally; return to the lobby to initialize the attempt again.",
+        );
+      }
+      return;
+    }
 
+    submissionInFlightRef.current = true;
     setIsSubmitted(true);
+    setSubmissionNotice(null);
 
-    const cleanCode = testCode.toUpperCase();
-
-    // Keep local answers until the backend confirms the final submission.
-    persistLocalAnswerState(latestAnswers, timeTakenPerQuestion);
+    persistCurrentState(latestAnswers, latestTimeTaken);
 
     try {
-      const token = getClientAuthToken();
+      const completeAnswers = questions.map((question) => {
+        const questionId = Number(question.questionId);
 
-      const attemptId = activeAttemptId;
-
-      if (!attemptId) {
-        console.warn("No attemptId found. Cannot submit attempt.");
-
-        setIsSubmitted(false);
-
-        setSubmissionNotice(
-          "Your attempt session is missing. Your answers remain stored locally.",
-        );
-
-        return;
-      }
-
-      // Build the payload from the authoritative backend quiz package.
-      // Never create questionId/optionId values such as 0.
-      const completeAnswers: Array<{
-        questionId: number;
-        selectedOptionIds: number[];
-        responseTimeSeconds: number;
-      }> = [];
-
-      for (const question of questions) {
-        const questionId = Number(question.id);
-
-        if (!Number.isFinite(questionId) || questionId <= 0) {
-          console.error(
-            "[Assessment Submission] Invalid backend question ID:",
-            question,
-          );
-
-          continue;
-        }
-
-        const selectedOptionId = latestAnswers[questionId];
-
-        const selectedOptionIds =
-          selectedOptionId !== null &&
-          selectedOptionId !== undefined &&
-          Number.isFinite(Number(selectedOptionId)) &&
-          Number(selectedOptionId) > 0
-            ? [Number(selectedOptionId)]
-            : [];
-
-        completeAnswers.push({
+        return {
           questionId,
-          selectedOptionIds,
-          responseTimeSeconds: Number(timeTakenPerQuestion[questionId] || 0),
-        });
-      }
+          selectedOptionIds: (latestAnswers[questionId] ?? []).filter(
+            (optionId) =>
+              Number.isFinite(Number(optionId)) && Number(optionId) > 0,
+          ),
+          responseTimeSeconds: Math.max(
+            0,
+            Math.floor(latestTimeTaken[questionId] ?? 0),
+          ),
+        };
+      });
 
       const payload = {
         answers: completeAnswers,
       };
 
-      console.log("[Assessment Submission] Attempt ID:", attemptId);
-
-      console.log("[Assessment Submission] Payload:", payload);
-
-      const res = await fetch(
-        `${API_BASE}/api/v1/student/attempts/${attemptId}/submit`,
-        {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            ...(token ? { Authorization: `Bearer ${token}` } : {}),
-          },
-          body: JSON.stringify(payload),
-        },
+      const result = await api.post<SubmitAttemptResponse>(
+        ENDPOINTS.student.submitAttempt(activeAttemptId),
+        payload,
       );
 
-      console.log("[Assessment Submission] HTTP status:", res.status);
+      const returnedAttemptId =
+        result?.attemptId != null ? String(result.attemptId) : "";
 
-      const rawText = await res.text();
-
-      console.log("[Assessment Submission] Raw response text:", rawText);
-
-      let data: any = {};
-
-      try {
-        data = JSON.parse(rawText);
-      } catch (err) {
-        console.warn(
-          "[Assessment Submission] Could not parse JSON response:",
-          err,
+      if (!returnedAttemptId) {
+        throw new Error(
+          "The server accepted the submission but did not return an attempt ID.",
         );
       }
 
-      if (res.status === 401) {
-        persistLocalAnswerState(latestAnswers, timeTakenPerQuestion);
+      setSubmittedAttemptId(returnedAttemptId);
 
-        setIsSubmitted(false);
-        setSessionExpired(true);
+      localStorage.setItem(
+        `dynoquizz_submittedAttemptId_${cleanCode}`,
+        returnedAttemptId,
+      );
+      localStorage.setItem("dynoquizz_submittedAttemptId", returnedAttemptId);
 
-        return;
+      localStorage.removeItem(`dynoquizz_attemptId_${cleanCode}`);
+      localStorage.removeItem("dynoquizz_attemptId");
+      localStorage.removeItem(`dynoquizz_attemptTiming_${activeAttemptId}`);
+      localStorage.removeItem(`dynoquizz_active_test_${activeAttemptId}`);
+      localStorage.removeItem(`exam_index_${activeAttemptId}`);
+
+      if (result.status === "AUTO_SUBMITTED") {
+        setDeadlineNotice(
+          "The server deadline was reached, so the attempt was automatically submitted.",
+        );
       }
 
-      if (res.ok) {
-        /*
-         * IMPORTANT:
-         *
-         * The backend response is authoritative.
-         *
-         * We must NOT use:
-         *   testCode
-         *   quizId
-         *   or any inferred value
-         *
-         * as the result-page identifier.
-         *
-         * The result endpoint expects:
-         *
-         *   /api/v1/student/attempts/{attemptId}/result
-         *
-         * Therefore use the attemptId returned by the submission API.
-         */
-        const returnedAttemptId = data?.attemptId;
-
-        if (
-          returnedAttemptId === undefined ||
-          returnedAttemptId === null ||
-          String(returnedAttemptId).trim() === ""
-        ) {
-          console.error(
-            "[Assessment Submission] Backend submission succeeded but did not return attemptId:",
-            data,
-          );
-
-          setIsSubmitted(false);
-
-          setSubmissionNotice(
-            "Your submission was received, but the attempt ID was not returned. Please contact the administrator before leaving this page.",
-          );
-
-          return;
-        }
-
-        const authoritativeAttemptId = String(returnedAttemptId);
-
-        /*
-         * Keep the authoritative attempt ID in React state so the
-         * scorecard button routes to the correct result.
-         */
-        setSubmittedAttemptId(authoritativeAttemptId);
-
-        /*
-         * Preserve the submitted attempt ID in localStorage as a
-         * safety fallback if the result page is refreshed.
-         */
-        localStorage.setItem(
-          `dynoquizz_submittedAttemptId_${cleanCode}`,
-          authoritativeAttemptId,
-        );
-
-        localStorage.setItem(
-          "dynoquizz_submittedAttemptId",
-          authoritativeAttemptId,
-        );
-
-        /*
-         * Submission succeeded.
-         *
-         * The backend has returned the authoritative attemptId and
-         * we have already stored it separately as submittedAttemptId.
-         *
-         * The active attempt ID is no longer needed, so remove it.
-         * This prevents a later student account from inheriting
-         * this student's attempt ID from browser localStorage.
-         */
-        localStorage.removeItem(`dynoquizz_attemptId_${cleanCode}`);
-        localStorage.removeItem("dynoquizz_attemptId");
-        localStorage.removeItem(
-          `dynoquizz_attemptTiming_${authoritativeAttemptId}`,
-        );
-
-        localStorage.removeItem(
-          `dynoquizz_active_test_${authoritativeAttemptId}`,
-        );
-        localStorage.removeItem(`exam_index_${authoritativeAttemptId}`);
-
-        if (data.deadlineExceeded || data.error === "EXAM_DEADLINE_EXCEEDED") {
-          setDeadlineNotice(
-            "Assessment deadline reached on the server. Responses collected up to the cutoff were saved.",
-          );
-        }
-
-        if (data.finalScore == null || data.published === false) {
-          setSubmissionNotice(
-            "Submitted successfully. Results will be available once published.",
-          );
-        }
-      } else {
-        setIsSubmitted(false);
-
+      /*
+       * The backend response can contain a score, but result visibility is
+       * controlled independently by quiz publication settings. The result
+       * page remains the source of truth for whether results are available.
+       */
+      if (result.finalScore == null) {
         setSubmissionNotice(
-          data?.message ||
-            "Submission failed. Your answers remain stored locally. Please try again.",
+          "Submitted successfully. Results will be available once published.",
         );
       }
-    } catch (e) {
-      console.error("[Assessment Submission] Submission failed:", e);
+    } catch (error) {
+      console.error("[Assessment Submission] Failed:", error);
 
       setIsSubmitted(false);
 
-      setSubmissionNotice(
-        "Submission failed because the server could not be reached. Your answers remain stored locally. Please try again.",
-      );
+      if (error instanceof ApiClientError && error.status === 401) {
+        setSessionExpired(true);
+      } else {
+        setSubmissionNotice(
+          getErrorMessage(
+            error,
+            "Submission failed. Your answers remain stored locally. Please try again.",
+          ),
+        );
+      }
+    } finally {
+      submissionInFlightRef.current = false;
     }
   };
 
-  /*
-   * Handle backend-authoritative timer expiration.
-   * The timer belongs to the whole attempt, so changing questions never resets it.
-   */
   const handleTimerExpired = () => {
-    if (expiryHandledRef.current || isSubmitted || !currentQuestion) return;
-
-    expiryHandledRef.current = true;
-
-    const questionId = Number(currentQuestion.id);
-
-    if (!Number.isFinite(questionId) || questionId <= 0) {
-      console.warn(
-        "[Assessment] Invalid question ID during timer expiry:",
-        currentQuestion,
-      );
+    if (
+      expiryHandledRef.current ||
+      isSubmitted ||
+      !currentQuestionRef.current
+    ) {
       return;
     }
 
-    const currentAnswer =
-      selectedOption !== null && selectedOption !== undefined
-        ? Number(selectedOption)
-        : (answers[questionId] ?? null);
+    expiryHandledRef.current = true;
 
-    const latestAnswers: Record<number, number | null> = {
-      ...answers,
-      [questionId]:
-        currentAnswer !== null &&
-        Number.isFinite(Number(currentAnswer)) &&
-        Number(currentAnswer) > 0
-          ? Number(currentAnswer)
-          : null,
+    const question = currentQuestionRef.current;
+    const questionId = Number(question.questionId);
+
+    if (!Number.isFinite(questionId) || questionId <= 0) {
+      return;
+    }
+
+    const latestAnswers: ActiveAnswerState = {
+      ...answersRef.current,
+      [questionId]: answersRef.current[questionId] ?? [],
     };
 
     setAnswers(latestAnswers);
-    finishAssessment(latestAnswers);
+    answersRef.current = latestAnswers;
+
+    persistCurrentState(latestAnswers, timeTakenRef.current);
+    void finishAssessment(latestAnswers, timeTakenRef.current);
   };
 
-  const parseBackendDeadline = (value: string): number => {
-    // Backend returns Java LocalDateTime without Z/offset. Do not add or subtract
-    // an arbitrary timezone offset. The browser interprets this local timestamp
-    // in its own local timezone, matching the current frontend/backend contract.
-    const normalized = value.includes("T") ? value : value.replace(" ", "T");
-    const timestamp = new Date(normalized).getTime();
-    return Number.isFinite(timestamp) ? timestamp : NaN;
-  };
-
-  const formatRemainingTime = (seconds: number) => {
-    const safe = Math.max(0, seconds);
-    const hours = Math.floor(safe / 3600);
-    const minutes = Math.floor((safe % 3600) / 60);
-    const secs = safe % 60;
-
-    if (hours > 0) {
-      return `${hours.toString().padStart(2, "0")}:${minutes
-        .toString()
-        .padStart(2, "0")}:${secs.toString().padStart(2, "0")}`;
-    }
-
-    return `${minutes.toString().padStart(2, "0")}:${secs
-      .toString()
-      .padStart(2, "0")}`;
-  };
-
-  /*
-   * One countdown for the entire attempt.
-   * Recalculate on every tick and when the tab becomes visible again so a
-   * backgrounded browser cannot pause or extend the client-side countdown.
-   */
   useEffect(() => {
-    if (isSubmitted || !effectiveDeadline) return;
+    if (isSubmitted || !effectiveDeadline) {
+      return;
+    }
 
     const deadlineMs = parseBackendDeadline(effectiveDeadline);
 
     if (!Number.isFinite(deadlineMs)) {
-      console.error(
-        "[Assessment Timing] Invalid backend effectiveDeadline:",
-        effectiveDeadline,
-      );
       setTestLoadError(
-        "The server returned an invalid authoritative attempt deadline. Please return to the lobby and start the assessment again.",
+        "The server returned an invalid assessment deadline. Please return to the lobby and start the assessment again.",
       );
       return;
     }
@@ -937,6 +801,7 @@ export default function TestArenaPage({
     updateCountdown();
 
     const interval = window.setInterval(updateCountdown, 1000);
+
     const handleVisibilityChange = () => {
       if (document.visibilityState === "visible") {
         updateCountdown();
@@ -949,32 +814,53 @@ export default function TestArenaPage({
       window.clearInterval(interval);
       document.removeEventListener("visibilitychange", handleVisibilityChange);
     };
-  }, [
-    effectiveDeadline,
-    isSubmitted,
-    currentQuestion?.id,
-    selectedOption,
-    answers,
-  ]);
+  }, [effectiveDeadline, isSubmitted]);
 
-  /*
-   * Session expired screen
-   */
+  useEffect(() => {
+    if (!activeAttemptId) {
+      return;
+    }
+
+    const flush = () => {
+      persistAttemptState(
+        activeAttemptId,
+        answersRef.current,
+        timeTakenRef.current,
+      );
+    };
+
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === "hidden") {
+        flush();
+      }
+    };
+
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+    window.addEventListener("pagehide", flush);
+    window.addEventListener("beforeunload", flush);
+
+    return () => {
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
+      window.removeEventListener("pagehide", flush);
+      window.removeEventListener("beforeunload", flush);
+    };
+  }, [activeAttemptId]);
+
   if (sessionExpired) {
-    const allowResume = test?.settings?.allowResume !== false;
+    const allowResume = test?.allowResume !== false;
 
     return (
-      <main className="flex min-h-screen items-center justify-center bg-[#f5f5f4] text-[#111111] p-4 font-sans selection:bg-[#f5f5f4] selection:text-[#165dfb]">
+      <main className="flex min-h-screen items-center justify-center bg-[#f5f5f4] text-[#111111] p-4 font-sans">
         <motion.div
           initial={mounted ? { opacity: 0, y: 8 } : false}
           animate={mounted ? { opacity: 1, y: 0 } : false}
-          className="w-full max-w-md rounded-[14px] bg-white p-6 md:p-8 text-center border border-[#d1dee8]/70 shadow-xl space-y-4 text-left"
+          className="w-full max-w-md rounded-[14px] bg-white p-6 md:p-8 text-center border border-[#d1dee8]/70 shadow-xl space-y-4"
         >
           <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-[10px] bg-[#fbeee8] border border-[#d1dee8]/70 text-[#8c381c] shadow-xs">
             <AlertTriangle className="h-6 w-6 text-[#8c381c]" />
           </div>
 
-          <div className="text-center space-y-1">
+          <div className="space-y-1">
             <span className="text-[10px] font-bold uppercase tracking-wider text-[#78716b]">
               Authentication Notice
             </span>
@@ -985,39 +871,34 @@ export default function TestArenaPage({
 
             <p className="text-xs text-[#78716b] leading-relaxed font-medium">
               {allowResume
-                ? "Your authentication session has expired. Your answers have been preserved in local cache. Please log in again to resume your assessment."
+                ? "Your authentication session has expired. Your answers have been preserved locally. Log in again to resume the assessment."
                 : "Your authentication session has expired. This assessment does not permit resumption."}
             </p>
           </div>
 
-          <div className="pt-2 flex flex-col gap-2">
-            {allowResume ? (
-              <Link
-                href={`/login?role=student&redirect=/test/${testCode.toUpperCase()}`}
-                className="flex items-center justify-center gap-1.5 rounded-[10px] bg-[#165dfb] py-2.5 px-4 text-xs font-bold text-white hover:bg-[#165dfb]/90 active:scale-[0.98] transition-all border-0 shadow-xs"
-              >
-                Log In to Resume
-              </Link>
-            ) : (
-              <Link
-                href="/dashboard/student"
-                className="flex items-center justify-center gap-1.5 rounded-[10px] bg-[#165dfb] py-2.5 px-4 text-xs font-bold text-white hover:bg-[#165dfb]/90 active:scale-[0.98] transition-all border-0 shadow-xs"
-              >
-                Return to Dashboard
-              </Link>
-            )}
-          </div>
+          {allowResume ? (
+            <Link
+              href={getLoginRedirect(cleanCode)}
+              className="flex items-center justify-center rounded-[10px] bg-[#165dfb] py-2.5 px-4 text-xs font-bold text-white hover:bg-[#165dfb]/90 transition-all"
+            >
+              Log In to Resume
+            </Link>
+          ) : (
+            <Link
+              href="/dashboard/student"
+              className="flex items-center justify-center rounded-[10px] bg-[#165dfb] py-2.5 px-4 text-xs font-bold text-white hover:bg-[#165dfb]/90 transition-all"
+            >
+              Return to Dashboard
+            </Link>
+          )}
         </motion.div>
       </main>
     );
   }
 
-  /*
-   * Submitted screen
-   */
   if (isSubmitted) {
     return (
-      <main className="flex min-h-screen items-center justify-center bg-[#f5f5f4] text-[#111111] p-4 font-sans selection:bg-[#f5f5f4] selection:text-[#165dfb]">
+      <main className="flex min-h-screen items-center justify-center bg-[#f5f5f4] text-[#111111] p-4 font-sans">
         <motion.div
           initial={mounted ? { opacity: 0, y: 8 } : false}
           animate={mounted ? { opacity: 1, y: 0 } : false}
@@ -1038,19 +919,18 @@ export default function TestArenaPage({
             </h1>
 
             <p className="mt-1 text-xs text-[#78716b] leading-relaxed font-medium">
-              Your exam responses have been securely transmitted to the server
-              for evaluation.
+              Your responses have been transmitted to the server for evaluation.
             </p>
           </div>
 
           {deadlineNotice && (
-            <div className="rounded-[10px] border border-[#73561a]/20 bg-[#f6efe1] p-3 text-xs text-[#73561a] text-left font-medium shadow-xs">
+            <div className="rounded-[10px] border border-[#73561a]/20 bg-[#f6efe1] p-3 text-xs text-[#73561a] text-left font-medium">
               {deadlineNotice}
             </div>
           )}
 
           {submissionNotice && (
-            <div className="rounded-[10px] border border-[#d1dee8]/70 bg-[#f5f5f4] p-3 text-xs text-[#111111] text-left font-medium shadow-xs">
+            <div className="rounded-[10px] border border-[#d1dee8]/70 bg-[#f5f5f4] p-3 text-xs text-[#111111] text-left font-medium">
               {submissionNotice}
             </div>
           )}
@@ -1062,14 +942,14 @@ export default function TestArenaPage({
                   ? `/dashboard/student/result/${submittedAttemptId}`
                   : "/dashboard/student"
               }
-              className="flex flex-1 items-center justify-center gap-1.5 rounded-[10px] bg-[#165dfb] py-2.5 text-xs font-bold text-white hover:bg-[#165dfb]/90 active:scale-[0.98] transition-all duration-200 shadow-xs cursor-pointer border-0"
+              className="flex flex-1 items-center justify-center gap-1.5 rounded-[10px] bg-[#165dfb] py-2.5 text-xs font-bold text-white hover:bg-[#165dfb]/90 transition-all"
             >
-              View Scorecard <ChevronRight className="h-4 w-4 text-white" />
+              View Scorecard <ChevronRight className="h-4 w-4" />
             </Link>
 
             <Link
               href="/dashboard/student"
-              className="flex items-center justify-center gap-1.5 rounded-[10px] border border-[#d1dee8]/70 bg-white py-2.5 px-4 text-xs font-bold text-[#111111] hover:bg-[#f5f5f4] active:scale-[0.98] transition-all duration-200 shadow-xs cursor-pointer"
+              className="flex items-center justify-center rounded-[10px] border border-[#d1dee8]/70 bg-white py-2.5 px-4 text-xs font-bold text-[#111111] hover:bg-[#f5f5f4] transition-all"
             >
               Dashboard
             </Link>
@@ -1079,30 +959,21 @@ export default function TestArenaPage({
     );
   }
 
-  /*
-   * Loading / package error / invalid package
-   *
-   * "Not Found" is only shown after loading has completed and the
-   * package is genuinely missing or empty. It is never used as the
-   * initial loading state.
-   */
   if (isLoadingTest) {
     return (
       <main className="flex min-h-screen items-center justify-center bg-[#f5f5f4] text-[#111111] p-4 font-sans">
         <div className="w-full max-w-md rounded-[14px] bg-white p-8 text-center border border-[#d1dee8]/70 shadow-xl space-y-4">
-          <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-[10px] bg-[#f5f5f4] border border-[#d1dee8]/70 text-[#165dfb] shadow-xs">
+          <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-[10px] bg-[#f5f5f4] border border-[#d1dee8]/70 text-[#165dfb]">
             <Clock className="h-6 w-6 animate-pulse" />
           </div>
 
-          <div className="space-y-1">
-            <h1 className="text-xl font-bold text-[#111111]">
-              Loading Assessment
-            </h1>
+          <h1 className="text-xl font-bold text-[#111111]">
+            Loading Assessment
+          </h1>
 
-            <p className="text-xs text-[#78716b] leading-relaxed font-medium">
-              Preparing your secure assessment package. Please wait.
-            </p>
-          </div>
+          <p className="text-xs text-[#78716b] leading-relaxed font-medium">
+            Preparing your secure assessment package.
+          </p>
         </div>
       </main>
     );
@@ -1112,23 +983,21 @@ export default function TestArenaPage({
     return (
       <main className="flex min-h-screen items-center justify-center bg-[#f5f5f4] text-[#111111] p-4 font-sans">
         <div className="w-full max-w-md rounded-[14px] bg-white p-8 text-center border border-[#d1dee8]/70 shadow-xl space-y-4">
-          <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-[10px] bg-[#fbeee8] border border-[#d1dee8]/70 text-[#8c381c] shadow-xs">
-            <AlertTriangle className="h-6 w-6 text-[#8c381c]" />
+          <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-[10px] bg-[#fbeee8] border border-[#d1dee8]/70 text-[#8c381c]">
+            <AlertTriangle className="h-6 w-6" />
           </div>
 
-          <div className="space-y-1">
-            <h1 className="text-xl font-bold text-[#111111]">
-              Assessment Could Not Be Loaded
-            </h1>
+          <h1 className="text-xl font-bold text-[#111111]">
+            Assessment Could Not Be Loaded
+          </h1>
 
-            <p className="text-xs text-[#78716b] leading-relaxed font-medium">
-              {testLoadError}
-            </p>
-          </div>
+          <p className="text-xs text-[#78716b] leading-relaxed font-medium">
+            {testLoadError}
+          </p>
 
           <Link
-            href={`/test/${testCode.toUpperCase()}/lobby`}
-            className="flex w-full items-center justify-center gap-1.5 rounded-[10px] bg-[#165dfb] py-2.5 text-xs font-bold text-white hover:bg-[#165dfb]/90 active:scale-[0.98] transition-all border-0 shadow-xs"
+            href={`/test/${cleanCode}/lobby`}
+            className="flex w-full items-center justify-center rounded-[10px] bg-[#165dfb] py-2.5 text-xs font-bold text-white hover:bg-[#165dfb]/90 transition-all"
           >
             Return to Assessment Lobby
           </Link>
@@ -1137,29 +1006,27 @@ export default function TestArenaPage({
     );
   }
 
-  if (!test || questions.length === 0) {
+  if (!test || questions.length === 0 || !activeAttemptId) {
     return (
       <main className="flex min-h-screen items-center justify-center bg-[#f5f5f4] text-[#111111] p-4 font-sans">
         <div className="w-full max-w-md rounded-[14px] bg-white p-8 text-center border border-[#d1dee8]/70 shadow-xl space-y-4">
-          <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-[10px] bg-[#fbeee8] border border-[#d1dee8]/70 text-[#8c381c] shadow-xs">
-            <AlertTriangle className="h-6 w-6 text-[#8c381c]" />
+          <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-[10px] bg-[#fbeee8] border border-[#d1dee8]/70 text-[#165dfb]">
+            <AlertTriangle className="h-6 w-6" />
           </div>
 
-          <div className="space-y-1">
-            <h1 className="text-xl font-bold text-[#111111]">
-              Assessment Session Not Found
-            </h1>
+          <h1 className="text-xl font-bold text-[#111111]">
+            Assessment Session Not Found
+          </h1>
 
-            <p className="text-xs text-[#78716b] leading-relaxed font-medium">
-              No valid questions were found for session code{" "}
-              <strong>&ldquo;{testCode?.toUpperCase()}&rdquo;</strong>. Please
-              return to the lobby and try again.
-            </p>
-          </div>
+          <p className="text-xs text-[#78716b] leading-relaxed font-medium">
+            No valid active server attempt was found for{" "}
+            <strong>&ldquo;{cleanCode}&rdquo;</strong>. Please return to the
+            lobby and start the assessment again.
+          </p>
 
           <Link
-            href={`/test/${testCode.toUpperCase()}/lobby`}
-            className="flex w-full items-center justify-center gap-1.5 rounded-[10px] bg-[#165dfb] py-2.5 text-xs font-bold text-white hover:bg-[#165dfb]/90 active:scale-[0.98] transition-all border-0 shadow-xs"
+            href={`/test/${cleanCode}/lobby`}
+            className="flex w-full items-center justify-center rounded-[10px] bg-[#165dfb] py-2.5 text-xs font-bold text-white hover:bg-[#165dfb]/90 transition-all"
           >
             Back to Assessment Lobby
           </Link>
@@ -1168,11 +1035,8 @@ export default function TestArenaPage({
     );
   }
 
-  /*
-   * Main assessment UI
-   */
   return (
-    <div className="flex min-h-screen bg-[#f5f5f4] text-[#111111] p-4 md:p-6 font-sans selection:bg-[#f5f5f4] selection:text-[#165dfb]">
+    <div className="flex min-h-screen bg-[#f5f5f4] text-[#111111] p-4 md:p-6 font-sans">
       <motion.div
         initial={mounted ? { opacity: 0, y: 8 } : false}
         animate={mounted ? { opacity: 1, y: 0 } : false}
@@ -1181,8 +1045,8 @@ export default function TestArenaPage({
       >
         <header className="flex flex-wrap items-center justify-between bg-white px-6 py-4 gap-3 border-b border-[#d1dee8]/50">
           <div className="flex items-center gap-3.5">
-            <span className="rounded-full bg-[#f5f5f4] px-3 py-1 text-xs font-bold text-[#165dfb] font-mono border border-[#d1dee8]/70 shadow-xs">
-              {testCode.toUpperCase()}
+            <span className="rounded-full bg-[#f5f5f4] px-3 py-1 text-xs font-bold text-[#165dfb] font-mono border border-[#d1dee8]/70">
+              {cleanCode}
             </span>
 
             <span className="text-xs font-bold text-[#78716b]">
@@ -1196,25 +1060,21 @@ export default function TestArenaPage({
             )}
           </div>
 
-          <div className="flex items-center gap-3.5 font-sans">
+          <div className="flex items-center gap-3.5">
             {isOnline ? (
-              <span className="flex items-center gap-1.5 rounded-full bg-[#e2ede8] text-[#1d5237] border border-[#1d5237]/20 px-2.5 py-0.5 text-xs font-bold shadow-xs">
-                <span className="relative flex h-2 w-2">
-                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-[#1d5237] opacity-75" />
-                  <span className="relative inline-flex h-2 w-2 rounded-full bg-[#1d5237]" />
-                </span>
-                <Wifi className="h-3.5 w-3.5 text-[#1d5237]" />
+              <span className="flex items-center gap-1.5 rounded-full bg-[#e2ede8] text-[#1d5237] border border-[#1d5237]/20 px-2.5 py-0.5 text-xs font-bold">
+                <Wifi className="h-3.5 w-3.5" />
                 Local Save Active
               </span>
             ) : (
-              <span className="flex items-center gap-1.5 rounded-full bg-[#f6efe1] text-[#73561a] border border-[#73561a]/20 px-2.5 py-0.5 text-xs font-bold shadow-xs">
-                <WifiOff className="h-3.5 w-3.5 text-[#73561a]" />
+              <span className="flex items-center gap-1.5 rounded-full bg-[#f6efe1] text-[#73561a] border border-[#73561a]/20 px-2.5 py-0.5 text-xs font-bold">
+                <WifiOff className="h-3.5 w-3.5" />
                 Offline Mode
               </span>
             )}
 
             <div
-              className={`flex items-center gap-1.5 rounded-full px-3 py-1 font-bold text-xs transition-colors border shadow-xs ${
+              className={`flex items-center gap-1.5 rounded-full px-3 py-1 font-bold text-xs border ${
                 timeLeft <= 10
                   ? "bg-[#fbeee8] text-[#8c381c] border-[#8c381c]/30 animate-pulse"
                   : "bg-[#f5f5f4] text-[#78716b] border-[#d1dee8]/70"
@@ -1240,33 +1100,42 @@ export default function TestArenaPage({
               initial={{ opacity: 0, y: 8 }}
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: -8 }}
-              transition={{ duration: 0.2, ease: "easeOut" }}
+              transition={{ duration: 0.2 }}
             >
-              <h2 className="mb-5 text-lg font-bold leading-snug text-[#111111] md:text-xl tracking-tight">
-                {currentQuestion.text}
-              </h2>
+              <div className="mb-2 flex items-center justify-between gap-3">
+                <h2 className="text-lg font-bold leading-snug text-[#111111] md:text-xl tracking-tight">
+                  {currentQuestion?.questionText}
+                </h2>
+              </div>
+
+              <div className="mb-5 text-[11px] font-semibold text-[#78716b]">
+                {currentQuestion?.questionType === "MSQ"
+                  ? "Select all correct options."
+                  : "Select one option."}
+              </div>
 
               <div className="space-y-2.5">
-                {currentQuestion.options.map((option: any, idx: number) => {
-                  const optId = Number(option.optionId ?? option.id);
-
-                  const isSelected =
-                    Number(selectedOption ?? answers[currentQuestion.id]) ===
-                    optId;
+                {currentQuestion?.options.map((option, idx) => {
+                  const optionId = Number(option.optionId);
+                  const selectedIds =
+                    answersRef.current[Number(currentQuestion.questionId)] ??
+                    [];
+                  const isSelected = selectedIds.includes(optionId);
 
                   return (
                     <button
-                      key={optId || idx}
-                      onClick={() => handleSelectOption(optId)}
-                      className={`w-full rounded-[10px] border p-3.5 text-left text-xs font-bold transition-all duration-150 cursor-pointer shadow-xs ${
+                      key={optionId || idx}
+                      type="button"
+                      onClick={() => handleSelectOption(optionId)}
+                      className={`w-full rounded-[10px] border p-3.5 text-left text-xs font-bold transition-all duration-150 cursor-pointer ${
                         isSelected
                           ? "border-[#165dfb] bg-[#165dfb]/5 text-[#111111] ring-2 ring-[#165dfb]/20"
-                          : "border-[#d1dee8]/70 bg-white text-[#78716b] hover:border-[#165dfb]/40 hover:text-[#111111] hover:shadow-sm"
+                          : "border-[#d1dee8]/70 bg-white text-[#78716b] hover:border-[#165dfb]/40 hover:text-[#111111]"
                       }`}
                     >
                       <div className="flex items-center gap-2.5">
                         <span
-                          className={`flex h-7 w-7 items-center justify-center rounded-[8px] text-xs font-bold border transition-colors shadow-xs ${
+                          className={`flex h-7 w-7 items-center justify-center rounded-[8px] text-xs font-bold border ${
                             isSelected
                               ? "bg-[#165dfb] border-[#165dfb] text-white"
                               : "bg-[#f5f5f4] text-[#78716b] border-[#d1dee8]/70"
@@ -1275,7 +1144,7 @@ export default function TestArenaPage({
                           {String.fromCharCode(65 + idx)}
                         </span>
 
-                        {option.optionText}
+                        <span className="flex-1">{option.optionText}</span>
                       </div>
                     </button>
                   );
@@ -1287,23 +1156,32 @@ export default function TestArenaPage({
 
         <footer className="border-t border-[#d1dee8]/50 bg-white px-6 py-3.5 flex justify-between items-center">
           <span className="text-[10px] font-medium text-[#78716b]">
-            Question {currentIndex + 1} of {questions.length}
+            {currentQuestion?.questionType === "MSQ"
+              ? "Multiple selection"
+              : "Single selection"}
           </span>
 
           <button
-            onClick={handleNextQuestion}
-            disabled={false}
-            className="flex items-center gap-1 rounded-[10px] bg-[#165dfb] px-4 py-2 text-xs font-bold text-white hover:bg-[#165dfb]/90 active:scale-[0.98] transition-all duration-200 shadow-xs disabled:opacity-40 cursor-pointer border-0"
+            type="button"
+            onClick={() => {
+              if (currentIndex < questions.length - 1) {
+                goToQuestion(currentIndex + 1);
+              } else {
+                void finishAssessment(answersRef.current, timeTakenRef.current);
+              }
+            }}
+            disabled={isSubmitted}
+            className="flex items-center gap-1 rounded-[10px] bg-[#165dfb] px-4 py-2 text-xs font-bold text-white hover:bg-[#165dfb]/90 active:scale-[0.98] transition-all shadow-xs disabled:opacity-40 cursor-pointer border-0"
           >
             {currentIndex === questions.length - 1 ? (
               <>
-                Submit Assessment{" "}
-                <ChevronRight className="h-3.5 w-3.5 text-white" />
+                Submit Assessment
+                <ChevronRight className="h-3.5 w-3.5" />
               </>
             ) : (
               <>
-                Next Question{" "}
-                <ChevronRight className="h-3.5 w-3.5 text-white" />
+                Next Question
+                <ChevronRight className="h-3.5 w-3.5" />
               </>
             )}
           </button>
@@ -1326,16 +1204,13 @@ export default function TestArenaPage({
 
             <p className="mt-0.5 text-[10px] text-[#78716b] font-medium">
               Session Code:{" "}
-              <strong className="text-[#111111] font-bold">
-                {testCode.toUpperCase()}
-              </strong>
+              <strong className="text-[#111111] font-bold">{cleanCode}</strong>
             </p>
           </div>
 
           <div className="p-3.5 space-y-2 text-xs">
             <div className="flex justify-between items-center text-[#78716b]">
               <span>Total Questions:</span>
-
               <span className="font-bold text-[#111111]">
                 {questions.length}
               </span>
@@ -1343,9 +1218,15 @@ export default function TestArenaPage({
 
             <div className="flex justify-between items-center text-[#78716b]">
               <span>Current Progress:</span>
-
               <span className="font-bold text-[#165dfb]">
                 {currentIndex + 1} / {questions.length}
+              </span>
+            </div>
+
+            <div className="flex justify-between items-center text-[#78716b]">
+              <span>Total Marks:</span>
+              <span className="font-bold text-[#111111]">
+                {String(test.totalMarks)}
               </span>
             </div>
           </div>
@@ -1359,15 +1240,28 @@ export default function TestArenaPage({
 
           <ul className="space-y-1.5 text-[10px] font-medium text-[#78716b]">
             <li className="flex items-start gap-1 leading-relaxed">
-              <div className="mt-1 h-1 w-1 rounded-full bg-[#165dfb] shrink-0" />
-              Select an option if you want to answer it. Unanswered questions
-              can be skipped.
+              <span className="mt-1 h-1 w-1 rounded-full bg-[#165dfb] shrink-0" />
+              Select an option to answer the question. Unanswered questions may
+              be skipped.
             </li>
 
             <li className="flex items-start gap-1 leading-relaxed">
-              <div className="mt-1 h-1 w-1 rounded-full bg-[#165dfb] shrink-0" />
-              Questions advance automatically when the timer reaches zero.
+              <span className="mt-1 h-1 w-1 rounded-full bg-[#165dfb] shrink-0" />
+              The countdown is based on the server&apos;s authoritative attempt
+              deadline.
             </li>
+
+            <li className="flex items-start gap-1 leading-relaxed">
+              <span className="mt-1 h-1 w-1 rounded-full bg-[#165dfb] shrink-0" />
+              Backend scoring remains authoritative after submission.
+            </li>
+
+            {flags?.tab_switch > 0 && (
+              <li className="flex items-start gap-1 leading-relaxed text-[#8c381c]">
+                <span className="mt-1 h-1 w-1 rounded-full bg-[#8c381c] shrink-0" />
+                Tab-switch activity was detected by the proctoring hook.
+              </li>
+            )}
           </ul>
         </div>
       </aside>

@@ -24,7 +24,12 @@ export async function GET() {
     if (!response.ok) {
       const nextResponse = NextResponse.json(
         { user: null },
-        { status: response.status === 401 ? 401 : 200 },
+        {
+          status:
+            response.status === 401 || response.status === 403
+              ? response.status
+              : 200,
+        },
       );
 
       if (response.status === 401 || response.status === 403) {
@@ -37,6 +42,9 @@ export async function GET() {
     const user = await response.json();
     return NextResponse.json({ user });
   } catch {
-    return NextResponse.json({ user: null });
+    return NextResponse.json(
+      { user: null, error: "Cannot connect to the authentication server." },
+      { status: 503 },
+    );
   }
 }

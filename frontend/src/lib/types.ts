@@ -189,6 +189,7 @@ export interface AttemptResponse {
   status: AttemptStatus;
   currentQuestion?: number | null;
   totalTimeTaken?: number | null;
+  effectiveDeadline: string;
 }
 
 export interface SubmitAnswerRequest {

@@ -29,7 +29,7 @@ type SessionUser = {
 type LoginCredentials = {
   email: string;
   password: string;
-  role?: string;
+  role: "STUDENT" | "TEACHER";
 };
 
 type SignupPayload = {
@@ -253,6 +253,12 @@ export function useSession() {
   }, [fetchSession]);
 
   const login = useCallback(async (credentials: LoginCredentials) => {
+    const requestedRole = String(credentials.role).toUpperCase();
+
+    if (requestedRole !== "STUDENT" && requestedRole !== "TEACHER") {
+      throw new Error("Role must be STUDENT or TEACHER.");
+    }
+
     const response = await fetch(ENDPOINTS.auth.login, {
       method: "POST",
       headers: {
@@ -262,6 +268,7 @@ export function useSession() {
       body: JSON.stringify({
         email: credentials.email.trim(),
         password: credentials.password,
+        role: requestedRole,
       }),
     });
 
@@ -320,16 +327,12 @@ export function useSession() {
       throw new Error("Your account is disabled.");
     }
 
-    if (
-      credentials.role &&
-      String(normalizedUser.role).toUpperCase() !==
-        String(credentials.role).toUpperCase()
-    ) {
+    if (String(normalizedUser.role).toUpperCase() !== requestedRole) {
       clearSessionStorage();
       throw new Error(
         `This account is registered as ${String(
           normalizedUser.role,
-        ).toLowerCase()}, not ${String(credentials.role).toLowerCase()}.`,
+        ).toLowerCase()}, not ${requestedRole.toLowerCase()}.`,
       );
     }
 
@@ -399,9 +402,8 @@ export function useSession() {
         });
 
     /*
-     * The current backend returns SignupResponse, not AuthResponse:
-     * signup creates the account and requires email verification.
-     * Therefore signup must NOT create an authenticated frontend session.
+     * Signup returns SignupResponse, not AuthResponse.
+     * It creates the account but does not establish an authenticated session.
      */
     clearSessionStorage();
     setUser(null);
@@ -410,8 +412,7 @@ export function useSession() {
       user: returnedUser,
       verificationRequired: data?.verificationRequired === true,
       message:
-        data?.message ||
-        "Account created. Please verify your email before logging in.",
+        data?.message || "Account created successfully. You can now log in.",
     };
   }, []);
 

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { motion } from "framer-motion";
@@ -22,7 +22,7 @@ import { ENDPOINTS } from "@/lib/api/endpoints";
 
 function GoogleIcon() {
   return (
-    <svg className="h-4 w-4" viewBox="0 0 24 24" aria-hidden="true">
+    <svg className="h-5 w-5" viewBox="0 0 24 24" aria-hidden="true">
       <path
         fill="#4285F4"
         d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"
@@ -46,12 +46,18 @@ function GoogleIcon() {
 const container = {
   hidden: {},
   visible: {
-    transition: { staggerChildren: 0.05, delayChildren: 0.1 },
+    transition: {
+      staggerChildren: 0.05,
+      delayChildren: 0.1,
+    },
   },
 };
 
 const item = {
-  hidden: { opacity: 0, y: 12 },
+  hidden: {
+    opacity: 0,
+    y: 12,
+  },
   visible: {
     opacity: 1,
     y: 0,
@@ -140,7 +146,9 @@ export function AuthForm({ mode = "login" }: AuthFormProps) {
     event.preventDefault();
     resetMessages();
 
-    if (!validate()) return;
+    if (!validate()) {
+      return;
+    }
 
     setLoading(true);
 
@@ -155,6 +163,7 @@ export function AuthForm({ mode = "login" }: AuthFormProps) {
           body: JSON.stringify({
             email: email.trim(),
             password,
+            role: role === "teacher" ? "TEACHER" : "STUDENT",
           }),
           cache: "no-store",
         });
@@ -245,11 +254,6 @@ export function AuthForm({ mode = "login" }: AuthFormProps) {
         );
       }
 
-      /*
-       * Current backend signup returns SignupResponse and requires
-       * email verification before login. Do not create a local
-       * authenticated session and do not redirect to a dashboard.
-       */
       localStorage.removeItem("dynoquizz_token");
       localStorage.removeItem("token");
       localStorage.removeItem("dynoquizz_user");
@@ -257,15 +261,23 @@ export function AuthForm({ mode = "login" }: AuthFormProps) {
       localStorage.removeItem("dynoquizz_regNo");
 
       setCurrentMode("login");
+
+      const verificationRequired = data?.verificationRequired === true;
+
       setSuccessMessage(
-        data?.message ||
-          "Account created. Please verify your email before logging in.",
+        verificationRequired
+          ? data?.message ||
+              "Account created. Please verify your email before logging in."
+          : data?.message ||
+              "Account created successfully. You can now log in.",
       );
+
       setError("");
       setPassword("");
       setValidationErrors({});
     } catch (requestError: any) {
       console.error("Authentication request failed:", requestError);
+
       setError(
         requestError?.message ||
           "Could not connect to the authentication server.",
@@ -276,12 +288,22 @@ export function AuthForm({ mode = "login" }: AuthFormProps) {
   }
 
   function handleGoogleAuth() {
-    const redirect = searchParams?.get("redirect");
-    const googleUrl = ENDPOINTS.auth.googleLogin;
+    const selectedRole = role === "teacher" ? "TEACHER" : "STUDENT";
+
+    const redirect = searchParams?.get("redirect") || "";
+
+    setError("");
+    setSuccessMessage("");
 
     if (redirect) {
       sessionStorage.setItem("dynoquizz_post_login_redirect", redirect);
     }
+
+    sessionStorage.setItem("dynoquizz_google_role", selectedRole);
+
+    const googleUrl = `${ENDPOINTS.auth.googleLogin}?role=${encodeURIComponent(
+      selectedRole,
+    )}`;
 
     window.location.href = googleUrl;
   }
@@ -373,7 +395,7 @@ export function AuthForm({ mode = "login" }: AuthFormProps) {
                 }}
                 className={`flex-1 py-1.5 text-xs font-bold transition-all rounded-[8.8px] cursor-pointer border-0 ${
                   role === candidateRole
-                    ? "bg-white text-[#111111] border border-[#d1dee8]/50"
+                    ? "bg-white text-[#111111] border border-[#d1dee8]/50 shadow-sm"
                     : "text-[#78716b] hover:text-[#111111] bg-transparent"
                 }`}
               >
@@ -382,25 +404,28 @@ export function AuthForm({ mode = "login" }: AuthFormProps) {
             ))}
           </motion.div>
 
-          <motion.div variants={item} className="grid grid-cols-1 gap-3">
+          {/* Google Sign-In / Sign-Up */}
+          <motion.div variants={item} className="space-y-3">
             <button
               type="button"
               onClick={handleGoogleAuth}
-              className="flex items-center justify-center gap-2 rounded-[8.8px] border border-[#d1dee8] bg-white py-2 px-3 text-xs font-bold text-[#111111] hover:bg-[#f5f5f4] active:scale-[0.98] transition-all cursor-pointer"
+              disabled={loading}
+              className="flex w-full items-center justify-center gap-2.5 rounded-[8.8px] border border-[#d1dee8] bg-white px-4 py-3 text-xs font-bold text-[#111111] hover:bg-[#f5f5f4] hover:border-[#b8c7d4] active:scale-[0.98] transition-all cursor-pointer disabled:cursor-not-allowed disabled:opacity-60"
             >
               <GoogleIcon />
-              <span>Continue with Google</span>
-            </button>
-          </motion.div>
 
-          <motion.div
-            variants={item}
-            className="relative flex items-center justify-center"
-          >
-            <div className="w-full border-t border-[#d1dee8]/60" />
-            <span className="absolute bg-white px-2.5 text-[10px] font-bold uppercase tracking-wider text-[#78716b]">
-              or with email
-            </span>
+              <span>
+                {isLogin ? "Sign in with Google" : "Sign up with Google"}
+              </span>
+            </button>
+
+            <div className="relative flex items-center justify-center">
+              <div className="w-full border-t border-[#d1dee8]/60" />
+
+              <span className="absolute bg-white px-2.5 text-[10px] font-bold uppercase tracking-wider text-[#78716b]">
+                or continue with email
+              </span>
+            </div>
           </motion.div>
 
           {successMessage && (
@@ -606,6 +631,7 @@ export function AuthForm({ mode = "login" }: AuthFormProps) {
                   : `Create ${
                       role === "student" ? "Student" : "Instructor"
                     } Account`}
+
               <ArrowRight className="h-3.5 w-3.5 text-white" />
             </motion.button>
           </form>
