@@ -11,6 +11,8 @@ export type ProctoringFlags = {
   paste_attempt: number;
   focus_loss: number;
   keyboard_attempt: number;
+  refresh_count: number;
+  reconnect_count: number;
 };
 
 export type ProctoringEvent = {
@@ -32,6 +34,8 @@ const initialFlags: ProctoringFlags = {
   paste_attempt: 0,
   focus_loss: 0,
   keyboard_attempt: 0,
+  refresh_count: 0,
+  reconnect_count: 0,
 };
 
 function storageKeyFor(value?: string | null): string | null {
@@ -162,6 +166,42 @@ export function useProctoring(
     eventsRef.current = persisted.events;
     setFlags(persisted.flags);
   }, [persisted]);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+
+    const navigation = performance.getEntriesByType(
+      "navigation",
+    )[0] as PerformanceNavigationTiming | undefined;
+
+    if (navigation?.type === "reload") {
+      record("refresh_count", "Assessment page refresh detected.");
+    }
+
+    let wasOffline = !navigator.onLine;
+
+    const onOnline = () => {
+      if (wasOffline) {
+        record(
+          "reconnect_count",
+          "Network reconnection detected during the assessment.",
+        );
+      }
+      wasOffline = false;
+    };
+
+    const onOffline = () => {
+      wasOffline = true;
+    };
+
+    window.addEventListener("online", onOnline);
+    window.addEventListener("offline", onOffline);
+
+    return () => {
+      window.removeEventListener("online", onOnline);
+      window.removeEventListener("offline", onOffline);
+    };
+  }, [record]);
 
   useEffect(() => {
     if (typeof window === "undefined") return;
