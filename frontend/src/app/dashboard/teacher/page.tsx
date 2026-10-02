@@ -18,7 +18,7 @@ import { useSession } from "@/hooks/useSession";
 import { computeQuizDisplayState, QuizDisplayState } from "@/lib/quizStatus";
 import { ENDPOINTS } from "@/lib/api/endpoints";
 import { api } from "@/lib/api/client";
-import { QuizResponse } from "@/lib/types";
+import { QuizResponse, TeacherQuizDetailResponse } from "@/lib/types";
 
 type TeacherDashboardQuiz = QuizResponse & {
   displayState: QuizDisplayState;
@@ -40,7 +40,7 @@ export default function TeacherDashboard() {
     title: string;
   } | null>(null);
 
-  const [actionLoading, setActionLoading] = useState(false);
+  const [actionLoadingQuizId === quizIdQuizId, setActionLoadingQuizId] = useState<number | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
 
   const normalizeQuiz = (quiz: QuizResponse): TeacherDashboardQuiz => ({
@@ -104,6 +104,15 @@ export default function TeacherDashboard() {
     );
   };
 
+  const refreshQuiz = async (quizId: number) => {
+    const detail = await api.get<TeacherQuizDetailResponse>(
+      ENDPOINTS.teacher.quizDetail(quizId),
+    );
+
+    replaceQuizInState(detail);
+    return detail;
+  };
+
   const copyCode = async (code: string) => {
     try {
       await navigator.clipboard.writeText(code);
@@ -118,20 +127,19 @@ export default function TeacherDashboard() {
   };
 
   const handlePublishQuiz = async (quizId: number) => {
-    setActionLoading(true);
+    setActionLoadingQuizId(quizId);
     setActionError(null);
 
     try {
       await api.put<void>(ENDPOINTS.teacher.publishQuiz(quizId));
-
-      await fetchQuizzes();
+      await refreshQuiz(quizId);
     } catch (error) {
       const message = getErrorMessage(error, "Publish failed.");
 
       setActionError(message);
       alert(`Could not publish quiz: ${message}`);
     } finally {
-      setActionLoading(false);
+      setActionLoadingQuizId(null);
     }
   };
 
@@ -140,12 +148,13 @@ export default function TeacherDashboard() {
       return;
     }
 
-    setActionLoading(true);
+    const quizId = quizToEnd.quizId;
+    setActionLoadingQuizId(quizId);
     setActionError(null);
 
     try {
       const updatedQuiz = await api.put<QuizResponse>(
-        ENDPOINTS.teacher.completeQuiz(quizToEnd.quizId),
+        ENDPOINTS.teacher.completeQuiz(quizId),
       );
 
       replaceQuizInState(updatedQuiz);
@@ -155,43 +164,41 @@ export default function TeacherDashboard() {
 
       setActionError(message);
     } finally {
-      setActionLoading(false);
+      setActionLoadingQuizId(null);
     }
   };
 
   const handlePublishResults = async (quizId: number) => {
-    setActionLoading(true);
+    setActionLoadingQuizId(quizId);
     setActionError(null);
 
     try {
       await api.put<void>(ENDPOINTS.teacher.publishResults(quizId));
-
-      await fetchQuizzes();
+      await refreshQuiz(quizId);
     } catch (error) {
       const message = getErrorMessage(error, "Publish results failed.");
 
       setActionError(message);
       alert(`Could not publish results: ${message}`);
     } finally {
-      setActionLoading(false);
+      setActionLoadingQuizId(null);
     }
   };
 
   const handleUnpublishResults = async (quizId: number) => {
-    setActionLoading(true);
+    setActionLoadingQuizId(quizId);
     setActionError(null);
 
     try {
       await api.put<void>(ENDPOINTS.teacher.unpublishResults(quizId));
-
-      await fetchQuizzes();
+      await refreshQuiz(quizId);
     } catch (error) {
       const message = getErrorMessage(error, "Unpublish results failed.");
 
       setActionError(message);
       alert(`Could not unpublish results: ${message}`);
     } finally {
-      setActionLoading(false);
+      setActionLoadingQuizId(null);
     }
   };
 
@@ -495,7 +502,7 @@ export default function TeacherDashboard() {
                           <button
                             type="button"
                             onClick={() => handlePublishQuiz(quizId)}
-                            disabled={actionLoading}
+                            disabled={actionLoadingQuizId === quizId}
                             className="flex items-center gap-1 rounded-[10px] bg-[#165dfb] px-3.5 py-1.5 text-xs font-bold text-white hover:bg-[#0f4fd8] shadow-xs active:scale-[0.98] transition-all border-0 cursor-pointer disabled:opacity-50"
                           >
                             Publish
@@ -530,7 +537,7 @@ export default function TeacherDashboard() {
                                 title: name,
                               })
                             }
-                            disabled={actionLoading}
+                            disabled={actionLoadingQuizId === quizId}
                             className="flex items-center gap-1 rounded-[10px] border border-[#8c381c]/30 bg-[#fbeee8] px-3 py-1.5 text-xs font-bold text-[#8c381c] hover:bg-[#8c381c]/15 shadow-xs active:scale-[0.98] transition-all cursor-pointer disabled:opacity-50"
                           >
                             End Quiz
@@ -560,7 +567,7 @@ export default function TeacherDashboard() {
                                     title: name,
                                   })
                                 }
-                                disabled={actionLoading}
+                                disabled={actionLoadingQuizId === quizId}
                                 className="flex items-center gap-1 rounded-[10px] border border-[#8c381c]/30 bg-[#fbeee8] px-3 py-1.5 text-xs font-bold text-[#8c381c] hover:bg-[#8c381c]/15 shadow-xs active:scale-[0.98] transition-all cursor-pointer disabled:opacity-50"
                               >
                                 End Quiz
@@ -572,7 +579,7 @@ export default function TeacherDashboard() {
                               <button
                                 type="button"
                                 disabled={
-                                  test.status !== "COMPLETED" || actionLoading
+                                  test.status !== "COMPLETED" || actionLoadingQuizId === quizId
                                 }
                                 onClick={() => {
                                   if (test.status === "COMPLETED") {
@@ -591,7 +598,7 @@ export default function TeacherDashboard() {
                             ) : (
                               <button
                                 type="button"
-                                disabled={actionLoading}
+                                disabled={actionLoadingQuizId === quizId}
                                 onClick={() =>
                                   void handleUnpublishResults(quizId)
                                 }
@@ -638,7 +645,7 @@ export default function TeacherDashboard() {
                   setQuizToEnd(null);
                   setActionError(null);
                 }}
-                disabled={actionLoading}
+                disabled={actionLoadingQuizId === quizId}
                 className="rounded-[10px] border border-[#d1dee8]/80 bg-white px-3.5 py-1.5 text-xs font-bold text-[#78716b] hover:bg-[#f5f5f4] hover:border-[#b9cbd9] shadow-xs transition-all disabled:opacity-50 cursor-pointer"
               >
                 Cancel
@@ -647,10 +654,10 @@ export default function TeacherDashboard() {
               <button
                 type="button"
                 onClick={confirmEndQuiz}
-                disabled={actionLoading}
+                disabled={actionLoadingQuizId === quizId}
                 className="inline-flex items-center gap-1.5 rounded-[10px] bg-[#8c381c] px-3.5 py-1.5 text-xs font-bold text-white hover:bg-[#6e2b14] shadow-xs active:scale-[0.98] transition-all disabled:opacity-50 cursor-pointer border-0"
               >
-                {actionLoading && (
+                {actionLoadingQuizId === quizId && (
                   <span className="h-3 w-3 animate-spin rounded-full border-2 border-white/30 border-t-white" />
                 )}
                 End Assessment
