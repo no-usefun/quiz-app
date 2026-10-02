@@ -943,7 +943,7 @@ export default function TestArenaPage({
       [questionId]: nextSelections,
     };
 
-    setCurrentAnswers(nextAnswers);
+    setCurrentAnswers(nextAnswers, nextSelections);
   };
 
   const toggleReview = () => {
