@@ -41,13 +41,19 @@ class AuthServiceTest {
     @Mock private RoleRepository roleRepository;
     @Mock private PasswordEncoder passwordEncoder;
     @Mock private JwtUtils jwtUtils;
+    @Mock private EmailVerificationService emailVerificationService;
 
     private AuthService authService;
     private Role studentRole;
 
     @BeforeEach
     void setUp() {
-        authService = new AuthService(userRepository, roleRepository, passwordEncoder, jwtUtils);
+        authService = new AuthService(
+                userRepository,
+                roleRepository,
+                passwordEncoder,
+                jwtUtils,
+                emailVerificationService);
 
         studentRole = new Role();
         studentRole.setName("STUDENT");
