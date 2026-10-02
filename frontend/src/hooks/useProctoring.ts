@@ -18,6 +18,11 @@ export type ProctoringEvent = {
   timestamp: number;
 };
 
+type PersistedProctoringState = {
+  flags: ProctoringFlags;
+  events: ProctoringEvent[];
+};
+
 const initialFlags: ProctoringFlags = {
   tab_switch: 0,
   fullscreen_exit: 0,
@@ -29,30 +34,120 @@ const initialFlags: ProctoringFlags = {
   keyboard_attempt: 0,
 };
 
-export function useProctoring() {
-  const [flags, setFlags] = useState<ProctoringFlags>(initialFlags);
+function storageKeyFor(value?: string | null): string | null {
+  if (typeof window === "undefined") return null;
+
+  const clean = String(value || "").trim();
+
+  return clean ? `quizly_proctoring_${clean}` : null;
+}
+
+function readPersistedState(storageKey: string | null): PersistedProctoringState {
+  if (typeof window === "undefined" || !storageKey) {
+    return {
+      flags: initialFlags,
+      events: [],
+    };
+  }
+
+  try {
+    const raw = localStorage.getItem(storageKey);
+
+    if (!raw) {
+      return {
+        flags: initialFlags,
+        events: [],
+      };
+    }
+
+    const parsed = JSON.parse(raw) as Partial<PersistedProctoringState>;
+
+    const flags: ProctoringFlags = {
+      ...initialFlags,
+      ...(parsed.flags || {}),
+    };
+
+    const events = Array.isArray(parsed.events)
+      ? parsed.events
+          .filter(
+            (event): event is ProctoringEvent =>
+              !!event &&
+              typeof event.type === "string" &&
+              Object.prototype.hasOwnProperty.call(initialFlags, event.type) &&
+              Number.isFinite(Number(event.timestamp)),
+          )
+          .slice(-100)
+      : [];
+
+    return { flags, events };
+  } catch {
+    return {
+      flags: initialFlags,
+      events: [],
+    };
+  }
+}
+
+export function useProctoring(storageKeyValue?: string | null) {
+  const storageKey = storageKeyFor(storageKeyValue);
+  const persisted = useMemo(
+    () => readPersistedState(storageKey),
+    [storageKey],
+  );
+
+  const [flags, setFlags] = useState<ProctoringFlags>(persisted.flags);
   const [warnings, setWarnings] = useState<string[]>([]);
   const [isFullscreen, setIsFullscreen] = useState(
     typeof document !== "undefined" && !!document.fullscreenElement,
   );
-  const eventsRef = useRef<ProctoringEvent[]>([]);
+  const eventsRef = useRef<ProctoringEvent[]>(persisted.events);
+
+  const persist = useCallback(
+    (nextFlags: ProctoringFlags, nextEvents: ProctoringEvent[]) => {
+      if (typeof window === "undefined" || !storageKey) return;
+
+      try {
+        const value: PersistedProctoringState = {
+          flags: nextFlags,
+          events: nextEvents.slice(-100),
+        };
+
+        localStorage.setItem(storageKey, JSON.stringify(value));
+      } catch {
+        // Ignore storage failures; detection must continue in memory.
+      }
+    },
+    [storageKey],
+  );
 
   const record = useCallback(
     (type: keyof ProctoringFlags, message: string) => {
-      eventsRef.current = [
+      const nextEvents = [
         ...eventsRef.current.slice(-99),
         { type, timestamp: Date.now() },
       ];
 
-      setFlags((previous) => ({
-        ...previous,
-        [type]: previous[type] + 1,
-      }));
+      const nextFlags = {
+        ...flags,
+        [type]: flags[type] + 1,
+      };
 
+      eventsRef.current = nextEvents;
+      setFlags(nextFlags);
       setWarnings((previous) => [...previous.slice(-9), message]);
+      persist(nextFlags, nextEvents);
     },
-    [],
+    [flags, persist],
   );
+
+  /*
+   * Restore the persisted event history when the attempt-specific key is
+   * available. This keeps activity counts intact after a page reload.
+   */
+  useEffect(() => {
+    eventsRef.current = persisted.events;
+    setFlags(persisted.flags);
+  }, [persisted]);
 
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -98,6 +193,20 @@ export function useProctoring() {
       record("paste_attempt", "Paste action was blocked during the assessment.");
     };
 
+    const onBeforeInput = (event: InputEvent) => {
+      if (event.inputType === "insertFromPaste") {
+        event.preventDefault();
+        record(
+          "paste_attempt",
+          "Paste input was blocked during the assessment.",
+        );
+      }
+    };
+
+    const onDragStart = (event: DragEvent) => {
+      event.preventDefault();
+    };
+
     const onKeyDown = (event: KeyboardEvent) => {
       const key = event.key.toLowerCase();
       const command = event.ctrlKey || event.metaKey;
@@ -107,9 +216,25 @@ export function useProctoring() {
 
       if (blocked) {
         event.preventDefault();
+
+        const flag =
+          key === "c"
+            ? "copy_attempt"
+            : key === "x"
+              ? "cut_attempt"
+              : key === "v"
+                ? "paste_attempt"
+                : "keyboard_attempt";
+
         record(
-          "keyboard_attempt",
-          "A restricted keyboard shortcut was blocked.",
+          flag,
+          key === "c"
+            ? "Copy shortcut was blocked during the assessment."
+            : key === "x"
+              ? "Cut shortcut was blocked during the assessment."
+              : key === "v"
+                ? "Paste shortcut was blocked during the assessment."
+                : "A restricted keyboard shortcut was blocked.",
         );
       }
     };
@@ -120,6 +245,8 @@ export function useProctoring() {
     document.addEventListener("copy", onCopy);
     document.addEventListener("cut", onCut);
     document.addEventListener("paste", onPaste);
+    document.addEventListener("beforeinput", onBeforeInput as EventListener);
+    document.addEventListener("dragstart", onDragStart);
     document.addEventListener("keydown", onKeyDown);
     window.addEventListener("blur", onBlur);
 
@@ -132,6 +259,11 @@ export function useProctoring() {
       document.removeEventListener("copy", onCopy);
       document.removeEventListener("cut", onCut);
       document.removeEventListener("paste", onPaste);
+      document.removeEventListener(
+        "beforeinput",
+        onBeforeInput as EventListener,
+      );
+      document.removeEventListener("dragstart", onDragStart);
       document.removeEventListener("keydown", onKeyDown);
       window.removeEventListener("blur", onBlur);
     };
