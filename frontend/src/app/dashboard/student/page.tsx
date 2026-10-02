@@ -10,6 +10,7 @@ import {
   ChevronRight,
   Lock,
   CheckCircle2,
+  Trophy,
 } from "lucide-react";
 
 import { TopNav } from "@/components/TopNav";
@@ -381,6 +382,15 @@ export default function StudentDashboard() {
                                 Result pending
                               </span>
                             )}
+
+                            <Link
+                              href={"/dashboard/student/leaderboard/" + result.quizId}
+                              onClick={(event) => event.stopPropagation()}
+                              aria-label={"View leaderboard for " + result.quizTitle}
+                              className="inline-flex h-7 w-7 items-center justify-center rounded-full border border-[#d1dee8]/80 bg-white text-[#78716b] transition-all hover:border-[#165dfb] hover:text-[#165dfb]"
+                            >
+                              <Trophy className="h-3.5 w-3.5" />
+                            </Link>
 
                             <ChevronRight className="h-3.5 w-3.5 text-[#c9c5c2] transition-all group-hover:translate-x-0.5 group-hover:text-[#165dfb]" />
                           </div>
