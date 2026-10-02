@@ -139,15 +139,19 @@ export function useProctoring(
         event,
       ];
 
-      const nextFlags = {
-        ...flags,
-        [type]: flags[type] + 1,
-      };
-
       eventsRef.current = nextEvents;
-      setFlags(nextFlags);
+
+      setFlags((previous) => {
+        const nextFlags = {
+          ...previous,
+          [type]: previous[type] + 1,
+        };
+
+        persist(nextFlags, nextEvents);
+        return nextFlags;
+      });
+
       setWarnings((previous) => [...previous.slice(-9), message]);
-      persist(nextFlags, nextEvents);
 
       try {
         void onEvent?.(event);
@@ -155,9 +159,8 @@ export function useProctoring(
         // Proctoring detection must continue if server sync fails.
       }
     },
-    [flags, persist],
+    [persist, onEvent],
   );
-
   /*
    * Restore the persisted event history when the attempt-specific key is
    * available. This keeps activity counts intact after a page reload.
