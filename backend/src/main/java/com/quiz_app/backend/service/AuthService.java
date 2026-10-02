@@ -11,9 +11,9 @@ import com.quiz_app.backend.dto.auth.AuthResponse;
 import com.quiz_app.backend.dto.auth.ChangePasswordRequest;
 import com.quiz_app.backend.dto.auth.DeleteAccountRequest;
 import com.quiz_app.backend.dto.auth.LoginRequest;
+import com.quiz_app.backend.dto.auth.SetPasswordRequest;
 import com.quiz_app.backend.dto.auth.SignupRequest;
 import com.quiz_app.backend.dto.auth.SignupResponse;
-import com.quiz_app.backend.dto.auth.SetPasswordRequest;
 import com.quiz_app.backend.dto.auth.UpdateProfileRequest;
 import com.quiz_app.backend.dto.auth.UserSummaryResponse;
 import com.quiz_app.backend.entity.Role;
@@ -32,12 +32,14 @@ public class AuthService {
         private final RoleRepository roleRepository;
         private final PasswordEncoder passwordEncoder;
         private final JwtUtils jwtUtils;
+        private final EmailVerificationService emailVerificationService;
 
         public AuthService(
                         UserRepository userRepository,
                         RoleRepository roleRepository,
                         PasswordEncoder passwordEncoder,
-                        JwtUtils jwtUtils) {
+                        JwtUtils jwtUtils,
+                        EmailVerificationService emailVerificationService) {
 
                 this.userRepository = userRepository;
                 this.roleRepository = roleRepository;
