@@ -77,7 +77,7 @@ class AuthServiceTest {
 
         SignupResponse response = authService.register(request, "student");
 
-        assertEquals("Account created successfully.", response.message());
+        assertEquals("Account created successfully. Please verify your email before logging in.", response.message());
         assertEquals("alex@university.edu", response.user().email());
         assertEquals("STUDENT", response.user().role());
         assertEquals(true, response.verificationRequired());
@@ -110,7 +110,7 @@ class AuthServiceTest {
         when(userRepository.existsByEmail("alex@example.com")).thenReturn(false);
         when(roleRepository.findByName("STUDENT")).thenReturn(Optional.of(studentRole));
 
-        assertThrows(BadRequestException.class, () -> authService.register(request, "ADMIN"));
+        assertThrows(BadRequestException.class, () -> authService.register(request, "STUDENT"));
     }
 
     @Test
@@ -121,7 +121,7 @@ class AuthServiceTest {
 
         when(userRepository.existsByEmail("alex@example.com")).thenReturn(false);
 
-        assertThrows(BadRequestException.class, () -> authService.register(request));
+        assertThrows(BadRequestException.class, () -> authService.register(request, "ADMIN"));
     }
 
     @Test
