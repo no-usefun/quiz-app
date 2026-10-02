@@ -58,10 +58,10 @@ class AuthControllerTest {
 
                 signupRequest = new SignupRequest(
                                 "Jane", "Smith", "jane@example.com", "password123",
-                                "TEACHER", "College", "CS", null, null);
+                                "College", "CS", null, null);
 
                 loginRequest = new LoginRequest(
-                                "jane@example.com", "password123", "TEACHER");
+                                "jane@example.com", "password123");
 
                 summary = new UserSummaryResponse(
                                 1L, "Jane", "Smith", "Jane Smith", "jane@example.com",
@@ -73,33 +73,33 @@ class AuthControllerTest {
 
         @Test
         void signup_shouldReturnCreated() throws Exception {
-                when(authService.register(any(SignupRequest.class)))
-                                .thenReturn(new SignupResponse("Account created successfully.", false, summary));
+                when(authService.register(any(SignupRequest.class), org.mockito.ArgumentMatchers.eq("TEACHER"))
+                                .thenReturn(new SignupResponse("Account created successfully. Please verify your email before logging in.", true, summary));
 
-                mockMvc.perform(post("/api/v1/auth/signup")
+                mockMvc.perform(post("/api/v1/auth/signup").param("role", "TEACHER")
                                 .contentType(MediaType.APPLICATION_JSON)
                                 .content(objectMapper.writeValueAsString(signupRequest)))
                                 .andExpect(status().isCreated())
-                                .andExpect(jsonPath("$.message").value("Account created successfully."))
-                                .andExpect(jsonPath("$.verificationRequired").value(false))
+                                .andExpect(jsonPath("$.message").value("Account created successfully. Please verify your email before logging in."))
+                                .andExpect(jsonPath("$.verificationRequired").value(true))
                                 .andExpect(jsonPath("$.user.email").value("jane@example.com"));
         }
 
         @Test
         void login_shouldRequireRole() throws Exception {
-                mockMvc.perform(post("/api/v1/auth/login")
+                mockMvc.perform(post("/api/v1/auth/login").param("role", "TEACHER")
                                 .contentType(MediaType.APPLICATION_JSON)
                                 .content("""
                                                 {"email":"jane@example.com","password":"password123"}
                                                 """))
                                 .andExpect(status().isBadRequest());
 
-                verify(authService, never()).login(any(LoginRequest.class));
+                verify(authService, never()).login(any(LoginRequest.class), org.mockito.ArgumentMatchers.anyString());
         }
 
         @Test
         void login_shouldReturnToken() throws Exception {
-                when(authService.login(any(LoginRequest.class))).thenReturn(authResponse);
+                when(authService.login(any(LoginRequest.class), org.mockito.ArgumentMatchers.eq("TEACHER"))).thenReturn(authResponse);
 
                 mockMvc.perform(post("/api/v1/auth/login")
                                 .contentType(MediaType.APPLICATION_JSON)
