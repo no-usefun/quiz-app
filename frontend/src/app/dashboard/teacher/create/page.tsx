@@ -1535,6 +1535,31 @@ function CreateAssessmentContent() {
       if (!rawQuizId) throw new Error("Quiz response missing quizId");
       const numericQuizId = Number(rawQuizId);
 
+      /*
+       * CreateQuizRequest currently does not expose maxTabSwitch, while the
+       * settings endpoint does. Persist that value immediately after creation
+       * so a newly created quiz does not fall back to the backend default.
+       */
+      if (!isEditing) {
+        try {
+          await fetch(ENDPOINTS.teacher.settings(numericQuizId), {
+            method: "PUT",
+            headers: {
+              "Content-Type": "application/json",
+              ...(token ? { Authorization: `Bearer ${token}` } : {}),
+            },
+            body: JSON.stringify({
+              maxTabSwitch: Math.max(0, Number(maxTabSwitch) || 0),
+            }),
+          });
+        } catch (error) {
+          console.warn(
+            "[Quizly] Could not persist maxTabSwitch after quiz creation.",
+            error,
+          );
+        }
+      }
+
       // Persist full state bundle (metadata + questions) for instant edit hydration
       saveFullDraftBundle(numericQuizId, quizCode);
       if (draftId && String(draftId) !== String(numericQuizId)) {
