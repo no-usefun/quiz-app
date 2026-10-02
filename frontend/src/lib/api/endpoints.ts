@@ -24,9 +24,10 @@ export const ENDPOINTS = {
     googleLogin: `${API_BASE}/oauth2/authorization/google`,
   },
 
-  // Compatibility alias for older frontend imports.
+  // Compatibility aliases for profile/account endpoints.
   user: {
     profile: `${API_BASE}/api/v1/auth/me`,
+    notificationPreferences: `${API_BASE}/api/v1/auth/me/notification-preferences`,
   },
 
   student: {
@@ -103,10 +104,5 @@ export const ENDPOINTS = {
 
     liveAttempts: (quizId: number | string) =>
       `${API_BASE}/api/v1/teacher/quizzes/${quizId}/attempts/live`,
-  },
-
-  user: {
-    profile: `${API_BASE}/api/v1/auth/me`,
-    notificationPreferences: `${API_BASE}/api/v1/auth/me/notification-preferences`,
   },
 } as const;
