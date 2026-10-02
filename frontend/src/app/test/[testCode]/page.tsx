@@ -17,6 +17,7 @@ import {
   Volume2,
   ShieldAlert,
   Maximize2,
+  RefreshCw,
 } from "lucide-react";
 import { useProctoring } from "@/hooks/useProctoring";
 
@@ -1408,6 +1409,50 @@ export default function TestArenaPage({
             <div className="py-2.5 px-4 rounded-xl bg-rose-50 border border-rose-200 text-rose-700 text-xs font-semibold">
               Please disconnect external displays or disable mirror/extend mode to resume the assessment.
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* Strict Extension Gate Overlay (Quiz cannot start without extension) */}
+      {!isExtensionInstalled && mounted && !isSubmitted && !isLoadingTest && test && (
+        <div className="fixed inset-0 z-50 bg-midnight-navy/95 backdrop-blur-md flex items-center justify-center p-4">
+          <div className="w-full max-w-lg bg-paper-white rounded-[20px] p-6 text-center border-2 border-amber-500 shadow-2xl space-y-4">
+            <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-amber-100 text-amber-600">
+              <ShieldCheck className="h-8 w-8 animate-pulse" />
+            </div>
+            <div>
+              <h2 className="text-base font-bold text-midnight-navy">
+                DynoQuizz AI Proctor Shield Extension Required
+              </h2>
+              <p className="mt-1 text-xs text-steel-blue-gray leading-relaxed font-medium">
+                This assessment enforces high-assurance AI proctoring. The exam <strong>will not start</strong> without the official <strong>DynoQuizz Proctor Shield</strong> Chrome Extension active in your browser.
+              </p>
+            </div>
+
+            <div className="text-left bg-frost-surface p-3.5 rounded-xl border border-mist-blue/60 text-xs space-y-2">
+              <p className="font-bold text-midnight-navy text-[11px] uppercase tracking-wide">
+                Quick Setup Steps:
+              </p>
+              <ol className="list-decimal list-inside space-y-1 text-[11px] text-steel-blue-gray font-medium">
+                <li>Open <code className="bg-white px-1.5 py-0.5 rounded border text-midnight-navy font-mono text-[10px]">chrome://extensions</code> in a new tab.</li>
+                <li>Enable <strong>Developer mode</strong> (toggle in top right corner).</li>
+                <li>Click <strong>Load unpacked</strong> and select the <code className="bg-white px-1.5 py-0.5 rounded border text-midnight-navy font-mono text-[10px]">database/extension</code> folder.</li>
+                <li>Return here and click the verification button below.</li>
+              </ol>
+            </div>
+
+            <button
+              type="button"
+              onClick={() => {
+                if (typeof window !== "undefined") {
+                  window.postMessage({ type: "DYNOQUIZZ_PING_EXTENSION" }, "*");
+                }
+              }}
+              className="w-full py-3.5 px-4 rounded-[12px] bg-[#165dfb] hover:bg-[#165dfb]/90 text-white font-bold text-xs shadow-md shadow-[#165dfb]/20 active:scale-[0.98] transition-all cursor-pointer flex items-center justify-center gap-2 border-0"
+            >
+              <RefreshCw className="h-4 w-4" />
+              <span>Verify Extension & Unlock Assessment</span>
+            </button>
           </div>
         </div>
       )}
