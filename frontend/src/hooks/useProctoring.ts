@@ -12,6 +12,8 @@ export interface ProctoringViolation {
 export interface UseProctoringOptions {
   attemptId?: number | null;
   quizId?: number | null;
+  testCode?: string;
+  studentReg?: string;
   maxWarnings?: number;
   autoSubmitOnLimit?: boolean;
   onAutoSubmit?: () => void;
@@ -24,6 +26,8 @@ const API_BASE = (
 
 export function useProctoring({
   attemptId,
+  testCode,
+  studentReg,
   maxWarnings = 3,
   onAutoSubmit,
   enabled = true,
@@ -41,6 +45,11 @@ export function useProctoring({
   const [faceStatus, setFaceStatus] = useState<
     "OK" | "NO_FACE" | "MULTIPLE_FACES" | "LOOKING_AWAY"
   >("OK");
+
+  // Extension Integration State
+  const [isExtensionInstalled, setIsExtensionInstalled] = useState(false);
+  const [isExtensionActive, setIsExtensionActive] = useState(false);
+  const [displayCount, setDisplayCount] = useState(1);
 
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
@@ -160,6 +169,93 @@ export function useProctoring({
 
     registerDevice();
   }, [attemptId, enabled]);
+
+  // ─── 2.5 Chrome Proctoring Extension Handshake & Telemetry Bridge ──────────
+  useEffect(() => {
+    if (!enabled || typeof window === "undefined") return;
+
+    if ((window as any).__DYNOQUIZZ_EXTENSION_ACTIVE__) {
+      setIsExtensionInstalled(true);
+      setIsExtensionActive(true);
+    }
+
+    const handleCustomReady = () => {
+      setIsExtensionInstalled(true);
+      setIsExtensionActive(true);
+    };
+
+    const handleWindowMessage = (event: MessageEvent) => {
+      if (!event.data || typeof event.data !== "object") return;
+
+      if (
+        event.data.type === "DYNOQUIZZ_EXTENSION_PONG" ||
+        event.data.type === "DYNOQUIZZ_INIT_ACK"
+      ) {
+        setIsExtensionInstalled(true);
+        setIsExtensionActive(true);
+        if (event.data.displays && Array.isArray(event.data.displays)) {
+          setDisplayCount(event.data.displays.length);
+          if (event.data.displays.length > 1) {
+            setProctorStatus("WARNING");
+            setStatusMessage(
+              `Alert: ${event.data.displays.length} displays detected by Proctor Shield!`,
+            );
+          }
+        }
+      }
+
+      if (event.data.type === "DYNOQUIZZ_EXTENSION_VIOLATION_ALERT") {
+        const v = event.data.violation;
+        if (v) {
+          const newViolation: ProctoringViolation = {
+            id: v.id || Math.random().toString(36).substring(2, 9),
+            type: v.type || "VIOLATION",
+            message: `[Proctor Shield] ${v.details || v.type}`,
+            timestamp: v.timestamp || new Date().toLocaleTimeString(),
+          };
+          setViolations((prev) => [newViolation, ...prev.slice(0, 19)]);
+          if (v.type !== "WINDOW_FOCUS") {
+            setProctorStatus("WARNING");
+            setStatusMessage(`Shield Alert: ${v.details || v.type}`);
+          }
+        }
+      }
+    };
+
+    window.addEventListener("dynoquizz-extension-ready", handleCustomReady);
+    window.addEventListener("message", handleWindowMessage);
+
+    // Initial ping to extension
+    window.postMessage({ type: "DYNOQUIZZ_PING_EXTENSION" }, "*");
+
+    // Arm the extension with attempt metadata when attemptId is active
+    if (attemptId) {
+      const token = localStorage.getItem("dynoquizz_token") || "";
+      window.postMessage(
+        {
+          type: "DYNOQUIZZ_INIT",
+          attemptId,
+          testCode,
+          studentReg,
+          token,
+          apiBase: API_BASE,
+        },
+        "*",
+      );
+    }
+
+    // Periodic heartbeat ping to verify extension is alive
+    const pingInterval = setInterval(() => {
+      window.postMessage({ type: "DYNOQUIZZ_PING_EXTENSION" }, "*");
+    }, 4000);
+
+    return () => {
+      clearInterval(pingInterval);
+      window.removeEventListener("dynoquizz-extension-ready", handleCustomReady);
+      window.removeEventListener("message", handleWindowMessage);
+      window.postMessage({ type: "DYNOQUIZZ_FINISH" }, "*");
+    };
+  }, [attemptId, enabled, testCode, studentReg]);
 
   // ─── 3. Browser Integrity Listeners ───────────────────────────────────────
   useEffect(() => {
@@ -498,6 +594,9 @@ export function useProctoring({
     faceStatus,
     isFullscreen,
     hasCameraPermission,
+    isExtensionInstalled,
+    isExtensionActive,
+    displayCount,
     requestFullscreen,
   };
 }

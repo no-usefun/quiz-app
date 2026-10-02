@@ -1,0 +1,55 @@
+{
+  "manifest_version": 3,
+  "name": "DynoQuizz AI Proctor Shield",
+  "version": "1.0.0",
+  "description": "Enterprise AI Proctoring Extension for DynoQuizz. Enforces tab isolation, multi-display detection, clipboard lockdown, and real-time telemetry.",
+  "permissions": [
+    "tabs",
+    "windows",
+    "system.display",
+    "storage",
+    "scripting"
+  ],
+  "host_permissions": [
+    "http://localhost:*/*",
+    "http://127.0.0.1:*/*",
+    "https://*.vercel.app/*",
+    "https://*/*"
+  ],
+  "background": {
+    "service_worker": "background.js"
+  },
+  "content_scripts": [
+    {
+      "matches": [
+        "http://localhost:3000/*",
+        "http://127.0.0.1:3000/*",
+        "https://*.vercel.app/*",
+        "https://*.dynoquizz.com/*"
+      ],
+      "js": ["content.js"],
+      "run_at": "document_start",
+      "all_frames": false
+    }
+  ],
+  "action": {
+    "default_popup": "popup.html",
+    "default_title": "DynoQuizz AI Proctor Shield",
+    "default_icon": {
+      "16": "icons/icon16.png",
+      "48": "icons/icon48.png",
+      "128": "icons/icon128.png"
+    }
+  },
+  "icons": {
+    "16": "icons/icon16.png",
+    "48": "icons/icon48.png",
+    "128": "icons/icon128.png"
+  },
+  "web_accessible_resources": [
+    {
+      "resources": ["injected.js", "icons/*"],
+      "matches": ["<all_urls>"]
+    }
+  ]
+}

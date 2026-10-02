@@ -117,9 +117,18 @@ export default function TestArenaPage({
     faceStatus,
     isFullscreen,
     hasCameraPermission,
+    isExtensionInstalled,
+    isExtensionActive,
+    displayCount,
     requestFullscreen,
   } = useProctoring({
     attemptId: activeAttemptId,
+    testCode: testCode.toUpperCase(),
+    studentReg:
+      (typeof window !== "undefined"
+        ? localStorage.getItem("dynoquizz_regNo") ||
+          sessionStorage.getItem("dynoquizz_student_reg")
+        : "") || "Student",
     maxWarnings: 3,
     onAutoSubmit: () => {
       if (!isSubmitted) {
@@ -1255,12 +1264,37 @@ export default function TestArenaPage({
           </div>
 
           {/* Real-time Status Details */}
-          <div className="p-3 bg-frost-surface border-t border-[#d1dee8]/50 text-[11px] font-medium text-steel-blue-gray space-y-1">
-            <p className="flex items-center justify-between text-midnight-navy font-semibold text-[10px]">
+          <div className="p-3 bg-frost-surface border-t border-[#d1dee8]/50 text-[11px] font-medium text-steel-blue-gray space-y-1.5">
+            <div className="flex items-center justify-between text-midnight-navy font-semibold text-[10px]">
               <span>Proctoring Engine:</span>
-              <span className="text-signal-green font-bold">Edge AI (Active)</span>
-            </p>
-            <p className="text-[10px] text-steel-blue-gray leading-tight">
+              <span className="text-signal-green font-bold">Edge AI + Sentinel</span>
+            </div>
+            <div className="flex items-center justify-between text-midnight-navy font-semibold text-[10px]">
+              <span>Shield Sentinel:</span>
+              <span
+                className={`font-bold flex items-center gap-1 ${
+                  isExtensionInstalled ? "text-signal-green" : "text-amber-600"
+                }`}
+              >
+                <ShieldCheck className="h-3 w-3" />
+                {isExtensionInstalled ? "Extension Armed" : "In-Browser Mode"}
+              </span>
+            </div>
+            {isExtensionInstalled && (
+              <div className="flex items-center justify-between text-midnight-navy font-semibold text-[10px]">
+                <span>Active Displays:</span>
+                <span
+                  className={`font-bold ${
+                    displayCount > 1
+                      ? "text-rose-600 animate-pulse"
+                      : "text-signal-green"
+                  }`}
+                >
+                  {displayCount} Display{displayCount > 1 ? "s (ALERT)" : " (Secure)"}
+                </span>
+              </div>
+            )}
+            <p className="text-[10px] text-steel-blue-gray leading-tight pt-0.5">
               {statusMessage}
             </p>
           </div>
@@ -1352,6 +1386,28 @@ export default function TestArenaPage({
               <Maximize2 className="h-4 w-4" />
               <span>Enter Fullscreen & Resume Assessment</span>
             </button>
+          </div>
+        </div>
+      )}
+
+      {/* Multi-Monitor Setup Violation Overlay */}
+      {displayCount > 1 && mounted && !isSubmitted && !isLoadingTest && test && (
+        <div className="fixed inset-0 z-50 bg-midnight-navy/95 backdrop-blur-md flex items-center justify-center p-4">
+          <div className="w-full max-w-md bg-paper-white rounded-[20px] p-6 text-center border-2 border-rose-500 shadow-2xl space-y-4">
+            <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-rose-100 text-rose-600">
+              <ShieldAlert className="h-8 w-8 animate-bounce" />
+            </div>
+            <div>
+              <h2 className="text-base font-bold text-midnight-navy">
+                Multi-Monitor Configuration Detected
+              </h2>
+              <p className="mt-1 text-xs text-steel-blue-gray leading-relaxed font-medium">
+                DynoQuizz AI Proctor Shield detected <strong>{displayCount} active displays</strong>. Secondary monitors, HDMI splitters, and wireless screen sharing are strictly prohibited during assessments.
+              </p>
+            </div>
+            <div className="py-2.5 px-4 rounded-xl bg-rose-50 border border-rose-200 text-rose-700 text-xs font-semibold">
+              Please disconnect external displays or disable mirror/extend mode to resume the assessment.
+            </div>
           </div>
         </div>
       )}

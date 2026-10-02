@@ -1,0 +1,108 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>DynoQuizz AI Proctor Shield</title>
+  <link rel="stylesheet" href="popup.css">
+</head>
+<body>
+  <div class="app-container">
+    <!-- Header -->
+    <header class="header">
+      <div class="brand">
+        <img src="icons/icon48.png" alt="Proctor Shield" class="brand-icon">
+        <div>
+          <h1 class="brand-title">DynoQuizz</h1>
+          <span class="brand-subtitle">AI PROCTOR SHIELD</span>
+        </div>
+      </div>
+      <div id="status-pill" class="status-pill idle">
+        <span class="pulse-dot"></span>
+        <span id="status-text">STANDBY</span>
+      </div>
+    </header>
+
+    <!-- Candidate Session Card -->
+    <div class="card session-card">
+      <div class="card-header">
+        <span class="card-title">ASSESSMENT SESSION</span>
+        <span id="session-code" class="session-badge">NO ACTIVE TEST</span>
+      </div>
+      <div class="session-details">
+        <div class="detail-row">
+          <span class="label">Attempt ID:</span>
+          <span id="attempt-id" class="value font-mono">--</span>
+        </div>
+        <div class="detail-row">
+          <span class="label">Candidate Reg:</span>
+          <span id="candidate-reg" class="value font-mono">--</span>
+        </div>
+        <div class="detail-row">
+          <span class="label">Backend Gateway:</span>
+          <span id="api-base" class="value text-xs text-muted">http://localhost:8080</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Display Sentinel Status -->
+    <div class="card display-card">
+      <div class="card-header">
+        <span class="card-title">DISPLAY SENTINEL</span>
+        <span id="display-badge" class="badge badge-success">1 DISPLAY</span>
+      </div>
+      <div class="display-info">
+        <div id="display-status-text" class="display-text text-emerald">
+          Single Display Active (Secure Environment)
+        </div>
+        <div id="display-list" class="display-list">
+          <!-- Populated by JS -->
+        </div>
+      </div>
+    </div>
+
+    <!-- Security Directives Grid -->
+    <div class="security-grid">
+      <div class="security-item">
+        <span class="indicator active"></span>
+        <span class="sec-label">Tab Switch Guard</span>
+      </div>
+      <div class="security-item">
+        <span class="indicator active"></span>
+        <span class="sec-label">Multi-Screen Lock</span>
+      </div>
+      <div class="security-item">
+        <span class="indicator active"></span>
+        <span class="sec-label">Clipboard Shield</span>
+      </div>
+      <div class="security-item">
+        <span class="indicator active"></span>
+        <span class="sec-label">DevTools Defense</span>
+      </div>
+    </div>
+
+    <!-- Recent Violations Log -->
+    <div class="card violations-card">
+      <div class="card-header">
+        <span class="card-title">TELEMETRY & VIOLATIONS</span>
+        <span id="violation-count" class="badge badge-neutral">0 Events</span>
+      </div>
+      <div id="violations-list" class="violations-list">
+        <div class="empty-state">No security anomalies detected. Exam integrity intact.</div>
+      </div>
+    </div>
+
+    <!-- Action Footer -->
+    <footer class="footer">
+      <button id="btn-test-sync" class="btn btn-secondary">
+        Test Backend Sync
+      </button>
+      <button id="btn-clear-logs" class="btn btn-outline">
+        Clear Logs
+      </button>
+    </footer>
+  </div>
+
+  <script src="popup.js"></script>
+</body>
+</html>
