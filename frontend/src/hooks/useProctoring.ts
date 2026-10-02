@@ -41,6 +41,7 @@ export function useProctoring(options: UseProctoringOptions = {}) {
     enabled = true,
   } = options;
 
+  const [micLevel, setMicLevel] = useState(0);
   const [warningsCount, setWarningsCount] = useState(0);
   const [violations, setViolations] = useState<ProctoringViolation[]>([]);
   const [proctorStatus, setProctorStatus] = useState<
@@ -85,6 +86,17 @@ export function useProctoring(options: UseProctoringOptions = {}) {
     setCurrentWarningMessage(null);
   }, []);
 
+  // Video attachment ref
+  const attachVideo = useCallback((node: HTMLVideoElement | null) => {
+    videoRef.current = node;
+    if (node && streamRef.current) {
+      if (node.srcObject !== streamRef.current) {
+        node.srcObject = streamRef.current;
+      }
+      node.play().catch(() => {});
+    }
+  }, []);
+
   // ─── 1. Send Violation to Backend & Trigger Warnings ─────────────────────────
   const logEventToBackend = useCallback(
     async (activityType: string, details: string) => {
@@ -101,27 +113,7 @@ export function useProctoring(options: UseProctoringOptions = {}) {
         return;
       }
 
-      // Throttle window blur and tab switch so a single alt-tab doesn't trigger 2 warnings simultaneously
-      if (activityType === "TAB_SWITCH" || activityType === "WINDOW_BLUR") {
-        if (now - lastFocusViolationTimeRef.current < 2500) {
-          return;
-        }
-        lastFocusViolationTimeRef.current = now;
-      }
-
-      const newViolation: ProctoringViolation = {
-        id: Math.random().toString(36).substring(2, 9),
-        type: activityType,
-        message: details,
-        timestamp: new Date().toLocaleTimeString(),
-      };
-
-      setViolations((prev) => [newViolation, ...prev.slice(0, 19)]);
-      if (activityType !== "WINDOW_FOCUS") {
-        setCurrentWarningMessage(`⚠️ Warning: ${details}`);
-      }
-
-      // Optimistically increment warnings strictly for deliberate malpractice
+      // Throttle countable violations strictly to 1 per 4 seconds
       const isCountableViolation = [
         "TAB_SWITCH",
         "WINDOW_BLUR",
@@ -130,6 +122,11 @@ export function useProctoring(options: UseProctoringOptions = {}) {
       ].includes(activityType);
 
       if (isCountableViolation) {
+        if (now - lastFocusViolationTimeRef.current < 4000) {
+          return;
+        }
+        lastFocusViolationTimeRef.current = now;
+
         setWarningsCount((prev) => {
           const next = prev + 1;
           if (next >= maxWarnings && !isAutoSubmittedRef.current) {
@@ -142,6 +139,18 @@ export function useProctoring(options: UseProctoringOptions = {}) {
           }
           return next;
         });
+      }
+
+      const newViolation: ProctoringViolation = {
+        id: Math.random().toString(36).substring(2, 9),
+        type: activityType,
+        message: details,
+        timestamp: new Date().toLocaleTimeString(),
+      };
+
+      setViolations((prev) => [newViolation, ...prev.slice(0, 19)]);
+      if (activityType !== "WINDOW_FOCUS") {
+        setCurrentWarningMessage(`⚠️ Warning: ${details}`);
       }
 
       // Update flags
@@ -483,6 +492,7 @@ export function useProctoring(options: UseProctoringOptions = {}) {
                 sum += dataArray[i];
               }
               const average = sum / dataArray.length;
+              setMicLevel(Math.min(100, Math.round((average / 128) * 100)));
               const now = Date.now();
               if (average > 75 && now - lastAudioSpikeTimeRef.current > 4000) {
                 lastAudioSpikeTimeRef.current = now;
@@ -493,7 +503,7 @@ export function useProctoring(options: UseProctoringOptions = {}) {
                   `Audio spike detected (volume level: ${Math.round(average)})`,
                 );
               }
-            }, 1000);
+            }, 300);
           }
         } catch (audioErr) {
           console.warn("Audio analysis unavailable:", audioErr);
@@ -661,6 +671,8 @@ export function useProctoring(options: UseProctoringOptions = {}) {
 
   return {
     videoRef,
+    attachVideo,
+    micLevel,
     warningsCount,
     maxWarnings,
     violations,

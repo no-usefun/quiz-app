@@ -15,6 +15,8 @@ public interface ActivityLogRepository extends JpaRepository<ActivityLog, Long> 
 
     List<ActivityLog> findByAttemptIdAndActivityTypeInOrderByActivityTimeDesc(Long attemptId, List<ActivityType> types);
 
+    List<ActivityLog> findTop5ByAttemptIdOrderByActivityTimeDesc(Long attemptId);
+
     long countByAttemptIdAndActivityType(Long attemptId, ActivityType activityType);
 
     long countByAttemptIdAndActivityTypeIn(Long attemptId, List<ActivityType> types);

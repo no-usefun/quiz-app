@@ -102,31 +102,45 @@ public class ProctoringService {
 
         // 2. Handle violation counting & thresholds if attempt is still IN_PROGRESS
         if (request.activityType().isViolation() && attempt.getStatus() == AttemptStatus.IN_PROGRESS) {
-            int currentWarnings = (attempt.getWarningsCount() != null ? attempt.getWarningsCount() : 0) + 1;
-            attempt.setWarningsCount(currentWarnings);
-
-            if (currentWarnings >= maxAllowedWarnings) {
-                warningExceeded = true;
-                message = "Maximum warning threshold reached (" + currentWarnings + "/" + maxAllowedWarnings + ")";
-
-                if (quiz != null && quiz.isAutoSubmit()) {
-                    attempt.setStatus(AttemptStatus.AUTO_SUBMITTED);
-                    attempt.setSubmittedAt(eventTime);
-                    autoSubmitted = true;
-                    message = "Exam auto-submitted due to excessive integrity violations (" + currentWarnings + "/" + maxAllowedWarnings + ")";
-
-                    // Log auto-submit action
-                    ActivityLog autoSubmitLog = new ActivityLog();
-                    autoSubmitLog.setAttempt(attempt);
-                    autoSubmitLog.setQuestion(question);
-                    autoSubmitLog.setActivityType(ActivityType.AUTO_SUBMIT);
-                    autoSubmitLog.setActivityTime(eventTime);
-                    autoSubmitLog.setDetails("Auto-submitted: exceeded warning limit of " + maxAllowedWarnings);
-                    activityLogRepository.save(autoSubmitLog);
+            List<ActivityLog> recentViolations = activityLogRepository.findTop5ByAttemptIdOrderByActivityTimeDesc(attempt.getId());
+            boolean recentlyIncremented = false;
+            for (ActivityLog prevLog : recentViolations) {
+                if (prevLog.getId() != null && !prevLog.getId().equals(log.getId()) && prevLog.getActivityType() != null && prevLog.getActivityType().isViolation()) {
+                    long secondsBetween = java.time.Duration.between(prevLog.getActivityTime(), eventTime).abs().toSeconds();
+                    if (secondsBetween < 4) {
+                        recentlyIncremented = true;
+                        break;
+                    }
                 }
             }
 
-            quizAttemptRepository.save(attempt);
+            if (!recentlyIncremented) {
+                int currentWarnings = (attempt.getWarningsCount() != null ? attempt.getWarningsCount() : 0) + 1;
+                attempt.setWarningsCount(currentWarnings);
+
+                if (currentWarnings >= maxAllowedWarnings) {
+                    warningExceeded = true;
+                    message = "Maximum warning threshold reached (" + currentWarnings + "/" + maxAllowedWarnings + ")";
+
+                    if (quiz != null && quiz.isAutoSubmit()) {
+                        attempt.setStatus(AttemptStatus.AUTO_SUBMITTED);
+                        attempt.setSubmittedAt(eventTime);
+                        autoSubmitted = true;
+                        message = "Exam auto-submitted due to excessive integrity violations (" + currentWarnings + "/" + maxAllowedWarnings + ")";
+
+                        // Log auto-submit action
+                        ActivityLog autoSubmitLog = new ActivityLog();
+                        autoSubmitLog.setAttempt(attempt);
+                        autoSubmitLog.setQuestion(question);
+                        autoSubmitLog.setActivityType(ActivityType.AUTO_SUBMIT);
+                        autoSubmitLog.setActivityTime(eventTime);
+                        autoSubmitLog.setDetails("Auto-submitted: exceeded warning limit of " + maxAllowedWarnings);
+                        activityLogRepository.save(autoSubmitLog);
+                    }
+                }
+
+                quizAttemptRepository.save(attempt);
+            }
         }
 
         int finalWarningCount = attempt.getWarningsCount() != null ? attempt.getWarningsCount() : 0;

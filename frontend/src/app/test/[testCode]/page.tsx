@@ -14,13 +14,19 @@ import {
   ShieldCheck,
   AlertTriangle,
   Eye,
+  EyeOff,
   Volume2,
+  Mic,
   ShieldAlert,
   Maximize2,
+  Minimize2,
   RefreshCw,
   Download,
   Activity,
   User,
+  Camera,
+  ChevronDown,
+  ChevronUp,
 } from "lucide-react";
 import { useProctoring } from "@/hooks/useProctoring";
 
@@ -129,6 +135,8 @@ export default function TestArenaPage({
 
   const {
     videoRef,
+    attachVideo,
+    micLevel,
     warningsCount,
     maxWarnings,
     proctorStatus,
@@ -151,11 +159,16 @@ export default function TestArenaPage({
     maxWarnings: 3,
     onAutoSubmit: () => {
       if (!isSubmitted) {
-        finishAssessment(answers);
+        finishAssessment(
+          answers,
+          "Assessment auto-submitted: Reached maximum integrity warning limit (3/3).",
+        );
       }
     },
     enabled: !isSubmitted,
   });
+
+  const [isPipMinimized, setIsPipMinimized] = useState(false);
 
   const [saveStatus, setSaveStatus] = useState<"idle" | "saved">("idle");
   const [sessionExpired, setSessionExpired] = useState(false);
@@ -611,10 +624,19 @@ export default function TestArenaPage({
    */
   const finishAssessment = async (
     latestAnswers: Record<number, number | null>,
+    customReason?: string,
   ) => {
     if (isSubmitted || !test) return;
 
     setIsSubmitted(true);
+
+    if (typeof document !== "undefined" && document.fullscreenElement) {
+      try {
+        await document.exitFullscreen();
+      } catch {
+        // ignore fullscreen exit errors
+      }
+    }
 
     const cleanCode = testCode.toUpperCase();
     persistLocalAnswerState(latestAnswers, timeTakenPerQuestion);
@@ -696,50 +718,49 @@ export default function TestArenaPage({
         return;
       }
 
-      if (res.ok) {
-        const returnedAttemptId = data?.attemptId;
+      const isSuccess =
+        res.ok ||
+        res.status === 409 ||
+        data?.error === "ATTEMPT_ALREADY_SUBMITTED" ||
+        data?.message?.includes("already been submitted");
 
-        if (
-          returnedAttemptId === undefined ||
-          returnedAttemptId === null ||
-          String(returnedAttemptId).trim() === ""
-        ) {
-          setIsSubmitted(false);
-          setSubmissionNotice(
-            "Your submission was received, but the attempt ID was not returned. Please contact the administrator before leaving this page.",
-          );
-          return;
-        }
-
-        const authoritativeAttemptId = String(returnedAttemptId);
-        setSubmittedAttemptId(authoritativeAttemptId);
+      if (isSuccess) {
+        const returnedAttemptId = String(data?.attemptId || attemptId);
+        setSubmittedAttemptId(returnedAttemptId);
 
         localStorage.setItem(
           `dynoquizz_submittedAttemptId_${cleanCode}`,
-          authoritativeAttemptId,
+          returnedAttemptId,
         );
         localStorage.setItem(
           "dynoquizz_submittedAttemptId",
-          authoritativeAttemptId,
+          returnedAttemptId,
         );
 
         localStorage.removeItem(`dynoquizz_attemptId_${cleanCode}`);
         localStorage.removeItem("dynoquizz_attemptId");
         localStorage.removeItem(
-          `dynoquizz_attemptTiming_${authoritativeAttemptId}`,
+          `dynoquizz_attemptTiming_${returnedAttemptId}`,
         );
         localStorage.removeItem(
-          `dynoquizz_active_test_${authoritativeAttemptId}`,
+          `dynoquizz_attemptTiming_${attemptId}`,
         );
-        localStorage.removeItem(`exam_index_${authoritativeAttemptId}`);
+        localStorage.removeItem(
+          `dynoquizz_active_test_${returnedAttemptId}`,
+        );
+        localStorage.removeItem(
+          `dynoquizz_active_test_${attemptId}`,
+        );
+        localStorage.removeItem(`exam_index_${returnedAttemptId}`);
+        localStorage.removeItem(`exam_index_${attemptId}`);
 
-        if (data.deadlineExceeded || data.error === "EXAM_DEADLINE_EXCEEDED") {
+        if (customReason) {
+          setSubmissionNotice(customReason);
+        } else if (data.deadlineExceeded || data.error === "EXAM_DEADLINE_EXCEEDED") {
           setDeadlineNotice(
             "Assessment deadline reached on the server. Responses collected up to the cutoff were saved.",
           );
-        }
-
-        if (data.finalScore == null || data.published === false) {
+        } else if (data.finalScore == null || data.published === false) {
           setSubmissionNotice(
             "Submitted successfully. Results will be available once published.",
           );
@@ -1076,16 +1097,6 @@ export default function TestArenaPage({
    */
   return (
     <div className="flex min-h-screen bg-[#f5f5f4] text-[#111111] p-3 md:p-6 font-sans selection:bg-[#f5f5f4] selection:text-[#165dfb] justify-center">
-      {/* Hidden camera stream running background AI snapshot analysis without displaying mirror */}
-      <video
-        ref={videoRef}
-        autoPlay
-        playsInline
-        muted
-        className="hidden"
-        aria-hidden="true"
-      />
-
       <motion.div
         initial={mounted ? { opacity: 0, y: 8 } : false}
         animate={mounted ? { opacity: 1, y: 0 } : false}
@@ -1326,6 +1337,155 @@ export default function TestArenaPage({
           </button>
         </footer>
       </motion.div>
+
+      {/* ─── Floating Live Proctor & Webcam PIP HUD ─── */}
+      {!isSubmitted && (
+        <div className="fixed bottom-4 right-4 z-40 font-sans">
+          <AnimatePresence>
+            {!isPipMinimized ? (
+              <motion.div
+                initial={{ opacity: 0, scale: 0.9, y: 10 }}
+                animate={{ opacity: 1, scale: 1, y: 0 }}
+                exit={{ opacity: 0, scale: 0.9, y: 10 }}
+                className="w-72 md:w-80 rounded-[16px] bg-white/95 backdrop-blur-md border border-[#d1dee8] shadow-2xl p-3 text-left space-y-2.5 transition-all ring-1 ring-black/5"
+              >
+                {/* PIP Header */}
+                <div className="flex items-center justify-between px-1">
+                  <div className="flex items-center gap-1.5">
+                    <span className="relative flex h-2 w-2">
+                      <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75" />
+                      <span className="relative inline-flex h-2 w-2 rounded-full bg-emerald-500" />
+                    </span>
+                    <span className="text-[11px] font-bold uppercase tracking-wider text-[#111111] flex items-center gap-1">
+                      <ShieldCheck className="h-3.5 w-3.5 text-[#165dfb]" />
+                      Live AI Proctor
+                    </span>
+                  </div>
+
+                  <div className="flex items-center gap-1">
+                    <button
+                      type="button"
+                      onClick={() => setIsPipMinimized(true)}
+                      title="Minimize Proctor HUD"
+                      className="p-1 rounded-md text-[#78716b] hover:text-[#111111] hover:bg-[#f5f5f4] transition-colors cursor-pointer"
+                    >
+                      <ChevronDown className="h-4 w-4" />
+                    </button>
+                  </div>
+                </div>
+
+                {/* Webcam Stream Preview with Overlays */}
+                <div className="relative aspect-video rounded-xl overflow-hidden bg-slate-950 border border-slate-800 shadow-inner">
+                  <video
+                    ref={attachVideo}
+                    autoPlay
+                    playsInline
+                    muted
+                    className="w-full h-full object-cover transform -scale-x-100"
+                  />
+
+                  {/* Face Status Pill */}
+                  <div className="absolute top-2 left-2 z-10">
+                    {faceStatus === "OK" && (
+                      <span className="flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-950/80 text-emerald-300 border border-emerald-500/40 backdrop-blur-xs">
+                        <span className="h-1.5 w-1.5 rounded-full bg-emerald-400" />
+                        Face Verified
+                      </span>
+                    )}
+                    {faceStatus === "NO_FACE" && (
+                      <span className="flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-rose-950/90 text-rose-300 border border-rose-500/50 animate-pulse backdrop-blur-xs">
+                        <span className="h-1.5 w-1.5 rounded-full bg-rose-500" />
+                        No Face Detected
+                      </span>
+                    )}
+                    {faceStatus === "LOOKING_AWAY" && (
+                      <span className="flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-950/90 text-amber-300 border border-amber-500/50 animate-pulse backdrop-blur-xs">
+                        <span className="h-1.5 w-1.5 rounded-full bg-amber-400" />
+                        Looking Away
+                      </span>
+                    )}
+                    {faceStatus === "MULTIPLE_FACES" && (
+                      <span className="flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-rose-950/90 text-rose-300 border border-rose-500/60 animate-bounce backdrop-blur-xs">
+                        <span className="h-1.5 w-1.5 rounded-full bg-rose-500" />
+                        Multiple People
+                      </span>
+                    )}
+                  </div>
+
+                  {/* Audio Volume Indicator (Bottom Left) */}
+                  <div className="absolute bottom-2 left-2 z-10 flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-slate-900/80 text-white border border-slate-700/50 backdrop-blur-xs">
+                    <Mic className="h-3 w-3 text-slate-300" />
+                    <div className="w-12 h-1.5 bg-slate-700 rounded-full overflow-hidden">
+                      <div
+                        className={`h-full transition-all duration-150 ${
+                          micLevel > 65
+                            ? "bg-rose-500"
+                            : micLevel > 35
+                            ? "bg-amber-400"
+                            : "bg-emerald-400"
+                        }`}
+                        style={{ width: `${Math.min(100, micLevel)}%` }}
+                      />
+                    </div>
+                  </div>
+
+                  {/* Live Warnings HUD Pill (Bottom Right) */}
+                  <div className="absolute bottom-2 right-2 z-10">
+                    <span
+                      className={`flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold border backdrop-blur-xs ${
+                        warningsCount > 0
+                          ? "bg-rose-600 text-white border-rose-400 animate-pulse"
+                          : "bg-slate-900/80 text-slate-200 border-slate-700/50"
+                      }`}
+                    >
+                      ⚠️ {warningsCount} / {maxWarnings}
+                    </span>
+                  </div>
+                </div>
+
+                {/* Footer Telemetry Status */}
+                <div className="flex items-center justify-between text-[10px] text-[#78716b] font-medium pt-0.5 px-1">
+                  <span className="flex items-center gap-1">
+                    <Camera className="h-3 w-3 text-[#165dfb]" />
+                    30s AI Identity Snapshots Active
+                  </span>
+                  <span className="font-mono font-bold text-[#111111]">
+                    {warningsCount >= maxWarnings
+                      ? "Limit reached"
+                      : `${maxWarnings - warningsCount} left`}
+                  </span>
+                </div>
+              </motion.div>
+            ) : (
+              <motion.button
+                type="button"
+                onClick={() => setIsPipMinimized(false)}
+                initial={{ opacity: 0, scale: 0.9 }}
+                animate={{ opacity: 1, scale: 1 }}
+                exit={{ opacity: 0, scale: 0.9 }}
+                className="flex items-center gap-2 rounded-full bg-white/95 backdrop-blur-md border border-[#d1dee8] px-3.5 py-2 shadow-xl hover:bg-white transition-all cursor-pointer ring-1 ring-black/5"
+              >
+                <span className="relative flex h-2 w-2">
+                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75" />
+                  <span className="relative inline-flex h-2 w-2 rounded-full bg-emerald-500" />
+                </span>
+                <Camera className="h-3.5 w-3.5 text-[#165dfb]" />
+                <span className="text-xs font-bold text-[#111111]">AI Proctor</span>
+                <span
+                  className={`text-[11px] font-bold px-1.5 py-0.2 rounded-full ${
+                    warningsCount > 0
+                      ? "bg-rose-100 text-rose-700"
+                      : "bg-slate-100 text-[#78716b]"
+                  }`}
+                >
+                  ⚠️ {warningsCount}/{maxWarnings}
+                </span>
+                <ChevronUp className="h-3.5 w-3.5 text-[#78716b]" />
+              </motion.button>
+            )}
+          </AnimatePresence>
+        </div>
+      )}
 
       {/* Fullscreen Lockdown Modal */}
       {!isFullscreen && !isSubmitted && mounted && (
