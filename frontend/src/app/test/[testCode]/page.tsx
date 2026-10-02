@@ -1040,6 +1040,21 @@ export default function TestArenaPage({
 
     if (activeAttemptId && typeof window !== "undefined") {
       localStorage.setItem(`exam_index_${activeAttemptId}`, String(nextIndex));
+
+      void api
+        .post(ENDPOINTS.student.heartbeat(activeAttemptId), {
+          currentQuestion: nextIndex + 1,
+        })
+        .catch((error) => {
+          if (
+            error instanceof ApiClientError &&
+            (error.status === 404 || error.status === 405)
+          ) {
+            return;
+          }
+
+          console.warn("[Assessment] Current-question heartbeat failed.", error);
+        });
     }
 
     setSaveStatus("idle");
