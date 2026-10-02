@@ -155,8 +155,8 @@ function JoinForm() {
         sessionStorage.setItem("dynoquizz_student_reg", cleanReg);
       }
 
-      // Availability is valid. The next page handles the attempt/lobby flow.
-      router.push(`/test/${cleanCode}/lobby`);
+      // Availability is valid. Transition to System Compatibility & Face Capture check
+      router.push(`/test/${cleanCode}/verify`);
     } catch (err: any) {
       console.error("Join validation error:", err);
       const msg = err.message || "";

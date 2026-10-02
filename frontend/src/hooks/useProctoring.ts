@@ -121,13 +121,10 @@ export function useProctoring(options: UseProctoringOptions = {}) {
         setCurrentWarningMessage(`⚠️ Warning: ${details}`);
       }
 
-      // Optimistically increment warnings for integrity violations
+      // Optimistically increment warnings strictly for deliberate malpractice
       const isCountableViolation = [
         "TAB_SWITCH",
         "WINDOW_BLUR",
-        "FULLSCREEN_EXIT",
-        "MULTIPLE_FACES",
-        "LOOKING_AWAY",
         "DEVTOOLS_OPEN",
         "MULTI_DISPLAY",
       ].includes(activityType);

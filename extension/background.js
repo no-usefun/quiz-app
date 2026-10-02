@@ -172,9 +172,12 @@ async function logTelemetry(activityType, details) {
   }
 }
 
-// ─── 3. Global Tab & Window Interceptors ──────────────────────────────────────
+let monitorStartTime = 0;
+let windowBlurTimer = null;
+
 chrome.tabs.onActivated.addListener(async (activeInfo) => {
   if (!inMemoryState.isMonitoring) return;
+  if (Date.now() - monitorStartTime < 8000) return; // 8s grace period
 
   if (inMemoryState.examTabId && activeInfo.tabId !== inMemoryState.examTabId) {
     chrome.action.setBadgeText({ text: "WARN" });
@@ -199,6 +202,7 @@ chrome.tabs.onActivated.addListener(async (activeInfo) => {
 
 chrome.tabs.onCreated.addListener(async (tab) => {
   if (!inMemoryState.isMonitoring) return;
+  if (Date.now() - monitorStartTime < 8000) return;
   await logTelemetry(
     "TAB_SWITCH",
     "Candidate opened a new browser tab during assessment",
@@ -207,28 +211,39 @@ chrome.tabs.onCreated.addListener(async (tab) => {
 
 chrome.windows.onFocusChanged.addListener(async (windowId) => {
   if (!inMemoryState.isMonitoring) return;
+  if (Date.now() - monitorStartTime < 8000) return;
 
-  if (windowId === chrome.windows.WINDOW_ID_NONE) {
-    chrome.action.setBadgeText({ text: "WARN" });
-    chrome.action.setBadgeBackgroundColor({ color: "#f59e0b" });
-    await logTelemetry(
-      "WINDOW_BLUR",
-      "Exam browser lost OS focus (Candidate switched to external app / desktop)",
-    );
-  } else if (
+  if (windowBlurTimer) {
+    clearTimeout(windowBlurTimer);
+    windowBlurTimer = null;
+  }
+
+  if (
     inMemoryState.examWindowId &&
-    windowId !== inMemoryState.examWindowId
+    windowId !== inMemoryState.examWindowId &&
+    windowId !== chrome.windows.WINDOW_ID_NONE
   ) {
     chrome.action.setBadgeText({ text: "WARN" });
     chrome.action.setBadgeBackgroundColor({ color: "#f59e0b" });
     await logTelemetry(
       "WINDOW_BLUR",
-      `Candidate switched to secondary browser window (Window ID: ${windowId})`,
+      `Candidate switched to secondary application / window (Window ID: ${windowId})`,
     );
+  } else if (windowId === chrome.windows.WINDOW_ID_NONE) {
+    // Only fire if blur persists for at least 3 seconds (avoiding transient click focus loss)
+    windowBlurTimer = setTimeout(async () => {
+      if (inMemoryState.isMonitoring && Date.now() - monitorStartTime >= 8000) {
+        chrome.action.setBadgeText({ text: "WARN" });
+        chrome.action.setBadgeBackgroundColor({ color: "#f59e0b" });
+        await logTelemetry(
+          "WINDOW_BLUR",
+          "Exam browser lost OS focus (Switched to external app or desktop)",
+        );
+      }
+    }, 3000);
   } else if (windowId === inMemoryState.examWindowId) {
     chrome.action.setBadgeText({ text: "LIVE" });
     chrome.action.setBadgeBackgroundColor({ color: "#10b981" });
-    await logTelemetry("WINDOW_FOCUS", "Exam window resumed active focus");
   }
 });
 
@@ -245,6 +260,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
       inMemoryState.apiBase = message.apiBase || "http://localhost:8080";
       inMemoryState.studentReg = message.studentReg || null;
       inMemoryState.startTime = new Date().toISOString();
+      monitorStartTime = Date.now();
 
       if (sender.tab) {
         inMemoryState.examTabId = sender.tab.id;
