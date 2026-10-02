@@ -154,7 +154,7 @@ export function AuthForm({ mode = "login" }: AuthFormProps) {
 
     try {
       if (isLogin) {
-        const response = await fetch("/api/auth/login", {
+        const response = await fetch("/api/auth/login?role=" + encodeURIComponent(role === "teacher" ? "TEACHER" : "STUDENT"), {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
@@ -163,7 +163,6 @@ export function AuthForm({ mode = "login" }: AuthFormProps) {
           body: JSON.stringify({
             email: email.trim(),
             password,
-            role: role === "teacher" ? "TEACHER" : "STUDENT",
           }),
           cache: "no-store",
         });
@@ -225,7 +224,7 @@ export function AuthForm({ mode = "login" }: AuthFormProps) {
 
       const backendRole = role === "teacher" ? "TEACHER" : "STUDENT";
 
-      const response = await fetch("/api/auth/signup", {
+      const response = await fetch("/api/auth/signup?role=" + encodeURIComponent(role === "teacher" ? "TEACHER" : "STUDENT"), {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -236,7 +235,6 @@ export function AuthForm({ mode = "login" }: AuthFormProps) {
           lastName: lastName.trim(),
           email: email.trim(),
           password,
-          role: backendRole,
           ...(backendRole === "STUDENT"
             ? {
                 registrationNo: registrationNo.trim().toUpperCase(),
