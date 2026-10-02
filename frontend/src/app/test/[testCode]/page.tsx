@@ -1673,6 +1673,13 @@ export default function TestArenaPage({
                   : "Select one option."}
               </div>
 
+              {currentQuestion &&
+                isQuestionExpired(Number(currentQuestion.questionId)) && (
+                  <div className="mb-4 rounded-[10px] border border-[#73561a]/20 bg-[#f6efe1] px-3.5 py-2.5 text-xs font-semibold text-[#73561a]">
+                    The time for this question has expired. It is now locked and the exam has moved to the next available question.
+                  </div>
+                )}
+
               <div className="space-y-2.5">
                 {currentQuestion?.options.map((option, idx) => {
                   const optionId = Number(option.optionId);
@@ -1686,7 +1693,11 @@ export default function TestArenaPage({
                       key={optionId || idx}
                       type="button"
                       onClick={() => handleSelectOption(optionId)}
-                      className={`w-full rounded-[10px] border p-3.5 text-left text-xs font-bold transition-all duration-150 cursor-pointer ${
+                      disabled={
+                        isSubmitted ||
+                        isQuestionExpired(Number(currentQuestion.questionId))
+                      }
+                      className={`w-full rounded-[10px] border p-3.5 text-left text-xs font-bold transition-all duration-150 cursor-pointer disabled:cursor-not-allowed disabled:opacity-50 ${
                         isSelected
                           ? "border-[#165dfb] bg-[#165dfb]/5 text-[#111111] ring-2 ring-[#165dfb]/20"
                           : "border-[#d1dee8]/70 bg-white text-[#78716b] hover:border-[#165dfb]/40 hover:text-[#111111]"
@@ -1719,7 +1730,11 @@ export default function TestArenaPage({
               <button
                 type="button"
                 onClick={() => goToQuestion(currentIndex - 1)}
-                disabled={isSubmitted || currentIndex === 0}
+                disabled={
+                  isSubmitted ||
+                  currentIndex === 0 ||
+                  test?.allowReview === false
+                }
                 className="inline-flex items-center gap-1 rounded-lg border border-[#d1dee8]/80 bg-white px-3 py-2 text-[10px] font-bold text-[#111111] transition-all hover:bg-[#f5f5f4] disabled:cursor-not-allowed disabled:opacity-40"
               >
                 <ChevronLeft className="h-3.5 w-3.5" />
@@ -1729,7 +1744,7 @@ export default function TestArenaPage({
               <button
                 type="button"
                 onClick={toggleReview}
-                disabled={isSubmitted}
+                disabled={isSubmitted || test?.allowReview === false}
                 className={`inline-flex items-center gap-1 rounded-lg border px-3 py-2 text-[10px] font-bold transition-all disabled:opacity-40 ${
                   markedForReview[Number(currentQuestion?.questionId)]
                     ? "border-[#73561a]/30 bg-[#f6efe1] text-[#73561a]"
