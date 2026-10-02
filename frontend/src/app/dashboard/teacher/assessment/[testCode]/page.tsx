@@ -980,6 +980,43 @@ export default function TeacherAssessmentPage({
             </div>
           </section>
 
+          {/* Authorized Candidates Whitelist Section */}
+          <section className="rounded-[14px] border border-[#d1dee8]/70 bg-paper-white p-4 space-y-3 shadow-sm text-left">
+            <div className="flex flex-wrap items-center justify-between gap-2 border-b border-[#d1dee8]/40 pb-2">
+              <h3 className="text-xs font-bold uppercase tracking-wider text-midnight-navy flex items-center gap-1.5">
+                <Users className="h-3.5 w-3.5 text-signal-green" /> Authorized Candidates Whitelist
+              </h3>
+              <span className="rounded-full bg-frost-surface border border-[#d1dee8]/80 px-2.5 py-0.5 text-[10px] font-bold text-signal-green shadow-xs">
+                {assessmentData?.allowedRegistrationNumbers && assessmentData.allowedRegistrationNumbers.length > 0
+                  ? `${assessmentData.allowedRegistrationNumbers.length} Authorized Students`
+                  : "Open to All Students (No Roll No Restriction)"}
+              </span>
+            </div>
+
+            {assessmentData?.allowedRegistrationNumbers && assessmentData.allowedRegistrationNumbers.length > 0 ? (
+              <div className="space-y-2">
+                <p className="text-[11px] text-steel-blue-gray font-medium">
+                  The following student registration numbers have been authorized by the teacher to take this assessment:
+                </p>
+                <div className="flex flex-wrap gap-2">
+                  {assessmentData.allowedRegistrationNumbers.map((regNo: string, idx: number) => (
+                    <span
+                      key={idx}
+                      className="inline-flex items-center gap-1.5 px-3 py-1 rounded-[8px] bg-frost-surface border border-signal-green/30 font-mono text-xs font-bold text-signal-green shadow-xs"
+                    >
+                      <span className="h-1.5 w-1.5 rounded-full bg-signal-green" />
+                      {regNo}
+                    </span>
+                  ))}
+                </div>
+              </div>
+            ) : (
+              <p className="text-xs text-steel-blue-gray font-medium leading-relaxed">
+                This assessment is set to <strong>Open Access</strong>. Any registered student who has the 6-digit access code can attempt the quiz without roll number restrictions.
+              </p>
+            )}
+          </section>
+
           <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
             {[
               {

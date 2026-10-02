@@ -291,6 +291,46 @@ export default function ShareAssessmentPage({
             </div>
           </div>
 
+          {/* Authorized Whitelisted Students */}
+          <div className="rounded-[12px] border border-[#d1dee8]/70 bg-[#f5f5f4]/50 p-5 space-y-3">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <div className="flex items-center gap-2">
+                <Users className="h-4 w-4 text-[#165dfb]" />
+                <span className="text-[11px] font-bold uppercase tracking-wider text-[#111111]">
+                  Authorized Students Whitelist
+                </span>
+              </div>
+              <span className="rounded-full bg-white border border-[#d1dee8]/80 px-2.5 py-0.5 text-[11px] font-bold text-[#165dfb] shadow-2xs">
+                {quizData.allowedRegistrationNumbers && quizData.allowedRegistrationNumbers.length > 0
+                  ? `${quizData.allowedRegistrationNumbers.length} Authorized Students`
+                  : "Open to All Students (No Roll Number Restriction)"}
+              </span>
+            </div>
+
+            {quizData.allowedRegistrationNumbers && quizData.allowedRegistrationNumbers.length > 0 ? (
+              <div className="space-y-2 pt-1">
+                <p className="text-[11px] text-[#78716b] font-medium">
+                  Only the following student registration numbers are authorized to take this assessment:
+                </p>
+                <div className="flex flex-wrap gap-2">
+                  {quizData.allowedRegistrationNumbers.map((regNo: string, idx: number) => (
+                    <span
+                      key={idx}
+                      className="inline-flex items-center gap-1.5 px-3 py-1 rounded-[8px] bg-white border border-[#165dfb]/30 font-mono text-xs font-bold text-[#165dfb] shadow-2xs"
+                    >
+                      <span className="h-1.5 w-1.5 rounded-full bg-[#165dfb]" />
+                      {regNo}
+                    </span>
+                  ))}
+                </div>
+              </div>
+            ) : (
+              <p className="text-xs text-[#78716b] font-medium leading-relaxed">
+                This assessment is set to <strong>Open Access</strong>. Any registered student who enters the 6-digit access code can attempt the quiz without roll number restrictions.
+              </p>
+            )}
+          </div>
+
           <div className="pt-4 border-t border-[#d1dee8]/30 flex justify-end gap-3">
             <Link
               href="/dashboard/teacher"
