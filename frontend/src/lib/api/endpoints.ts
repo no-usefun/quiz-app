@@ -18,6 +18,9 @@ export const ENDPOINTS = {
     resendVerification: `${API_BASE}/api/v1/auth/resend-verification`,
     changePassword: `${API_BASE}/api/v1/auth/change-password`,
     deleteAccount: `${API_BASE}/api/v1/auth/delete-account`,
+    setPassword: `${API_BASE}/api/v1/auth/set-password`,
+    forgotPassword: `${API_BASE}/api/v1/auth/forgot-password`,
+    resetPassword: `${API_BASE}/api/v1/auth/reset-password`,
     googleLogin: `${API_BASE}/oauth2/authorization/google`,
   },
 
@@ -37,6 +40,12 @@ export const ENDPOINTS = {
 
     autoSubmitAttempt: (attemptId: number | string) =>
       `${API_BASE}/api/v1/student/attempts/${attemptId}/auto-submit`,
+
+    attemptState: (attemptId: number | string) =>
+      `${API_BASE}/api/v1/student/attempts/${attemptId}/state`,
+
+    saveAnswer: (attemptId: number | string, questionId: number | string) =>
+      `${API_BASE}/api/v1/student/attempts/${attemptId}/questions/${questionId}/answer`,
 
     submissions: `${API_BASE}/api/v1/student/submissions`,
 
@@ -61,6 +70,9 @@ export const ENDPOINTS = {
 
     leaderboard: (quizId: number | string) =>
       `${API_BASE}/api/v1/student/quizzes/${quizId}/leaderboard`,
+
+    proctoringEvents: (attemptId: number | string) =>
+      `${API_BASE}/api/v1/student/attempts/${attemptId}/proctoring/events`,
   },
 
   teacher: {
@@ -88,5 +100,13 @@ export const ENDPOINTS = {
 
     leaderboard: (quizId: number | string) =>
       `${API_BASE}/api/v1/teacher/quizzes/${quizId}/leaderboard`,
+
+    liveAttempts: (quizId: number | string) =>
+      `${API_BASE}/api/v1/teacher/quizzes/${quizId}/attempts/live`,
+  },
+
+  user: {
+    profile: `${API_BASE}/api/v1/auth/me`,
+    notificationPreferences: `${API_BASE}/api/v1/auth/me/notification-preferences`,
   },
 } as const;
