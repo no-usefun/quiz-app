@@ -9,6 +9,7 @@ import {
   ArrowLeft,
   Upload,
   FileType,
+  Download,
   Clock,
   ChevronDown,
   Trash2,
@@ -412,253 +413,1043 @@ function CreateAssessmentContent() {
     if (!draftId) return;
 
     let isMounted = true;
+    setLoadingDraft(true);
+    setValidationError(null);
 
-    // Check localStorage immediately on mount to populate all metadata and settings
-    const cachedDraft =
+    const cachedDraftRaw =
       typeof window !== "undefined"
         ? localStorage.getItem(`quiz_draft_${draftId}`)
         : null;
-    if (cachedDraft) {
+
+    let cachedDraft: any = null;
+
+    if (cachedDraftRaw) {
       try {
-        const parsed = JSON.parse(cachedDraft);
-        if (parsed && typeof parsed === "object") {
-          setTitle(parsed.title || "");
-          setSubject(parsed.subject || "");
-          setSubjectCode(parsed.subjectCode || "");
-          setDescription(parsed.description || "");
-          setInstructions(parsed.instructions || "");
-          setOverallTimerSeconds(parsed.overallTimerSeconds || 0);
-          setAcceptedDomain(
-            parsed.acceptedEmailDomain || parsed.acceptedDomain || "",
+        cachedDraft = JSON.parse(cachedDraftRaw);
+
+        if (cachedDraft && typeof cachedDraft === "object") {
+          hydrateFromQuizData(
+            cachedDraft,
+            Array.isArray(cachedDraft.questions) ? cachedDraft.questions : [],
           );
-          if (parsed.allowedRollsText) {
-            setAllowedRollsText(parsed.allowedRollsText);
-          } else if (Array.isArray(parsed.allowedRolls)) {
-            setAllowedRollsText(parsed.allowedRolls.join(", "));
-          }
-          if (parsed.negativeMarking !== undefined) {
-            setNegativeMarking(Boolean(parsed.negativeMarking));
-          }
-          if (parsed.negativeMarks !== undefined) {
-            setNegativeMarks(Number(parsed.negativeMarks));
-          }
-          if (parsed.publishScoresImmediately !== undefined) {
+
+          if (cachedDraft.publishScoresImmediately !== undefined) {
             setPublishScoresImmediately(
-              Boolean(parsed.publishScoresImmediately),
+              Boolean(cachedDraft.publishScoresImmediately),
             );
           }
-          if (parsed.revealSolutions !== undefined) {
-            setRevealSolutions(Boolean(parsed.revealSolutions));
-          }
-          if (parsed.startTime)
-            setStartTime(formatForDateTimeInput(parsed.startTime));
-          // endTime is derived from startTime + timeLimit; no need to restore from cache.
-          if (parsed.maxTabSwitch !== undefined) {
-            setMaxTabSwitch(Number(parsed.maxTabSwitch));
-          }
-          if (parsed.timeBonusEnabled !== undefined) {
-            setTimeBonusEnabled(Boolean(parsed.timeBonusEnabled));
-          }
-          if (parsed.randomQuestionOrder !== undefined) {
-            setRandomQuestionOrder(Boolean(parsed.randomQuestionOrder));
-          }
-          if (parsed.randomOptionOrder !== undefined) {
-            setRandomOptionOrder(Boolean(parsed.randomOptionOrder));
-          }
-          if (parsed.allowReview !== undefined) {
-            setAllowReview(Boolean(parsed.allowReview));
-          }
-          if (parsed.allowResume !== undefined) {
-            setAllowResume(Boolean(parsed.allowResume));
-          }
-          if (parsed.autoSubmit !== undefined) {
-            setAutoSubmit(Boolean(parsed.autoSubmit));
-          }
-          if (
-            parsed.negativeMarking ||
-            parsed.publishScoresImmediately ||
-            parsed.revealSolutions ||
-            parsed.acceptedEmailDomain ||
-            parsed.acceptedDomain
-          ) {
-            setShowAdvanced(true);
-          }
-          // Fallback for questions if the API /package fetch hasn't overwritten them yet
-          if (parsed.questions?.length) {
-            setParsedQuestions(parsed.questions);
+
+          if (cachedDraft.revealSolutions !== undefined) {
+            setRevealSolutions(Boolean(cachedDraft.revealSolutions));
           }
         }
-      } catch (e) {
+      } catch (error) {
         console.warn(
-          "[DynoQuizz] Failed to parse saved draft from localStorage:",
-          e,
+          "[Quizly] Saved draft cache could not be restored:",
+          error,
         );
       }
     }
 
     const fetchDraft = async () => {
-      setLoadingDraft(true);
-      setValidationError(null);
-
-      const token =
-        typeof window !== "undefined"
-          ? localStorage.getItem("dynoquizz_token")
-          : null;
-
-      const headers: Record<string, string> = {
-        "Content-Type": "application/json",
-        ...(token ? { Authorization: `Bearer ${token}` } : {}),
-      };
-
       try {
-        let data: any = null;
+        const token =
+          typeof window !== "undefined"
+            ? localStorage.getItem("dynoquizz_token")
+            : null;
 
-        // Helper: the /package endpoint is student-facing and strips isCorrect.
-        // Whenever we have raw questions from a package fetch, immediately check
-        // localStorage for a teacher-side cache that still has isCorrect intact.
-        // Returns the localStorage array when found, the packageQuestions otherwise.
-        const preferLocalStorageQuestions = (
-          packageQuestions: any[],
-        ): any[] => {
-          const localRaw =
-            localStorage.getItem(`draft_questions_${draftId}`) ||
-            (data?.quizId
-              ? localStorage.getItem(`draft_questions_${data.quizId}`)
-              : null) ||
-            (data?.id
-              ? localStorage.getItem(`draft_questions_${data.id}`)
-              : null);
+        const response = await fetch(ENDPOINTS.teacher.quizDetail(draftId), {
+          method: "GET",
+          headers: {
+            Accept: "application/json",
+            ...(token ? { Authorization: `Bearer ${token}` } : {}),
+          },
+          cache: "no-store",
+        });
 
-          if (!localRaw) {
-            return packageQuestions;
-          }
+        const data = await response.json().catch(() => ({}));
 
-          try {
-            const localQuestions = JSON.parse(localRaw);
-
-            if (!Array.isArray(localQuestions) || localQuestions.length === 0) {
-              return packageQuestions;
-            }
-
-            return packageQuestions.map(
-              (backendQuestion: any, questionIndex: number) => {
-                const backendQId =
-                  backendQuestion.questionId ?? backendQuestion.id ?? null;
-
-                const localQuestion =
-                  localQuestions.find(
-                    (q: any) =>
-                      backendQId != null &&
-                      (q.questionId != null || q.id != null) &&
-                      String(q.questionId ?? q.id) === String(backendQId),
-                  ) || localQuestions[questionIndex];
-
-                if (!localQuestion) {
-                  return {
-                    ...backendQuestion,
-                    questionId: backendQId,
-                    options: (backendQuestion.options || []).map(
-                      (backendOption: any, optionIndex: number) => ({
-                        ...backendOption,
-                        optionId:
-                          backendOption.optionId ?? backendOption.id ?? null,
-                        displayOrder:
-                          backendOption.optionOrder ||
-                          backendOption.displayOrder ||
-                          optionIndex + 1,
-                        isCorrect: Boolean(
-                          backendOption.isCorrect === true ||
-                          backendOption.correct === true,
-                        ),
-                      }),
-                    ),
-                  };
-                }
-
-                return {
-                  ...backendQuestion,
-                  questionId:
-                    backendQId ??
-                    localQuestion.questionId ??
-                    localQuestion.id ??
-                    null,
-                  explanation:
-                    localQuestion.explanation ??
-                    backendQuestion.explanation ??
-                    "",
-                  imageUrl:
-                    localQuestion.imageUrl ?? backendQuestion.imageUrl ?? "",
-                  options: (backendQuestion.options || []).map(
-                    (backendOption: any, optionIndex: number) => {
-                      const backendOptId =
-                        backendOption.optionId ?? backendOption.id ?? null;
-
-                      const localOption =
-                        (localQuestion.options || []).find(
-                          (opt: any) =>
-                            backendOptId != null &&
-                            (opt.optionId != null || opt.id != null) &&
-                            String(opt.optionId ?? opt.id) ===
-                              String(backendOptId),
-                        ) || (localQuestion.options || [])[optionIndex];
-
-                      return {
-                        ...backendOption,
-                        optionId:
-                          backendOptId ??
-                          localOption?.optionId ??
-                          localOption?.id ??
-                          null,
-                        isCorrect: Boolean(
-                          localOption?.isCorrect ??
-                          localOption?.correct ??
-                          backendOption.isCorrect ??
-                          backendOption.correct ??
-                          false,
-                        ),
-                      };
-                    },
-                  ),
-                };
-              },
-            );
-          } catch (error) {
-            console.warn(
-              "[DynoQuizz] Failed to merge localStorage question cache:",
-              error,
-            );
-
-            return packageQuestions;
-          }
-        };
-
-        // 1. Primary: GET /api/v1/teacher/quizzes/${draftId}
-        const directRes = await fetch(ENDPOINTS.teacher.quizDetail(draftId), {
-          headers,
-        }).catch(() => null);
-
-        if (directRes && directRes.ok) {
-          data = await directRes.json();
-          console.log("Draft Hydration Payload:", data);
+        if (!response.ok) {
+          throw new Error(
+            data?.message ||
+              data?.error ||
+              `Unable to load draft (HTTP ${response.status}).`,
+          );
         }
 
-        let rawQuestions =
-          data?.questions ||
-          data?.questionList ||
-          [];
+        if (!isMounted) return;
+
+        const questions = Array.isArray(data?.questions)
+          ? data.questions
+          : [];
+
+        // The teacher detail endpoint is authoritative for both settings and
+        // question correctness. Do not read student package endpoints here.
+        hydrateFromQuizData(data, questions);
+      } catch (error) {
+        if (!isMounted) return;
 
         /*
-         * Teacher detail is the only authoritative source for editing a
-         * quiz. Do not fall back to student package endpoints or fabricate
-         * question data when the teacher endpoint does not return it.
+         * A cached draft is useful only as an offline/read-through fallback.
+         * Once the backend is reachable, its teacher-detail response replaces
+         * the cached state above.
          */
-        if (!Array.isArray(rawQuestions)) {
-          rawQuestions = [];
+        if (cachedDraft) {
+          return;
         }
 
-        if (rawQuestions.length === 0) {
+        setValidationError(
+          error instanceof Error
+            ? error.message
+            : "Unable to load this assessment from the server.",
+        );
+      } finally {
+        if (isMounted) {
+          setLoadingDraft(false);
+        }
+      }
+    };
+
+    void fetchDraft();
+
+    return () => {
+      isMounted = false;
+    };
+  }, [draftId]);
+
+  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    setValidationError(null);
+
+    const reader = new FileReader();
+
+    reader.onload = (event) => {
+      const text = event.target?.result as string;
+
+      if (!text || !text.trim()) {
+        setValidationError("The uploaded file is empty.");
+        setParsedQuestions([]);
+        return;
+      }
+
+      if (file.name.toLowerCase().endsWith(".json")) {
+        try {
+          const parsed = JSON.parse(text);
+          const rawList = Array.isArray(parsed)
+            ? parsed
+            : Array.isArray(parsed?.questions)
+              ? parsed.questions
+              : null;
+
+          if (!rawList || rawList.length === 0) {
+            throw new Error(
+              "JSON file must contain a non-empty array of questions.",
+            );
+          }
+
+          const validated: any[] = rawList.map((q: any, idx: number) => {
+            const qNum = idx + 1;
+            const questionText = String(
+              q?.questionText ?? q?.text ?? q?.prompt ?? "",
+            ).trim();
+            const imageUrl = String(
+              q?.imageUrl ?? q?.image ?? "",
+            ).trim();
+
+            if (!questionText && !imageUrl) {
+              throw new Error(
+                `Question ${qNum}: text or image is required.`,
+              );
+            }
+
+            const rawType = String(q?.questionType || "MCQ")
+              .trim()
+              .toUpperCase();
+
+            const questionType =
+              rawType === "MULTIPLE_CHOICE" ? "MCQ" : rawType;
+
+            if (!["MCQ", "MSQ", "TRUE_FALSE"].includes(questionType)) {
+              throw new Error(
+                `Question ${qNum}: unsupported question type "${rawType}".`,
+              );
+            }
+
+            const sourceOptions = Array.isArray(q?.options) ? q.options : [];
+
+            let options = sourceOptions.map((opt: any, optionIndex: number) => ({
+              optionText: String(opt?.optionText ?? opt?.text ?? "").trim(),
+              optionImage: String(opt?.optionImage ?? "").trim(),
+              optionOrder: optionIndex + 1,
+              isCorrect: Boolean(opt?.isCorrect ?? opt?.correct),
+            }));
+
+            if (questionType === "TRUE_FALSE") {
+              const trueCorrect =
+                options[0]?.isCorrect ||
+                String(q?.correctAnswer ?? q?.answer ?? "").toUpperCase() ===
+                  "TRUE";
+
+              const falseCorrect =
+                options[1]?.isCorrect ||
+                String(q?.correctAnswer ?? q?.answer ?? "").toUpperCase() ===
+                  "FALSE";
+
+              options = [
+                {
+                  optionText: "True",
+                  optionImage: options[0]?.optionImage || "",
+                  optionOrder: 1,
+                  isCorrect: trueCorrect && !falseCorrect,
+                },
+                {
+                  optionText: "False",
+                  optionImage: options[1]?.optionImage || "",
+                  optionOrder: 2,
+                  isCorrect: falseCorrect && !trueCorrect,
+                },
+              ];
+            }
+
+            if (options.length < 2) {
+              throw new Error(
+                `Question ${qNum}: at least two options are required.`,
+              );
+            }
+
+            const correctCount = options.filter((opt) => opt.isCorrect).length;
+
+            if (questionType === "MCQ" && correctCount !== 1) {
+              throw new Error(
+                `Question ${qNum}: MCQ requires exactly one correct option.`,
+              );
+            }
+
+            if (questionType === "MSQ" && correctCount < 1) {
+              throw new Error(
+                `Question ${qNum}: MSQ requires at least one correct option.`,
+              );
+            }
+
+            if (questionType === "TRUE_FALSE" && correctCount !== 1) {
+              throw new Error(
+                `Question ${qNum}: TRUE_FALSE requires exactly one correct option.`,
+              );
+            }
+
+            const marks = Number(q?.marks ?? 1);
+            const questionTimerSeconds = Number(
+              q?.questionTimerSeconds ?? 60,
+            );
+
+            if (!Number.isFinite(marks) || marks <= 0) {
+              throw new Error(
+                `Question ${qNum}: marks must be a positive number.`,
+              );
+            }
+
+            if (
+              !Number.isFinite(questionTimerSeconds) ||
+              questionTimerSeconds <= 0
+            ) {
+              throw new Error(
+                `Question ${qNum}: questionTimerSeconds must be positive.`,
+              );
+            }
+
+            const difficulty = String(q?.difficulty || "MEDIUM")
+              .trim()
+              .toUpperCase();
+
+            if (!["EASY", "MEDIUM", "HARD"].includes(difficulty)) {
+              throw new Error(
+                `Question ${qNum}: difficulty must be EASY, MEDIUM or HARD.`,
+              );
+            }
+
+            return {
+              questionId: q?.questionId ?? q?.id ?? null,
+              questionText,
+              imageUrl,
+              explanation: String(q?.explanation ?? "").trim(),
+              questionType,
+              marks,
+              negativeMarks:
+                q?.negativeMarks !== undefined
+                  ? Number(q.negativeMarks)
+                  : negativeMarking
+                    ? 0.25
+                    : 0,
+              questionTimerSeconds,
+              difficulty,
+              displayOrder: qNum,
+              options,
+            };
+          });
+
+          setParsedQuestions(validated);
+        } catch (error) {
+          setValidationError(
+            error instanceof Error ? error.message : "Failed to parse JSON file.",
+          );
+          setParsedQuestions([]);
+        }
+      } else {
+        Papa.parse(text, {
+          skipEmptyLines: true,
+          complete: (results) => {
+            const rows = results.data as string[][];
+
+            if (results.errors?.length) {
+              setValidationError(
+                `CSV could not be parsed near row ${results.errors[0].row + 1}.`,
+              );
+              setParsedQuestions([]);
+              return;
+            }
+
+            if (rows.length === 0) {
+              setValidationError("CSV file is empty.");
+              setParsedQuestions([]);
+              return;
+            }
+
+            const firstRow = rows[0].map((value) => value.trim().toLowerCase());
+            const hasHeader =
+              firstRow.includes("questiontext") ||
+              firstRow.includes("question") ||
+              firstRow.includes("optiona");
+
+            const contentRows = hasHeader ? rows.slice(1) : rows;
+
+            const validatedQuestions: any[] = [];
+
+            for (let index = 0; index < contentRows.length; index++) {
+              const rowNumber = index + (hasHeader ? 2 : 1);
+              const parts = contentRows[index].map((value) => value.trim());
+
+              if (parts.every((value) => value === "")) {
+                continue;
+              }
+
+              if (parts.length < 6) {
+                throw new Error(
+                  `CSV row ${rowNumber}: expected at least 6 columns.`,
+                );
+              }
+
+              const questionText = parts[0];
+
+              if (!questionText) {
+                throw new Error(
+                  `CSV row ${rowNumber}: questionText is required.`,
+                );
+              }
+
+              const questionTypeRaw = String(parts[7] || "MCQ").toUpperCase();
+              const questionType =
+                questionTypeRaw === "MULTIPLE_CHOICE"
+                  ? "MCQ"
+                  : questionTypeRaw;
+
+              if (!["MCQ", "MSQ", "TRUE_FALSE"].includes(questionType)) {
+                throw new Error(
+                  `CSV row ${rowNumber}: unsupported questionType "${questionTypeRaw}".`,
+                );
+              }
+
+              let optionTexts = [parts[1], parts[2], parts[3], parts[4]]
+                .map((value) => value.trim())
+                .filter(Boolean);
+
+              if (
+                questionType === "TRUE_FALSE" &&
+                optionTexts.length === 0
+              ) {
+                optionTexts = ["True", "False"];
+              }
+
+              if (optionTexts.length < 2) {
+                throw new Error(
+                  `CSV row ${rowNumber}: at least two options are required.`,
+                );
+              }
+
+              if (questionType === "TRUE_FALSE") {
+                optionTexts = ["True", "False"];
+              }
+
+              const correctIdentifier = (parts[5] || "").trim();
+
+              if (!correctIdentifier) {
+                throw new Error(
+                  `CSV row ${rowNumber}: correctAnswer is required.`,
+                );
+              }
+
+              const correctIdentifiers =
+                questionType === "MSQ"
+                  ? correctIdentifier
+                      .split(/[|;]/)
+                      .map((value) => value.trim())
+                      .filter(Boolean)
+                  : [correctIdentifier];
+
+              const resolveCorrect = (identifier: string) => {
+                const upperIdentifier = identifier.toUpperCase();
+
+                if (
+                  questionType === "TRUE_FALSE" &&
+                  (upperIdentifier === "TRUE" || upperIdentifier === "FALSE")
+                ) {
+                  return upperIdentifier === "TRUE" ? 0 : 1;
+                }
+
+                return optionTexts.findIndex(
+                  (optionText, optionIndex) =>
+                    String.fromCharCode(65 + optionIndex) === upperIdentifier ||
+                    optionText.toLowerCase() === identifier.toLowerCase(),
+                );
+              };
+
+              const correctIndexes = [
+                ...new Set(
+                  correctIdentifiers
+                    .map(resolveCorrect)
+                    .filter((value) => value >= 0),
+                ),
+              ];
+
+              if (correctIndexes.length === 0) {
+                throw new Error(
+                  `CSV row ${rowNumber}: correctAnswer must match an option letter (A-D) or option text.`,
+                );
+              }
+
+              if (questionType === "MCQ" && correctIndexes.length !== 1) {
+                throw new Error(
+                  `CSV row ${rowNumber}: MCQ requires exactly one correct answer.`,
+                );
+              }
+
+              if (
+                questionType === "TRUE_FALSE" &&
+                (optionTexts.length !== 2 || correctIndexes.length !== 1)
+              ) {
+                throw new Error(
+                  `CSV row ${rowNumber}: TRUE_FALSE requires exactly two options and one correct answer.`,
+                );
+              }
+
+              const marks = Number(parts[6] || 1);
+              const negativeMarks =
+                parts[8] !== undefined && parts[8] !== ""
+                  ? Number(parts[8])
+                  : negativeMarking
+                    ? 0.25
+                    : 0;
+              const questionTimerSeconds = Number(parts[9] || 60);
+              const difficulty = String(parts[10] || "MEDIUM").toUpperCase();
+
+              if (!Number.isFinite(marks) || marks <= 0) {
+                throw new Error(
+                  `CSV row ${rowNumber}: marks must be a positive number.`,
+                );
+              }
+
+              if (
+                !Number.isFinite(negativeMarks) ||
+                negativeMarks < 0
+              ) {
+                throw new Error(
+                  `CSV row ${rowNumber}: negativeMarks must be zero or greater.`,
+                );
+              }
+
+              if (
+                !Number.isFinite(questionTimerSeconds) ||
+                questionTimerSeconds <= 0
+              ) {
+                throw new Error(
+                  `CSV row ${rowNumber}: questionTimerSeconds must be positive.`,
+                );
+              }
+
+              if (!["EASY", "MEDIUM", "HARD"].includes(difficulty)) {
+                throw new Error(
+                  `CSV row ${rowNumber}: difficulty must be EASY, MEDIUM or HARD.`,
+                );
+              }
+
+              validatedQuestions.push({
+                questionText,
+                imageUrl: "",
+                explanation: parts[11] || "",
+                questionType,
+                marks,
+                negativeMarks,
+                questionTimerSeconds,
+                difficulty,
+                displayOrder: index + 1,
+                options: optionTexts.map((optionText, optionIndex) => ({
+                  optionText,
+                  optionImage: "",
+                  optionOrder: optionIndex + 1,
+                  isCorrect: correctIndexes.includes(optionIndex),
+                })),
+              });
+            }
+
+            if (validatedQuestions.length === 0) {
+              throw new Error("CSV file contains no question rows.");
+            }
+
+            setParsedQuestions(validatedQuestions);
+            setValidationError(null);
+          },
+          error: () => {
+            setValidationError("Unable to read the CSV file.");
+            setParsedQuestions([]);
+          },
+        });
+      }
+    };
+
+    reader.readAsText(file);
+    e.target.value = "";
+  };
+
+  const downloadCsvTemplate = () => {
+    const csv = [
+      "questionText,optionA,optionB,optionC,optionD,correctAnswer,marks,questionType,negativeMarks,questionTimerSeconds,difficulty,explanation",
+      '\"What is the time complexity of binary search?\",\"O(n)\",\"O(log n)\",\"O(n^2)\",\"O(1)\",\"B\",\"1\",\"MCQ\",\"0.25\",\"60\",\"EASY\",\"Binary search halves the search space.\"',
+      '\"Which are linear data structures?\",\"Array\",\"Linked List\",\"Tree\",\"Graph\",\"A|B\",\"2\",\"MSQ\",\"0.5\",\"90\",\"MEDIUM\",\"Array and linked list are linear data structures.\"',
+      '\"Java is a programming language.\",\"True\",\"False\",\"\",\"\",\"A\",\"1\",\"TRUE_FALSE\",\"0\",\"45\",\"EASY\",\"\"',
+      "",
+    ].join("\n");
+
+    const blob = new Blob([csv], {
+      type: "text/csv;charset=utf-8;",
+    });
+
+    const url = URL.createObjectURL(blob);
+    const anchor = document.createElement("a");
+    anchor.href = url;
+    anchor.download = "quizly-question-template.csv";
+    document.body.appendChild(anchor);
+    anchor.click();
+    anchor.remove();
+    URL.revokeObjectURL(url);
+  };
+
+  const handleAddNewQuestion = () => {
+    setValidationError(null);
+    setParsedQuestions((prev) => [
+      ...prev,
+      {
+        questionText: "",
+        imageUrl: "",
+        explanation: "",
+        questionType: "MCQ",
+        marks: 1,
+        negativeMarks: negativeMarking ? 0.25 : 0,
+        questionTimerSeconds: 60,
+        difficulty: "MEDIUM",
+        displayOrder: prev.length + 1,
+        options: [
+          { optionText: "", optionImage: "", optionOrder: 1, isCorrect: true },
+          { optionText: "", optionImage: "", optionOrder: 2, isCorrect: false },
+          { optionText: "", optionImage: "", optionOrder: 3, isCorrect: false },
+          { optionText: "", optionImage: "", optionOrder: 4, isCorrect: false },
+        ],
+      },
+    ]);
+  };
+
+  const handleUpdateQuestionField = (
+    idx: number,
+    field: string,
+    value: any,
+  ) => {
+    setParsedQuestions((prev) =>
+      prev.map((q, i) => (i === idx ? { ...q, [field]: value } : q)),
+    );
+  };
+
+  const handleUpdateOption = (
+    qIdx: number,
+    optIdx: number,
+    textValue: string,
+  ) => {
+    setParsedQuestions((prev) =>
+      prev.map((q, i) => {
+        if (i !== qIdx) return q;
+        const newOpts = [...q.options];
+        newOpts[optIdx] = { ...newOpts[optIdx], optionText: textValue };
+        return { ...q, options: newOpts };
+      }),
+    );
+  };
+
+  const handleSetQuestionType = (qIdx: number, questionType: string) => {
+    setParsedQuestions((prev) =>
+      prev.map((q, i) => {
+        if (i !== qIdx) return q;
+
+        // TRUE/FALSE is always exactly two options.
+        if (questionType === "TRUE_FALSE") {
+          return {
+            ...q,
+            questionType,
+            options: [
+              {
+                ...(q.options?.[0] || {}),
+                optionText: "True",
+                optionImage: q.options?.[0]?.optionImage || "",
+                optionOrder: 1,
+                isCorrect: true,
+              },
+              {
+                ...(q.options?.[1] || {}),
+                optionText: "False",
+                optionImage: q.options?.[1]?.optionImage || "",
+                optionOrder: 2,
+                isCorrect: false,
+              },
+            ],
+          };
+        }
+
+        // MCQ/MSQ should start with at least the normal four answer slots.
+        // When coming back from TRUE/FALSE, do not leave the question stuck
+        // with only the old True/False pair.
+        const existing = Array.isArray(q.options) ? q.options : [];
+        const options = [...existing];
+
+        while (options.length < 4) {
+          options.push({
+            optionText: "",
+            optionImage: "",
+            optionOrder: options.length + 1,
+            isCorrect: false,
+          });
+        }
+
+        // Switching to MCQ must immediately collapse any MSQ multi-selection
+        // to exactly one correct answer. Preserve the first currently-correct
+        // option; if none exists, make option A correct.
+        if (questionType === "MCQ") {
+          const firstCorrectIndex = options.findIndex((opt: any) =>
+            Boolean(opt.isCorrect),
+          );
+          const correctIndex = firstCorrectIndex >= 0 ? firstCorrectIndex : 0;
+
+          return {
+            ...q,
+            questionType,
+            options: options.map((opt: any, oi: number) => ({
+              ...opt,
+              optionOrder: oi + 1,
+              isCorrect: oi === correctIndex,
+            })),
+          };
+        }
+
+        // Switching to MSQ keeps any existing correct answers. If there are
+        // none, make option A the initial correct answer so the state remains
+        // valid and predictable.
+        const hasCorrect = options.some((opt: any) => Boolean(opt.isCorrect));
+        return {
+          ...q,
+          questionType,
+          options: options.map((opt: any, oi: number) => ({
+            ...opt,
+            optionOrder: oi + 1,
+            isCorrect: hasCorrect ? Boolean(opt.isCorrect) : oi === 0,
+          })),
+        };
+      }),
+    );
+  };
+
+  const handleSetCorrectOption = (qIdx: number, optIdx: number) => {
+    setParsedQuestions((prev) =>
+      prev.map((q, i) => {
+        if (i !== qIdx) return q;
+
+        const type =
+          q.questionType === "MULTIPLE_CHOICE" ? "MCQ" : q.questionType;
+        const newOpts = (q.options || []).map((opt: any, oi: number) => ({
+          ...opt,
+          // MCQ/TRUE_FALSE: exactly one correct option.
+          // MSQ: each option can be toggled independently.
+          isCorrect:
+            type === "MSQ"
+              ? oi === optIdx
+                ? !Boolean(opt.isCorrect)
+                : Boolean(opt.isCorrect)
+              : oi === optIdx,
+        }));
+
+        return { ...q, options: newOpts };
+      }),
+    );
+  };
+
+  const handleAddOption = (qIdx: number) => {
+    setParsedQuestions((prev) =>
+      prev.map((q, i) => {
+        if (i !== qIdx) return q;
+        if (q.questionType === "TRUE_FALSE") return q;
+
+        const options = Array.isArray(q.options) ? q.options : [];
+        const nextOrder = options.length + 1;
+        return {
+          ...q,
+          options: [
+            ...options,
+            {
+              optionText: "",
+              optionImage: "",
+              optionOrder: nextOrder,
+              isCorrect: false,
+            },
+          ],
+        };
+      }),
+    );
+  };
+
+  const handleDeleteOption = (qIdx: number, optIdx: number) => {
+    setParsedQuestions((prev) =>
+      prev.map((q, i) => {
+        if (i !== qIdx || q.questionType === "TRUE_FALSE") return q;
+
+        const options = (q.options || [])
+          .filter((_: any, oi: number) => oi !== optIdx)
+          .map((opt: any, oi: number) => ({
+            ...opt,
+            optionOrder: oi + 1,
+          }));
+
+        return { ...q, options };
+      }),
+    );
+  };
+
+  const handleDeleteQuestion = (idx: number) => {
+    setParsedQuestions((prev) =>
+      prev
+        .filter((_, i) => i !== idx)
+        .map((q, i) => ({ ...q, displayOrder: i + 1 })),
+    );
+  };
+
+  // Shared validation — used by both Publish and Save as Draft flows.
+  const validateForm = (): string | null => {
+    if (!title.trim()) return "Please enter an assessment title.";
+    if (!startTime) return "Please select a start time.";
+    if (timeLimit <= 0) return "Time limit must be at least 1 minute.";
+    if (!endTime)
+      return "Could not calculate end time — check start time and time limit.";
+    if (parsedQuestions.length === 0)
+      return "Please add at least one question before saving.";
+    for (let i = 0; i < parsedQuestions.length; i++) {
+      const q = parsedQuestions[i];
+      if (!q.questionText.trim() && !String(q.imageUrl || "").trim())
+        return `Question ${i + 1} must contain text or an image.`;
+
+      if (!Array.isArray(q.options) || q.options.length < 2)
+        return `Question ${i + 1} must have at least 2 options.`;
+
+      const type =
+        q.questionType === "MULTIPLE_CHOICE" ? "MCQ" : q.questionType;
+      const correctCount = q.options.filter((opt: any) =>
+        Boolean(opt.isCorrect),
+      ).length;
+
+      if (type === "MCQ" && correctCount !== 1)
+        return `Question ${i + 1} must have exactly one correct option.`;
+      if (type === "MSQ" && correctCount < 1)
+        return `Question ${i + 1} must have at least one correct option.`;
+      if (
+        type === "TRUE_FALSE" &&
+        (q.options.length !== 2 || correctCount !== 1)
+      )
+        return `Question ${i + 1} must have exactly two options with exactly one correct option.`;
+
+      for (let j = 0; j < q.options.length; j++) {
+        const optionText = String(q.options[j].optionText || "").trim();
+        const optionImage = String(q.options[j].optionImage || "").trim();
+        if (!optionText && !optionImage)
+          return `Option ${String.fromCharCode(65 + j)} in Question ${i + 1} must contain text or an image.`;
+      }
+    }
+    return null;
+  };
+
+  // ---------------------------------------------------------------------------
+  // Backend payload builders
+  // ---------------------------------------------------------------------------
+  // POST /api/v1/teacher/quizzes uses CreateQuizRequest.
+  // PUT  /api/v1/teacher/quizzes/{quizId}/settings uses UpdateQuizSettingsRequest.
+  // Keep these payloads separate so create-only fields never leak into updates.
+
+  const getResultVisibility = () =>
+    publishScoresImmediately && revealSolutions
+      ? "BOTH"
+      : publishScoresImmediately
+        ? "LEADERBOARD"
+        : revealSolutions
+          ? "QUESTION_WISE"
+          : "NONE";
+
+  const getAllowedRolls = () =>
+    allowedRollsText
+      .split(",")
+      .map((roll) => roll.trim())
+      .filter(Boolean);
+
+  const buildQuestionPayload = (forPost: boolean) =>
+    parsedQuestions.map((q: any, index: number) => ({
+      ...(forPost ? {} : { questionId: q.questionId ?? q.id ?? null }),
+      questionText: String(q.questionText || "").trim(),
+      imageUrl: q.imageUrl || "",
+      explanation: String(q.explanation || "").trim(),
+      questionType:
+        q.questionType === "MULTIPLE_CHOICE" ? "MCQ" : q.questionType || "MCQ",
+      marks: Number(q.marks || 1),
+      negativeMarks: Number(negativeMarking ? negativeMarks : 0),
+      questionTimerSeconds: Number(q.questionTimerSeconds || 60),
+      difficulty: q.difficulty || "MEDIUM",
+      displayOrder: Number(q.displayOrder || index + 1),
+      options: (q.options || []).map((opt: any, optIndex: number) => ({
+        optionText: String(opt.optionText || "").trim(),
+        optionImage: opt.optionImage || "",
+        optionOrder: Number(
+          opt.optionOrder || opt.displayOrder || optIndex + 1,
+        ),
+        ...(forPost
+          ? { isCorrect: Boolean(opt.isCorrect) }
+          : {
+              optionId: opt.optionId ?? opt.id ?? null,
+              correct: Boolean(opt.isCorrect),
+            }),
+      })),
+    }));
+
+  const buildCreatePayload = () => {
+    const allowedRolls = getAllowedRolls();
+
+    return {
+      title: title.trim(),
+      description: description.trim(),
+      instructions: instructions.trim(),
+      subject: subject.trim(),
+      subjectCode: subjectCode.trim(),
+      totalStudents: allowedRolls.length,
+      overallTimerSeconds: Math.floor(timeLimit * 60),
+      negativeMarking: Boolean(negativeMarking),
+      negativeMarks: Number(negativeMarking ? negativeMarks : 0),
+      timeBonusEnabled: Boolean(timeBonusEnabled),
+      randomQuestionOrder: Boolean(randomQuestionOrder),
+      randomOptionOrder: Boolean(randomOptionOrder),
+      allowReview: Boolean(allowReview),
+      allowResume: Boolean(allowResume),
+      autoSubmit: Boolean(autoSubmit),
+      startTime: formatToLocalDateTime(startTime),
+      endTime: formatToLocalDateTime(endTime),
+      resultVisibility: getResultVisibility(),
+      acceptedEmailDomain:
+        acceptedDomain.trim() === "" ? null : acceptedDomain.trim(),
+      allowedRegistrationNumbers: allowedRolls,
+      questions: buildQuestionPayload(true),
+    };
+  };
+
+  const buildUpdatePayload = () => {
+    const allowedRolls = getAllowedRolls();
+
+    // UpdateQuizSettingsRequest does NOT contain quizId or totalStudents.
+    // quizId belongs in the URL: /teacher/quizzes/{quizId}/settings.
+    return {
+      overallTimerSeconds: Math.floor(timeLimit * 60),
+      negativeMarking: Boolean(negativeMarking),
+      negativeMarks: Number(negativeMarking ? negativeMarks : 0),
+      timeBonusEnabled: Boolean(timeBonusEnabled),
+      randomQuestionOrder: Boolean(randomQuestionOrder),
+      randomOptionOrder: Boolean(randomOptionOrder),
+      allowReview: Boolean(allowReview),
+      allowResume: Boolean(allowResume),
+      autoSubmit: Boolean(autoSubmit),
+      maxTabSwitch: Math.max(0, Number(maxTabSwitch) || 0),
+      startTime: formatToLocalDateTime(startTime),
+      endTime: formatToLocalDateTime(endTime),
+      resultVisibility: getResultVisibility(),
+      acceptedEmailDomain:
+        acceptedDomain.trim() === "" ? null : acceptedDomain.trim(),
+      allowedRegistrationNumbers: allowedRolls,
+      questions: buildQuestionPayload(false),
+    };
+  };
+
+  // ── "Publish Assessment" handler ──────────────────────────────────────────
+  // Flow: validate → POST (create) → PUT /publish → navigate to share page.
+  // If create fails: show error, do not navigate, do not publish.
+  // If create succeeds but publish fails: show inline error with Retry button
+  //   that only re-attempts the publish call (no duplicate quiz created).
+  const handleSave = async (e: React.FormEvent) => {
+    e.preventDefault();
+    const formErr = validateForm();
+    if (formErr) return setValidationError(formErr);
+
+    setSubmitting(true);
+    setValidationError(null);
+
+    const token = localStorage.getItem("dynoquizz_token");
+
+    // ── JWT diagnostic instrumentation ────────────────────────────────────
+    if (token) {
+      const parts = token.split(".");
+      const isWellFormed = parts.length === 3;
+      let jwtPayload: any = null;
+      let isFallbackToken = false;
+      try {
+        jwtPayload = JSON.parse(atob(parts[1]));
+        // Fallback tokens (frontend-signed) use email as userId/sub and lack
+        // a numeric "id" field that Spring Boot's CustomUserDetails would have.
+        // Spring Security throws `String cannot be cast to CustomUserDetails`
+        // when the principal is such a bare-string subject.
+        isFallbackToken =
+          typeof jwtPayload?.userId === "string" &&
+          (jwtPayload?.userId?.includes("@") ?? false) &&
+          !jwtPayload?.id;
+      } catch {
+        // malformed payload segment
+      }
+      console.group("[Quizly] Quiz-creation token diagnostics");
+      console.log(
+        "Token length:",
+        token.length,
+        "| First 12:",
+        token.slice(0, 12),
+        "| Last 12:",
+        token.slice(-12),
+      );
+      console.log("Well-formed JWT (3 segments):", isWellFormed);
+      if (jwtPayload) {
+        const expMs = (jwtPayload.exp || 0) * 1000;
+        const nowMs = Date.now();
+        console.log(
+          "JWT exp:",
+          new Date(expMs).toISOString(),
+          "| Current time:",
+          new Date(nowMs).toISOString(),
+          "| Expired:",
+          nowMs > expMs,
+        );
+        console.log(
+          "JWT sub/userId:",
+          jwtPayload.sub || jwtPayload.userId,
+          "| role:",
+          jwtPayload.role,
+        );
+        if (isFallbackToken) {
           console.warn(
-            "Teacher detail returned no questions for this assessment.",
+            "[Quizly] ⚠️  FALLBACK TOKEN DETECTED — this is a frontend-signed JWT" +
+              " (the Spring Boot backend was unreachable at login time). Spring Security" +
+              " will reject it with 'String cannot be cast to CustomUserDetails'." +
+              " The teacher must log out and log in again while the backend is running.",
+          );
+        }
+      }
+      console.groupEnd();
+    } else {
+      console.warn(
+        "[Quizly] No dynoquizz_token found in localStorage before quiz creation POST.",
+      );
+    }
+    // ──────────────────────────────────────────────────────────────────────
+
+    try {
+      const isEditing = Boolean(draftId);
+
+      // Helper: persist the full state bundle so the edit page can restore
+      // everything (title, subject, settings, questions with isCorrect) instantly
+      // from localStorage without any network round-trips.
+      const saveFullDraftBundle = (
+        quizId: number | string,
+        quizCodeValue: string = "",
+      ) => {
+        const fullDraftData = {
+          quizCode: quizCodeValue,
+          quizId,
+          title: title.trim(),
+          subject: subject.trim(),
+          subjectCode: subjectCode.trim(),
+          description: description.trim(),
+          instructions: instructions.trim(),
+          overallTimerSeconds: Math.floor(timeLimit * 60),
+          negativeMarking: Boolean(negativeMarking),
+          negativeMarks: Number(negativeMarking ? negativeMarks : 0),
+          timeBonusEnabled: Boolean(timeBonusEnabled),
+          randomQuestionOrder: Boolean(randomQuestionOrder),
+          randomOptionOrder: Boolean(randomOptionOrder),
+          allowReview: Boolean(allowReview),
+          allowResume: Boolean(allowResume),
+          autoSubmit: Boolean(autoSubmit),
+          maxTabSwitch: Number(maxTabSwitch),
+          startTime: formatToLocalDateTime(startTime) || null,
+          endTime: formatToLocalDateTime(endTime) || null,
+          publishScoresImmediately: Boolean(publishScoresImmediately),
+          revealSolutions: Boolean(revealSolutions),
+          acceptedEmailDomain:
+            acceptedDomain.trim() === "" ? null : acceptedDomain.trim(),
+          allowedRegistrationNumbers: getAllowedRolls(),
+          allowedRollsText,
+          questions: parsedQuestions,
+        };
+
+        localStorage.setItem(
+          `quiz_draft_${quizId}`,
+          JSON.stringify(fullDraftData),
+        );
+
+        if (parsedQuestions.length > 0) {
+          localStorage.setItem(
+            `draft_questions_${quizId}`,
+            JSON.stringify(parsedQuestions),
+          );
+        }
+      };
+      // Keep the legacy questions-only key for the preferLocalStorageQuestions helper
+      let rawQuizId: number | string | null = null;
+      let quizCode = "";
+      if (isEditing) {
+        // ── Edit path: PUT /api/v1/teacher/quizzes/{quizId}/settings ──────────
+        const settingsPayload = {
+          ...buildUpdatePayload(),
+        };
+        if (!draftId) {
+          throw new Error("Quiz draft ID is missing.");
+        }
+        const settingsRes = await fetch(ENDPOINTS.teacher.settings(draftId), {
+          method: "PUT",
+          headers: {
+            "Content-Type": "application/json",
+            ...(token ? { Authorization: `Bearer ${token}` } : {}),
+          },
+          body: JSON.stringify(settingsPayload),
+        });
+
+        if (!settingsRes.ok) {
+          const errData = await settingsRes.json().catch(() => ({}));
+          throw new Error(
+            errData.message ||
+              errData.error ||
+              `Server returned status: ${settingsRes.status}`,
           );
         }
 
@@ -1443,23 +2234,74 @@ function CreateAssessmentContent() {
                 type="file"
                 id="csv-upload"
                 className="hidden"
-                accept=".csv, .json"
+                accept=".csv,.json"
                 onChange={handleFileUpload}
               />
+
               <label htmlFor="csv-upload" className="cursor-pointer block">
                 <span className="mx-auto mb-3 flex h-11 w-11 items-center justify-center rounded-[12px] bg-white shadow-xs ring-1 ring-[#165dfb]/10">
                   <FileType className="h-5 w-5 text-[#165dfb]" />
                 </span>
+
                 <h4 className="text-xs font-bold text-[#111111]">
                   Import via CSV or JSON
                 </h4>
+
                 <p className="mt-1 text-[11px] text-[#78716b]">
-                  Question, options, then the correct answer
+                  Import multiple questions at once using the format below.
                 </p>
+
                 <div className="mt-3 inline-flex items-center gap-1.5 rounded-[10px] border border-[#d1dee8]/80 bg-white px-4 py-2 text-xs font-bold shadow-xs transition-all hover:border-[#165dfb] hover:text-[#165dfb] active:scale-95">
                   <Upload className="h-3.5 w-3.5" /> Select File
                 </div>
               </label>
+
+              <details className="mx-auto mt-4 max-w-3xl rounded-[12px] border border-[#d1dee8]/70 bg-white text-left shadow-xs">
+                <summary className="cursor-pointer list-none px-4 py-3 text-xs font-bold text-[#111111]">
+                  <span className="inline-flex items-center gap-2">
+                    <FileType className="h-3.5 w-3.5 text-[#165dfb]" />
+                    CSV Format Guide
+                  </span>
+                </summary>
+
+                <div className="border-t border-[#d1dee8]/50 p-4 space-y-3">
+                  <p className="text-[10px] leading-relaxed text-[#78716b]">
+                    Use one question per row. The first row should contain the
+                    headers below. Keep the order exactly as shown.
+                  </p>
+
+                  <div className="overflow-x-auto rounded-[10px] border border-[#d1dee8]/70 bg-[#fbfbfa]">
+                    <pre className="min-w-[980px] p-3 text-[9px] leading-relaxed text-[#111111] font-mono whitespace-pre-wrap">
+questionText,optionA,optionB,optionC,optionD,correctAnswer,marks,questionType,negativeMarks,questionTimerSeconds,difficulty,explanation
+"What is the time complexity of binary search?","O(n)","O(log n)","O(n^2)","O(1)","B","1","MCQ","0.25","60","EASY","Binary search halves the search space."
+"Which are linear data structures?","Array","Linked List","Tree","Graph","A|B","2","MSQ","0.5","90","MEDIUM","Array and linked list are linear."
+"Java is a programming language.","True","False","","","A","1","TRUE_FALSE","0","45","EASY",""
+                    </pre>
+                  </div>
+
+                  <div className="grid gap-2 text-[10px] text-[#57534e] sm:grid-cols-2">
+                    <p>
+                      <span className="font-bold text-[#111111]">correctAnswer:</span>{" "}
+                      A-D for MCQ, A|C for MSQ, or A/B (TRUE/FALSE) for TRUE_FALSE.
+                    </p>
+                    <p>
+                      <span className="font-bold text-[#111111]">questionType:</span>{" "}
+                      MCQ, MSQ, or TRUE_FALSE.
+                    </p>
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={downloadCsvTemplate}
+                    className="inline-flex items-center gap-1.5 rounded-[10px] border border-[#d1dee8]/80 bg-white px-3.5 py-2 text-[10px] font-bold text-[#111111] shadow-xs transition-all hover:border-[#165dfb] hover:text-[#165dfb] active:scale-[0.98]"
+                  >
+                    <Download className="h-3.5 w-3.5" />
+                    Download Sample CSV
+                  </button>
+                </div>
+              </details>
+            </div>
+
             </div>
 
             <button
