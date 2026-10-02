@@ -67,7 +67,7 @@ class AuthServiceTest {
     void register_shouldCreateStudentAccount() {
         SignupRequest request = new SignupRequest(
                 " Alex ", " Carter ", " ALEX@University.edu ", "secret123",
-                "student", "College", "CS", " reg-1 ", "9999999999");
+                "College", "CS", " reg-1 ", "9999999999");
 
         when(userRepository.existsByEmail("alex@university.edu")).thenReturn(false);
         when(userRepository.existsByRegistrationNo("REG-1")).thenReturn(false);
@@ -75,12 +75,13 @@ class AuthServiceTest {
         when(passwordEncoder.encode("secret123")).thenReturn("encoded");
         when(userRepository.save(any(User.class))).thenAnswer(i -> i.getArgument(0));
 
-        SignupResponse response = authService.register(request);
+        SignupResponse response = authService.register(request, "student");
 
         assertEquals("Account created successfully.", response.message());
         assertEquals("alex@university.edu", response.user().email());
         assertEquals("STUDENT", response.user().role());
-        assertEquals(false, response.verificationRequired());
+        assertEquals(true, response.verificationRequired());
+        verify(emailVerificationService).createVerificationToken(any(User.class));
 
         ArgumentCaptor<User> captor = ArgumentCaptor.forClass(User.class);
         verify(userRepository).save(captor.capture());
@@ -92,11 +93,11 @@ class AuthServiceTest {
     void register_shouldRejectDuplicateEmail() {
         SignupRequest request = new SignupRequest(
                 "Alex", "Carter", "alex@example.com", "secret123",
-                "STUDENT", null, null, "REG-1", null);
+                null, null, "REG-1", null);
 
         when(userRepository.existsByEmail("alex@example.com")).thenReturn(true);
 
-        assertThrows(ConflictException.class, () -> authService.register(request));
+        assertThrows(ConflictException.class, () -> authService.register(request, "STUDENT"));
         verify(userRepository, never()).save(any(User.class));
     }
 
@@ -104,19 +105,19 @@ class AuthServiceTest {
     void register_shouldRequireStudentRegistrationNumber() {
         SignupRequest request = new SignupRequest(
                 "Alex", "Carter", "alex@example.com", "secret123",
-                "STUDENT", null, null, null, null);
+                null, null, null, null);
 
         when(userRepository.existsByEmail("alex@example.com")).thenReturn(false);
         when(roleRepository.findByName("STUDENT")).thenReturn(Optional.of(studentRole));
 
-        assertThrows(BadRequestException.class, () -> authService.register(request));
+        assertThrows(BadRequestException.class, () -> authService.register(request, "ADMIN"));
     }
 
     @Test
     void register_shouldRejectInvalidRole() {
         SignupRequest request = new SignupRequest(
                 "Alex", "Carter", "alex@example.com", "secret123",
-                "ADMIN", null, null, null, null);
+                null, null, null, null);
 
         when(userRepository.existsByEmail("alex@example.com")).thenReturn(false);
 
@@ -126,7 +127,7 @@ class AuthServiceTest {
     @Test
     void login_shouldAuthenticateMatchingRole() {
         LoginRequest request = new LoginRequest(
-                " ALEX@University.edu ", "secret123", " student ");
+                " ALEX@University.edu ", "secret123");
 
         User user = new User();
         user.setFirstName("Alex");
@@ -134,13 +135,14 @@ class AuthServiceTest {
         user.setPasswordHash("encoded");
         user.setRole(studentRole);
         user.setActive(true);
+        user.setVerified(true);
 
         when(userRepository.findByEmail("alex@university.edu")).thenReturn(Optional.of(user));
         when(passwordEncoder.matches("secret123", "encoded")).thenReturn(true);
         when(jwtUtils.generateToken(user)).thenReturn("jwt");
         when(jwtUtils.getExpirationMs()).thenReturn(3600000L);
 
-        AuthResponse response = authService.login(request);
+        AuthResponse response = authService.login(request, "student");
 
         assertEquals("jwt", response.token());
         assertEquals("STUDENT", response.user().role());
@@ -149,7 +151,7 @@ class AuthServiceTest {
     @Test
     void login_shouldRejectRoleMismatch() {
         LoginRequest request = new LoginRequest(
-                "alex@example.com", "secret123", "TEACHER");
+                "alex@example.com", "secret123");
 
         User user = new User();
         user.setEmail("alex@example.com");
@@ -160,7 +162,7 @@ class AuthServiceTest {
         when(userRepository.findByEmail("alex@example.com")).thenReturn(Optional.of(user));
 
         BadRequestException ex = assertThrows(
-                BadRequestException.class, () -> authService.login(request));
+                BadRequestException.class, () -> authService.login(request, "TEACHER"));
 
         assertEquals("ROLE_MISMATCH", ex.getCode());
         verify(passwordEncoder, never()).matches(any(), any());
@@ -168,9 +170,31 @@ class AuthServiceTest {
     }
 
     @Test
+    void login_shouldRejectUnverifiedUser() {
+        LoginRequest request = new LoginRequest("alex@example.com", "secret123");
+
+        User user = new User();
+        user.setEmail("alex@example.com");
+        user.setPasswordHash("encoded");
+        user.setRole(studentRole);
+        user.setActive(true);
+        user.setVerified(false);
+
+        when(userRepository.findByEmail("alex@example.com")).thenReturn(Optional.of(user));
+        when(passwordEncoder.matches("secret123", "encoded")).thenReturn(true);
+
+        BadRequestException ex = assertThrows(
+                BadRequestException.class,
+                () -> authService.login(request, "STUDENT"));
+
+        assertEquals("EMAIL_NOT_VERIFIED", ex.getCode());
+        verify(jwtUtils, never()).generateToken(any(User.class));
+    }
+
+    @Test
     void login_shouldRejectInvalidPassword() {
         LoginRequest request = new LoginRequest(
-                "alex@example.com", "wrong", "STUDENT");
+                "alex@example.com", "wrong");
 
         User user = new User();
         user.setEmail("alex@example.com");
@@ -181,7 +205,7 @@ class AuthServiceTest {
         when(userRepository.findByEmail("alex@example.com")).thenReturn(Optional.of(user));
         when(passwordEncoder.matches("wrong", "encoded")).thenReturn(false);
 
-        assertThrows(BadCredentialsException.class, () -> authService.login(request));
+        assertThrows(BadCredentialsException.class, () -> authService.login(request, "STUDENT"));
     }
 
     @Test
