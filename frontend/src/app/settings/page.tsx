@@ -160,6 +160,7 @@ function ProfilePanel({
   const [institution, setInstitution] = useState("");
   const [program, setProgram] = useState("");
   const [phone, setPhone] = useState("");
+  const [profileImage, setProfileImage] = useState("");
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -175,6 +176,7 @@ function ProfilePanel({
     setInstitution(user.college || user.institution || "");
     setProgram(user.department || user.program || "");
     setPhone(user.phone || "");
+    setProfileImage(user.profileImage || "");
   }, [user]);
 
   const handleSaveProfile = async () => {
@@ -208,6 +210,7 @@ function ProfilePanel({
         phone: phone.trim() || null,
         college: institution.trim() || null,
         department: program.trim() || null,
+        profileImage: profileImage.trim() || null,
       };
 
       const res = await fetch(ENDPOINTS.user.profile, {
@@ -245,6 +248,55 @@ function ProfilePanel({
 
   return (
     <div className="space-y-5">
+      {user?.authProvider &&
+        String(user.authProvider).toUpperCase() !== "LOCAL" &&
+        !setPasswordDone && (
+          <div className="rounded-[12px] border border-[#d1dee8]/70 bg-[#f5f5f4] p-4 text-left">
+            <h3 className="text-[10px] font-bold uppercase tracking-wider text-[#78716b]">
+              Create a Local Password
+            </h3>
+            <p className="mt-1 text-[10px] leading-relaxed text-[#78716b]">
+              This account uses an external sign-in provider. Set a password to enable local password login and password-protected account deletion.
+            </p>
+
+            {setPasswordError && (
+              <div className="mt-3 rounded-[10px] border border-[#8c381c]/20 bg-[#fbeee8] px-3 py-2 text-[10px] font-semibold text-[#8c381c]">
+                {setPasswordError}
+              </div>
+            )}
+
+            <div className="mt-3 space-y-3">
+              <TextInput
+                type="password"
+                placeholder="New password"
+                value={setPasswordValue}
+                onChange={(event) => setSetPasswordValue(event.target.value)}
+                icon={<Lock className="h-4 w-4" />}
+              />
+              <TextInput
+                type="password"
+                placeholder="Confirm new password"
+                value={setPasswordConfirm}
+                onChange={(event) => setSetPasswordConfirm(event.target.value)}
+                icon={<Lock className="h-4 w-4" />}
+              />
+              <button
+                type="button"
+                onClick={handleSetPassword}
+                disabled={setPasswordSaving}
+                className="rounded-[10px] bg-[#165dfb] px-3.5 py-2 text-xs font-bold text-white shadow-xs disabled:opacity-50"
+              >
+                {setPasswordSaving ? "Setting..." : "Set Password"}
+              </button>
+            </div>
+          </div>
+        )}
+
+      {setPasswordDone && (
+        <div className="rounded-[10px] border border-[#1d5237]/20 bg-[#e2ede8] px-3 py-2 text-xs font-semibold text-[#1d5237]">
+          Password created successfully. Future sessions can use local login.
+        </div>
+      )}
       <div className="flex items-center gap-3.5 text-left">
         <div className="relative">
           <div className="flex h-14 w-14 items-center justify-center rounded-full bg-[#165dfb] text-lg font-bold text-white shadow-xs">
@@ -325,6 +377,18 @@ function ProfilePanel({
             onChange={(event) => setPhone(event.target.value)}
           />
         </Field>
+
+        <Field
+          label="Profile Image URL"
+          hint="The backend stores the profile image URL; uploads require external storage."
+        >
+          <TextInput
+            type="url"
+            placeholder="https://..."
+            value={profileImage}
+            onChange={(event) => setProfileImage(event.target.value)}
+          />
+        </Field>
       </div>
 
       <div className="flex justify-end pt-2">
@@ -342,8 +406,149 @@ function ProfilePanel({
   );
 }
 
-function PreferencesPanel({ onSave }: { onSave: () => void }) {
+function PreferencesPanel({
+  onSave,
+  user,
+}: {
+  onSave: () => void;
+  user: any;
+}) {
   const { theme, setTheme } = useTheme();
+  const [preferences, setPreferences] = useState({
+    assessmentResults: true,
+    upcomingAssessments: true,
+    proctoringReports: false,
+    browserPush: false,
+  });
+  const [loadingPreferences, setLoadingPreferences] = useState(true);
+  const [savingPreferences, setSavingPreferences] = useState(false);
+  const [preferenceError, setPreferenceError] = useState<string | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    const loadPreferences = async () => {
+      const token = localStorage.getItem("dynoquizz_token");
+      if (!token) {
+        setLoadingPreferences(false);
+        return;
+      }
+
+      try {
+        const response = await fetch(ENDPOINTS.user.notificationPreferences, {
+          headers: {
+            Authorization: "Bearer " + token,
+            Accept: "application/json",
+          },
+          cache: "no-store",
+        });
+
+        if (response.status === 404 || response.status === 405) {
+          const raw = localStorage.getItem("quizly_notification_preferences");
+          if (raw && !cancelled) {
+            try {
+              setPreferences((current) => ({ ...current, ...JSON.parse(raw) }));
+            } catch {
+              // Ignore malformed local preferences.
+            }
+          }
+          return;
+        }
+
+        const data = await response.json().catch(() => ({}));
+        if (!response.ok) {
+          throw new Error(
+            data?.message ||
+              data?.error ||
+              "Unable to load notification preferences.",
+          );
+        }
+
+        if (!cancelled) {
+          setPreferences({
+            assessmentResults: data.assessmentResults !== false,
+            upcomingAssessments: data.upcomingAssessments !== false,
+            proctoringReports: data.proctoringReports === true,
+            browserPush: data.browserPush === true,
+          });
+          setPreferenceError(null);
+        }
+      } catch (error) {
+        if (!cancelled) {
+          console.warn("Notification preferences unavailable:", error);
+          setPreferenceError(
+            "Notification settings are currently using browser-local preferences.",
+          );
+        }
+      } finally {
+        if (!cancelled) setLoadingPreferences(false);
+      }
+    };
+
+    void loadPreferences();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [user]);
+
+  const updatePreference = (key: keyof typeof preferences) => {
+    setPreferences((current) => ({ ...current, [key]: !current[key] }));
+  };
+
+  const savePreferences = async () => {
+    setSavingPreferences(true);
+    setPreferenceError(null);
+
+    try {
+      const token = localStorage.getItem("dynoquizz_token");
+      if (!token) {
+        throw new Error(
+          "Authentication token not found. Please log in again.",
+        );
+      }
+
+      const response = await fetch(ENDPOINTS.user.notificationPreferences, {
+        method: "PUT",
+        headers: {
+          Authorization: "Bearer " + token,
+          "Content-Type": "application/json",
+          Accept: "application/json",
+        },
+        body: JSON.stringify(preferences),
+      });
+
+      if (response.status === 404 || response.status === 405) {
+        localStorage.setItem(
+          "quizly_notification_preferences",
+          JSON.stringify(preferences),
+        );
+        setPreferenceError(
+          "Saved in this browser. Server sync will activate after the notification-preferences backend endpoint is deployed.",
+        );
+        return;
+      }
+
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        throw new Error(
+          data?.message ||
+            data?.error ||
+            "Unable to save notification preferences.",
+        );
+      }
+
+      onSave();
+    } catch (error: any) {
+      localStorage.setItem(
+        "quizly_notification_preferences",
+        JSON.stringify(preferences),
+      );
+      setPreferenceError(error?.message || "Unable to save notification preferences.");
+    } finally {
+      setSavingPreferences(false);
+    }
+  };
 
   return (
     <div className="space-y-5">
@@ -352,31 +557,59 @@ function PreferencesPanel({ onSave }: { onSave: () => void }) {
           Notifications
         </h3>
 
-        <div className="space-y-2">
-          <Toggle
-            label="Email: Assessment Results"
-            description="Get notified when a teacher publishes your graded results."
-            defaultChecked
-          />
-          <Toggle
-            label="Email: Upcoming Assessments"
-            description="Reminder 24 hours before a scheduled exam."
-            defaultChecked
-          />
-          <Toggle
-            label="Email: Proctoring Reports"
-            description="Receive a copy of the AI proctoring flag summary after each exam."
-            defaultChecked={false}
-          />
-          <Toggle
-            label="Browser Push Notifications"
-            description="Real-time browser alerts for exam start and result publication."
-            defaultChecked={false}
-          />
-        </div>
-      </div>
+        {preferenceError && (
+          <div className="mb-3 rounded-[10px] border border-[#d1dee8]/70 bg-[#f5f5f4] px-3 py-2 text-[10px] font-semibold text-[#78716b]">
+            {preferenceError}
+          </div>
+        )}
 
-      <div className="h-px bg-[#d1dee8]/30" />
+        {loadingPreferences ? (
+          <div className="rounded-[10px] border border-[#d1dee8]/70 bg-[#e6e3e2]/40 px-4 py-4 text-xs font-medium text-[#78716b]">
+            Loading notification settings...
+          </div>
+        ) : (
+          <div className="space-y-2">
+            {[
+              [
+                "assessmentResults",
+                "Email: Assessment Results",
+                "Get notified when a teacher publishes your graded results.",
+              ],
+              [
+                "upcomingAssessments",
+                "Email: Upcoming Assessments",
+                "Reminder 24 hours before a scheduled exam.",
+              ],
+              [
+                "proctoringReports",
+                "Email: Proctoring Reports",
+                "Receive a copy of the proctoring flag summary after each exam.",
+              ],
+              [
+                "browserPush",
+                "Browser Push Notifications",
+                "Real-time browser alerts for exam start and result publication.",
+              ],
+            ].map(([key, label, description]) => {
+              const preferenceKey = key as keyof typeof preferences;
+              return (
+                <button
+                  key={key}
+                  type="button"
+                  onClick={() => updatePreference(preferenceKey)}
+                  className="w-full text-left"
+                >
+                  <Toggle
+                    label={label}
+                    description={description}
+                    defaultChecked={preferences[preferenceKey]}
+                  />
+                </button>
+              );
+            })}
+          </div>
+        )}
+      </div>      <div className="h-px bg-[#d1dee8]/30" />
 
       <div>
         <h3 className="mb-2.5 text-[10px] font-bold uppercase tracking-wider text-[#78716b] text-left">
@@ -438,8 +671,19 @@ function PreferencesPanel({ onSave }: { onSave: () => void }) {
   );
 }
 
-function SecurityPanel({ onSave }: { onSave: () => void }) {
+function SecurityPanel({
+  onSave,
+  user,
+}: {
+  onSave: () => void;
+  user: any;
+}) {
   const [currentPassword, setCurrentPassword] = useState("");
+  const [setPasswordValue, setSetPasswordValue] = useState("");
+  const [setPasswordConfirm, setSetPasswordConfirm] = useState("");
+  const [setPasswordSaving, setSetPasswordSaving] = useState(false);
+  const [setPasswordError, setSetPasswordError] = useState<string | null>(null);
+  const [setPasswordDone, setSetPasswordDone] = useState(false);
   const [newPassword, setNewPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
 
@@ -449,6 +693,55 @@ function SecurityPanel({ onSave }: { onSave: () => void }) {
 
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  const handleSetPassword = async () => {
+    setSetPasswordError(null);
+
+    if (setPasswordValue.length < 8) {
+      setSetPasswordError("Password must be at least 8 characters.");
+      return;
+    }
+
+    if (setPasswordValue !== setPasswordConfirm) {
+      setSetPasswordError("Password confirmation does not match.");
+      return;
+    }
+
+    setSetPasswordSaving(true);
+
+    try {
+      const token = localStorage.getItem("dynoquizz_token");
+      if (!token) {
+        throw new Error("Authentication token not found. Please log in again.");
+      }
+
+      const response = await fetch(ENDPOINTS.auth.setPassword, {
+        method: "POST",
+        headers: {
+          Authorization: "Bearer " + token,
+          "Content-Type": "application/json",
+          Accept: "application/json",
+        },
+        body: JSON.stringify({ newPassword: setPasswordValue }),
+      });
+
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        throw new Error(
+          data?.message || data?.error || "Unable to set password.",
+        );
+      }
+
+      setSetPasswordValue("");
+      setSetPasswordConfirm("");
+      setSetPasswordDone(true);
+      onSave();
+    } catch (error: any) {
+      setSetPasswordError(error?.message || "Unable to set password.");
+    } finally {
+      setSetPasswordSaving(false);
+    }
+  };
 
   const handleChangePassword = async () => {
     setError(null);
@@ -926,11 +1219,11 @@ export default function SettingsPage() {
                 )}
 
                 {activeTab === "preferences" && (
-                  <PreferencesPanel onSave={handleSave} />
+                  <PreferencesPanel onSave={handleSave} user={user} />
                 )}
 
                 {activeTab === "security" && (
-                  <SecurityPanel onSave={handleSave} />
+                  <SecurityPanel onSave={handleSave} user={user} />
                 )}
 
                 {activeTab === "danger" && <DangerPanel logout={logout} />}
