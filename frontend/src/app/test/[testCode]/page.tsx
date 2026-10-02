@@ -324,7 +324,9 @@ export default function TestArenaPage({
     isFullscreen,
     requestFullscreen,
     exitFullscreen,
-  } = useProctoring();
+  } = useProctoring(
+    activeAttemptId ? `attempt_${activeAttemptId}` : `code_${cleanCode}`,
+  );
 
   useEffect(() => {
     answersRef.current = answers;
@@ -1137,7 +1139,10 @@ export default function TestArenaPage({
   }
 
   return (
-    <div className="relative flex min-h-screen bg-[#f5f5f4] text-[#111111] p-4 md:p-6 font-sans">
+    <div
+      className="relative flex h-[100dvh] w-screen overflow-hidden bg-[#f5f5f4] text-[#111111] p-0 font-sans select-none"
+      style={{ WebkitUserSelect: "none", userSelect: "none" }}
+    >
       {!isFullscreen && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center bg-[#111111]/70 p-4 backdrop-blur-sm">
           <div className="w-full max-w-md rounded-[16px] border border-[#d1dee8] bg-white p-6 text-center shadow-2xl">
@@ -1171,7 +1176,7 @@ export default function TestArenaPage({
         initial={mounted ? { opacity: 0, y: 8 } : false}
         animate={mounted ? { opacity: 1, y: 0 } : false}
         transition={{ duration: 0.25, ease: "easeOut" }}
-        className="flex flex-1 flex-col rounded-[14px] bg-white overflow-hidden border border-[#d1dee8]/70 shadow-sm text-left"
+        className="flex h-full w-full flex-1 flex-col bg-white overflow-hidden border-0 shadow-none text-left"
       >
         <header className="flex flex-wrap items-center justify-between bg-white px-6 py-4 gap-3 border-b border-[#d1dee8]/50">
           <div className="flex items-center gap-3.5">
