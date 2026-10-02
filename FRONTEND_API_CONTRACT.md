@@ -830,7 +830,7 @@ All identifiers, quiz state, attempts, scoring, and results must originate from 
 The frontend is responsible for presentation, interaction, temporary recovery state, and sending requests that conform exactly to this contract.
 
 
-13. GOOGLE OAUTH
+25. GOOGLE OAUTH
 
 The frontend starts Google authentication through:
 
