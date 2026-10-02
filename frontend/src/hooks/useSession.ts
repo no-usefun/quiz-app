@@ -259,7 +259,9 @@ export function useSession() {
       throw new Error("Role must be STUDENT or TEACHER.");
     }
 
-    const response = await fetch(ENDPOINTS.auth.login, {
+    const response = await fetch(
+      ENDPOINTS.auth.login + "?role=" + encodeURIComponent(requestedRole),
+      {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -268,7 +270,6 @@ export function useSession() {
       body: JSON.stringify({
         email: credentials.email.trim(),
         password: credentials.password,
-        role: requestedRole,
       }),
     });
 
@@ -358,7 +359,6 @@ export function useSession() {
       lastName: payload.lastName?.trim() || "",
       email: payload.email.trim(),
       password: payload.password,
-      role: backendRole,
       ...(payload.college?.trim() ? { college: payload.college.trim() } : {}),
       ...(payload.department?.trim()
         ? { department: payload.department.trim() }
@@ -371,7 +371,9 @@ export function useSession() {
       ...(payload.phone?.trim() ? { phone: payload.phone.trim() } : {}),
     };
 
-    const response = await fetch(ENDPOINTS.auth.signup, {
+    const response = await fetch(
+      ENDPOINTS.auth.signup + "?role=" + encodeURIComponent(backendRole),
+      {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
