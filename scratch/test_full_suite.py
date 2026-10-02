@@ -86,7 +86,7 @@ def run_tests():
     })
     assert res["status"] == 200, f"Teacher login failed: {res}"
     teacher_token = res["data"]["token"]
-    print("   ✓ Teacher JWT Token received.")
+    print("   [OK] Teacher JWT Token received.")
 
     # ── 2. Teacher Creates Quiz with Whitelist ──
     print(f"\n2. [TEACHER] Creating Quiz with Whitelist [{student1_reg}, {student2_reg}]...")
@@ -155,14 +155,14 @@ def run_tests():
     quiz_data = res["data"]
     quiz_id = quiz_data["quizId"]
     quiz_code = quiz_data["quizCode"]
-    print(f"   ✓ Quiz Created: ID = {quiz_id}, Code = {quiz_code}")
-    print(f"   ✓ Whitelisted Registration Numbers: {quiz_data.get('allowedRegistrationNumbers', [])}")
+    print(f"   [OK] Quiz Created: ID = {quiz_id}, Code = {quiz_code}")
+    print(f"   [OK] Whitelisted Registration Numbers: {quiz_data.get('allowedRegistrationNumbers', [])}")
 
     # ── 3. Teacher Publishes Quiz ──
     print(f"\n3. [TEACHER] Publishing Quiz {quiz_id}...")
     res = request("PUT", f"/api/v1/teacher/quizzes/{quiz_id}/publish", None, teacher_token)
     assert res["status"] in (200, 204), f"Publish quiz failed: {res}"
-    print("   ✓ Quiz successfully published & active!")
+    print("   [OK] Quiz successfully published & active!")
 
     # ── 4. Student Availability Check ──
     print(f"\n4. [STUDENT] Checking availability for Code {quiz_code}...")
@@ -191,22 +191,22 @@ def run_tests():
     
     res = request("GET", f"/api/v1/student/quizzes/{quiz_code}/availability", None, student1_token)
     assert res["status"] == 200 and res["data"]["available"] == True, f"Availability check failed: {res}"
-    print(f"   ✓ Availability Status: {res['data']['status']} (available: {res['data']['available']})")
+    print(f"   [OK] Availability Status: {res['data']['status']} (available: {res['data']['available']})")
 
     # ── 5. Student 1 Starts Attempt (Whitelisted: 23BCE8830) ──
     print(f"\n5. [STUDENT] Attempting Start for Whitelisted Student ({student1_reg})...")
     res = request("POST", f"/api/v1/student/quizzes/{quiz_code}/attempts", {"registrationNo": student1_reg}, student1_token)
     assert res["status"] == 200, f"Start attempt failed for whitelisted student: {res}"
     attempt_id = res["data"]["attemptId"]
-    print(f"   ✓ Attempt Started Successfully! Attempt ID = {attempt_id}")
-    print(f"   ✓ Authoritative Effective Deadline: {res['data'].get('effectiveDeadline')}")
+    print(f"   [OK] Attempt Started Successfully! Attempt ID = {attempt_id}")
+    print(f"   [OK] Authoritative Effective Deadline: {res['data'].get('effectiveDeadline')}")
 
     # ── 6. Student Downloads Exam Package ──
     print(f"\n6. [STUDENT] Downloading Exam Package for Code {quiz_code}...")
     res = request("GET", f"/api/v1/student/quizzes/code/{quiz_code}/package", None, student1_token)
     assert res["status"] == 200, f"Package download failed: {res}"
     questions = res["data"]["questions"]
-    print(f"   ✓ Received {len(questions)} Questions successfully.")
+    print(f"   [OK] Received {len(questions)} Questions successfully.")
 
     # ── 7. AI Proctoring Telemetry ──
     print(f"\n7. [AI PROCTORING] Registering Device & Logging Malpractice Telemetry for Attempt {attempt_id}...")
@@ -220,7 +220,7 @@ def run_tests():
         "userAgent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"
     }, student1_token)
     assert res["status"] in (200, 201), f"Device footprint registration failed: {res}"
-    print("   ✓ Device footprint registered.")
+    print("   [OK] Device footprint registered.")
 
     # Log Tab Switch
     res = request("POST", f"/api/v1/attempts/{attempt_id}/activities", {
@@ -230,7 +230,7 @@ def run_tests():
     }, student1_token)
     assert res["status"] in (200, 201), f"Activity log failed: {res}"
     warnings_count = res["data"].get("currentWarningsCount", 1)
-    print(f"   ✓ Tab Switch Recorded: Warnings = {warnings_count}/3")
+    print(f"   [OK] Tab Switch Recorded: Warnings = {warnings_count}/3")
 
     # Log Gaze Looking Away
     res = request("POST", f"/api/v1/attempts/{attempt_id}/activities", {
@@ -240,7 +240,7 @@ def run_tests():
     }, student1_token)
     assert res["status"] in (200, 201), f"Gaze log failed: {res}"
     warnings_count = res["data"].get("currentWarningsCount", 2)
-    print(f"   ✓ Looking Away Recorded: Warnings = {warnings_count}/3")
+    print(f"   [OK] Looking Away Recorded: Warnings = {warnings_count}/3")
 
     # ── 8. Student Submits Assessment ──
     print(f"\n8. [STUDENT] Submitting Assessment Attempt {attempt_id}...")
@@ -257,7 +257,7 @@ def run_tests():
     }
     res = request("POST", f"/api/v1/student/attempts/{attempt_id}/submit", submit_payload, student1_token)
     assert res["status"] == 200, f"Submit attempt failed: {res}"
-    print(f"   ✓ Assessment Submitted Successfully! Final Score = {res['data'].get('finalScore')} / {res['data'].get('totalMarks')}")
+    print(f"   [OK] Assessment Submitted Successfully! Final Score = {res['data'].get('finalScore')} / {res['data'].get('totalMarks')}")
 
     # ── 9. Non-Whitelisted Student Rejection Verification ──
     print("\n9. [SECURITY] Testing Non-Whitelisted Student Rejection...")
@@ -282,20 +282,20 @@ def run_tests():
     
     res = request("POST", f"/api/v1/student/quizzes/{quiz_code}/attempts", {"registrationNo": rejected_reg}, rejected_token)
     assert res["status"] in (400, 403) and res["data"].get("code") == "STUDENT_REGISTRATION_NOT_ALLOWED", f"Expected rejection for non-whitelisted student, got: {res}"
-    print(f"   ✓ Non-whitelisted student properly REJECTED with code {res['data'].get('code')}: {res['data'].get('message')}")
+    print(f"   [OK] Non-whitelisted student properly REJECTED with code {res['data'].get('code')}: {res['data'].get('message')}")
 
     # ── 10. Teacher Live & Governance Endpoints ──
     print("\n10. [TEACHER] Verifying Teacher Live Monitor & Assessment Roster...")
     res = request("GET", f"/api/v1/teacher/quizzes/{quiz_id}/leaderboard", None, teacher_token)
     assert res["status"] == 200, f"Teacher leaderboard failed: {res}"
-    print(f"   ✓ Teacher Leaderboard synchronized ({len(res['data'])} submissions).")
+    print(f"   [OK] Teacher Leaderboard synchronized ({len(res['data'])} submissions).")
     
     res = request("GET", f"/api/v1/teacher/quizzes/{quiz_id}/proctoring-overview", None, teacher_token)
     assert res["status"] == 200, f"Teacher proctoring overview failed: {res}"
-    print(f"   ✓ Teacher Proctoring Overview synchronized (Violations logged: {res['data'].get('totalViolations', 0)}).")
+    print(f"   [OK] Teacher Proctoring Overview synchronized (Violations logged: {res['data'].get('totalViolations', 0)}).")
 
     print("\n=================================================================")
-    print("🎉 ALL 10 END-TO-END TESTS PASSED WITH ZERO ERRORS!")
+    print("[SUCCESS] ALL 10 END-TO-END TESTS PASSED WITH ZERO ERRORS!")
     print("=================================================================")
 
 if __name__ == "__main__":

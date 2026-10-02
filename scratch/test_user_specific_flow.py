@@ -45,7 +45,7 @@ def run():
     })
     assert res["status"] == 200, f"Teacher login failed: {res}"
     teacher_token = res["data"]["token"]
-    print("   ✓ Teacher Authenticated successfully.")
+    print("   [OK] Teacher Authenticated successfully.")
 
     # 2. Teacher Creates Quiz for 23BCE8830 and 23BCE8878
     ts = int(time.time())
@@ -99,14 +99,14 @@ def run():
     assert res["status"] in (200, 201), f"Create quiz failed: {res}"
     quiz_id = res["data"]["quizId"]
     quiz_code = res["data"]["quizCode"]
-    print(f"   ✓ Quiz Created! ID = {quiz_id}, Quiz Code = {quiz_code}")
-    print(f"   ✓ Whitelist registered: {res['data'].get('allowedRegistrationNumbers')}")
+    print(f"   [OK] Quiz Created! ID = {quiz_id}, Quiz Code = {quiz_code}")
+    print(f"   [OK] Whitelist registered: {res['data'].get('allowedRegistrationNumbers')}")
 
     # 3. Publish Quiz
     print(f"\n3. [TEACHER] Publishing Quiz Code {quiz_code}...")
     res = request("PUT", f"/api/v1/teacher/quizzes/{quiz_id}/publish", None, teacher_token)
     assert res["status"] in (200, 204), f"Publish failed: {res}"
-    print("   ✓ Quiz is now LIVE and accessible.")
+    print("   [OK] Quiz is now LIVE and accessible.")
 
     # 4. Student 1 (23BCE8830) Login & Take Exam
     print(f"\n4. [STUDENT 1] Logging in student_reg8830@dynoquizz.edu (Roll: 23BCE8830)...")
@@ -116,13 +116,13 @@ def run():
     })
     assert res["status"] == 200, f"Student 1 login failed: {res}"
     student1_token = res["data"]["token"]
-    print("   ✓ Student 1 Authenticated.")
+    print("   [OK] Student 1 Authenticated.")
 
     print(f"   [STUDENT 1] Starting attempt for Quiz Code {quiz_code}...")
     res = request("POST", f"/api/v1/student/quizzes/{quiz_code}/attempts", {"registrationNo": "23BCE8830"}, student1_token)
     assert res["status"] == 200, f"Student 1 start attempt failed: {res}"
     attempt1_id = res["data"]["attemptId"]
-    print(f"   ✓ Attempt Started! Attempt ID = {attempt1_id}")
+    print(f"   [OK] Attempt Started! Attempt ID = {attempt1_id}")
 
     # Package download & submit
     res = request("GET", f"/api/v1/student/quizzes/code/{quiz_code}/package", None, student1_token)
@@ -135,7 +135,7 @@ def run():
         "answers": [{"questionId": q1["questionId"], "selectedOptionIds": [opt_selected], "responseTimeSeconds": 25}]
     }, student1_token)
     assert res["status"] == 200, f"Submit attempt failed: {res}"
-    print(f"   ✓ Student 1 Submitted Exam! Final Score: {res['data'].get('finalScore')} / {res['data'].get('totalMarks')}")
+    print(f"   [OK] Student 1 Submitted Exam! Final Score: {res['data'].get('finalScore')} / {res['data'].get('totalMarks')}")
 
     # 5. Student 2 (23BCE8878) Login & Take Exam
     print(f"\n5. [STUDENT 2] Logging in student_tester@dynoquizz.edu (Roll: 23BCE8878)...")
@@ -145,24 +145,24 @@ def run():
     })
     assert res["status"] == 200, f"Student 2 login failed: {res}"
     student2_token = res["data"]["token"]
-    print("   ✓ Student 2 Authenticated.")
+    print("   [OK] Student 2 Authenticated.")
 
     print(f"   [STUDENT 2] Starting attempt for Quiz Code {quiz_code}...")
     res = request("POST", f"/api/v1/student/quizzes/{quiz_code}/attempts", {"registrationNo": "23BCE8878"}, student2_token)
     assert res["status"] == 200, f"Student 2 start attempt failed: {res}"
     attempt2_id = res["data"]["attemptId"]
-    print(f"   ✓ Attempt Started! Attempt ID = {attempt2_id}")
+    print(f"   [OK] Attempt Started! Attempt ID = {attempt2_id}")
 
     # 6. Verify Teacher View & Allowed Registration Numbers
     print(f"\n6. [TEACHER] Verifying Teacher Assessment Details & Whitelist...")
     res = request("GET", f"/api/v1/teacher/quizzes/{quiz_id}", None, teacher_token)
     assert res["status"] == 200, f"Get quiz failed: {res}"
     allowed_list = res["data"].get("allowedRegistrationNumbers", [])
-    print(f"   ✓ Teacher Assessment Detail confirms Whitelist: {allowed_list}")
+    print(f"   [OK] Teacher Assessment Detail confirms Whitelist: {allowed_list}")
     assert "23BCE8830" in allowed_list and "23BCE8878" in allowed_list, "Whitelist missing roll numbers"
 
     print("\n=================================================================")
-    print(f"🎉 VERIFICATION COMPLETE: Quiz Code {quiz_code} is LIVE and verified for 23BCE8830 & 23BCE8878!")
+    print("[SUCCESS] VERIFICATION COMPLETE: Quiz Code " + str(quiz_code) + " is LIVE and verified for 23BCE8830 & 23BCE8878!")
     print("=================================================================")
 
 if __name__ == "__main__":
