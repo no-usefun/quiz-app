@@ -40,7 +40,11 @@ API calls must use process.env.NEXT_PUBLIC_API_URL.
 
 Login
 
-POST /api/v1/auth/login
+POST /api/v1/auth/login?role=STUDENT
+
+or
+
+POST /api/v1/auth/login?role=TEACHER
 
 Body:
 
@@ -49,7 +53,7 @@ Body:
 "password": "password"
 }
 
-Do not make role a required backend request field.
+Role is supplied as the request parameter. It is not a JSON body field.
 
 Protected requests:
 
@@ -57,23 +61,26 @@ Authorization: Bearer <JWT>
 
 Signup
 
-POST /api/v1/auth/signup
+POST /api/v1/auth/signup?role=STUDENT
 
-Current backend fields:
+or
+
+POST /api/v1/auth/signup?role=TEACHER
+
+Current backend JSON body:
 
 {
 "firstName": "Jane",
 "lastName": "Doe",
 "email": "jane@example.com",
 "password": "password",
-"role": "STUDENT",
 "college": "...",
 "department": "...",
 "registrationNo": "...",
 "phone": "..."
 }
 
-Do not use /api/v1/auth/register.
+Role is supplied as the request parameter. Do not use /api/v1/auth/register.
 
 Current user
 
