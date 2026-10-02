@@ -43,9 +43,15 @@ public class JwtUtils {
     }
 
     public String generateToken(User user) {
+        if (user == null || user.getRole() == null
+                || user.getRole().getName() == null
+                || user.getRole().getName().isBlank()) {
+            throw new IllegalStateException("Cannot generate JWT for user without a valid role");
+        }
+
         Date now = new Date();
         Date expiryDate = new Date(now.getTime() + jwtExpirationMs);
-        String roleName = user.getRole() != null ? user.getRole().getName() : "STUDENT";
+        String roleName = user.getRole().getName().trim().toUpperCase(java.util.Locale.ROOT);
 
         return Jwts.builder()
                 .subject(String.valueOf(user.getId()))
