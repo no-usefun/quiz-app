@@ -20,7 +20,7 @@ export type ResultVisibility =
 
 export type QuestionType = "MCQ" | "MSQ" | "TRUE_FALSE";
 
-export type AttemptStatus = "IN_PROGRESS" | "SUBMITTED" | "AUTO_SUBMITTED";
+export type AttemptStatus = "IN_PROGRESS" | "SUBMITTED" | "AUTO_SUBMITTED" | "EXPIRED";
 
 export type AnswerStatus = "UNANSWERED" | "ANSWERED" | "CORRECT" | "INCORRECT";
 
@@ -210,6 +210,64 @@ export interface SubmitAttemptResponse {
   totalMarks: number;
   totalTimeTaken: number;
   submittedAt: string;
+  timeBonusAwarded?: number | null;
+}
+
+export interface AttemptSavedAnswer {
+  questionId: number;
+  selectedOptionIds: number[];
+  responseTimeSeconds: number;
+  savedAt?: string | null;
+}
+
+export interface AttemptStateResponse {
+  attemptId: number;
+  quizId: number;
+  status: AttemptStatus;
+  effectiveDeadline: string;
+  currentQuestion?: number | null;
+  answers: AttemptSavedAnswer[];
+  totalTimeTaken?: number | null;
+}
+
+export interface SaveAnswerRequest {
+  selectedOptionIds: number[];
+  responseTimeSeconds: number;
+}
+
+export interface ProctoringEventRequest {
+  type: string;
+  occurredAt: string;
+  metadata?: Record<string, string | number | boolean | null>;
+}
+
+export interface ProctoringEventResponse {
+  eventId: number;
+  attemptId: number;
+  type: string;
+  occurredAt: string;
+}
+
+export interface LiveAttemptResponse {
+  attemptId: number;
+  studentId: number;
+  studentName: string;
+  quizId: number;
+  status: AttemptStatus;
+  currentQuestion?: number | null;
+  startedAt: string;
+  lastSeenAt?: string | null;
+  totalTimeTaken?: number | null;
+  warningCount?: number | null;
+  tabSwitchCount?: number | null;
+  fullscreenExitCount?: number | null;
+  focusLossCount?: number | null;
+  copyAttemptCount?: number | null;
+  cutAttemptCount?: number | null;
+  pasteAttemptCount?: number | null;
+  keyboardAttemptCount?: number | null;
+  reconnectCount?: number | null;
+  refreshCount?: number | null;
 }
 
 export interface StudentSubmissionResponse {
@@ -243,6 +301,7 @@ export interface AttemptResultResponse {
 export interface AttemptResultDetailResponse {
   questionId: number;
   questionText: string;
+  explanation?: string | null;
   displayOrder: number;
   selectedOptionIds: number[];
   correctOptionIds: number[];
@@ -351,4 +410,29 @@ export interface StudentTestResult {
   totalQuestions?: number;
   correctCount?: number;
   timeTakenTotalSeconds?: number;
+}
+
+
+/* -------------------------------------------------------------------------- */
+/* Account preferences / password reset                                       */
+/* -------------------------------------------------------------------------- */
+
+export interface SetPasswordRequest {
+  newPassword: string;
+}
+
+export interface ForgotPasswordRequest {
+  email: string;
+}
+
+export interface ResetPasswordRequest {
+  token: string;
+  newPassword: string;
+}
+
+export interface NotificationPreferences {
+  assessmentResults: boolean;
+  upcomingAssessments: boolean;
+  proctoringReports: boolean;
+  browserPush: boolean;
 }
