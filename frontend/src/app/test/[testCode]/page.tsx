@@ -9,8 +9,13 @@ import { AnimatePresence, motion } from "framer-motion";
 import {
   AlertTriangle,
   CheckCircle2,
+  ChevronLeft,
   ChevronRight,
   Clock,
+  Flag,
+  Maximize2,
+  ShieldAlert,
+  Trash2,
   ShieldCheck,
   Wifi,
   WifiOff,
@@ -118,6 +123,23 @@ function normalizeAnswers(raw: unknown): ActiveAnswerState {
   return result;
 }
 
+function normalizeReviewState(raw: unknown): Record<number, boolean> {
+  if (!raw || typeof raw !== "object") {
+    return {};
+  }
+
+  const result: Record<number, boolean> = {};
+
+  for (const [key, value] of Object.entries(raw as Record<string, unknown>)) {
+    const questionId = Number(key);
+    if (Number.isFinite(questionId) && questionId > 0 && value === true) {
+      result[questionId] = true;
+    }
+  }
+
+  return result;
+}
+
 function normalizeTimeTaken(raw: unknown): Record<number, number> {
   if (!raw || typeof raw !== "object") {
     return {};
@@ -146,6 +168,7 @@ function persistAttemptState(
   attemptId: string | null,
   answers: ActiveAnswerState,
   timeTaken: Record<number, number>,
+  reviewed: Record<number, boolean> = {},
 ) {
   if (typeof window === "undefined" || !attemptId) {
     return;
@@ -157,6 +180,7 @@ function persistAttemptState(
       JSON.stringify({
         answers,
         timeTaken,
+        reviewed,
         lastUpdated: Date.now(),
       }),
     );
@@ -267,6 +291,7 @@ export default function TestArenaPage({
 
   const [currentIndex, setCurrentIndex] = useState(0);
   const [answers, setAnswers] = useState<ActiveAnswerState>({});
+  const [markedForReview, setMarkedForReview] = useState<Record<number, boolean>>({});
   const [timeTakenPerQuestion, setTimeTakenPerQuestion] = useState<
     Record<number, number>
   >({});
@@ -292,7 +317,13 @@ export default function TestArenaPage({
   const currentQuestionRef = useRef<QuestionResponse | null>(null);
   const expiryHandledRef = useRef(false);
   const submissionInFlightRef = useRef(false);
-  const { flags } = useProctoring();
+  const {
+    flags,
+    warnings,
+    violationCount,
+    isFullscreen,
+    requestFullscreen,
+  } = useProctoring();
 
   useEffect(() => {
     answersRef.current = answers;
@@ -315,6 +346,21 @@ export default function TestArenaPage({
 
   const progressPercentage =
     questions.length > 0 ? ((currentIndex + 1) / questions.length) * 100 : 0;
+
+  useEffect(() => {
+    if (typeof window === "undefined" || isSubmitted) {
+      return;
+    }
+
+    const handleBeforeUnload = (event: BeforeUnloadEvent) => {
+      event.preventDefault();
+      event.returnValue = "";
+    };
+
+    window.addEventListener("beforeunload", handleBeforeUnload);
+
+    return () => window.removeEventListener("beforeunload", handleBeforeUnload);
+  }, [isSubmitted]);
 
   useEffect(() => {
     setMounted(true);
@@ -385,9 +431,11 @@ export default function TestArenaPage({
           const parsed = JSON.parse(stateRaw);
 
           const restoredAnswers = normalizeAnswers(parsed?.answers);
+          const restoredReview = normalizeReviewState(parsed?.reviewed);
           const restoredTimeTaken = normalizeTimeTaken(parsed?.timeTaken);
 
           answersRef.current = restoredAnswers;
+          setMarkedForReview(restoredReview);
           timeTakenRef.current = restoredTimeTaken;
 
           setAnswers(restoredAnswers);
@@ -555,8 +603,14 @@ export default function TestArenaPage({
   const persistCurrentState = (
     nextAnswers: ActiveAnswerState = answersRef.current,
     nextTimeTaken: Record<number, number> = timeTakenRef.current,
+    nextReviewed: Record<number, boolean> = markedForReview,
   ) => {
-    persistAttemptState(activeAttemptId, nextAnswers, nextTimeTaken);
+    persistAttemptState(
+      activeAttemptId,
+      nextAnswers,
+      nextTimeTaken,
+      nextReviewed,
+    );
   };
 
   const setCurrentAnswers = (
@@ -610,6 +664,45 @@ export default function TestArenaPage({
     const nextAnswers: ActiveAnswerState = {
       ...answersRef.current,
       [questionId]: nextSelections,
+    };
+
+    setCurrentAnswers(nextAnswers);
+  };
+
+  const toggleReview = () => {
+    if (!currentQuestion || isSubmitted) {
+      return;
+    }
+
+    const questionId = Number(currentQuestion.questionId);
+
+    if (!Number.isFinite(questionId) || questionId <= 0) {
+      return;
+    }
+
+    const next = {
+      ...markedForReview,
+      [questionId]: !markedForReview[questionId],
+    };
+
+    setMarkedForReview(next);
+    persistCurrentState(answersRef.current, timeTakenRef.current, next);
+  };
+
+  const clearCurrentAnswer = () => {
+    if (!currentQuestion || isSubmitted) {
+      return;
+    }
+
+    const questionId = Number(currentQuestion.questionId);
+
+    if (!Number.isFinite(questionId) || questionId <= 0) {
+      return;
+    }
+
+    const nextAnswers = {
+      ...answersRef.current,
+      [questionId]: [],
     };
 
     setCurrentAnswers(nextAnswers);
@@ -1058,6 +1151,13 @@ export default function TestArenaPage({
                 ✓ Stored locally
               </span>
             )}
+
+            {markedForReview[Number(currentQuestion?.questionId)] && (
+              <span className="flex items-center gap-1 rounded-full bg-[#f6efe1] px-2 py-1 text-[10px] font-bold text-[#73561a]">
+                <Flag className="h-3 w-3" />
+                Marked for review
+              </span>
+            )}
           </div>
 
           <div className="flex items-center gap-3.5">
@@ -1092,6 +1192,74 @@ export default function TestArenaPage({
             style={{ width: `${progressPercentage}%` }}
           />
         </div>
+
+
+        <div className="border-b border-[#d1dee8]/50 bg-[#f8f8f7] px-4 py-3 md:px-6">
+          <div className="flex items-center justify-between gap-3">
+            <span className="text-[10px] font-bold uppercase tracking-wider text-[#78716b]">
+              Question Navigator
+            </span>
+            <span className="text-[10px] font-semibold text-[#78716b]">
+              {Object.values(markedForReview).filter(Boolean).length} marked
+            </span>
+          </div>
+
+          <div className="mt-2 flex gap-1.5 overflow-x-auto pb-1">
+            {questions.map((question, index) => {
+              const questionId = Number(question.questionId);
+              const answered = (answers[questionId] ?? []).length > 0;
+              const marked = markedForReview[questionId] === true;
+
+              return (
+                <button
+                  key={questionId}
+                  type="button"
+                  onClick={() => goToQuestion(index)}
+                  disabled={isSubmitted}
+                  className={`relative flex h-8 min-w-8 items-center justify-center rounded-lg border px-2 text-[10px] font-bold transition-all ${
+                    index === currentIndex
+                      ? "border-[#165dfb] bg-[#165dfb] text-white"
+                      : marked
+                        ? "border-[#73561a]/40 bg-[#f6efe1] text-[#73561a]"
+                        : answered
+                          ? "border-[#1d5237]/25 bg-[#e2ede8] text-[#1d5237]"
+                          : "border-[#d1dee8]/80 bg-white text-[#78716b]"
+                  }`}
+                >
+                  {index + 1}
+                  {marked && (
+                    <span className="absolute -right-0.5 -top-0.5 h-1.5 w-1.5 rounded-full bg-[#73561a]" />
+                  )}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+
+        {!isFullscreen && (
+          <div className="border-b border-[#8c381c]/20 bg-[#fbeee8] px-4 py-3 md:px-6">
+            <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+              <div className="flex items-start gap-2 text-xs text-[#8c381c]">
+                <ShieldAlert className="mt-0.5 h-4 w-4 shrink-0" />
+                <div>
+                  <strong className="font-bold">Fullscreen mode is off.</strong>
+                  <p className="mt-0.5 font-medium">
+                    Leaving fullscreen is recorded as suspicious activity. Re-enter fullscreen before continuing.
+                  </p>
+                </div>
+              </div>
+
+              <button
+                type="button"
+                onClick={() => void requestFullscreen()}
+                className="inline-flex shrink-0 items-center justify-center gap-1.5 rounded-lg border border-[#8c381c]/30 bg-white px-3 py-2 text-[10px] font-bold text-[#8c381c] transition-all hover:bg-[#fffaf8]"
+              >
+                <Maximize2 className="h-3.5 w-3.5" />
+                Enter Fullscreen
+              </button>
+            </div>
+          </div>
+        )}
 
         <div className="flex-1 overflow-y-auto px-6 py-6 md:px-10 md:py-8 bg-white">
           <AnimatePresence mode="wait">
@@ -1154,39 +1322,117 @@ export default function TestArenaPage({
           </AnimatePresence>
         </div>
 
-        <footer className="border-t border-[#d1dee8]/50 bg-white px-6 py-3.5 flex justify-between items-center">
-          <span className="text-[10px] font-medium text-[#78716b]">
-            {currentQuestion?.questionType === "MSQ"
-              ? "Multiple selection"
-              : "Single selection"}
-          </span>
+        <footer className="border-t border-[#d1dee8]/50 bg-white px-4 py-3.5 md:px-6">
+          <div className="flex flex-wrap items-center justify-between gap-2.5">
+            <div className="flex flex-wrap items-center gap-2">
+              <button
+                type="button"
+                onClick={() => goToQuestion(currentIndex - 1)}
+                disabled={isSubmitted || currentIndex === 0}
+                className="inline-flex items-center gap-1 rounded-lg border border-[#d1dee8]/80 bg-white px-3 py-2 text-[10px] font-bold text-[#111111] transition-all hover:bg-[#f5f5f4] disabled:cursor-not-allowed disabled:opacity-40"
+              >
+                <ChevronLeft className="h-3.5 w-3.5" />
+                Previous
+              </button>
 
-          <button
-            type="button"
-            onClick={() => {
-              if (currentIndex < questions.length - 1) {
-                goToQuestion(currentIndex + 1);
-              } else {
-                void finishAssessment(answersRef.current, timeTakenRef.current);
-              }
-            }}
-            disabled={isSubmitted}
-            className="flex items-center gap-1 rounded-[10px] bg-[#165dfb] px-4 py-2 text-xs font-bold text-white hover:bg-[#165dfb]/90 active:scale-[0.98] transition-all shadow-xs disabled:opacity-40 cursor-pointer border-0"
-          >
-            {currentIndex === questions.length - 1 ? (
-              <>
-                Submit Assessment
-                <ChevronRight className="h-3.5 w-3.5" />
-              </>
-            ) : (
-              <>
-                Next Question
-                <ChevronRight className="h-3.5 w-3.5" />
-              </>
-            )}
-          </button>
+              <button
+                type="button"
+                onClick={toggleReview}
+                disabled={isSubmitted}
+                className={`inline-flex items-center gap-1 rounded-lg border px-3 py-2 text-[10px] font-bold transition-all disabled:opacity-40 ${
+                  markedForReview[Number(currentQuestion?.questionId)]
+                    ? "border-[#73561a]/30 bg-[#f6efe1] text-[#73561a]"
+                    : "border-[#d1dee8]/80 bg-white text-[#78716b] hover:bg-[#f5f5f4]"
+                }`}
+              >
+                <Flag className="h-3.5 w-3.5" />
+                {markedForReview[Number(currentQuestion?.questionId)]
+                  ? "Marked"
+                  : "Mark Review"}
+              </button>
+
+              <button
+                type="button"
+                onClick={clearCurrentAnswer}
+                disabled={
+                  isSubmitted ||
+                  (answers[Number(currentQuestion?.questionId)] ?? []).length === 0
+                }
+                className="inline-flex items-center gap-1 rounded-lg border border-[#d1dee8]/80 bg-white px-3 py-2 text-[10px] font-bold text-[#78716b] transition-all hover:bg-[#f5f5f4] disabled:cursor-not-allowed disabled:opacity-40"
+              >
+                <Trash2 className="h-3.5 w-3.5" />
+                Clear
+              </button>
+            </div>
+
+            <button
+              type="button"
+              onClick={() => {
+                if (currentIndex < questions.length - 1) {
+                  goToQuestion(currentIndex + 1);
+                } else {
+                  void finishAssessment(answersRef.current, timeTakenRef.current);
+                }
+              }}
+              disabled={isSubmitted}
+              className="inline-flex items-center gap-1 rounded-lg bg-[#165dfb] px-4 py-2.5 text-xs font-bold text-white shadow-xs transition-all hover:bg-[#0f4fd8] active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-40"
+            >
+              {currentIndex === questions.length - 1 ? (
+                <>
+                  Submit Assessment
+                  <ChevronRight className="h-3.5 w-3.5" />
+                </>
+              ) : (
+                <>
+                  Next Question
+                  <ChevronRight className="h-3.5 w-3.5" />
+                </>
+              )}
+            </button>
+          </div>
         </footer>
       </motion.div>
+
+      <aside className="hidden w-72 flex-col gap-4 pl-6 lg:flex text-left">
+        <div className="rounded-[14px] border border-[#d1dee8]/70 bg-white p-4 shadow-sm">
+          <div className="flex items-center justify-between gap-3">
+            <h3 className="flex items-center gap-1.5 text-xs font-bold text-[#111111]">
+              <ShieldAlert className="h-3.5 w-3.5 text-[#8c381c]" />
+              Activity Monitor
+            </h3>
+            <span className={`rounded-full px-2 py-0.5 text-[9px] font-bold ${
+              violationCount === 0
+                ? "bg-[#e2ede8] text-[#1d5237]"
+                : "bg-[#fbeee8] text-[#8c381c]"
+            }`}>
+              {violationCount} events
+            </span>
+          </div>
+
+          <div className="mt-3 grid grid-cols-2 gap-2">
+            {[
+              ["Tab switches", flags.tab_switch],
+              ["Fullscreen exits", flags.fullscreen_exit],
+              ["Copy / cut / paste", flags.copy_attempt + flags.cut_attempt + flags.paste_attempt],
+              ["Focus / keyboard", flags.focus_loss + flags.keyboard_attempt],
+              ["Right clicks", flags.right_click],
+            ].map(([label, value]) => (
+              <div key={String(label)} className="rounded-lg border border-[#d1dee8]/70 bg-[#f8f8f7] p-2">
+                <p className="text-[9px] font-semibold text-[#78716b]">{label}</p>
+                <p className="mt-0.5 text-sm font-black text-[#111111]">{value}</p>
+              </div>
+            ))}
+          </div>
+
+          {warnings.length > 0 && (
+            <div className="mt-3 rounded-lg border border-[#73561a]/20 bg-[#f6efe1] p-2.5">
+              <p className="text-[9px] font-bold uppercase tracking-wider text-[#73561a]">Latest event</p>
+              <p className="mt-1 text-[10px] font-semibold leading-relaxed text-[#73561a]">
+                {warnings[warnings.length - 1]}
+              </p>
+            </div>
+          )}
+        </div>
 
       <aside className="hidden w-72 flex-col gap-4 pl-6 lg:flex text-left">
         <div className="overflow-hidden rounded-[14px] bg-white border border-[#d1dee8]/70 shadow-sm">
@@ -1256,10 +1502,22 @@ export default function TestArenaPage({
               Backend scoring remains authoritative after submission.
             </li>
 
-            {flags?.tab_switch > 0 && (
+            <li className="flex items-start gap-1 leading-relaxed">
+              <span className="mt-1 h-1 w-1 rounded-full bg-[#165dfb] shrink-0" />
+              Browser-observable suspicious activity is recorded locally during the session.
+            </li>
+
+            {violationCount > 0 && (
               <li className="flex items-start gap-1 leading-relaxed text-[#8c381c]">
                 <span className="mt-1 h-1 w-1 rounded-full bg-[#8c381c] shrink-0" />
-                Tab-switch activity was detected by the proctoring hook.
+                {violationCount} suspicious activity event{violationCount === 1 ? "" : "s"} detected.
+              </li>
+            )}
+
+            {flags.tab_switch > 0 && (
+              <li className="flex items-start gap-1 leading-relaxed text-[#8c381c]">
+                <span className="mt-1 h-1 w-1 rounded-full bg-[#8c381c] shrink-0" />
+                Tab-switch activity was detected.
               </li>
             )}
           </ul>
