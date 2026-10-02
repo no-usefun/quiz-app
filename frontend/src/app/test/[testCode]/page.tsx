@@ -743,6 +743,10 @@ export default function TestArenaPage({
     }
 
     const interval = window.setInterval(() => {
+      if (timeLeft <= 0) {
+        return;
+      }
+
       setTimeTakenPerQuestion((previous) => {
         const nextValue = (previous[questionId] ?? 0) + 1;
         const next = {
@@ -756,8 +760,7 @@ export default function TestArenaPage({
     }, 1000);
 
     return () => window.clearInterval(interval);
-  }, [currentQuestion?.questionId, isSubmitted]);
-
+  }, [currentQuestion?.questionId, isSubmitted, timeLeft]);
   const persistCurrentState = (
     nextAnswers: ActiveAnswerState = answersRef.current,
     nextTimeTaken: Record<number, number> = timeTakenRef.current,
@@ -1157,7 +1160,7 @@ export default function TestArenaPage({
   };
 
   useEffect(() => {
-    if (!currentQuestion || isSubmitted) {
+    if (!currentQuestion || isSubmitted || timeLeft <= 0) {
       return;
     }
 
