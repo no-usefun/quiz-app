@@ -107,7 +107,9 @@ export async function POST(request: Request) {
      * Signup does not return a JWT, so this route must never generate
      * a token or create an authenticated cookie.
      */
-    const backendResponse = await fetch(`${API_BASE}/api/v1/auth/signup`, {
+    const backendResponse = await fetch(
+      `${API_BASE}/api/v1/auth/signup?role=${encodeURIComponent(requestedRole)}`,
+      {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -118,7 +120,6 @@ export async function POST(request: Request) {
         lastName,
         email,
         password,
-        role: requestedRole,
         ...(college ? { college } : {}),
         ...(department ? { department } : {}),
         ...(phone ? { phone } : {}),
