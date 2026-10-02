@@ -1084,8 +1084,8 @@ function CreateAssessmentContent() {
 
   const getAllowedRolls = () =>
     allowedRollsText
-      .split(",")
-      .map((roll) => roll.trim())
+      .split(/[\r\n,;]+/)
+      .map((roll) => roll.trim().toUpperCase())
       .filter(Boolean);
 
   const buildQuestionPayload = (forPost: boolean) =>

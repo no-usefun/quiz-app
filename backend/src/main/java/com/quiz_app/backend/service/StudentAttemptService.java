@@ -90,6 +90,13 @@ public class StudentAttemptService {
         public AttemptResponse startAttempt(
                         String quizCode,
                         Long studentId) {
+                return startAttempt(quizCode, studentId, null);
+        }
+
+        public AttemptResponse startAttempt(
+                        String quizCode,
+                        Long studentId,
+                        String explicitRegNo) {
 
                 if (quizCode == null || quizCode.isBlank()) {
                         throw new BadRequestException("QUIZ_CODE_REQUIRED",
@@ -168,20 +175,38 @@ public class StudentAttemptService {
 
                 // 6. Check registration whitelist
                 String registrationNo = student.getRegistrationNo();
+                if ((registrationNo == null || registrationNo.isBlank())
+                                && explicitRegNo != null
+                                && !explicitRegNo.isBlank()) {
+                        registrationNo = explicitRegNo.trim();
+                        student.setRegistrationNo(registrationNo);
+                        userRepository.save(student);
+                }
 
-                if (registrationNo != null
-                                && quizAllowedStudentRepository
+                boolean whitelistConfigured = quizAllowedStudentRepository.existsByQuizId(quiz.getId());
+
+                if (whitelistConfigured) {
+                        boolean isAllowed = false;
+
+                        if (registrationNo != null && !registrationNo.isBlank()) {
+                                isAllowed = quizAllowedStudentRepository
                                                 .existsByQuizIdAndRegistrationNumberIgnoreCase(
                                                                 quiz.getId(),
-                                                                registrationNo)) {
+                                                                registrationNo.trim());
+                        }
 
-                        // Student explicitly allowed.
-                } else {
+                        if (!isAllowed && explicitRegNo != null && !explicitRegNo.isBlank()) {
+                                isAllowed = quizAllowedStudentRepository
+                                                .existsByQuizIdAndRegistrationNumberIgnoreCase(
+                                                                quiz.getId(),
+                                                                explicitRegNo.trim());
+                                if (isAllowed) {
+                                        student.setRegistrationNo(explicitRegNo.trim());
+                                        userRepository.save(student);
+                                }
+                        }
 
-                        boolean whitelistConfigured = quizAllowedStudentRepository
-                                        .existsByQuizId(quiz.getId());
-
-                        if (whitelistConfigured) {
+                        if (!isAllowed) {
                                 throw new BadRequestException(
                                                 "STUDENT_REGISTRATION_NOT_ALLOWED",
                                                 "Student registration number is not allowed for this quiz");

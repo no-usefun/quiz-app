@@ -22,6 +22,8 @@ import com.quiz_app.backend.dto.quiz.QuizAvailabilityResponse;
 import com.quiz_app.backend.security.CustomUserDetails;
 import com.quiz_app.backend.service.StudentAttemptService;
 
+import java.util.Map;
+
 @RestController
 @RequestMapping("/api/v1/student")
 public class StudentQuizController {
@@ -34,13 +36,18 @@ public class StudentQuizController {
         @PostMapping("/quizzes/{quizCode}/attempts")
         public ResponseEntity<AttemptResponse> startAttempt(
                         @PathVariable String quizCode,
+                        @RequestBody(required = false) Map<String, String> body,
                         Authentication authentication) {
 
                 CustomUserDetails userDetails = (CustomUserDetails) authentication.getPrincipal();
+                String explicitRegNo = (body != null && body.containsKey("registrationNo"))
+                                ? body.get("registrationNo")
+                                : null;
 
                 AttemptResponse response = attemptService.startAttempt(
                                 quizCode,
-                                userDetails.getId());
+                                userDetails.getId(),
+                                explicitRegNo);
 
                 return ResponseEntity.ok(response);
         }
