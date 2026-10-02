@@ -142,12 +142,14 @@ export async function apiRequest<T = unknown>(
       headers,
     });
   } catch (error) {
-    throw new ApiClientError(
-      0,
-      error instanceof Error
-        ? error.message
-        : "Unable to reach the backend server.",
-    );
+    const message =
+      error instanceof TypeError && /fetch|network/i.test(error.message)
+        ? "Quizly backend is unreachable. Start the Spring Boot server and verify NEXT_PUBLIC_API_URL."
+        : error instanceof Error
+          ? error.message
+          : "Unable to reach the backend server.";
+
+    throw new ApiClientError(0, message); 
   }
 
   const data = await parseResponseBody(response);
