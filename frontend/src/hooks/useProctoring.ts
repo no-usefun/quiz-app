@@ -88,7 +88,10 @@ function readPersistedState(storageKey: string | null): PersistedProctoringState
   }
 }
 
-export function useProctoring(storageKeyValue?: string | null) {
+export function useProctoring(
+  storageKeyValue?: string | null,
+  onEvent?: (event: ProctoringEvent) => void | Promise<void>,
+) {
   const storageKey = storageKeyFor(storageKeyValue);
   const persisted = useMemo(
     () => readPersistedState(storageKey),
@@ -122,9 +125,14 @@ export function useProctoring(storageKeyValue?: string | null) {
 
   const record = useCallback(
     (type: keyof ProctoringFlags, message: string) => {
+      const event: ProctoringEvent = {
+        type,
+        timestamp: Date.now(),
+      };
+
       const nextEvents = [
         ...eventsRef.current.slice(-99),
-        { type, timestamp: Date.now() },
+        event,
       ];
 
       const nextFlags = {
@@ -136,6 +144,12 @@ export function useProctoring(storageKeyValue?: string | null) {
       setFlags(nextFlags);
       setWarnings((previous) => [...previous.slice(-9), message]);
       persist(nextFlags, nextEvents);
+
+      try {
+        void onEvent?.(event);
+      } catch {
+        // Proctoring detection must continue if server sync fails.
+      }
     },
     [flags, persist],
   );
