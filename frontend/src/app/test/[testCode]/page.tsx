@@ -734,6 +734,10 @@ export default function TestArenaPage({
 
     const questionId = Number(currentQuestion.questionId);
 
+    if (isQuestionExpired(questionId)) {
+      return;
+    }
+
     if (!Number.isFinite(questionId) || questionId <= 0) {
       return;
     }
@@ -767,6 +771,85 @@ export default function TestArenaPage({
     );
   };
 
+  const syncAnswerToBackend = useCallback(
+    async (
+      questionId: number,
+      selectedOptionIds: number[],
+      responseTimeSeconds: number,
+    ) => {
+      if (
+        !activeAttemptId ||
+        !syncAnswerAvailableRef.current ||
+        !Number.isFinite(questionId) ||
+        questionId <= 0
+      ) {
+        return;
+      }
+
+      setSaveStatus("syncing");
+
+      try {
+        await api.put(
+          ENDPOINTS.student.saveAnswer(activeAttemptId, questionId),
+          {
+            selectedOptionIds,
+            responseTimeSeconds: Math.max(0, Math.floor(responseTimeSeconds)),
+          },
+        );
+
+        setSaveStatus("saved");
+      } catch (error) {
+        if (
+          error instanceof ApiClientError &&
+          (error.status === 404 || error.status === 405)
+        ) {
+          syncAnswerAvailableRef.current = false;
+          setSaveStatus("local");
+          return;
+        }
+
+        console.warn(
+          "[Assessment] Answer sync failed; local recovery remains active.",
+          error,
+        );
+        setSaveStatus("local");
+      }
+    },
+    [activeAttemptId],
+  );
+
+  const isQuestionExpired = (questionId: number) =>
+    Boolean(expiredQuestionIdsRef.current[questionId]);
+
+  const expireCurrentQuestion = useCallback(
+    (question: QuestionResponse) => {
+      const questionId = Number(question.questionId);
+
+      if (
+        !Number.isFinite(questionId) ||
+        questionId <= 0 ||
+        isSubmitted ||
+        expiryHandledRef.current
+      ) {
+        return;
+      }
+
+      expiredQuestionIdsRef.current = {
+        ...expiredQuestionIdsRef.current,
+        [questionId]: true,
+      };
+      setExpiredQuestionIds(expiredQuestionIdsRef.current);
+      persistCurrentState(answersRef.current, timeTakenRef.current);
+
+      if (currentIndexRef.current < questions.length - 1) {
+        goToQuestion(currentIndexRef.current + 1);
+      } else {
+        void finishAssessment(answersRef.current, timeTakenRef.current);
+      }
+    },
+    [isSubmitted, questions.length],
+  );
+
   const setCurrentAnswers = (
     next: ActiveAnswerState,
     selectedForCurrentQuestion?: number[],
@@ -781,6 +864,20 @@ export default function TestArenaPage({
 
     setSaveStatus("saved");
     persistCurrentState(next, timeTakenRef.current);
+
+    const currentQuestionId = Number(currentQuestionRef.current?.questionId);
+
+    if (
+      selectedForCurrentQuestion !== undefined &&
+      Number.isFinite(currentQuestionId) &&
+      currentQuestionId > 0
+    ) {
+      void syncAnswerToBackend(
+        currentQuestionId,
+        selectedForCurrentQuestion,
+        timeTakenRef.current[currentQuestionId] ?? 0,
+      );
+    }
   };
 
   const handleSelectOption = (optionId: number) => {
@@ -834,6 +931,10 @@ export default function TestArenaPage({
       return;
     }
 
+    if (test?.allowReview === false) {
+      return;
+    }
+
     const next = {
       ...markedForReview,
       [questionId]: !markedForReview[questionId],
@@ -859,11 +960,15 @@ export default function TestArenaPage({
       [questionId]: [],
     };
 
-    setCurrentAnswers(nextAnswers);
+    setCurrentAnswers(nextAnswers, []);
   };
 
   const goToQuestion = (nextIndex: number) => {
     if (nextIndex < 0 || nextIndex >= questions.length || isSubmitted) {
+      return;
+    }
+
+    if (nextIndex < currentIndex && test?.allowReview === false) {
       return;
     }
 
