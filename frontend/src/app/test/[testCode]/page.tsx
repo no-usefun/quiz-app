@@ -2,7 +2,7 @@
 
 // frontend/src/app/test/[testCode]/page.tsx
 
-import { use, useEffect, useRef, useState } from "react";
+import { use, useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { AnimatePresence, motion } from "framer-motion";
@@ -21,11 +21,12 @@ import {
   WifiOff,
 } from "lucide-react";
 
-import { useProctoring } from "@/hooks/useProctoring";
+import { type ProctoringEvent, useProctoring } from "@/hooks/useProctoring";
 import { ApiClientError, api, getAuthToken } from "@/lib/api/client";
 import { ENDPOINTS } from "@/lib/api/endpoints";
 import type {
   AttemptResponse,
+  AttemptStateResponse,
   QuizPackageResponse,
   QuestionResponse,
   SubmitAttemptResponse,
@@ -299,6 +300,8 @@ export default function TestArenaPage({
     null,
   );
   const [timeLeft, setTimeLeft] = useState(0);
+  const [questionTimeLeft, setQuestionTimeLeft] = useState<number | null>(null);
+  const [expiredQuestionIds, setExpiredQuestionIds] = useState<Record<number, boolean>>({});
 
   const [isSubmitted, setIsSubmitted] = useState(false);
   const [submittedAttemptId, setSubmittedAttemptId] = useState<string | null>(
@@ -306,7 +309,9 @@ export default function TestArenaPage({
   );
   const [mounted, setMounted] = useState(false);
   const [isOnline, setIsOnline] = useState(true);
-  const [saveStatus, setSaveStatus] = useState<"idle" | "saved">("idle");
+  const [saveStatus, setSaveStatus] = useState<
+    "idle" | "saved" | "syncing" | "local"
+  >("idle");
   const [sessionExpired, setSessionExpired] = useState(false);
   const [deadlineNotice, setDeadlineNotice] = useState<string | null>(null);
   const [submissionNotice, setSubmissionNotice] = useState<string | null>(null);
@@ -317,6 +322,36 @@ export default function TestArenaPage({
   const currentQuestionRef = useRef<QuestionResponse | null>(null);
   const expiryHandledRef = useRef(false);
   const submissionInFlightRef = useRef(false);
+  const syncAnswerAvailableRef = useRef(true);
+  const expiredQuestionIdsRef = useRef<Record<number, boolean>>({});
+
+  const syncProctoringEvent = useCallback(
+    async (event: ProctoringEvent) => {
+      if (!activeAttemptId || !event) return;
+
+      try {
+        await api.post(
+          ENDPOINTS.student.proctoringEvents(activeAttemptId),
+          {
+            type: event.type,
+            occurredAt: new Date(event.timestamp).toISOString(),
+            metadata: { source: "browser" },
+          },
+        );
+      } catch (error) {
+        if (
+          error instanceof ApiClientError &&
+          (error.status === 404 || error.status === 405)
+        ) {
+          return;
+        }
+
+        console.warn("[Proctoring] Server event sync failed:", error);
+      }
+    },
+    [activeAttemptId],
+  );
+
   const {
     flags,
     warnings,
@@ -326,6 +361,7 @@ export default function TestArenaPage({
     exitFullscreen,
   } = useProctoring(
     activeAttemptId ? `attempt_${activeAttemptId}` : `code_${cleanCode}`,
+    syncProctoringEvent,
   );
 
   useEffect(() => {
