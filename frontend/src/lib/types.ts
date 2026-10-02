@@ -296,6 +296,8 @@ export interface AttemptResultResponse {
   totalTimeTaken: number;
   startedAt: string;
   submittedAt: string;
+  timeBonusAwarded?: number | null;
+  timeBonusApplied?: boolean;
 }
 
 export interface AttemptResultDetailResponse {
