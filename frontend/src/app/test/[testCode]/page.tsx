@@ -988,6 +988,11 @@ export default function TestArenaPage({
       return;
     }
 
+    if (timeLeft <= 0) {
+      setQuestionTimeLeft(0);
+      return;
+    }
+
     const questionId = Number(currentQuestion.questionId);
 
     if (!Number.isFinite(questionId) || questionId <= 0) {
@@ -1269,6 +1274,7 @@ export default function TestArenaPage({
     currentQuestion?.questionId,
     currentQuestion?.questionTimerSeconds,
     isSubmitted,
+    timeLeft,
     expireCurrentQuestion,
   ]);
 
