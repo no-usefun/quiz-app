@@ -1,5 +1,6 @@
 package com.quiz_app.backend.controller;
 
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
@@ -42,6 +43,7 @@ public class AuthController {
     private final EmailVerificationService emailVerificationService;
     private final PasswordResetService passwordResetService;
 
+    @Autowired
     public AuthController(
             AuthService authService,
             EmailVerificationService emailVerificationService,
@@ -74,9 +76,8 @@ public class AuthController {
     @Operation(summary = "Login user", description = "Authenticates the user and returns a JWT token.")
     @PostMapping("/login")
     public ResponseEntity<AuthResponse> login(
-            @RequestParam String role,
             @Valid @RequestBody LoginRequest request) {
-        AuthResponse response = authService.login(request, role);
+        AuthResponse response = authService.login(request);
         return ResponseEntity.ok(response);
     }
 
