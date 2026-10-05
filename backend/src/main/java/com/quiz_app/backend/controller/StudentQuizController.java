@@ -173,16 +173,24 @@ public class StudentQuizController {
 
         @GetMapping("/quizzes/{quizId}/package")
         public ResponseEntity<QuizPackageResponse> getQuizPackage(
-                        @PathVariable Long quizId) {
-                QuizPackageResponse response = studentQuizService.getQuizPackage(quizId);
+                        @PathVariable Long quizId,
+                        Authentication authentication) {
+                CustomUserDetails userDetails = (CustomUserDetails) authentication.getPrincipal();
+                QuizPackageResponse response = studentQuizService.getQuizPackage(
+                                quizId,
+                                userDetails.getId());
 
                 return ResponseEntity.ok(response);
         }
 
         @GetMapping("/quizzes/code/{quizCode}/package")
         public ResponseEntity<QuizPackageResponse> getQuizPackageByCode(
-                        @PathVariable String quizCode) {
+                        @PathVariable String quizCode,
+                        Authentication authentication) {
+                CustomUserDetails userDetails = (CustomUserDetails) authentication.getPrincipal();
                 return ResponseEntity.ok(
-                                studentQuizService.getQuizPackageByCode(quizCode));
+                                studentQuizService.getQuizPackageByCode(
+                                                quizCode,
+                                                userDetails.getId()));
         }
 }
