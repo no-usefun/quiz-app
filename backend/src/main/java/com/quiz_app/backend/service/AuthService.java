@@ -4,6 +4,7 @@ import java.util.Locale;
 
 import org.springframework.security.authentication.BadCredentialsException;
 import org.springframework.security.crypto.password.PasswordEncoder;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -33,6 +34,7 @@ public class AuthService {
         private final PasswordEncoder passwordEncoder;
         private final JwtUtils jwtUtils;
         private final EmailVerificationService emailVerificationService;
+        private final boolean emailVerificationRequired;
 
         public AuthService(
                         UserRepository userRepository,
@@ -40,12 +42,24 @@ public class AuthService {
                         PasswordEncoder passwordEncoder,
                         JwtUtils jwtUtils,
                         EmailVerificationService emailVerificationService) {
+                this(userRepository, roleRepository, passwordEncoder, jwtUtils, emailVerificationService, true);
+        }
+
+        @org.springframework.beans.factory.annotation.Autowired
+        public AuthService(
+                        UserRepository userRepository,
+                        RoleRepository roleRepository,
+                        PasswordEncoder passwordEncoder,
+                        JwtUtils jwtUtils,
+                        EmailVerificationService emailVerificationService,
+                        @Value("${app.auth.email-verification-required:true}") boolean emailVerificationRequired) {
 
                 this.userRepository = userRepository;
                 this.roleRepository = roleRepository;
                 this.passwordEncoder = passwordEncoder;
                 this.jwtUtils = jwtUtils;
                 this.emailVerificationService = emailVerificationService;
+                this.emailVerificationRequired = emailVerificationRequired;
         }
 
         @Transactional
@@ -112,18 +126,20 @@ public class AuthService {
                 user.setDepartment(request.department() != null ? request.department().trim() : null);
                 user.setRegistrationNo(regNo);
                 user.setPhone(request.phone() != null ? request.phone().trim() : null);
-                user.setVerified(false); // Initially not verified; can be updated later based on your verification
-                                         // logic
+                user.setVerified(!emailVerificationRequired);
                 user.setActive(true);
 
                 User savedUser = userRepository.save(user);
 
-                // Local accounts must verify their email before they can log in.
-                emailVerificationService.createVerificationToken(savedUser);
+                if (emailVerificationRequired) {
+                        emailVerificationService.createVerificationToken(savedUser);
+                }
 
                 return new SignupResponse(
-                                "Account created successfully. Please verify your email before logging in.",
-                                true,
+                                emailVerificationRequired
+                                                ? "Account created successfully. Please verify your email before logging in."
+                                                : "Account created successfully. You can log in immediately.",
+                                emailVerificationRequired,
                                 UserSummaryResponse.fromEntity(savedUser));
         }
 
@@ -156,7 +172,7 @@ public class AuthService {
                 }
 
                 // 3. Verify email before issuing a JWT.
-                if (!user.isVerified()) {
+                if (emailVerificationRequired && !user.isVerified()) {
                         throw new BadRequestException(
                                         "EMAIL_NOT_VERIFIED",
                                         "Please verify your email before logging in");
