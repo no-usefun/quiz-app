@@ -11,7 +11,11 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
+import jakarta.validation.Valid;
+
 import com.quiz_app.backend.dto.attempt.AttemptResponse;
+import com.quiz_app.backend.dto.attempt.AttemptStateResponse;
+import com.quiz_app.backend.dto.attempt.ProctoringEventRequest;
 import com.quiz_app.backend.dto.attempt.AttemptResultDetailResponse;
 import com.quiz_app.backend.dto.attempt.AttemptResultResponse;
 import com.quiz_app.backend.dto.attempt.LeaderboardEntryResponse;
@@ -64,6 +68,32 @@ public class StudentQuizController {
                                 userDetails.getId());
 
                 return ResponseEntity.ok(response);
+        }
+
+        @GetMapping("/attempts/{attemptId}/state")
+        public ResponseEntity<AttemptStateResponse> getAttemptState(
+                        @PathVariable Long attemptId,
+                        Authentication authentication) {
+
+                CustomUserDetails userDetails = (CustomUserDetails) authentication.getPrincipal();
+                return ResponseEntity.ok(
+                                studentAttemptService.getAttemptState(
+                                                attemptId,
+                                                userDetails.getId()));
+        }
+
+        @PostMapping("/attempts/{attemptId}/proctoring/events")
+        public ResponseEntity<Void> recordProctoringEvent(
+                        @PathVariable Long attemptId,
+                        @Valid @RequestBody ProctoringEventRequest request,
+                        Authentication authentication) {
+
+                CustomUserDetails userDetails = (CustomUserDetails) authentication.getPrincipal();
+                studentAttemptService.recordProctoringEvent(
+                                attemptId,
+                                userDetails.getId(),
+                                request);
+                return ResponseEntity.accepted().build();
         }
 
         @GetMapping("/attempts/{attemptId}/result")
