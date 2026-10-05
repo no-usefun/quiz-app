@@ -175,6 +175,11 @@ function ProfilePanel({
   const [profileImage, setProfileImage] = useState("");
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [setPasswordValue, setSetPasswordValue] = useState("");
+  const [setPasswordConfirm, setSetPasswordConfirm] = useState("");
+  const [setPasswordSaving, setSetPasswordSaving] = useState(false);
+  const [setPasswordError, setSetPasswordError] = useState<string | null>(null);
+  const [setPasswordDone, setSetPasswordDone] = useState(false);
 
 
   const handleSetPassword = async () => {
