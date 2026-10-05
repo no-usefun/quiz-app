@@ -79,65 +79,25 @@ function getErrorMessage(error: unknown, fallback: string): string {
 }
 
 function normalizeAnswers(raw: unknown): ActiveAnswerState {
-  if (!raw || typeof raw !== "object") {
-    return {};
-  }
+  if (!raw || typeof raw !== "object") return {};
 
   const result: ActiveAnswerState = {};
 
   for (const [key, value] of Object.entries(raw as Record<string, unknown>)) {
     const questionId = Number(key);
+    if (!Number.isFinite(questionId) || questionId <= 0) continue;
 
-    if (!Number.isFinite(questionId) || questionId <= 0) {
-      continue;
-    }
-
-    /*
-     * Current format is number[].
-     * Older frontend state could contain a single number, so normalize it.
-     */
-    if (Array.isArray(value)) {
-      const ids = value
-        .map(Number)
-        .filter((id) => Number.isFinite(id) && id > 0);
-
-      result[questionId] = [...new Set(ids)];
-      continue;
-    }
-
-    const legacyId = Number(value);
-
-    if (Number.isFinite(legacyId) && legacyId > 0) {
-      result[questionId] = [legacyId];
-    } else {
-      result[questionId] = [];
-    }
-  }
-
-  return result;
-}
-
-function normalizeReviewState(raw: unknown): Record<number, boolean> {
-  if (!raw || typeof raw !== "object") {
-    return {};
-  }
-
-  const result: Record<number, boolean> = {};
-
-  for (const [key, value] of Object.entries(raw as Record<string, unknown>)) {
-    const questionId = Number(key);
-    if (Number.isFinite(questionId) && questionId > 0 && value === true) {
-      result[questionId] = true;
-    }
+    const ids = Array.isArray(value) ? value : [value];
+    result[questionId] = [...new Set(
+      ids.map(Number).filter((id) => Number.isFinite(id) && id > 0),
+    )];
   }
 
   return result;
 }
 
 function normalizeTimeTaken(raw: unknown): Record<number, number> {
-  if (!raw || typeof raw !== "object") {
-    return {};
-  }
+  if (!raw || typeof raw !== "object") return {};
 
   const result: Record<number, number> = {};
 
@@ -158,28 +118,20 @@ function normalizeTimeTaken(raw: unknown): Record<number, number> {
   return result;
 }
 
-function persistAttemptState(
+function persistAttemptDraft(
   attemptId: string | null,
   answers: ActiveAnswerState,
   timeTaken: Record<number, number>,
-  reviewed: Record<number, boolean> = {},
 ) {
-  if (typeof window === "undefined" || !attemptId) {
-    return;
-  }
+  if (typeof window === "undefined" || !attemptId) return;
 
   try {
     localStorage.setItem(
-      `dynoquizz_active_test_${attemptId}`,
-      JSON.stringify({
-        answers,
-        timeTaken,
-        reviewed,
-        lastUpdated: Date.now(),
-      }),
+      `dynoquizz_pending_submit_${attemptId}`,
+      JSON.stringify({ answers, timeTaken, savedAt: Date.now() }),
     );
   } catch {
-    // Ignore browser storage failures.
+    // Best-effort retry storage only.
   }
 }
 
@@ -344,53 +296,39 @@ export default function TestArenaPage({
 
     let cancelled = false;
 
-    const restoreLocalState = () => {
-      if (!activeAttemptId) {
-        setTestLoadError(
-          "No active server attempt was found. Please return to the lobby and start the assessment again.",
-        );
-        return;
-      }
+    if (!activeAttemptId) {
+      setTestLoadError(
+        "No active server attempt was found. Please return to the lobby and start the assessment again.",
+      );
+      setIsLoadingTest(false);
+      return;
+    }
 
-      try {
-        const stateRaw = localStorage.getItem(
-          `dynoquizz_active_test_${activeAttemptId}`,
-        );
+    // Local storage is only a retry draft. The backend attempt-state endpoint
+    // remains authoritative when restoring the exam.
+    try {
+      const pendingRaw = localStorage.getItem(
+        `dynoquizz_pending_submit_${activeAttemptId}`,
+      );
 
-        if (stateRaw) {
-          const parsed = JSON.parse(stateRaw);
+      if (pendingRaw) {
+        const pending = JSON.parse(pendingRaw);
 
-          const restoredAnswers = normalizeAnswers(parsed?.answers);
-          const restoredReview = normalizeReviewState(parsed?.reviewed);
-          const restoredTimeTaken = normalizeTimeTaken(parsed?.timeTaken);
-
-          answersRef.current = restoredAnswers;
-          setMarkedForReview(restoredReview);
-          timeTakenRef.current = restoredTimeTaken;
-
-          setAnswers(restoredAnswers);
-          setTimeTakenPerQuestion(restoredTimeTaken);
+        if (pending?.answers && typeof pending.answers === "object") {
+          const pendingAnswers = normalizeAnswers(pending.answers);
+          answersRef.current = pendingAnswers;
+          setAnswers(pendingAnswers);
         }
 
-        const indexRaw = localStorage.getItem(`exam_index_${activeAttemptId}`);
-
-        if (indexRaw) {
-          const restoredIndex = Number.parseInt(indexRaw, 10);
-
-          if (Number.isInteger(restoredIndex) && restoredIndex >= 0) {
-            currentIndexRef.current = restoredIndex;
-            setCurrentIndex(restoredIndex);
-          }
+        if (pending?.timeTaken && typeof pending.timeTaken === "object") {
+          const pendingTimes = normalizeTimeTaken(pending.timeTaken);
+          timeTakenRef.current = pendingTimes;
+          setTimeTakenPerQuestion(pendingTimes);
         }
-      } catch (error) {
-        console.warn("[Assessment] Local state restore failed:", error);
-
-        localStorage.removeItem(`dynoquizz_active_test_${activeAttemptId}`);
-        localStorage.removeItem(`exam_index_${activeAttemptId}`);
       }
-    };
-
-    restoreLocalState();
+    } catch {
+      localStorage.removeItem(`dynoquizz_pending_submit_${activeAttemptId}`);
+    }
 
     const loadTest = async () => {
       try {
@@ -516,12 +454,8 @@ export default function TestArenaPage({
               }
 
               const serverQuestion = Number(serverState.currentQuestion ?? 0);
-              const hasLocalQuestion =
-                typeof window !== "undefined" &&
-                !!localStorage.getItem(`exam_index_${activeAttemptId}`);
 
               if (
-                !hasLocalQuestion &&
                 Number.isInteger(serverQuestion) &&
                 serverQuestion >= 1 &&
                 serverQuestion <= packageData.questions.length
@@ -606,14 +540,8 @@ export default function TestArenaPage({
   const persistCurrentState = (
     nextAnswers: ActiveAnswerState = answersRef.current,
     nextTimeTaken: Record<number, number> = timeTakenRef.current,
-    nextReviewed: Record<number, boolean> = markedForReview,
   ) => {
-    persistAttemptState(
-      activeAttemptId,
-      nextAnswers,
-      nextTimeTaken,
-      nextReviewed,
-    );
+    persistAttemptDraft(activeAttemptId, nextAnswers, nextTimeTaken);
   };
 
   const setCurrentAnswers = (next: ActiveAnswerState) => {
@@ -687,7 +615,7 @@ export default function TestArenaPage({
     };
 
     setMarkedForReview(next);
-    persistCurrentState(answersRef.current, timeTakenRef.current, next);
+    persistCurrentState(answersRef.current, timeTakenRef.current);
   };
 
   const clearCurrentAnswer = () => {
@@ -720,10 +648,6 @@ export default function TestArenaPage({
 
     currentIndexRef.current = nextIndex;
     setCurrentIndex(nextIndex);
-
-    if (activeAttemptId && typeof window !== "undefined") {
-      localStorage.setItem(`exam_index_${activeAttemptId}`, String(nextIndex));
-    }
 
   };
 
@@ -796,8 +720,7 @@ export default function TestArenaPage({
 
       localStorage.removeItem(`dynoquizz_attemptId_${cleanCode}`);
       localStorage.removeItem("dynoquizz_attemptId");
-      localStorage.removeItem(`dynoquizz_active_test_${activeAttemptId}`);
-      localStorage.removeItem(`exam_index_${activeAttemptId}`);
+      localStorage.removeItem(`dynoquizz_pending_submit_${activeAttemptId}`);
 
       if (result.status === "AUTO_SUBMITTED") {
         setDeadlineNotice(
@@ -818,35 +741,35 @@ export default function TestArenaPage({
     } catch (error) {
       console.error("[Assessment Submission] Failed:", error);
 
-      if (
-        error instanceof ApiClientError &&
-        error.status === 409 &&
-        String(error.errorCode || "").toUpperCase() ===
-          "ATTEMPT_ALREADY_SUBMITTED"
-      ) {
+      if (error instanceof ApiClientError && error.status === 409) {
         try {
           const state = await api.get<AttemptStateResponse>(
             ENDPOINTS.student.attemptState(activeAttemptId),
           );
 
           setSubmittedAttemptId(String(state.attemptId));
-          setIsSubmitted(true);
 
-          if (state.status === "AUTO_SUBMITTED") {
-            setDeadlineNotice(
-              "The server had already automatically submitted this assessment attempt.",
+          if (state.status !== "IN_PROGRESS") {
+            setIsSubmitted(true);
+
+            if (state.status === "AUTO_SUBMITTED") {
+              setDeadlineNotice(
+                "The server has already automatically submitted this assessment attempt.",
+              );
+            }
+
+            localStorage.removeItem(
+              `dynoquizz_pending_submit_${activeAttemptId}`,
             );
+            return;
           }
-          return;
         } catch (reconcileError) {
           console.warn(
-            "[Assessment Submission] Could not reconcile terminal attempt state:",
+            "[Assessment Submission] Could not reconcile attempt state:",
             reconcileError,
           );
         }
       }
-
-      setIsSubmitted(false);
 
       if (error instanceof ApiClientError && error.status === 401) {
         setSessionExpired(true);
@@ -854,7 +777,7 @@ export default function TestArenaPage({
         setSubmissionNotice(
           getErrorMessage(
             error,
-            "Submission failed. Your answers remain stored locally. Please try again.",
+            "Submission failed. Your unsent answers are kept locally for retry. The server attempt remains authoritative.",
           ),
         );
       }
@@ -895,7 +818,68 @@ export default function TestArenaPage({
 
     persistCurrentState(latestAnswers, timeTakenRef.current);
 
-    void finishAssessment(latestAnswers, timeTakenRef.current);
+    void (async () => {
+      try {
+        const result = await api.post<SubmitAttemptResponse>(
+          ENDPOINTS.student.autoSubmitAttempt(activeAttemptId),
+        );
+
+        setSubmittedAttemptId(String(result.attemptId));
+        setIsSubmitted(true);
+        setSubmissionNotice(
+          "The server automatically submitted the assessment at the authoritative deadline.",
+        );
+
+        localStorage.removeItem(
+          `dynoquizz_pending_submit_${activeAttemptId}`,
+        );
+        localStorage.removeItem(`dynoquizz_attemptId_${cleanCode}`);
+        localStorage.removeItem("dynoquizz_attemptId");
+      } catch (error) {
+        if (error instanceof ApiClientError && error.status === 409) {
+          try {
+            const state = await api.get<AttemptStateResponse>(
+              ENDPOINTS.student.attemptState(activeAttemptId),
+            );
+
+            setSubmittedAttemptId(String(state.attemptId));
+
+            if (state.status !== "IN_PROGRESS") {
+              setIsSubmitted(true);
+              setDeadlineNotice(
+                state.status === "AUTO_SUBMITTED"
+                  ? "The server automatically submitted the assessment at the deadline."
+                  : "This assessment attempt is no longer active.",
+              );
+
+              localStorage.removeItem(
+                `dynoquizz_pending_submit_${activeAttemptId}`,
+              );
+              localStorage.removeItem(`dynoquizz_attemptId_${cleanCode}`);
+              localStorage.removeItem("dynoquizz_attemptId");
+              return;
+            }
+          } catch (reconcileError) {
+            console.warn(
+              "[Assessment Timer] Could not reconcile server state:",
+              reconcileError,
+            );
+          }
+        }
+
+        if (error instanceof ApiClientError && error.status === 401) {
+          setSessionExpired(true);
+          return;
+        }
+
+        setSubmissionNotice(
+          getErrorMessage(
+            error,
+            "The deadline was reached, but the backend has not finalized the attempt yet.",
+          ),
+        );
+      }
+    })();
   };
 
   useEffect(() => {
@@ -951,7 +935,7 @@ export default function TestArenaPage({
     }
 
     const flush = () => {
-      persistAttemptState(
+      persistAttemptDraft(
         activeAttemptId,
         answersRef.current,
         timeTakenRef.current,
@@ -1001,7 +985,7 @@ export default function TestArenaPage({
 
             <p className="text-xs text-[#78716b] leading-relaxed font-medium">
               {allowResume
-                ? "Your authentication session has expired. Your answers have been preserved locally. Log in again to resume the assessment."
+                ? "Your authentication session has expired. Unsynced answers are preserved locally for retry. Log in again to resume the server attempt."
                 : "Your authentication session has expired. This assessment does not permit resumption."}
             </p>
           </div>
