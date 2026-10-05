@@ -655,7 +655,7 @@ export default function TestArenaPage({
     latestAnswers: ActiveAnswerState = answersRef.current,
     latestTimeTaken: Record<number, number> = timeTakenRef.current,
   ) => {
-    const attemptId = attemptId;
+    const attemptId = activeAttemptId;
 
     if (
       submissionInFlightRef.current ||
@@ -789,12 +789,13 @@ export default function TestArenaPage({
   };
 
   const handleOverallTimerExpired = () => {
-    const attemptId = attemptId;
+    const attemptId = activeAttemptId;
 
     if (
       expiryHandledRef.current ||
       isSubmitted ||
-      !currentQuestionRef.current
+      !currentQuestionRef.current ||
+      !attemptId
     ) {
       return;
     }
