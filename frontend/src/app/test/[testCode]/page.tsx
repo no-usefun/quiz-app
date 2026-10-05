@@ -1223,7 +1223,7 @@ export default function TestArenaPage({
                 title="Overall server-authoritative assessment deadline"
               >
                 <Clock className="h-3.5 w-3.5" />
-                Total: {formatRemainingTime(timeLeft)}
+                Time Remaining: {formatRemainingTime(timeLeft)}
               </div>
             </div>
           </div>
