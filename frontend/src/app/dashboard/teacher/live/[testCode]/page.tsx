@@ -127,7 +127,7 @@ export default function LiveLeaderboard({
   const [students, setStudents] = useState<StudentRow[]>([]);
   const [lastSync, setLastSync] = useState("--:--:--");
   const [refreshElapsed, setRefreshElapsed] = useState(0);
-  const [autoRefresh, setAutoRefresh] = useState(true);
+  const [autoRefresh, setAutoRefresh] = useState(false);
   const [mounted, setMounted] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -294,84 +294,8 @@ export default function LiveLeaderboard({
     };
   }, [testCode]);
 
-  useEffect(() => {
-    if (!autoRefresh || !quiz?.quizId) return;
-
-    let cancelled = false;
-
-    const refresh = async () => {
-      try {
-        const token = localStorage.getItem("dynoquizz_token");
-
-        if (!token) {
-          throw new Error(
-            "Your teacher session has expired. Please log in again.",
-          );
-        }
-
-        const res = await fetch(ENDPOINTS.teacher.leaderboard(quiz.quizId), {
-          method: "GET",
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${token}`,
-          },
-          cache: "no-store",
-        });
-
-        if (!res.ok) {
-          const body = await res.json().catch(() => ({}));
-          throw new Error(
-            body?.message ||
-              body?.error ||
-              `Unable to refresh the leaderboard (${res.status}).`,
-          );
-        }
-
-        const data = await res.json();
-        const entries: LeaderboardEntry[] = Array.isArray(data)
-          ? data
-          : Array.isArray(data?.content)
-            ? data.content
-            : [];
-
-        if (cancelled) return;
-
-        setStudents(
-          entries.map((entry, index) =>
-            mapLeaderboardEntry(entry, quiz.totalQuestions, index),
-          ),
-        );
-        setLastSync(nowTime());
-        setError(null);
-      } catch (err: any) {
-        if (cancelled) return;
-
-        console.error("Leaderboard refresh failed:", err);
-        setError(
-          err?.message || "Unable to refresh the leaderboard right now.",
-        );
-      }
-    };
-
-    const interval = window.setInterval(() => {
-      void refresh();
-    }, 4000);
-
-    return () => {
-      cancelled = true;
-      window.clearInterval(interval);
-    };
-  }, [autoRefresh, quiz]);
-
-  useEffect(() => {
-    if (!autoRefresh) return;
-
-    const ticker = window.setInterval(() => {
-      setRefreshElapsed((value) => value + 1);
-    }, 1000);
-
-    return () => window.clearInterval(ticker);
-  }, [autoRefresh]);
+  // Live-attempt telemetry is deferred by the backend contract.
+  // This route shows the latest persisted leaderboard snapshot only.
 
   const sorted = useMemo(
     () =>
@@ -448,7 +372,7 @@ export default function LiveLeaderboard({
                 <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-pastel-mint-text opacity-75" />
                 <span className="relative inline-flex h-2 w-2 rounded-full bg-pastel-mint-text" />
               </span>
-              AUTO REFRESH
+              MANUAL SNAPSHOT
             </span>
           )}
 
@@ -464,12 +388,12 @@ export default function LiveLeaderboard({
             {autoRefresh ? (
               <>
                 <StopCircle className="h-3.5 w-3.5" />
-                Pause Refresh
+                Live monitoring deferred
               </>
             ) : (
               <>
                 <RefreshCw className="h-3.5 w-3.5" />
-                Resume Refresh
+                Refresh from the assessment page
               </>
             )}
           </button>
