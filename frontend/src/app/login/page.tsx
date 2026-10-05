@@ -172,7 +172,7 @@ function LoginContent() {
 
     try {
       const response = await fetch(
-        ENDPOINTS.auth.login + "?role=" + encodeURIComponent(selectedBackendRole),
+        ENDPOINTS.auth.login,
         {
           method: "POST",
           headers: {
