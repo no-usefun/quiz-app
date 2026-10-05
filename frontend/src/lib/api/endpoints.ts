@@ -11,8 +11,7 @@ export const API_BASE = (
 
 export const ENDPOINTS = {
   auth: {
-    login: (role: "STUDENT" | "TEACHER") =>
-      `${API_BASE}/api/v1/auth/login?role=${encodeURIComponent(role)}`,
+    login: `${API_BASE}/api/v1/auth/login`,
     signup: (role: "STUDENT" | "TEACHER") =>
       `${API_BASE}/api/v1/auth/signup?role=${encodeURIComponent(role)}`,
     me: `${API_BASE}/api/v1/auth/me`,
@@ -67,6 +66,9 @@ export const ENDPOINTS = {
 
     proctoringEvents: (attemptId: number | string) =>
       `${API_BASE}/api/v1/student/attempts/${attemptId}/proctoring/events`,
+
+    autoSubmitAttempt: (attemptId: number | string) =>
+      `${API_BASE}/api/v1/student/attempts/${attemptId}/auto-submit`,
   },
 
   teacher: {
