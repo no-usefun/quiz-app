@@ -2,6 +2,7 @@ package com.quiz_app.backend.service;
 
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.Random;
 
 import org.springframework.stereotype.Service;
 
@@ -33,32 +34,44 @@ public class StudentQuizService {
     }
 
     public QuizPackageResponse getQuizPackage(Long quizId) {
+        return getQuizPackage(quizId, null);
+    }
+
+    public QuizPackageResponse getQuizPackage(Long quizId, Long studentId) {
 
         Quiz quiz = quizRepository.findById(quizId)
                 .orElseThrow(() -> new ResourceNotFoundException("Quiz not found"));
 
         if (quiz.getStatus() != QuizStatus.PUBLISHED) {
-            throw new BadRequestException(
-                    "Quiz is not available to students");
+            throw new BadRequestException("Quiz is not available to students");
         }
+
+        /*
+         * A deterministic seed makes randomized ordering stable across refreshes.
+         * The authenticated student's ID is included when available so different
+         * students receive different stable orders. There is only one attempt per
+         * student/quiz in the current data model.
+         */
+        long seed = 31L * quiz.getId()
+                + (studentId == null ? 0L : studentId);
+        Random random = new Random(seed);
 
         var questions = new ArrayList<>(
                 questionRepository.findByQuizIdOrderByDisplayOrder(quizId));
 
         if (quiz.isRandomQuestionOrder()) {
-            Collections.shuffle(questions);
+            Collections.shuffle(questions, random);
         }
 
         var questionResponses = questions.stream()
                 .map(question -> {
 
                     var options = new ArrayList<>(
-                            optionRepository
-                                    .findByQuestionIdOrderByOptionOrder(
-                                            question.getId()));
+                            optionRepository.findByQuestionIdOrderByOptionOrder(question.getId()));
 
                     if (quiz.isRandomOptionOrder()) {
-                        Collections.shuffle(options);
+                        long optionSeed = seed ^ (31L * question.getId());
+                        Collections.shuffle(options, new Random(optionSeed));
                     }
 
                     var optionResponses = options.stream()
@@ -107,10 +120,14 @@ public class StudentQuizService {
     }
 
     public QuizPackageResponse getQuizPackageByCode(String quizCode) {
+        return getQuizPackageByCode(quizCode, null);
+    }
+
+    public QuizPackageResponse getQuizPackageByCode(String quizCode, Long studentId) {
 
         Quiz quiz = quizRepository.findByQuizCode(quizCode)
                 .orElseThrow(() -> new ResourceNotFoundException("Quiz not found"));
 
-        return getQuizPackage(quiz.getId());
+        return getQuizPackage(quiz.getId(), studentId);
     }
 }
