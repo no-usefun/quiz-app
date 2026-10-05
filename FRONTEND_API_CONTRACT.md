@@ -485,23 +485,21 @@ persistence.
 
 The frontend must not calculate the official score.
 
-15. ANSWER AUTOSAVE — CURRENT MVP
+15. ANSWER PERSISTENCE — CURRENT MVP
 
-Do not make incremental answer saving a dependency of the current flow.
-
-The current backend design does not make the incremental save-answer endpoint the active primary contract.
+The current backend does not expose an incremental answer-save endpoint.
 
 Use:
 
 React state
 ↓
-localStorage recovery
+local recovery only
 ↓
 complete answer sheet
 ↓
-POST submit
+POST /api/v1/student/attempts/{attemptId}/submit
 
-If incremental saving is activated later by the backend team, update this contract first.
+The complete submission is the authoritative persistence and scoring operation.
 
 16. STUDENT — RESULTS
 
