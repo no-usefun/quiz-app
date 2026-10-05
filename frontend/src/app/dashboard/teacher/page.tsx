@@ -556,24 +556,6 @@ export default function TeacherDashboard() {
                             Results & Leaderboard
                           </Link>
 
-                          {displayState === "Ended" &&
-                            test.status !== "COMPLETED" && (
-                              <button
-                                type="button"
-                                onClick={() =>
-                                  setQuizToEnd({
-                                    quizId,
-                                    quizCode: code,
-                                    title: name,
-                                  })
-                                }
-                                disabled={actionLoadingQuizId === quizId}
-                                className="flex items-center gap-1 rounded-[10px] border border-[#8c381c]/30 bg-[#fbeee8] px-3 py-1.5 text-xs font-bold text-[#8c381c] hover:bg-[#8c381c]/15 shadow-xs active:scale-[0.98] transition-all cursor-pointer disabled:opacity-50"
-                              >
-                                End Quiz
-                              </button>
-                            )}
-
                           {displayState !== "Cancelled" &&
                             (!test.resultsPublished ? (
                               <button
