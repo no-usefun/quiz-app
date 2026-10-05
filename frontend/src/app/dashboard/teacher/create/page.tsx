@@ -1561,7 +1561,7 @@ function CreateAssessmentContent() {
     const token = localStorage.getItem("dynoquizz_token");
 
     try {
-      const isEditing = Boolean(draftId);
+      const isEditing = draftId !== null;
 
       // Build the full state bundle for localStorage (same shape as handleSave)
       const saveFullDraftBundle = (
@@ -1616,6 +1616,10 @@ function CreateAssessmentContent() {
       if (isEditing) {
         // ── Edit path: PUT /api/v1/teacher/quizzes/{quizId}/settings ──────────
         const settingsPayload = buildUpdatePayload();
+
+        if (!draftId) {
+          throw new Error("Quiz draft ID is missing.");
+        }
 
         const settingsRes = await fetch(
           ENDPOINTS.teacher.settings(draftId),
