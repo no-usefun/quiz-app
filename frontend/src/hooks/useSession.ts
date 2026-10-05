@@ -314,6 +314,7 @@ export function useSession() {
       clearSessionStorage();
       throw new Error(
         meData?.message ||
+          meData?.code ||
           meData?.error ||
           "Unable to verify the authenticated session.",
       );
