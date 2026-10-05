@@ -42,15 +42,6 @@ function formatDateTime(value?: string | null): string {
   });
 }
 
-function savePackage(testCode: string, packageData: QuizPackageResponse) {
-  if (typeof window === "undefined") return;
-
-  sessionStorage.setItem(
-    `dynoquizz_pkg_${testCode}`,
-    JSON.stringify(packageData),
-  );
-}
-
 function getLoginRedirect(testCode: string): string {
   return `/login?role=student&redirect=${encodeURIComponent(
     `/test/${testCode}/lobby`,
@@ -305,8 +296,6 @@ function LobbyInner({ testCode }: { testCode: string }) {
           "The server returned an invalid or empty assessment package.",
         );
       }
-
-      savePackage(cleanCode, packageData);
 
       /*
        * Step 3:
