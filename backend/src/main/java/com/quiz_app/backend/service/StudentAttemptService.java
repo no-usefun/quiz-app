@@ -865,12 +865,11 @@ public class StudentAttemptService {
                 event.setOccurredAt(request.occurredAt() == null
                                 ? LocalDateTime.now(clock.withZone(QUIZ_TIMEZONE))
                                 : request.occurredAt());
-                event.setMetadataJson(request.metadata() == null
-                                ? null
-                                : new com.fasterxml.jackson.databind.ObjectMapper()
-                                                .writeValueAsString(request.metadata()));
-
                 try {
+                        event.setMetadataJson(request.metadata() == null
+                                        ? null
+                                        : new com.fasterxml.jackson.databind.ObjectMapper()
+                                                        .writeValueAsString(request.metadata()));
                         proctoringEventRepository.save(event);
                 } catch (com.fasterxml.jackson.core.JsonProcessingException e) {
                         throw new BadRequestException(
