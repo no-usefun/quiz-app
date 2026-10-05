@@ -42,14 +42,14 @@ function formatDateTime(value?: string | null): string {
   });
 }
 
-function saveAttemptTiming(attempt: AttemptResponse) {
+function saveAttemptTiming(testCode: string, attempt: AttemptResponse) {
   if (typeof window === "undefined") return;
 
   const attemptId = String(attempt.attemptId);
 
   localStorage.setItem("dynoquizz_attemptId", attemptId);
   localStorage.setItem(`dynoquizz_attemptId_${attempt.quizId}`, attemptId);
-  localStorage.setItem(`dynoquizz_attemptId_${cleanCode}`, attemptId);
+  localStorage.setItem(`dynoquizz_attemptId_${testCode}`, attemptId);
 
   localStorage.setItem(
     `dynoquizz_attemptTiming_${attemptId}`,
@@ -330,7 +330,7 @@ function LobbyInner({ testCode }: { testCode: string }) {
         );
       }
 
-      saveAttemptTiming(attempt);
+      saveAttemptTiming(cleanCode, attempt);
 
       /*
        * Step 2:
