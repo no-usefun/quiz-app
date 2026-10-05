@@ -17,7 +17,8 @@
     "papaparse": "^5.7.0",
     "react": "19.2.4",
     "react-dom": "19.2.4",
-    "react-qr-code": "^2.2.0"
+    "react-qr-code": "^2.2.0",
+    "@mediapipe/tasks-vision": "^0.10.22"
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4",
