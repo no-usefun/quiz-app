@@ -6,6 +6,22 @@ import org.springframework.stereotype.Service;
 public class ConsoleEmailService implements EmailService {
 
     @Override
+    public void sendPasswordResetEmail(
+            String recipientEmail,
+            String resetToken) {
+
+        System.out.println();
+        System.out.println("==========================================");
+        System.out.println("         DYNOQUIZZ PASSWORD RESET         ");
+        System.out.println("==========================================");
+        System.out.println("To: " + recipientEmail);
+        System.out.println("Reset Token:");
+        System.out.println(resetToken);
+        System.out.println("==========================================");
+        System.out.println();
+    }
+
+    @Override
     public void sendVerificationEmail(
             String recipientEmail,
             String verificationToken) {
