@@ -17,8 +17,6 @@ import {
   ShieldAlert,
   Trash2,
   ShieldCheck,
-  Wifi,
-  WifiOff,
 } from "lucide-react";
 
 import { type ProctoringEvent, useProctoring } from "@/hooks/useProctoring";
@@ -300,18 +298,12 @@ export default function TestArenaPage({
     null,
   );
   const [timeLeft, setTimeLeft] = useState(0);
-  const [questionTimeLeft, setQuestionTimeLeft] = useState<number | null>(null);
-  const [expiredQuestionIds, setExpiredQuestionIds] = useState<Record<number, boolean>>({});
 
   const [isSubmitted, setIsSubmitted] = useState(false);
   const [submittedAttemptId, setSubmittedAttemptId] = useState<string | null>(
     null,
   );
   const [mounted, setMounted] = useState(false);
-  const [isOnline, setIsOnline] = useState(true);
-  const [saveStatus, setSaveStatus] = useState<
-    "idle" | "saved" | "syncing" | "local"
-  >("idle");
   const [sessionExpired, setSessionExpired] = useState(false);
   const [deadlineNotice, setDeadlineNotice] = useState<string | null>(null);
   const [submissionNotice, setSubmissionNotice] = useState<string | null>(null);
@@ -322,22 +314,34 @@ export default function TestArenaPage({
   const currentQuestionRef = useRef<QuestionResponse | null>(null);
   const expiryHandledRef = useRef(false);
   const submissionInFlightRef = useRef(false);
-  const syncAnswerAvailableRef = useRef(true);
-  const expiredQuestionIdsRef = useRef<Record<number, boolean>>({});
 
   const syncProctoringEvent = useCallback(
     async (event: ProctoringEvent) => {
-      if (!activeAttemptId || !event) return;
+      if (!activeAttemptId || !event || isSubmitted) return;
 
       try {
         await api.post(
           ENDPOINTS.student.proctoringEvents(activeAttemptId),
           {
             type: event.type,
-            occurredAt: new Date(event.timestamp).toISOString(),
             metadata: { source: "browser" },
           },
         );
+        if (event.type === "tab_switch") {
+          const state = await api.get<AttemptStateResponse>(
+            ENDPOINTS.student.attemptState(activeAttemptId),
+          );
+
+          if (state.status !== "IN_PROGRESS") {
+            setSubmittedAttemptId(String(state.attemptId));
+            setDeadlineNotice(
+              state.status === "AUTO_SUBMITTED"
+                ? "The server automatically submitted this attempt after the configured proctoring limit was exceeded."
+                : "This assessment attempt is no longer active.",
+            );
+            setIsSubmitted(true);
+          }
+        }
       } catch (error) {
         if (
           error instanceof ApiClientError &&
@@ -349,7 +353,7 @@ export default function TestArenaPage({
         console.warn("[Proctoring] Server event sync failed:", error);
       }
     },
-    [activeAttemptId],
+    [activeAttemptId, isSubmitted],
   );
 
   const {
@@ -638,42 +642,31 @@ export default function TestArenaPage({
               }
 
               const serverQuestion = Number(serverState.currentQuestion ?? 0);
+              const hasLocalQuestion =
+                typeof window !== "undefined" &&
+                !!localStorage.getItem(`exam_index_${activeAttemptId}`);
 
               if (
+                !hasLocalQuestion &&
                 Number.isInteger(serverQuestion) &&
                 serverQuestion >= 1 &&
                 serverQuestion <= packageData.questions.length
               ) {
                 currentIndexRef.current = serverQuestion - 1;
                 setCurrentIndex(serverQuestion - 1);
-
-                if (typeof window !== "undefined") {
-                  localStorage.setItem(
-                    "exam_index_" + activeAttemptId,
-                    String(serverQuestion - 1),
-                  );
-                }
               }
             }
           } catch (error) {
-            if (
-              error instanceof ApiClientError &&
-              (error.status === 404 || error.status === 405)
-            ) {
-              console.info(
-                "[Assessment] Server answer persistence is not available yet; local recovery remains active.",
-              );
-            } else if (
-              error instanceof ApiClientError &&
-              error.status === 401
-            ) {
+            if (error instanceof ApiClientError && error.status === 401) {
               throw error;
-            } else {
-              console.warn(
-                "[Assessment] Server attempt-state restore failed; local state remains active.",
-                error,
-              );
             }
+
+            throw new Error(
+              getErrorMessage(
+                error,
+                "Unable to verify the server attempt state. Please return to the lobby and try again.",
+              ),
+            );
           }
         }
 
@@ -706,26 +699,10 @@ export default function TestArenaPage({
 
     void loadTest();
 
-    const handleOnline = () => setIsOnline(true);
-    const handleOffline = () => setIsOnline(false);
-
-    window.addEventListener("online", handleOnline);
-    window.addEventListener("offline", handleOffline);
-
     return () => {
       cancelled = true;
-      window.removeEventListener("online", handleOnline);
-      window.removeEventListener("offline", handleOffline);
     };
   }, [cleanCode, activeAttemptId, router]);
-
-  useEffect(() => {
-    if (!currentQuestion) {
-      return;
-    }
-
-    setSaveStatus("idle");
-  }, [currentQuestion?.questionId]);
 
   useEffect(() => {
     if (!currentQuestion || isSubmitted || timeLeft <= 0) {
@@ -733,10 +710,6 @@ export default function TestArenaPage({
     }
 
     const questionId = Number(currentQuestion.questionId);
-
-    if (isQuestionExpired(questionId)) {
-      return;
-    }
 
     if (!Number.isFinite(questionId) || questionId <= 0) {
       return;
@@ -774,173 +747,10 @@ export default function TestArenaPage({
     );
   };
 
-  const syncAnswerToBackend = useCallback(
-    async (
-      questionId: number,
-      selectedOptionIds: number[],
-      responseTimeSeconds: number,
-    ) => {
-      if (
-        !activeAttemptId ||
-        !syncAnswerAvailableRef.current ||
-        !Number.isFinite(questionId) ||
-        questionId <= 0
-      ) {
-        return;
-      }
-
-      setSaveStatus("syncing");
-
-      try {
-        await api.put(
-          ENDPOINTS.student.saveAnswer(activeAttemptId, questionId),
-          {
-            selectedOptionIds,
-            responseTimeSeconds: Math.max(0, Math.floor(responseTimeSeconds)),
-          },
-        );
-
-        setSaveStatus("saved");
-      } catch (error) {
-        if (
-          error instanceof ApiClientError &&
-          (error.status === 404 || error.status === 405)
-        ) {
-          syncAnswerAvailableRef.current = false;
-          setSaveStatus("local");
-          return;
-        }
-
-        console.warn(
-          "[Assessment] Answer sync failed; local recovery remains active.",
-          error,
-        );
-        setSaveStatus("local");
-      }
-    },
-    [activeAttemptId],
-  );
-
-  useEffect(() => {
-    if (!activeAttemptId || !currentQuestion || isSubmitted) {
-      return;
-    }
-
-    const questionId = Number(currentQuestion.questionId);
-    if (!Number.isFinite(questionId) || questionId <= 0) {
-      return;
-    }
-
-    const interval = window.setInterval(() => {
-      void syncAnswerToBackend(
-        questionId,
-        answersRef.current[questionId] ?? [],
-        timeTakenRef.current[questionId] ?? 0,
-      );
-    }, 5000);
-
-    return () => window.clearInterval(interval);
-  }, [
-    activeAttemptId,
-    currentQuestion?.questionId,
-    isSubmitted,
-    syncAnswerToBackend,
-  ]);
-
-  useEffect(() => {
-    if (!activeAttemptId || isSubmitted) {
-      return;
-    }
-
-    const syncHeartbeat = async () => {
-      try {
-        await api.post(
-          ENDPOINTS.student.heartbeat(activeAttemptId),
-          {
-            currentQuestion: currentIndexRef.current + 1,
-          },
-        );
-      } catch (error) {
-        if (
-          error instanceof ApiClientError &&
-          (error.status === 404 || error.status === 405)
-        ) {
-          return;
-        }
-
-        console.warn("[Assessment] Heartbeat sync failed.", error);
-      }
-    };
-
-    void syncHeartbeat();
-
-    const interval = window.setInterval(() => {
-      void syncHeartbeat();
-    }, 10000);
-
-    return () => window.clearInterval(interval);
-  }, [activeAttemptId, isSubmitted]);
-
-  const isQuestionExpired = (questionId: number) =>
-    Boolean(expiredQuestionIdsRef.current[questionId]);
-
-  const expireCurrentQuestion = useCallback(
-    (question: QuestionResponse) => {
-      const questionId = Number(question.questionId);
-
-      if (
-        !Number.isFinite(questionId) ||
-        questionId <= 0 ||
-        isSubmitted ||
-        expiredQuestionIdsRef.current[questionId]
-      ) {
-        return;
-      }
-
-      expiredQuestionIdsRef.current = {
-        ...expiredQuestionIdsRef.current,
-        [questionId]: true,
-      };
-      setExpiredQuestionIds(expiredQuestionIdsRef.current);
-      persistCurrentState(answersRef.current, timeTakenRef.current);
-
-      if (currentIndexRef.current < questions.length - 1) {
-        goToQuestion(currentIndexRef.current + 1);
-      } else {
-        void finishAssessment(answersRef.current, timeTakenRef.current);
-      }
-    },
-    [isSubmitted, questions.length],
-  );
-
-  const setCurrentAnswers = (
-    next: ActiveAnswerState,
-    selectedForCurrentQuestion?: number[],
-  ) => {
+  const setCurrentAnswers = (next: ActiveAnswerState) => {
     answersRef.current = next;
     setAnswers(next);
-
-    if (selectedForCurrentQuestion) {
-      // The current answer is also represented in answersRef, so no separate
-      // selectedOption state is required.
-    }
-
-    setSaveStatus("saved");
     persistCurrentState(next, timeTakenRef.current);
-
-    const currentQuestionId = Number(currentQuestionRef.current?.questionId);
-
-    if (
-      selectedForCurrentQuestion !== undefined &&
-      Number.isFinite(currentQuestionId) &&
-      currentQuestionId > 0
-    ) {
-      void syncAnswerToBackend(
-        currentQuestionId,
-        selectedForCurrentQuestion,
-        timeTakenRef.current[currentQuestionId] ?? 0,
-      );
-    }
   };
 
   const handleSelectOption = (optionId: number) => {
@@ -980,7 +790,7 @@ export default function TestArenaPage({
       [questionId]: nextSelections,
     };
 
-    setCurrentAnswers(nextAnswers, nextSelections);
+    setCurrentAnswers(nextAnswers);
   };
 
   const toggleReview = () => {
@@ -989,7 +799,6 @@ export default function TestArenaPage({
     }
 
     if (timeLeft <= 0) {
-      setQuestionTimeLeft(0);
       return;
     }
 
@@ -1028,7 +837,7 @@ export default function TestArenaPage({
       [questionId]: [],
     };
 
-    setCurrentAnswers(nextAnswers, []);
+    setCurrentAnswers(nextAnswers);
   };
 
   const goToQuestion = (nextIndex: number) => {
@@ -1045,24 +854,8 @@ export default function TestArenaPage({
 
     if (activeAttemptId && typeof window !== "undefined") {
       localStorage.setItem(`exam_index_${activeAttemptId}`, String(nextIndex));
-
-      void api
-        .post(ENDPOINTS.student.heartbeat(activeAttemptId), {
-          currentQuestion: nextIndex + 1,
-        })
-        .catch((error) => {
-          if (
-            error instanceof ApiClientError &&
-            (error.status === 404 || error.status === 405)
-          ) {
-            return;
-          }
-
-          console.warn("[Assessment] Current-question heartbeat failed.", error);
-        });
     }
 
-    setSaveStatus("idle");
   };
 
   const finishAssessment = async (
@@ -1212,71 +1005,6 @@ export default function TestArenaPage({
       void finishAssessment(latestAnswers, timeTakenRef.current);
     }
   };
-
-  useEffect(() => {
-    if (!currentQuestion || isSubmitted || timeLeft <= 0) {
-      return;
-    }
-
-    const questionId = Number(currentQuestion.questionId);
-    const configuredSeconds = Number(currentQuestion.questionTimerSeconds ?? 60);
-
-    if (!Number.isFinite(questionId) || questionId <= 0) {
-      return;
-    }
-
-    if (!Number.isFinite(configuredSeconds) || configuredSeconds <= 0) {
-      setQuestionTimeLeft(null);
-      return;
-    }
-
-    const elapsed = Math.max(
-      0,
-      Math.floor(timeTakenRef.current[questionId] ?? 0),
-    );
-    const remaining = Math.max(0, Math.ceil(configuredSeconds - elapsed));
-
-    if (expiredQuestionIdsRef.current[questionId] || remaining <= 0) {
-      setQuestionTimeLeft(0);
-
-      if (!expiredQuestionIdsRef.current[questionId]) {
-        window.setTimeout(
-          () => expireCurrentQuestion(currentQuestion),
-          0,
-        );
-      }
-
-      return;
-    }
-
-    setQuestionTimeLeft(remaining);
-
-    const interval = window.setInterval(() => {
-      const latestElapsed = Math.max(
-        0,
-        Math.floor(timeTakenRef.current[questionId] ?? 0),
-      );
-
-      const nextRemaining = Math.max(
-        0,
-        Math.ceil(configuredSeconds - latestElapsed),
-      );
-
-      setQuestionTimeLeft(nextRemaining);
-
-      if (nextRemaining <= 0) {
-        expireCurrentQuestion(currentQuestion);
-      }
-    }, 1000);
-
-    return () => window.clearInterval(interval);
-  }, [
-    currentQuestion?.questionId,
-    currentQuestion?.questionTimerSeconds,
-    isSubmitted,
-    timeLeft,
-    expireCurrentQuestion,
-  ]);
 
   useEffect(() => {
     if (isSubmitted || !effectiveDeadline) {
@@ -1595,25 +1323,6 @@ export default function TestArenaPage({
               Question {currentIndex + 1} of {questions.length}
             </span>
 
-            {saveStatus !== "idle" && (
-              <span
-                className={
-                  "text-[11px] font-bold " +
-                  (saveStatus === "local"
-                    ? "text-[#73561a]"
-                    : saveStatus === "syncing"
-                      ? "text-[#165dfb]"
-                      : "text-[#1d5237]")
-                }
-              >
-                {saveStatus === "syncing"
-                  ? "Saving to server..."
-                  : saveStatus === "local"
-                    ? "Local recovery active"
-                    : "✓ Answer saved"}
-              </span>
-            )}
-
             {markedForReview[Number(currentQuestion?.questionId)] && (
               <span className="flex items-center gap-1 rounded-full bg-[#f6efe1] px-2 py-1 text-[10px] font-bold text-[#73561a]">
                 <Flag className="h-3 w-3" />
@@ -1623,34 +1332,7 @@ export default function TestArenaPage({
           </div>
 
           <div className="flex items-center gap-3.5">
-            {isOnline ? (
-              <span className="flex items-center gap-1.5 rounded-full bg-[#e2ede8] text-[#1d5237] border border-[#1d5237]/20 px-2.5 py-0.5 text-xs font-bold">
-                <Wifi className="h-3.5 w-3.5" />
-                Local Save Active
-              </span>
-            ) : (
-              <span className="flex items-center gap-1.5 rounded-full bg-[#f6efe1] text-[#73561a] border border-[#73561a]/20 px-2.5 py-0.5 text-xs font-bold">
-                <WifiOff className="h-3.5 w-3.5" />
-                Offline Mode
-              </span>
-            )}
-
             <div className="flex items-center gap-2">
-              {questionTimeLeft !== null && (
-                <div
-                  className={
-                    "flex items-center gap-1.5 rounded-full px-3 py-1 font-bold text-xs border " +
-                    (questionTimeLeft <= 10
-                      ? "bg-[#fbeee8] text-[#8c381c] border-[#8c381c]/30 animate-pulse"
-                      : "bg-[#eef4ff] text-[#165dfb] border-[#165dfb]/20")
-                  }
-                  title="Time remaining for this question"
-                >
-                  <Clock className="h-3.5 w-3.5" />
-                  Q: {formatRemainingTime(questionTimeLeft)}
-                </div>
-              )}
-
               <div
                 className={
                   "flex items-center gap-1.5 rounded-full px-3 py-1 font-bold text-xs border " +
@@ -1775,13 +1457,6 @@ export default function TestArenaPage({
                   : "Select one option."}
               </div>
 
-              {currentQuestion &&
-                isQuestionExpired(Number(currentQuestion.questionId)) && (
-                  <div className="mb-4 rounded-[10px] border border-[#73561a]/20 bg-[#f6efe1] px-3.5 py-2.5 text-xs font-semibold text-[#73561a]">
-                    The time for this question has expired. It is now locked and the exam has moved to the next available question.
-                  </div>
-                )}
-
               <div className="space-y-2.5">
                 {currentQuestion?.options.map((option, idx) => {
                   const optionId = Number(option.optionId);
@@ -1797,7 +1472,7 @@ export default function TestArenaPage({
                       onClick={() => handleSelectOption(optionId)}
                       disabled={
                         isSubmitted ||
-                        isQuestionExpired(Number(currentQuestion.questionId))
+                        timeLeft <= 0
                       }
                       className={`w-full rounded-[10px] border p-3.5 text-left text-xs font-bold transition-all duration-150 cursor-pointer disabled:cursor-not-allowed disabled:opacity-50 ${
                         isSelected
@@ -2012,7 +1687,7 @@ export default function TestArenaPage({
 
             <li className="flex items-start gap-1 leading-relaxed">
               <span className="mt-1 h-1 w-1 rounded-full bg-[#165dfb] shrink-0" />
-              Browser-observable suspicious activity is recorded locally during the session.
+              Browser-observable suspicious activity is reported to the server during the session.
             </li>
 
             {violationCount > 0 && (
