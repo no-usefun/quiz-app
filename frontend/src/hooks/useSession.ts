@@ -256,7 +256,7 @@ export function useSession() {
   }, [fetchSession]);
 
   const login = useCallback(async (credentials: LoginCredentials) => {
-    const requestedRole = String(credentials.role).toUpperCase();
+    const requestedRole = String(credentials.role).toUpperCase() as "STUDENT" | "TEACHER";
 
     if (requestedRole !== "STUDENT" && requestedRole !== "TEACHER") {
       throw new Error("Role must be STUDENT or TEACHER.");
@@ -347,7 +347,7 @@ export function useSession() {
   }, []);
 
   const signup = useCallback(async (payload: SignupPayload) => {
-    const backendRole = String(payload.role || "STUDENT").toUpperCase();
+    const backendRole = String(payload.role || "STUDENT").toUpperCase() as "STUDENT" | "TEACHER";
 
     if (backendRole !== "STUDENT" && backendRole !== "TEACHER") {
       throw new Error("Role must be STUDENT or TEACHER.");
