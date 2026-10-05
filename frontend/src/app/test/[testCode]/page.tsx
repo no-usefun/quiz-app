@@ -875,9 +875,7 @@ export default function TestArenaPage({
     expiryHandledRef.current = true;
 
     setDeadlineNotice(
-      test?.autoSubmit === false
-        ? "The overall assessment time has ended. Your answers are locked until you submit the attempt."
-        : "The overall assessment time has ended. Your attempt will be submitted automatically.",
+      "The overall assessment time has ended. The server will finalize the attempt.",
     );
 
     const question = currentQuestionRef.current;
@@ -897,9 +895,7 @@ export default function TestArenaPage({
 
     persistCurrentState(latestAnswers, timeTakenRef.current);
 
-    if (test?.autoSubmit !== false) {
-      void finishAssessment(latestAnswers, timeTakenRef.current);
-    }
+    void finishAssessment(latestAnswers, timeTakenRef.current);
   };
 
   useEffect(() => {
