@@ -121,7 +121,6 @@ class AuthServiceTest {
     }
 
     @Test
-    @Test
     void register_shouldRejectDuplicateEmail() {
         SignupRequest request = new SignupRequest(
                 "Alex", "Carter", "alex@example.com", "secret123",
