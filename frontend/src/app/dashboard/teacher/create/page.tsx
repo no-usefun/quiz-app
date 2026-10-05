@@ -1312,67 +1312,6 @@ function CreateAssessmentContent() {
 
     const token = localStorage.getItem("dynoquizz_token");
 
-    // ── JWT diagnostic instrumentation ────────────────────────────────────
-    if (token) {
-      const parts = token.split(".");
-      const isWellFormed = parts.length === 3;
-      let jwtPayload: any = null;
-      let isFallbackToken = false;
-      try {
-        jwtPayload = JSON.parse(atob(parts[1]));
-        // Fallback tokens (frontend-signed) use email as userId/sub and lack
-        // a numeric "id" field that Spring Boot's CustomUserDetails would have.
-        // Spring Security throws `String cannot be cast to CustomUserDetails`
-        // when the principal is such a bare-string subject.
-        isFallbackToken =
-          typeof jwtPayload?.userId === "string" &&
-          (jwtPayload?.userId?.includes("@") ?? false) &&
-          !jwtPayload?.id;
-      } catch {
-        // malformed payload segment
-      }
-      console.group("[Quizly] Quiz-creation token diagnostics");
-      console.log(
-        "Token length:",
-        token.length,
-        "| First 12:",
-        token.slice(0, 12),
-        "| Last 12:",
-        token.slice(-12),
-      );
-      console.log("Well-formed JWT (3 segments):", isWellFormed);
-      if (jwtPayload) {
-        const expMs = (jwtPayload.exp || 0) * 1000;
-        const nowMs = Date.now();
-        console.log(
-          "JWT exp:",
-          new Date(expMs).toISOString(),
-          "| Current time:",
-          new Date(nowMs).toISOString(),
-          "| Expired:",
-          nowMs > expMs,
-        );
-        console.log(
-          "JWT sub/userId:",
-          jwtPayload.sub || jwtPayload.userId,
-          "| role:",
-          jwtPayload.role,
-        );
-        if (isFallbackToken) {
-          console.warn(
-            "[Quizly] ⚠️  FALLBACK TOKEN DETECTED — this is a frontend-signed JWT" +
-              " (the Spring Boot backend was unreachable at login time). Spring Security" +
-              " will reject it with 'String cannot be cast to CustomUserDetails'." +
-              " The teacher must log out and log in again while the backend is running.",
-          );
-        }
-      }
-      console.groupEnd();
-    } else {
-      console.warn(
-        "[Quizly] No dynoquizz_token found in localStorage before quiz creation POST.",
-      );
-    }
     // ──────────────────────────────────────────────────────────────────────
 
     try {
@@ -1395,7 +1334,9 @@ function CreateAssessmentContent() {
           instructions: instructions.trim(),
           overallTimerSeconds: Math.floor(timeLimit * 60),
           negativeMarking: Boolean(negativeMarking),
-          negativeMarks: Number(negativeMarking ? negativeMarks : 0),
+          negativeMarks: Number(
+        negativeMarking ? q.negativeMarks ?? negativeMarks : 0,
+      ),
           timeBonusEnabled: Boolean(timeBonusEnabled),
           randomQuestionOrder: Boolean(randomQuestionOrder),
           randomOptionOrder: Boolean(randomOptionOrder),
