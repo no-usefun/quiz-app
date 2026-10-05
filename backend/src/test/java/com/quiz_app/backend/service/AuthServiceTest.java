@@ -90,6 +90,38 @@ class AuthServiceTest {
     }
 
     @Test
+    void register_shouldSkipEmailVerificationWhenDisabled() {
+        AuthService noVerificationAuthService = new AuthService(
+                userRepository,
+                roleRepository,
+                passwordEncoder,
+                jwtUtils,
+                emailVerificationService,
+                false);
+
+        SignupRequest request = new SignupRequest(
+                "Alex", "Carter", "alex@example.com", "secret123",
+                "College", "CS", "REG-1", null);
+
+        when(userRepository.existsByEmail("alex@example.com")).thenReturn(false);
+        when(userRepository.existsByRegistrationNo("REG-1")).thenReturn(false);
+        when(roleRepository.findByName("STUDENT")).thenReturn(Optional.of(studentRole));
+        when(passwordEncoder.encode("secret123")).thenReturn("encoded");
+        when(userRepository.save(any(User.class))).thenAnswer(i -> i.getArgument(0));
+
+        SignupResponse response = noVerificationAuthService.register(request, "STUDENT");
+
+        assertEquals(false, response.verificationRequired());
+        assertEquals("Account created successfully. You can log in immediately.", response.message());
+        verify(emailVerificationService, never()).createVerificationToken(any(User.class));
+
+        ArgumentCaptor<User> captor = ArgumentCaptor.forClass(User.class);
+        verify(userRepository).save(captor.capture());
+        assertEquals(true, captor.getValue().isVerified());
+    }
+
+    @Test
+    @Test
     void register_shouldRejectDuplicateEmail() {
         SignupRequest request = new SignupRequest(
                 "Alex", "Carter", "alex@example.com", "secret123",
