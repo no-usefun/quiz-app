@@ -11,8 +11,10 @@ export const API_BASE = (
 
 export const ENDPOINTS = {
   auth: {
-    login: `${API_BASE}/api/v1/auth/login`,
-    signup: `${API_BASE}/api/v1/auth/signup`,
+    login: (role: "STUDENT" | "TEACHER") =>
+      `${API_BASE}/api/v1/auth/login?role=${encodeURIComponent(role)}`,
+    signup: (role: "STUDENT" | "TEACHER") =>
+      `${API_BASE}/api/v1/auth/signup?role=${encodeURIComponent(role)}`,
     me: `${API_BASE}/api/v1/auth/me`,
     verifyEmail: `${API_BASE}/api/v1/auth/verify-email`,
     resendVerification: `${API_BASE}/api/v1/auth/resend-verification`,
