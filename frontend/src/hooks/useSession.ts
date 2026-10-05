@@ -280,7 +280,7 @@ export function useSession() {
 
     if (!response.ok) {
       const message =
-        data?.message || data?.error || "Invalid email or password.";
+        data?.message || data?.code || data?.error || "Invalid email or password.";
 
       throw new Error(message);
     }
