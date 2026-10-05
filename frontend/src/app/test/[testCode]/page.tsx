@@ -440,6 +440,12 @@ export default function TestArenaPage({
               if (serverState.status !== "IN_PROGRESS") {
                 setSubmittedAttemptId(String(serverState.attemptId));
                 setIsSubmitted(true);
+
+                if (typeof window !== "undefined") {
+                  localStorage.removeItem(`dynoquizz_attemptId_${cleanCode}`);
+                  localStorage.removeItem("dynoquizz_attemptId");
+                }
+
                 if (serverState.status === "AUTO_SUBMITTED") {
                   setDeadlineNotice(
                     "The server has already automatically submitted this assessment attempt.",
@@ -573,7 +579,7 @@ export default function TestArenaPage({
   }, [cleanCode, activeAttemptId, router]);
 
   useEffect(() => {
-    if (!currentQuestion || isSubmitted || timeLeft <= 0) {
+    if (!currentQuestion || isSubmitted) {
       return;
     }
 
@@ -584,15 +590,10 @@ export default function TestArenaPage({
     }
 
     const interval = window.setInterval(() => {
-      if (timeLeft <= 0) {
-        return;
-      }
-
       setTimeTakenPerQuestion((previous) => {
-        const nextValue = (previous[questionId] ?? 0) + 1;
         const next = {
           ...previous,
-          [questionId]: nextValue,
+          [questionId]: (previous[questionId] ?? 0) + 1,
         };
 
         timeTakenRef.current = next;
@@ -601,7 +602,7 @@ export default function TestArenaPage({
     }, 1000);
 
     return () => window.clearInterval(interval);
-  }, [currentQuestion?.questionId, isSubmitted, timeLeft]);
+  }, [currentQuestion?.questionId, isSubmitted]);
   const persistCurrentState = (
     nextAnswers: ActiveAnswerState = answersRef.current,
     nextTimeTaken: Record<number, number> = timeTakenRef.current,
@@ -816,6 +817,34 @@ export default function TestArenaPage({
       }
     } catch (error) {
       console.error("[Assessment Submission] Failed:", error);
+
+      if (
+        error instanceof ApiClientError &&
+        error.status === 409 &&
+        String(error.errorCode || "").toUpperCase() ===
+          "ATTEMPT_ALREADY_SUBMITTED"
+      ) {
+        try {
+          const state = await api.get<AttemptStateResponse>(
+            ENDPOINTS.student.attemptState(activeAttemptId),
+          );
+
+          setSubmittedAttemptId(String(state.attemptId));
+          setIsSubmitted(true);
+
+          if (state.status === "AUTO_SUBMITTED") {
+            setDeadlineNotice(
+              "The server had already automatically submitted this assessment attempt.",
+            );
+          }
+          return;
+        } catch (reconcileError) {
+          console.warn(
+            "[Assessment Submission] Could not reconcile terminal attempt state:",
+            reconcileError,
+          );
+        }
+      }
 
       setIsSubmitted(false);
 
