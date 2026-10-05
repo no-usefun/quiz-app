@@ -52,6 +52,16 @@ public class AuthController {
         this.passwordResetService = passwordResetService;
     }
 
+    /**
+     * Backward-compatible constructor for existing controller tests.
+     * Password reset endpoints require the full constructor.
+     */
+    public AuthController(
+            AuthService authService,
+            EmailVerificationService emailVerificationService) {
+        this(authService, emailVerificationService, null);
+    }
+
     @Operation(summary = "Register a student account", description = "Creates a student account and sends an email verification link. The account must be verified before login.")
     @PostMapping("/signup")
     public ResponseEntity<SignupResponse> signup(
