@@ -1615,11 +1615,7 @@ function CreateAssessmentContent() {
 
       if (isEditing) {
         // ── Edit path: PUT /api/v1/teacher/quizzes/{quizId}/settings ──────────
-        const settingsPayload = {
-          ...buildUpdatePayload(),
-        };
-
-
+        const settingsPayload = buildUpdatePayload();
 
         const settingsRes = await fetch(
           ENDPOINTS.teacher.settings(draftId),
@@ -1635,8 +1631,6 @@ function CreateAssessmentContent() {
 
         if (!settingsRes.ok) {
           const errText = await settingsRes.text();
-
-;
 
           throw new Error(
             `Backend ${settingsRes.status}: ${errText || settingsRes.statusText}`,
