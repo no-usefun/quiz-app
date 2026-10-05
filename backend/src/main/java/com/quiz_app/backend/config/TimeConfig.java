@@ -13,6 +13,6 @@ public class TimeConfig {
 
     @Bean
     public Clock quizClock() {
-        return Clock.systemUTC();
+        return Clock.system(QUIZ_TIMEZONE);
     }
 }
