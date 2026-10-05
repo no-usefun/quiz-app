@@ -400,7 +400,7 @@ export default function LiveLeaderboard({
   if (loading) {
     return (
       <div className="min-h-screen bg-frost-surface flex items-center justify-center text-xs text-steel-blue-gray">
-        Loading assessment results...
+        Loading leaderboard...
       </div>
     );
   }
@@ -480,7 +480,7 @@ export default function LiveLeaderboard({
         <div className="flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">
           <div>
             <span className="text-xs font-bold uppercase tracking-widest text-signal-green">
-              Live Results Monitoring
+              Leaderboard
             </span>
             <h1 className="mt-0.5 text-2xl font-bold tracking-tight text-midnight-navy">
               {displayCode}
