@@ -350,11 +350,13 @@ export default function StudentDashboard() {
                   if (result.resultsAvailable) {
                     return (
                       <li key={result.attemptId}>
-                        <Link
-                          href={`/dashboard/student/result/${result.attemptId}`}
-                          className="relative flex items-center justify-between gap-4 px-5 py-4 transition-colors hover:bg-[#f8fafc] group before:absolute before:inset-y-0 before:left-0 before:w-1 before:rounded-r before:bg-[#165dfb] before:opacity-0 before:transition-opacity hover:before:opacity-100"
-                        >
-                          <div className="flex min-w-0 flex-col gap-1">
+                        <div className="relative flex items-center justify-between gap-4 px-5 py-4 transition-colors hover:bg-[#f8fafc] group before:absolute before:inset-y-0 before:left-0 before:w-1 before:rounded-r before:bg-[#165dfb] before:opacity-0 before:transition-opacity hover:before:opacity-100">
+                          <Link
+                            href={`/dashboard/student/result/${result.attemptId}`}
+                            aria-label={`View result for ${result.quizTitle}`}
+                            className="absolute inset-0 rounded-none"
+                          />
+                          <div className="relative z-10 flex min-w-0 flex-col gap-1">
                             <span className="truncate text-xs font-bold text-[#111111] group-hover:text-[#165dfb] transition-colors">
                               {result.quizTitle}
                             </span>
@@ -372,7 +374,7 @@ export default function StudentDashboard() {
                             </div>
                           </div>
 
-                          <div className="flex shrink-0 items-center gap-2">
+                          <div className="relative z-10 flex shrink-0 items-center gap-2">
                             {score != null ? (
                               <span className="rounded-full bg-[#e2ede8] px-2.5 py-1 text-[10px] font-bold text-[#1d5237] tabular-nums shadow-xs">
                                 {score}%
@@ -394,7 +396,7 @@ export default function StudentDashboard() {
 
                             <ChevronRight className="h-3.5 w-3.5 text-[#c9c5c2] transition-all group-hover:translate-x-0.5 group-hover:text-[#165dfb]" />
                           </div>
-                        </Link>
+                        </div>
                       </li>
                     );
                   }
