@@ -234,10 +234,22 @@ export default function StudentResultPage({
             throw detailsError;
           }
 
-          console.info(
-            "[Student Result] Question-wise details unavailable:",
-            detailsError,
-          );
+          const detailsUnavailable =
+            detailsError instanceof ApiClientError &&
+            detailsError.status === 400 &&
+            (
+              String(detailsError.errorCode || "").toUpperCase() ===
+                "RESULT_DETAILS_NOT_AVAILABLE" ||
+              String(detailsError.errorCode || "").toUpperCase() ===
+                "RESULTS_NOT_PUBLISHED"
+            );
+
+          if (!detailsUnavailable) {
+            console.info(
+              "[Student Result] Question-wise details unavailable:",
+              detailsError,
+            );
+          }
         }
 
         if (!cancelled) {
