@@ -176,6 +176,60 @@ function ProfilePanel({
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+
+  const handleSetPassword = async () => {
+    setSetPasswordError(null);
+
+    if (setPasswordValue.length < 8) {
+      setSetPasswordError("Password must be at least 8 characters.");
+      return;
+    }
+
+    if (setPasswordValue !== setPasswordConfirm) {
+      setSetPasswordError("Password confirmation does not match.");
+      return;
+    }
+
+    setSetPasswordSaving(true);
+
+    try {
+      const token = localStorage.getItem("dynoquizz_token");
+
+      if (!token) {
+        throw new Error("Authentication token not found. Please log in again.");
+      }
+
+      const response = await fetch(ENDPOINTS.auth.setPassword, {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json",
+          Accept: "application/json",
+        },
+        body: JSON.stringify({ newPassword: setPasswordValue }),
+      });
+
+      const data = await response.json().catch(() => ({}));
+
+      if (!response.ok) {
+        throw new Error(
+          data?.message || data?.error || "Unable to set password.",
+        );
+      }
+
+      setSetPasswordValue("");
+      setSetPasswordConfirm("");
+      setSetPasswordDone(true);
+      onSave();
+    } catch (error) {
+      setSetPasswordError(
+        error instanceof Error ? error.message : "Unable to set password.",
+      );
+    } finally {
+      setSetPasswordSaving(false);
+    }
+  };
+
   useEffect(() => {
     if (!user) return;
 
@@ -677,55 +731,6 @@ function SecurityPanel({
 
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
-
-  const handleSetPassword = async () => {
-    setSetPasswordError(null);
-
-    if (setPasswordValue.length < 8) {
-      setSetPasswordError("Password must be at least 8 characters.");
-      return;
-    }
-
-    if (setPasswordValue !== setPasswordConfirm) {
-      setSetPasswordError("Password confirmation does not match.");
-      return;
-    }
-
-    setSetPasswordSaving(true);
-
-    try {
-      const token = localStorage.getItem("dynoquizz_token");
-      if (!token) {
-        throw new Error("Authentication token not found. Please log in again.");
-      }
-
-      const response = await fetch(ENDPOINTS.auth.setPassword, {
-        method: "POST",
-        headers: {
-          Authorization: "Bearer " + token,
-          "Content-Type": "application/json",
-          Accept: "application/json",
-        },
-        body: JSON.stringify({ newPassword: setPasswordValue }),
-      });
-
-      const data = await response.json().catch(() => ({}));
-      if (!response.ok) {
-        throw new Error(
-          data?.message || data?.error || "Unable to set password.",
-        );
-      }
-
-      setSetPasswordValue("");
-      setSetPasswordConfirm("");
-      setSetPasswordDone(true);
-      onSave();
-    } catch (error: any) {
-      setSetPasswordError(error?.message || "Unable to set password.");
-    } finally {
-      setSetPasswordSaving(false);
-    }
-  };
 
   const handleChangePassword = async () => {
     setError(null);
