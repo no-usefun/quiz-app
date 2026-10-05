@@ -176,3 +176,7 @@ CREATE INDEX IF NOT EXISTS idx_proctoring_events_attempt_time
 
 CREATE INDEX IF NOT EXISTS idx_proctoring_events_attempt_type
     ON quiz_attempt_proctoring_events(attempt_id, event_type);
+
+
+ALTER TABLE quiz_attempts
+    ADD COLUMN IF NOT EXISTS termination_reason VARCHAR(50);
