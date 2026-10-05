@@ -180,7 +180,7 @@ function SignupContent() {
     try {
       const backendRole = activeRole === "teacher" ? "TEACHER" : "STUDENT";
       const res = await fetch(
-        ENDPOINTS.auth.signup + "?role=" + encodeURIComponent(backendRole),
+        ENDPOINTS.auth.signup(backendRole),
         {
         method: "POST",
         headers: {
