@@ -120,7 +120,7 @@ class StudentAttemptServiceTest {
         @BeforeEach
         void setUp() {
 
-                startedAt = LocalDateTime.now().minusMinutes(5);
+                startedAt = LocalDateTime.of(2026, 9, 21, 20, 25);
 
                 Clock fixedClock = Clock.fixed(
                                 Instant.parse("2026-09-21T15:00:00Z"),
@@ -370,7 +370,7 @@ class StudentAttemptServiceTest {
         @Test
         void startAttempt_shouldRejectQuizThatHasNotStarted() {
 
-                quiz.setStartTime(LocalDateTime.now().plusMinutes(10));
+                quiz.setStartTime(LocalDateTime.of(2026, 9, 21, 20, 40));
 
                 when(userRepository.findById(1L))
                                 .thenReturn(Optional.of(student));
@@ -883,7 +883,7 @@ class StudentAttemptServiceTest {
                 attempt.setQuiz(quiz);
                 attempt.setStudent(student);
                 attempt.setStatus(AttemptStatus.IN_PROGRESS);
-                attempt.setStartedAt(LocalDateTime.now().minusSeconds(5));
+                attempt.setStartedAt(LocalDateTime.of(2026, 9, 21, 20, 25));
 
                 question.setQuiz(quiz);
                 question.setMarks(BigDecimal.TEN);
@@ -952,7 +952,7 @@ class StudentAttemptServiceTest {
                 attempt.setQuiz(quiz);
                 attempt.setStudent(student);
                 attempt.setStatus(AttemptStatus.IN_PROGRESS);
-                attempt.setStartedAt(LocalDateTime.now().minusSeconds(5));
+                attempt.setStartedAt(LocalDateTime.of(2026, 9, 21, 20, 25));
 
                 question.setQuiz(quiz);
                 question.setMarks(BigDecimal.TEN);
@@ -1589,7 +1589,7 @@ class StudentAttemptServiceTest {
                 attempt.setStatus(AttemptStatus.SUBMITTED);
                 attempt.setFinalScore(new BigDecimal("8.00"));
                 attempt.setTotalTimeTaken(120);
-                attempt.setSubmittedAt(LocalDateTime.now());
+                attempt.setSubmittedAt(LocalDateTime.of(2026, 9, 21, 20, 30));
 
                 when(quizAttemptRepository
                                 .findByStudentIdAndStatusInOrderBySubmittedAtDesc(
