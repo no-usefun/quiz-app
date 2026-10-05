@@ -655,13 +655,15 @@ export default function TestArenaPage({
     latestAnswers: ActiveAnswerState = answersRef.current,
     latestTimeTaken: Record<number, number> = timeTakenRef.current,
   ) => {
+    const attemptId = attemptId;
+
     if (
       submissionInFlightRef.current ||
       isSubmitted ||
       !test ||
-      !activeAttemptId
+      !attemptId
     ) {
-      if (!activeAttemptId && !isSubmitted) {
+      if (!attemptId && !isSubmitted) {
         setSubmissionNotice(
           "Your server attempt is missing. Your answers remain stored locally; return to the lobby to initialize the attempt again.",
         );
@@ -697,7 +699,7 @@ export default function TestArenaPage({
       };
 
       const result = await api.post<SubmitAttemptResponse>(
-        ENDPOINTS.student.submitAttempt(activeAttemptId),
+        ENDPOINTS.student.submitAttempt(attemptId),
         payload,
       );
 
@@ -720,7 +722,7 @@ export default function TestArenaPage({
 
       localStorage.removeItem(`dynoquizz_attemptId_${cleanCode}`);
       localStorage.removeItem("dynoquizz_attemptId");
-      localStorage.removeItem(`dynoquizz_pending_submit_${activeAttemptId}`);
+      localStorage.removeItem(`dynoquizz_pending_submit_${attemptId}`);
 
       if (result.status === "AUTO_SUBMITTED") {
         setDeadlineNotice(
@@ -744,7 +746,7 @@ export default function TestArenaPage({
       if (error instanceof ApiClientError && error.status === 409) {
         try {
           const state = await api.get<AttemptStateResponse>(
-            ENDPOINTS.student.attemptState(activeAttemptId),
+            ENDPOINTS.student.attemptState(attemptId),
           );
 
           setSubmittedAttemptId(String(state.attemptId));
@@ -759,7 +761,7 @@ export default function TestArenaPage({
             }
 
             localStorage.removeItem(
-              `dynoquizz_pending_submit_${activeAttemptId}`,
+              `dynoquizz_pending_submit_${attemptId}`,
             );
             return;
           }
@@ -787,6 +789,8 @@ export default function TestArenaPage({
   };
 
   const handleOverallTimerExpired = () => {
+    const attemptId = attemptId;
+
     if (
       expiryHandledRef.current ||
       isSubmitted ||
@@ -821,7 +825,7 @@ export default function TestArenaPage({
     void (async () => {
       try {
         const result = await api.post<SubmitAttemptResponse>(
-          ENDPOINTS.student.autoSubmitAttempt(activeAttemptId),
+          ENDPOINTS.student.autoSubmitAttempt(attemptId),
         );
 
         setSubmittedAttemptId(String(result.attemptId));
@@ -831,7 +835,7 @@ export default function TestArenaPage({
         );
 
         localStorage.removeItem(
-          `dynoquizz_pending_submit_${activeAttemptId}`,
+          `dynoquizz_pending_submit_${attemptId}`,
         );
         localStorage.removeItem(`dynoquizz_attemptId_${cleanCode}`);
         localStorage.removeItem("dynoquizz_attemptId");
@@ -839,7 +843,7 @@ export default function TestArenaPage({
         if (error instanceof ApiClientError && error.status === 409) {
           try {
             const state = await api.get<AttemptStateResponse>(
-              ENDPOINTS.student.attemptState(activeAttemptId),
+              ENDPOINTS.student.attemptState(attemptId),
             );
 
             setSubmittedAttemptId(String(state.attemptId));
@@ -853,7 +857,7 @@ export default function TestArenaPage({
               );
 
               localStorage.removeItem(
-                `dynoquizz_pending_submit_${activeAttemptId}`,
+                `dynoquizz_pending_submit_${attemptId}`,
               );
               localStorage.removeItem(`dynoquizz_attemptId_${cleanCode}`);
               localStorage.removeItem("dynoquizz_attemptId");
