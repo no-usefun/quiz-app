@@ -1085,6 +1085,7 @@ public class StudentAttemptService {
                                         new AttemptResultDetailResponse(
                                                         question.getId(),
                                                         question.getQuestionText(),
+                                                        question.getExplanation(),
                                                         question.getDisplayOrder(),
                                                         selectedOptionIds,
                                                         correctOptionIds,
