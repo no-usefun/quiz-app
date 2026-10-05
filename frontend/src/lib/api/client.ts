@@ -162,7 +162,11 @@ export async function apiRequest<T = unknown>(
     data && typeof data === "object" ? (data as Record<string, unknown>) : null;
 
   const errorCode =
-    typeof errorObject?.error === "string" ? errorObject.error : undefined;
+    typeof errorObject?.code === "string"
+      ? errorObject.code
+      : typeof errorObject?.error === "string"
+        ? errorObject.error
+        : undefined;
 
   const message =
     typeof errorObject?.message === "string"
