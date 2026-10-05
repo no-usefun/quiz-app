@@ -183,53 +183,6 @@ function persistAttemptState(
   }
 }
 
-function cachePackage(testCode: string, packageData: QuizPackageResponse) {
-  if (typeof window === "undefined") {
-    return;
-  }
-
-  try {
-    sessionStorage.setItem(
-      `dynoquizz_pkg_${testCode}`,
-      JSON.stringify(packageData),
-    );
-  } catch {
-    // Ignore sessionStorage failures.
-  }
-}
-
-function readCachedPackage(testCode: string): QuizPackageResponse | null {
-  if (typeof window === "undefined") {
-    return null;
-  }
-
-  const key = `dynoquizz_pkg_${testCode}`;
-  const raw = sessionStorage.getItem(key);
-
-  if (!raw) {
-    return null;
-  }
-
-  try {
-    const parsed = JSON.parse(raw) as QuizPackageResponse;
-
-    if (
-      parsed &&
-      typeof parsed.quizId === "number" &&
-      Array.isArray(parsed.questions) &&
-      parsed.questions.length > 0
-    ) {
-      return parsed;
-    }
-
-    sessionStorage.removeItem(key);
-    return null;
-  } catch {
-    sessionStorage.removeItem(key);
-    return null;
-  }
-}
-
 export default function TestArenaPage({
   params,
 }: {
@@ -451,15 +404,9 @@ export default function TestArenaPage({
         setIsLoadingTest(true);
         setTestLoadError(null);
 
-        let packageData = readCachedPackage(cleanCode);
-
-        if (!packageData) {
-          packageData = await api.get<QuizPackageResponse>(
-            ENDPOINTS.student.quizPackageByCode(cleanCode),
-          );
-
-          cachePackage(cleanCode, packageData);
-        }
+        const packageData = await api.get<QuizPackageResponse>(
+          ENDPOINTS.student.quizPackageByCode(cleanCode),
+        );
 
         if (
           !packageData ||
