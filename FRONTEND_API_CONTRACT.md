@@ -88,6 +88,31 @@ GET /api/v1/auth/me
 
 Use the response as the authoritative authenticated-user profile.
 
+### Forgot password
+
+POST /api/v1/auth/forgot-password
+
+Body:
+
+{
+  "email": "user@example.com"
+}
+
+The response is intentionally generic. Never reveal whether the email exists.
+
+### Reset password
+
+POST /api/v1/auth/reset-password
+
+Body:
+
+{
+  "token": "<reset-token>",
+  "newPassword": "<new-password>"
+}
+
+After success, return the user to the normal login flow. Invalid or expired tokens must be shown as a recovery error.
+
 3. IDENTIFIERS
 
 These are different:
@@ -420,6 +445,26 @@ Test arena
 
 Never fabricate attemptId.
 
+### STUDENT — ATTEMPT STATE
+
+GET /api/v1/student/attempts/{attemptId}/state
+
+Call this after receiving an attemptId and before restoring the exam UI.
+
+Response fields include:
+
+- attemptId
+- quizId
+- status
+- effectiveDeadline
+- currentQuestion
+- totalTimeTaken
+- answers[] with questionId, selectedOptionIds, responseTimeSeconds, savedAt
+
+If status is not IN_PROGRESS, stop the active exam UI and reconcile with the backend result/terminal state.
+
+The frontend may use local temporary recovery for UX, but the backend state is authoritative.
+
 13. START-TIME ERRORS
 
 The backend decides whether a quiz has started.
@@ -532,6 +577,24 @@ marksAwarded
 responseTimeSeconds
 
 Backend result/score is authoritative.
+
+
+### STUDENT — PROCTORING EVENTS
+
+POST /api/v1/student/attempts/{attemptId}/proctoring/events
+
+Body:
+
+{
+  "type": "tab_switch",
+  "metadata": { "source": "visibilitychange" }
+}
+
+Supported event types:
+
+tab_switch, fullscreen_exit, right_click, copy_attempt, cut_attempt, paste_attempt, focus_loss, keyboard_attempt, refresh_count, reconnect_count
+
+Do not fabricate server timestamps; occurredAt is optional. Backend persistence and max-tab-switch enforcement are authoritative.
 
 17. ROLE SECURITY
 
@@ -843,3 +906,14 @@ The selected role is required by the backend OAuth resolver.
 The current backend OAuth success handler generates the backend JWT and writes AuthResponse JSON directly to the OAuth response. The frontend must not generate another JWT.
 
 Because the current backend success handler does not redirect the browser to a Next.js callback route, the frontend can initiate the OAuth flow and preserve the requested role, but a browser-to-dashboard redirect after successful Google authentication is not fully controllable from the frontend alone. Do not invent a second OAuth callback or fabricate a frontend session token.
+26. DEFERRED BACKEND FEATURES
+
+The following are not live frontend dependencies yet:
+
+- Authoritative per-question activation/timing endpoint
+- Attempt heartbeat endpoint
+- Teacher live-attempt telemetry endpoint
+- Time-bonus scoring formula
+
+Do not create client-side substitutes for these contracts. Integrate them only when the backend provides the finalized endpoints and response shapes.
+
