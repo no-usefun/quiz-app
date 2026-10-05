@@ -2324,8 +2324,6 @@ questionText,optionA,optionB,optionC,optionD,correctAnswer,marks,questionType,ne
               </details>
             </div>
 
-            </div>
-
             <button
               type="button"
               onClick={handleAddNewQuestion}
