@@ -178,7 +178,7 @@ function SignupContent() {
     setLoading(true);
 
     try {
-      const backendRole = activeRole === "teacher" ? "TEACHER" : "STUDENT";
+      const backendRole = (activeRole === "teacher" ? "TEACHER" : "STUDENT") as "STUDENT" | "TEACHER";
       const res = await fetch(
         ENDPOINTS.auth.signup(backendRole),
         {
