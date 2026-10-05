@@ -3,14 +3,13 @@
 // src/app/test/[testCode]/lobby/page.tsx
 
 import { use, useEffect, useState, Suspense } from "react";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { motion } from "framer-motion";
 import {
   ShieldCheck,
   Clock,
   FileQuestion,
-  User,
   ArrowRight,
   Loader2,
   Lock,
@@ -50,6 +49,7 @@ function saveAttemptTiming(attempt: AttemptResponse) {
 
   localStorage.setItem("dynoquizz_attemptId", attemptId);
   localStorage.setItem(`dynoquizz_attemptId_${attempt.quizId}`, attemptId);
+  localStorage.setItem(`dynoquizz_attemptId_${cleanCode}`, attemptId);
 
   localStorage.setItem(
     `dynoquizz_attemptTiming_${attemptId}`,
@@ -121,9 +121,6 @@ function getApiErrorMessage(error: unknown, fallback: string): string {
 
 function LobbyInner({ testCode }: { testCode: string }) {
   const router = useRouter();
-  const searchParams = useSearchParams();
-  const regParam = searchParams.get("reg") || "";
-
   const cleanCode = String(testCode || "")
     .trim()
     .toUpperCase();
@@ -132,7 +129,6 @@ function LobbyInner({ testCode }: { testCode: string }) {
     useState<QuizAvailabilityResponse | null>(null);
 
   const [loading, setLoading] = useState(true);
-  const [registrationNumber, setRegistrationNumber] = useState(regParam);
   const [isStarting, setIsStarting] = useState(false);
   const [startError, setStartError] = useState<string | null>(null);
 
@@ -155,25 +151,6 @@ function LobbyInner({ testCode }: { testCode: string }) {
     if (!token) {
       router.replace(getLoginRedirect(cleanCode));
       return;
-    }
-
-    try {
-      const storedUser = JSON.parse(
-        localStorage.getItem("dynoquizz_user") || "{}",
-      );
-
-      const storedRegistration =
-        regParam ||
-        storedUser?.registrationNo ||
-        localStorage.getItem("dynoquizz_regNo") ||
-        sessionStorage.getItem("dynoquizz_student_reg") ||
-        "";
-
-      if (storedRegistration) {
-        setRegistrationNumber(String(storedRegistration).trim().toUpperCase());
-      }
-    } catch {
-      // Ignore malformed cached user data.
     }
 
     let cancelled = false;
@@ -218,7 +195,7 @@ function LobbyInner({ testCode }: { testCode: string }) {
     return () => {
       cancelled = true;
     };
-  }, [cleanCode, regParam, router]);
+  }, [cleanCode, router]);
 
   const status = availability?.status;
   const isLive = status === "LIVE" && availability?.available === true;
@@ -226,13 +203,6 @@ function LobbyInner({ testCode }: { testCode: string }) {
   const handleStartAssessment = async () => {
     if (!isLive) {
       setStartError("This assessment is not currently live.");
-      return;
-    }
-
-    const cleanRegistration = registrationNumber.trim().toUpperCase();
-
-    if (!cleanRegistration) {
-      setStartError("Please enter your registered roll / registration number.");
       return;
     }
 
@@ -268,28 +238,6 @@ function LobbyInner({ testCode }: { testCode: string }) {
           "The assessment can only start in fullscreen mode. Please re-enter fullscreen and try again.",
         );
       }
-      const storedUser = JSON.parse(
-        localStorage.getItem("dynoquizz_user") || "{}",
-      );
-
-      const accountRegistration =
-        storedUser?.registrationNo ||
-        localStorage.getItem("dynoquizz_regNo") ||
-        sessionStorage.getItem("dynoquizz_student_reg") ||
-        "";
-
-      if (
-        accountRegistration &&
-        String(accountRegistration).trim().toUpperCase() !== cleanRegistration
-      ) {
-        throw new Error(
-          "The registration number does not match the registration number linked to your account.",
-        );
-      }
-
-      localStorage.setItem("dynoquizz_regNo", cleanRegistration);
-      sessionStorage.setItem("dynoquizz_student_reg", cleanRegistration);
-
       /*
        * Step 1:
        * Ask the backend to create or resume the attempt for the
@@ -391,13 +339,9 @@ function LobbyInner({ testCode }: { testCode: string }) {
        * A cached package may be reused for this quiz, but a missing or
        * invalid cache is always replaced with the backend response.
        */
-      let packageData = getCachedPackage(cleanCode);
-
-      if (!packageData) {
-        packageData = await api.get<QuizPackageResponse>(
-          ENDPOINTS.student.quizPackageByCode(cleanCode),
-        );
-      }
+      const packageData = await api.get<QuizPackageResponse>(
+        ENDPOINTS.student.quizPackageByCode(cleanCode),
+      );
 
       if (
         !packageData ||
@@ -546,46 +490,12 @@ function LobbyInner({ testCode }: { testCode: string }) {
           </h1>
 
           <p className="mt-2 text-xs text-[#78716b] leading-relaxed font-medium">
-            Confirm your registration number before the server creates or
-            resumes your assessment attempt.
+            Your logged-in student account is validated by the server before
+            the assessment attempt is created or resumed.
           </p>
         </div>
 
-        <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-          <div className="rounded-[12px] border border-[#d1dee8]/70 bg-[#f5f5f4]/60 p-3.5 shadow-xs">
-            <div className="flex items-center gap-2 text-xs text-[#78716b] font-medium">
-              <FileQuestion className="h-3.5 w-3.5 text-[#165dfb]" />
-              Questions
-            </div>
-
-            <p className="mt-1 text-sm font-bold text-[#111111]">
-              Loaded after start
-            </p>
-          </div>
-
-          <div className="rounded-[12px] border border-[#d1dee8]/70 bg-[#f5f5f4]/60 p-3.5 shadow-xs">
-            <div className="flex items-center gap-2 text-xs text-[#78716b] font-medium">
-              <Clock className="h-3.5 w-3.5 text-[#165dfb]" />
-              Exam Window
-            </div>
-
-            <p className="mt-1 text-sm font-bold text-[#111111]">
-              {availability.endTime
-                ? `Ends ${formatDateTime(availability.endTime)}`
-                : "Open now"}
-            </p>
-          </div>
-
-          <div className="rounded-[12px] border border-[#d1dee8]/70 bg-[#f5f5f4]/60 p-3.5 col-span-2 sm:col-span-1 shadow-xs">
-            <div className="flex items-center gap-2 text-xs text-[#78716b] font-medium">
-              <User className="h-3.5 w-3.5 text-[#165dfb]" />
-              Candidate Reg
-            </div>
-
-            <p className="mt-1 text-sm font-mono font-bold text-[#111111] truncate">
-              {registrationNumber || "NOT SPECIFIED"}
-            </p>
-          </div>
+        <div className="grid grid-cols-2 gap-3">
         </div>
 
         <motion.div
