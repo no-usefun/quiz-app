@@ -6,6 +6,7 @@ import {
   ArrowLeft,
   AlertTriangle,
   Clock,
+  Lock,
   Trophy,
   RefreshCw,
 } from "lucide-react";
@@ -37,11 +38,13 @@ export default function StudentLeaderboardPage({
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [leaderboardLocked, setLeaderboardLocked] = useState(false);
 
   const numericQuizId = Number(quizId);
 
   const load = async (background = false) => {
     if (!Number.isInteger(numericQuizId) || numericQuizId <= 0) {
+      setLeaderboardLocked(false);
       setError("The leaderboard URL contains an invalid quiz ID.");
       setLoading(false);
       return;
@@ -54,6 +57,7 @@ export default function StudentLeaderboardPage({
     }
 
     try {
+      setLeaderboardLocked(false);
       const data = await api.get<LeaderboardEntryResponse[]>(
         ENDPOINTS.student.leaderboard(numericQuizId),
       );
@@ -78,10 +82,11 @@ export default function StudentLeaderboardPage({
         )
       ) {
         setEntries([]);
+        setLeaderboardLocked(true);
         setError(
           String(err.errorCode || "").toUpperCase() === "RESULTS_NOT_PUBLISHED"
-            ? "The instructor has not published the results yet."
-            : "The instructor has not enabled the leaderboard for this assessment.",
+            ? "The instructor has not published the leaderboard yet."
+            : "The instructor has not enabled the leaderboard for this assessment yet.",
         );
       } else if (err instanceof ApiClientError && err.status === 0) {
         setError(
@@ -148,20 +153,42 @@ export default function StudentLeaderboardPage({
           </button>
         </div>
 
-        {error && (
+        {error && leaderboardLocked ? (
+          <div className="flex items-start gap-3 rounded-[12px] border border-[#d1dee8]/80 bg-white p-4 text-xs font-semibold text-[#78716b] shadow-xs">
+            <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-[#f5f5f4] border border-[#d1dee8]/70 text-[#78716b]">
+              <Lock className="h-4 w-4" />
+            </div>
+            <div className="space-y-1">
+              <p className="font-bold text-[#111111]">Leaderboard Locked</p>
+              <p className="font-medium leading-relaxed">{error}</p>
+            </div>
+          </div>
+        ) : error ? (
           <div className="flex items-start gap-2 rounded-[12px] border border-[#8c381c]/25 bg-[#fbeee8] p-4 text-xs font-semibold text-[#8c381c]">
             <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
             <span>{error}</span>
           </div>
-        )}
+        ) : null}
 
         {entries.length === 0 ? (
           <div className="rounded-[14px] border border-[#d1dee8]/70 bg-white p-10 text-center shadow-sm">
-            <Trophy className="mx-auto h-9 w-9 text-[#a8a29d]" />
-            <h2 className="mt-3 text-sm font-bold">No published rankings</h2>
-            <p className="mt-1 text-xs font-medium text-[#78716b]">
-              The leaderboard may be empty or has not been released yet.
-            </p>
+            {leaderboardLocked ? (
+              <>
+                <Lock className="mx-auto h-9 w-9 text-[#a8a29d]" />
+                <h2 className="mt-3 text-sm font-bold">Rankings Not Released</h2>
+                <p className="mt-1 text-xs font-medium text-[#78716b]">
+                  Your instructor has not released the leaderboard for this assessment yet.
+                </p>
+              </>
+            ) : (
+              <>
+                <Trophy className="mx-auto h-9 w-9 text-[#a8a29d]" />
+                <h2 className="mt-3 text-sm font-bold">No rankings yet</h2>
+                <p className="mt-1 text-xs font-medium text-[#78716b]">
+                  The leaderboard is published, but there are no rankings to display yet.
+                </p>
+              </>
+            )}
           </div>
         ) : (
           <>
