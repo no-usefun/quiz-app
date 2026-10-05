@@ -1223,7 +1223,9 @@ function CreateAssessmentContent() {
       questionType:
         q.questionType === "MULTIPLE_CHOICE" ? "MCQ" : q.questionType || "MCQ",
       marks: Number(q.marks || 1),
-      negativeMarks: Number(negativeMarking ? negativeMarks : 0),
+      negativeMarks: Number(
+        negativeMarking ? (q.negativeMarks ?? negativeMarks) : 0,
+      ),
       questionTimerSeconds: Number(q.questionTimerSeconds || 60),
       difficulty: q.difficulty || "MEDIUM",
       displayOrder: Number(q.displayOrder || index + 1),
@@ -1334,9 +1336,7 @@ function CreateAssessmentContent() {
           instructions: instructions.trim(),
           overallTimerSeconds: Math.floor(timeLimit * 60),
           negativeMarking: Boolean(negativeMarking),
-          negativeMarks: Number(
-        negativeMarking ? q.negativeMarks ?? negativeMarks : 0,
-      ),
+          negativeMarks: Number(negativeMarking ? negativeMarks : 0),
           timeBonusEnabled: Boolean(timeBonusEnabled),
           randomQuestionOrder: Boolean(randomQuestionOrder),
           randomOptionOrder: Boolean(randomOptionOrder),
