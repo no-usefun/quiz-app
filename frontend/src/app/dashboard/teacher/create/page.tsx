@@ -1619,13 +1619,10 @@ function CreateAssessmentContent() {
           ...buildUpdatePayload(),
         };
 
-        console.log(
-          "FINAL SAVE SETTINGS PAYLOAD:",
-          JSON.stringify(settingsPayload, null, 2),
-        );
+
 
         const settingsRes = await fetch(
-          `${API_BASE}/api/v1/teacher/quizzes/${draftId}/settings`,
+          ENDPOINTS.teacher.settings(draftId),
           {
             method: "PUT",
             headers: {
@@ -1639,11 +1636,7 @@ function CreateAssessmentContent() {
         if (!settingsRes.ok) {
           const errText = await settingsRes.text();
 
-          console.error("SAVE DRAFT BACKEND ERROR:", {
-            status: settingsRes.status,
-            statusText: settingsRes.statusText,
-            response: errText,
-          });
+;
 
           throw new Error(
             `Backend ${settingsRes.status}: ${errText || settingsRes.statusText}`,
@@ -1699,7 +1692,7 @@ function CreateAssessmentContent() {
       } else {
         const createPayload = buildCreatePayload(); // true = POST schema (isCorrect, no IDs)
 
-        const createRes = await fetch(`${API_BASE}/api/v1/teacher/quizzes`, {
+        const createRes = await fetch(ENDPOINTS.teacher.createQuiz, {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
