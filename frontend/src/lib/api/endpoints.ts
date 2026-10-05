@@ -39,17 +39,8 @@ export const ENDPOINTS = {
     submitAttempt: (attemptId: number | string) =>
       `${API_BASE}/api/v1/student/attempts/${attemptId}/submit`,
 
-    autoSubmitAttempt: (attemptId: number | string) =>
-      `${API_BASE}/api/v1/student/attempts/${attemptId}/auto-submit`,
-
     attemptState: (attemptId: number | string) =>
       `${API_BASE}/api/v1/student/attempts/${attemptId}/state`,
-
-    saveAnswer: (attemptId: number | string, questionId: number | string) =>
-      `${API_BASE}/api/v1/student/attempts/${attemptId}/questions/${questionId}/answer`,
-
-    heartbeat: (attemptId: number | string) =>
-      `${API_BASE}/api/v1/student/attempts/${attemptId}/heartbeat`,
 
     submissions: `${API_BASE}/api/v1/student/submissions`,
 
@@ -105,7 +96,5 @@ export const ENDPOINTS = {
     leaderboard: (quizId: number | string) =>
       `${API_BASE}/api/v1/teacher/quizzes/${quizId}/leaderboard`,
 
-    liveAttempts: (quizId: number | string) =>
-      `${API_BASE}/api/v1/teacher/quizzes/${quizId}/attempts/live`,
   },
 } as const;
