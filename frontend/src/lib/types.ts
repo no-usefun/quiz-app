@@ -231,7 +231,7 @@ export interface AttemptStateResponse {
 
 export interface ProctoringEventRequest {
   type: string;
-  occurredAt: string;
+  occurredAt?: string;
   metadata?: Record<string, string | number | boolean | null>;
 }
 
