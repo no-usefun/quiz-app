@@ -42,31 +42,6 @@ function formatDateTime(value?: string | null): string {
   });
 }
 
-function saveAttemptTiming(testCode: string, attempt: AttemptResponse) {
-  if (typeof window === "undefined") return;
-
-  const attemptId = String(attempt.attemptId);
-
-  localStorage.setItem("dynoquizz_attemptId", attemptId);
-  localStorage.setItem(`dynoquizz_attemptId_${attempt.quizId}`, attemptId);
-  localStorage.setItem(`dynoquizz_attemptId_${testCode}`, attemptId);
-
-  localStorage.setItem(
-    `dynoquizz_attemptTiming_${attemptId}`,
-    JSON.stringify({
-      attemptId: attempt.attemptId,
-      quizId: attempt.quizId,
-      studentId: attempt.studentId,
-      startedAt: attempt.startedAt,
-      submittedAt: attempt.submittedAt ?? null,
-      status: attempt.status,
-      currentQuestion: attempt.currentQuestion ?? null,
-      totalTimeTaken: attempt.totalTimeTaken ?? null,
-      effectiveDeadline: attempt.effectiveDeadline,
-    }),
-  );
-}
-
 function savePackage(testCode: string, packageData: QuizPackageResponse) {
   if (typeof window === "undefined") return;
 
@@ -74,31 +49,6 @@ function savePackage(testCode: string, packageData: QuizPackageResponse) {
     `dynoquizz_pkg_${testCode}`,
     JSON.stringify(packageData),
   );
-}
-
-function getCachedPackage(testCode: string): QuizPackageResponse | null {
-  if (typeof window === "undefined") return null;
-
-  const raw = sessionStorage.getItem(`dynoquizz_pkg_${testCode}`);
-
-  if (!raw) return null;
-
-  try {
-    const parsed = JSON.parse(raw) as QuizPackageResponse;
-
-    if (
-      parsed &&
-      typeof parsed === "object" &&
-      Array.isArray(parsed.questions) &&
-      parsed.questions.length > 0
-    ) {
-      return parsed;
-    }
-  } catch {
-    sessionStorage.removeItem(`dynoquizz_pkg_${testCode}`);
-  }
-
-  return null;
 }
 
 function getLoginRedirect(testCode: string): string {
@@ -330,7 +280,10 @@ function LobbyInner({ testCode }: { testCode: string }) {
         );
       }
 
-      saveAttemptTiming(cleanCode, attempt);
+      const attemptId = String(attempt.attemptId);
+      localStorage.setItem("dynoquizz_attemptId", attemptId);
+      localStorage.setItem(`dynoquizz_attemptId_${attempt.quizId}`, attemptId);
+      localStorage.setItem(`dynoquizz_attemptId_${cleanCode}`, attemptId);
 
       /*
        * Step 2:
