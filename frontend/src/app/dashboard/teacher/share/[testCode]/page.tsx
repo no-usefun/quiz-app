@@ -301,7 +301,7 @@ export default function ShareAssessmentPage({
                 className="inline-flex items-center gap-1.5 rounded-[10px] bg-[#165dfb] px-4 py-2.5 text-xs font-bold text-white hover:bg-[#0f4fd8] shadow-sm shadow-[#165dfb]/20 active:scale-[0.98] transition-all"
               >
                 <BarChart3 className="h-4 w-4 text-white" />
-                View Live Results
+                View Leaderboard
               </Link>
             </div>
           </div>
