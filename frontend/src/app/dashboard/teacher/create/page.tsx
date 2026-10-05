@@ -2042,29 +2042,6 @@ function CreateAssessmentContent() {
                           className="w-16 rounded-[8px] border border-[#d1dee8]/80 bg-white px-2 py-1 text-center text-xs font-bold text-[#111111] outline-none transition-all focus:border-[#165dfb] focus:ring-4 focus:ring-[#165dfb]/10 shadow-xs"
                           aria-label={"Marks for question " + (idx + 1)}
                         />
-                        <label className="hidden text-[10px] font-bold uppercase tracking-wider text-[#78716b] sm:inline">
-                          Time
-                        </label>
-                        <div className="flex items-center gap-1 rounded-[8px] border border-[#d1dee8]/80 bg-white px-2 py-1 shadow-xs">
-                          <input
-                            type="number"
-                            min="1"
-                            step="1"
-                            value={Number(q.questionTimerSeconds ?? 60)}
-                            onChange={(e) =>
-                              handleUpdateQuestionField(
-                                idx,
-                                "questionTimerSeconds",
-                                Math.max(1, Number(e.target.value)),
-                              )
-                            }
-                            className="w-14 bg-transparent text-center text-xs font-bold text-[#111111] outline-none"
-                            aria-label={"Time limit in seconds for question " + (idx + 1)}
-                          />
-                          <span className="text-[9px] font-bold uppercase text-[#a8a29d]">
-                            sec
-                          </span>
-                        </div>
                         <button
                           type="button"
                           onClick={() => handleDeleteQuestion(idx)}
@@ -2109,51 +2086,27 @@ function CreateAssessmentContent() {
                         </select>
                       </div>
 
-                      <div className="grid gap-3 sm:grid-cols-2">
+                      {negativeMarking && (
                         <div>
                           <label className="mb-1.5 block text-[10px] font-bold uppercase tracking-wider text-[#78716b]">
-                            Question Time (seconds)
+                            Negative Marks
                           </label>
                           <input
                             type="number"
-                            min="1"
-                            step="1"
-                            value={Number(q.questionTimerSeconds ?? 60)}
+                            min="0"
+                            step="0.01"
+                            value={Number(q.negativeMarks ?? negativeMarks ?? 0)}
                             onChange={(e) =>
                               handleUpdateQuestionField(
                                 idx,
-                                "questionTimerSeconds",
-                                Math.max(1, Number(e.target.value)),
+                                "negativeMarks",
+                                Math.max(0, Number(e.target.value)),
                               )
                             }
                             className={inputClass}
                           />
-                          <p className="mt-1 text-[10px] text-[#a8a29d]">
-                            Enforced per question once the backend timer contract is active.
-                          </p>
                         </div>
-                        {negativeMarking && (
-                          <div>
-                            <label className="mb-1.5 block text-[10px] font-bold uppercase tracking-wider text-[#78716b]">
-                              Negative Marks
-                            </label>
-                            <input
-                              type="number"
-                              min="0"
-                              step="0.01"
-                              value={Number(q.negativeMarks ?? negativeMarks ?? 0)}
-                              onChange={(e) =>
-                                handleUpdateQuestionField(
-                                  idx,
-                                  "negativeMarks",
-                                  Math.max(0, Number(e.target.value)),
-                                )
-                              }
-                              className={inputClass}
-                            />
-                          </div>
-                        )}
-                      </div>
+                      )}
 
                       <div className="grid gap-2">
                         <label className="text-[10px] font-bold uppercase tracking-wider text-[#78716b]">
