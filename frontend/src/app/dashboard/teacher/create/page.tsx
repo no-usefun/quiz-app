@@ -1312,7 +1312,7 @@ function CreateAssessmentContent() {
     const token = localStorage.getItem("dynoquizz_token");
 
     try {
-      const isEditing = Boolean(draftId);
+      const isEditing = draftId !== null;
 
       // Helper: persist the full state bundle so the edit page can restore
       // everything (title, subject, settings, questions with isCorrect) instantly
