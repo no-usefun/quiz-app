@@ -64,6 +64,9 @@ public class QuizAttempt {
     @Column(name = "final_score", nullable = false, precision = 8, scale = 2)
     private BigDecimal finalScore;
 
+    @Column(name = "termination_reason", length = 50)
+    private String terminationReason;
+
     @Column(name = "created_at", nullable = false)
     private LocalDateTime createdAt;
 
@@ -160,6 +163,14 @@ public class QuizAttempt {
 
     public void setFinalScore(BigDecimal finalScore) {
         this.finalScore = finalScore;
+    }
+
+    public String getTerminationReason() {
+        return terminationReason;
+    }
+
+    public void setTerminationReason(String terminationReason) {
+        this.terminationReason = terminationReason;
     }
 
     public LocalDateTime getCreatedAt() {

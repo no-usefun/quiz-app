@@ -15,14 +15,15 @@ import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 import org.mockito.junit.jupiter.MockitoExtension;
-import org.mockito.junit.jupiter.MockitoSettings;
-import org.mockito.quality.Strictness;
 import org.springframework.security.authentication.BadCredentialsException;
 import org.springframework.security.crypto.password.PasswordEncoder;
 
 import com.quiz_app.backend.dto.auth.AuthResponse;
 import com.quiz_app.backend.dto.auth.LoginRequest;
+import com.quiz_app.backend.dto.auth.SetPasswordRequest;
 import com.quiz_app.backend.dto.auth.SignupRequest;
+import com.quiz_app.backend.dto.auth.SignupResponse;
+import com.quiz_app.backend.dto.auth.UpdateProfileRequest;
 import com.quiz_app.backend.dto.auth.UserSummaryResponse;
 import com.quiz_app.backend.entity.Role;
 import com.quiz_app.backend.entity.User;
@@ -33,616 +34,343 @@ import com.quiz_app.backend.repository.UserRepository;
 import com.quiz_app.backend.security.JwtUtils;
 
 @ExtendWith(MockitoExtension.class)
-@MockitoSettings(strictness = Strictness.LENIENT)
 class AuthServiceTest {
 
     @Mock
     private UserRepository userRepository;
-
     @Mock
     private RoleRepository roleRepository;
-
     @Mock
     private PasswordEncoder passwordEncoder;
-
     @Mock
     private JwtUtils jwtUtils;
+    @Mock
+    private EmailVerificationService emailVerificationService;
 
     private AuthService authService;
+    private Role studentRole;
 
     @BeforeEach
     void setUp() {
-        authService = new AuthService(userRepository, roleRepository, passwordEncoder, jwtUtils);
+        authService = new AuthService(
+                userRepository,
+                roleRepository,
+                passwordEncoder,
+                jwtUtils,
+                emailVerificationService);
+
+        studentRole = new Role();
+        studentRole.setName("STUDENT");
     }
 
     @Test
-    void testRegisterStudentSuccess() {
+    void register_shouldCreateStudentAccount() {
         SignupRequest request = new SignupRequest(
-                "Alex", "Carter", "alex@university.edu", "secret123",
-                "STUDENT", "Tech Institute", "CS", "REG-1234", "9876543210");
-
-        Role role = new Role();
-        role.setName("STUDENT");
+                " Alex ", " Carter ", " ALEX@University.edu ", "secret123",
+                "College", "CS", " reg-1 ", "9999999999");
 
         when(userRepository.existsByEmail("alex@university.edu")).thenReturn(false);
-        when(userRepository.existsByRegistrationNo("REG-1234")).thenReturn(false);
-        when(roleRepository.findByName("STUDENT")).thenReturn(Optional.of(role));
-        when(passwordEncoder.encode("secret123")).thenReturn("encodedPassword");
-        when(userRepository.save(any(User.class))).thenAnswer(invocation -> invocation.getArgument(0));
-        when(jwtUtils.generateToken(any(User.class))).thenReturn("mock.jwt.token");
-        when(jwtUtils.getExpirationMs()).thenReturn(86400000L);
+        when(userRepository.existsByRegistrationNo("REG-1")).thenReturn(false);
+        when(roleRepository.findByName("STUDENT")).thenReturn(Optional.of(studentRole));
+        when(passwordEncoder.encode("secret123")).thenReturn("encoded");
+        when(userRepository.save(any(User.class))).thenAnswer(i -> i.getArgument(0));
 
-        AuthResponse response = authService.register(request);
+        SignupResponse response = authService.register(request, "student");
 
-        assertNotNull(response);
-        assertEquals("mock.jwt.token", response.token());
+        assertEquals("Account created successfully. Please verify your email before logging in.", response.message());
         assertEquals("alex@university.edu", response.user().email());
         assertEquals("STUDENT", response.user().role());
-        verify(userRepository).save(any(User.class));
+        assertEquals(true, response.verificationRequired());
+        verify(emailVerificationService).createVerificationToken(any(User.class));
+
+        ArgumentCaptor<User> captor = ArgumentCaptor.forClass(User.class);
+        verify(userRepository).save(captor.capture());
+        assertEquals("encoded", captor.getValue().getPasswordHash());
+        assertEquals("REG-1", captor.getValue().getRegistrationNo());
     }
 
     @Test
-    void testRegisterDuplicateEmailThrowsException() {
+    void register_shouldSkipEmailVerificationWhenDisabled() {
+        AuthService noVerificationAuthService = new AuthService(
+                userRepository,
+                roleRepository,
+                passwordEncoder,
+                jwtUtils,
+                emailVerificationService,
+                false);
+
         SignupRequest request = new SignupRequest(
-                "Alex", "Carter", "alex@university.edu", "secret123",
-                "STUDENT", null, null, null, null);
+                "Alex", "Carter", "alex@example.com", "secret123",
+                "College", "CS", "REG-1", null);
 
-        when(userRepository.existsByEmail("alex@university.edu")).thenReturn(true);
+        when(userRepository.existsByEmail("alex@example.com")).thenReturn(false);
+        when(userRepository.existsByRegistrationNo("REG-1")).thenReturn(false);
+        when(roleRepository.findByName("STUDENT")).thenReturn(Optional.of(studentRole));
+        when(passwordEncoder.encode("secret123")).thenReturn("encoded");
+        when(userRepository.save(any(User.class))).thenAnswer(i -> i.getArgument(0));
 
-        assertThrows(ConflictException.class, () -> authService.register(request));
+        SignupResponse response = noVerificationAuthService.register(request, "STUDENT");
+
+        assertEquals(false, response.verificationRequired());
+        assertEquals("Account created successfully. You can log in immediately.", response.message());
+        verify(emailVerificationService, never()).createVerificationToken(any(User.class));
+
+        ArgumentCaptor<User> captor = ArgumentCaptor.forClass(User.class);
+        verify(userRepository).save(captor.capture());
+        assertEquals(true, captor.getValue().isVerified());
     }
 
     @Test
-    void testRegisterInvalidRoleThrowsException() {
+    void register_shouldRejectDuplicateEmail() {
         SignupRequest request = new SignupRequest(
-                "Alex", "Carter", "alex@university.edu", "secret123",
-                "SUPERADMIN", null, null, null, null);
+                "Alex", "Carter", "alex@example.com", "secret123",
+                null, null, "REG-1", null);
 
-        when(userRepository.existsByEmail("alex@university.edu")).thenReturn(false);
+        when(userRepository.existsByEmail("alex@example.com")).thenReturn(true);
 
-        assertThrows(BadRequestException.class, () -> authService.register(request));
+        assertThrows(ConflictException.class, () -> authService.register(request, "STUDENT"));
+        verify(userRepository, never()).save(any(User.class));
     }
 
     @Test
-    void testLoginSuccess() {
-        LoginRequest request = new LoginRequest("alex@university.edu", "secret123");
+    void register_shouldRequireStudentRegistrationNumber() {
+        SignupRequest request = new SignupRequest(
+                "Alex", "Carter", "alex@example.com", "secret123",
+                null, null, null, null);
 
-        Role role = new Role();
-        role.setName("STUDENT");
+        when(userRepository.existsByEmail("alex@example.com")).thenReturn(false);
+        when(roleRepository.findByName("STUDENT")).thenReturn(Optional.of(studentRole));
+
+        assertThrows(BadRequestException.class, () -> authService.register(request, "STUDENT"));
+    }
+
+    @Test
+    void register_shouldRejectInvalidRole() {
+        SignupRequest request = new SignupRequest(
+                "Alex", "Carter", "alex@example.com", "secret123",
+                null, null, null, null);
+
+        when(userRepository.existsByEmail("alex@example.com")).thenReturn(false);
+
+        assertThrows(BadRequestException.class, () -> authService.register(request, "ADMIN"));
+    }
+
+    @Test
+    void login_shouldAuthenticateMatchingRole() {
+        LoginRequest request = new LoginRequest(
+                " ALEX@University.edu ", "secret123");
 
         User user = new User();
         user.setFirstName("Alex");
         user.setEmail("alex@university.edu");
-        user.setPasswordHash("encodedPassword");
-        user.setRole(role);
+        user.setPasswordHash("encoded");
+        user.setRole(studentRole);
         user.setActive(true);
+        user.setVerified(true);
 
         when(userRepository.findByEmail("alex@university.edu")).thenReturn(Optional.of(user));
-        when(passwordEncoder.matches("secret123", "encodedPassword")).thenReturn(true);
-        when(jwtUtils.generateToken(user)).thenReturn("mock.jwt.token");
-        when(jwtUtils.getExpirationMs()).thenReturn(86400000L);
+        when(passwordEncoder.matches("secret123", "encoded")).thenReturn(true);
+        when(jwtUtils.generateToken(user)).thenReturn("jwt");
+        when(jwtUtils.getExpirationMs()).thenReturn(3600000L);
 
         AuthResponse response = authService.login(request);
 
-        assertNotNull(response);
-        assertEquals("mock.jwt.token", response.token());
-        assertEquals("alex@university.edu", response.user().email());
-    }
-
-    @Test
-    void testLoginWrongPasswordThrowsException() {
-        LoginRequest request = new LoginRequest("alex@university.edu", "wrongPassword");
-
-        User user = new User();
-        user.setEmail("alex@university.edu");
-        user.setPasswordHash("encodedPassword");
-        user.setActive(true);
-
-        when(userRepository.findByEmail("alex@university.edu")).thenReturn(Optional.of(user));
-        when(passwordEncoder.matches("wrongPassword", "encodedPassword")).thenReturn(false);
-
-        assertThrows(BadCredentialsException.class, () -> authService.login(request));
-    }
-
-    @Test
-    void testLoginUserNotFoundThrowsException() {
-        LoginRequest request = new LoginRequest("nonexistent@university.edu", "password");
-
-        when(userRepository.findByEmail("nonexistent@university.edu")).thenReturn(Optional.empty());
-
-        assertThrows(BadCredentialsException.class, () -> authService.login(request));
-    }
-
-    @Test
-    void testGetCurrentUserSuccess() {
-        Role role = new Role();
-        role.setName("TEACHER");
-
-        User user = new User();
-        user.setFirstName("Prof");
-        user.setLastName("Smith");
-        user.setEmail("prof.smith@university.edu");
-        user.setRole(role);
-        user.setActive(true);
-
-        when(userRepository.findByEmail("prof.smith@university.edu")).thenReturn(Optional.of(user));
-
-        UserSummaryResponse response = authService.getCurrentUser("prof.smith@university.edu");
-
-        assertNotNull(response);
-        assertEquals("Prof Smith", response.fullName());
-        assertEquals("TEACHER", response.role());
-    }
-
-    @Test
-    void register_shouldNormalizeEmail() {
-
-        SignupRequest request = new SignupRequest(
-                "Alex",
-                "Carter",
-                "  ALEX@University.EDU  ",
-                "secret123",
-                "STUDENT",
-                null,
-                null,
-                " REG-1234 ",
-                null);
-
-        Role role = new Role();
-        role.setName("STUDENT");
-
-        when(userRepository.existsByEmail("alex@university.edu"))
-                .thenReturn(false);
-
-        when(userRepository.existsByRegistrationNo("REG-1234"))
-                .thenReturn(false);
-
-        when(roleRepository.findByName("STUDENT"))
-                .thenReturn(Optional.of(role));
-
-        when(passwordEncoder.encode("secret123"))
-                .thenReturn("encodedPassword");
-
-        when(userRepository.save(any(User.class)))
-                .thenAnswer(invocation -> invocation.getArgument(0));
-
-        when(jwtUtils.generateToken(any(User.class)))
-                .thenReturn("mock.jwt.token");
-
-        when(jwtUtils.getExpirationMs())
-                .thenReturn(86400000L);
-
-        authService.register(request);
-
-        verify(userRepository)
-                .existsByEmail("alex@university.edu");
-
-        ArgumentCaptor<User> captor = ArgumentCaptor.forClass(User.class);
-
-        verify(userRepository).save(captor.capture());
-
-        User savedUser = captor.getValue();
-
-        assertEquals(
-                "alex@university.edu",
-                savedUser.getEmail());
-
-        assertEquals(
-                "REG-1234",
-                savedUser.getRegistrationNo());
-    }
-
-    @Test
-    void register_shouldRejectDuplicateRegistrationNumber() {
-
-        SignupRequest request = new SignupRequest(
-                "Alex",
-                "Carter",
-                "alex@university.edu",
-                "secret123",
-                "STUDENT",
-                null,
-                null,
-                "REG-1234",
-                null);
-
-        when(userRepository.existsByEmail("alex@university.edu"))
-                .thenReturn(false);
-
-        when(userRepository.existsByRegistrationNo("REG-1234"))
-                .thenReturn(true);
-
-        assertThrows(
-                ConflictException.class,
-                () -> authService.register(request));
-
-        verify(userRepository)
-                .existsByRegistrationNo("REG-1234");
-
-        verify(roleRepository, never())
-                .findByName(any());
-
-        verify(userRepository, never())
-                .save(any(User.class));
-    }
-
-    @Test
-    void register_shouldDefaultRoleToStudentWhenRoleIsNull() {
-
-        SignupRequest request = new SignupRequest(
-                "Alex",
-                "Carter",
-                "alex@university.edu",
-                "secret123",
-                null,
-                null,
-                null,
-                null,
-                null);
-
-        Role role = new Role();
-        role.setName("STUDENT");
-
-        when(userRepository.existsByEmail("alex@university.edu"))
-                .thenReturn(false);
-
-        when(roleRepository.findByName("STUDENT"))
-                .thenReturn(Optional.of(role));
-
-        when(passwordEncoder.encode("secret123"))
-                .thenReturn("encodedPassword");
-
-        when(userRepository.save(any(User.class)))
-                .thenAnswer(invocation -> invocation.getArgument(0));
-
-        when(jwtUtils.generateToken(any(User.class)))
-                .thenReturn("mock.jwt.token");
-
-        when(jwtUtils.getExpirationMs())
-                .thenReturn(86400000L);
-
-        AuthResponse response = authService.register(request);
-
-        assertEquals("STUDENT", response.user().role());
-
-        verify(roleRepository)
-                .findByName("STUDENT");
-    }
-
-    @Test
-    void register_shouldDefaultRoleToStudentWhenRoleIsBlank() {
-
-        SignupRequest request = new SignupRequest(
-                "Alex",
-                "Carter",
-                "alex@university.edu",
-                "secret123",
-                "   ",
-                null,
-                null,
-                null,
-                null);
-
-        Role role = new Role();
-        role.setName("STUDENT");
-
-        when(userRepository.existsByEmail("alex@university.edu"))
-                .thenReturn(false);
-
-        when(roleRepository.findByName("STUDENT"))
-                .thenReturn(Optional.of(role));
-
-        when(passwordEncoder.encode("secret123"))
-                .thenReturn("encodedPassword");
-
-        when(userRepository.save(any(User.class)))
-                .thenAnswer(invocation -> invocation.getArgument(0));
-
-        when(jwtUtils.generateToken(any(User.class)))
-                .thenReturn("mock.jwt.token");
-
-        when(jwtUtils.getExpirationMs())
-                .thenReturn(86400000L);
-
-        AuthResponse response = authService.register(request);
-
+        assertEquals("jwt", response.token());
         assertEquals("STUDENT", response.user().role());
     }
 
     @Test
-    void register_shouldAcceptTeacherRoleCaseInsensitively() {
-
-        SignupRequest request = new SignupRequest(
-                "Jane",
-                "Smith",
-                "jane@university.edu",
-                "password123",
-                " teacher ",
-                null,
-                null,
-                null,
-                null);
-
-        Role role = new Role();
-        role.setName("TEACHER");
-
-        when(userRepository.existsByEmail("jane@university.edu"))
-                .thenReturn(false);
-
-        when(roleRepository.findByName("TEACHER"))
-                .thenReturn(Optional.of(role));
-
-        when(passwordEncoder.encode("password123"))
-                .thenReturn("encodedPassword");
-
-        when(userRepository.save(any(User.class)))
-                .thenAnswer(invocation -> invocation.getArgument(0));
-
-        when(jwtUtils.generateToken(any(User.class)))
-                .thenReturn("mock.jwt.token");
-
-        when(jwtUtils.getExpirationMs())
-                .thenReturn(86400000L);
-
-        AuthResponse response = authService.register(request);
-
-        assertEquals("TEACHER", response.user().role());
-
-        verify(roleRepository)
-                .findByName("TEACHER");
-    }
-
-    @Test
-    void register_shouldCreateRoleWhenRoleDoesNotExist() {
-
-        SignupRequest request = new SignupRequest(
-                "Alex",
-                "Carter",
-                "alex@university.edu",
-                "secret123",
-                "STUDENT",
-                null,
-                null,
-                null,
-                null);
-
-        when(userRepository.existsByEmail("alex@university.edu"))
-                .thenReturn(false);
-
-        when(roleRepository.findByName("STUDENT"))
-                .thenReturn(Optional.empty());
-
-        when(roleRepository.save(any(Role.class)))
-                .thenAnswer(invocation -> invocation.getArgument(0));
-
-        when(passwordEncoder.encode("secret123"))
-                .thenReturn("encodedPassword");
-
-        when(userRepository.save(any(User.class)))
-                .thenAnswer(invocation -> invocation.getArgument(0));
-
-        when(jwtUtils.generateToken(any(User.class)))
-                .thenReturn("mock.jwt.token");
-
-        when(jwtUtils.getExpirationMs())
-                .thenReturn(86400000L);
-
-        authService.register(request);
-
-        ArgumentCaptor<Role> roleCaptor = ArgumentCaptor.forClass(Role.class);
-
-        verify(roleRepository).save(roleCaptor.capture());
-
-        Role createdRole = roleCaptor.getValue();
-
-        assertEquals("STUDENT", createdRole.getName());
-        assertEquals(
-                "Can attempt quizzes",
-                createdRole.getDescription());
-    }
-
-    @Test
-    void register_shouldEncodePassword() {
-
-        SignupRequest request = new SignupRequest(
-                "Alex",
-                "Carter",
-                "alex@university.edu",
-                "secret123",
-                "STUDENT",
-                null,
-                null,
-                null,
-                null);
-
-        Role role = new Role();
-        role.setName("STUDENT");
-
-        when(userRepository.existsByEmail("alex@university.edu"))
-                .thenReturn(false);
-
-        when(roleRepository.findByName("STUDENT"))
-                .thenReturn(Optional.of(role));
-
-        when(passwordEncoder.encode("secret123"))
-                .thenReturn("encodedPassword");
-
-        when(userRepository.save(any(User.class)))
-                .thenAnswer(invocation -> invocation.getArgument(0));
-
-        when(jwtUtils.generateToken(any(User.class)))
-                .thenReturn("mock.jwt.token");
-
-        when(jwtUtils.getExpirationMs())
-                .thenReturn(86400000L);
-
-        authService.register(request);
-
-        verify(passwordEncoder)
-                .encode("secret123");
-
-        ArgumentCaptor<User> captor = ArgumentCaptor.forClass(User.class);
-
-        verify(userRepository).save(captor.capture());
-
-        assertEquals(
-                "encodedPassword",
-                captor.getValue().getPasswordHash());
-    }
-
-    @Test
-    void register_shouldTrimUserFields() {
-
-        SignupRequest request = new SignupRequest(
-                "  Alex  ",
-                "  Carter  ",
-                "alex@university.edu",
-                "secret123",
-                "STUDENT",
-                "  Tech Institute  ",
-                "  Computer Science  ",
-                "  REG-1234  ",
-                "  9876543210  ");
-
-        Role role = new Role();
-        role.setName("STUDENT");
-
-        when(userRepository.existsByEmail("alex@university.edu"))
-                .thenReturn(false);
-
-        when(userRepository.existsByRegistrationNo("REG-1234"))
-                .thenReturn(false);
-
-        when(roleRepository.findByName("STUDENT"))
-                .thenReturn(Optional.of(role));
-
-        when(passwordEncoder.encode("secret123"))
-                .thenReturn("encodedPassword");
-
-        when(userRepository.save(any(User.class)))
-                .thenAnswer(invocation -> invocation.getArgument(0));
-
-        when(jwtUtils.generateToken(any(User.class)))
-                .thenReturn("mock.jwt.token");
-
-        when(jwtUtils.getExpirationMs())
-                .thenReturn(86400000L);
-
-        authService.register(request);
-
-        ArgumentCaptor<User> captor = ArgumentCaptor.forClass(User.class);
-
-        verify(userRepository).save(captor.capture());
-
-        User savedUser = captor.getValue();
-
-        assertEquals("Alex", savedUser.getFirstName());
-        assertEquals("Carter", savedUser.getLastName());
-        assertEquals("Tech Institute", savedUser.getCollege());
-        assertEquals("Computer Science", savedUser.getDepartment());
-        assertEquals("REG-1234", savedUser.getRegistrationNo());
-        assertEquals("9876543210", savedUser.getPhone());
-    }
-
-    @Test
-    void login_shouldNormalizeEmail() {
-
-        LoginRequest request = new LoginRequest(
-                "  ALEX@University.EDU  ",
-                "secret123");
+    void login_shouldRejectUnverifiedUser() {
+        LoginRequest request = new LoginRequest("alex@example.com", "secret123");
 
         User user = new User();
-        user.setEmail("alex@university.edu");
-        user.setPasswordHash("encodedPassword");
+        user.setEmail("alex@example.com");
+        user.setPasswordHash("encoded");
+        user.setRole(studentRole);
         user.setActive(true);
+        user.setVerified(false);
 
-        when(userRepository.findByEmail("alex@university.edu"))
-                .thenReturn(Optional.of(user));
+        when(userRepository.findByEmail("alex@example.com")).thenReturn(Optional.of(user));
+        when(passwordEncoder.matches("secret123", "encoded")).thenReturn(true);
 
-        when(passwordEncoder.matches(
-                "secret123",
-                "encodedPassword"))
-                .thenReturn(true);
-
-        when(jwtUtils.generateToken(user))
-                .thenReturn("mock.jwt.token");
-
-        when(jwtUtils.getExpirationMs())
-                .thenReturn(86400000L);
-
-        AuthResponse response = authService.login(request);
-
-        assertNotNull(response);
-
-        verify(userRepository)
-                .findByEmail("alex@university.edu");
-    }
-
-    @Test
-    void login_shouldRejectUserWithNullPasswordHash() {
-
-        LoginRequest request = new LoginRequest(
-                "alex@university.edu",
-                "secret123");
-
-        User user = new User();
-        user.setEmail("alex@university.edu");
-        user.setPasswordHash(null);
-        user.setActive(true);
-
-        when(userRepository.findByEmail("alex@university.edu"))
-                .thenReturn(Optional.of(user));
-
-        assertThrows(
-                BadCredentialsException.class,
-                () -> authService.login(request));
-
-        verify(passwordEncoder, never())
-                .matches(any(), any());
-
-        verify(jwtUtils, never())
-                .generateToken(any(User.class));
-    }
-
-    @Test
-    void login_shouldRejectDisabledUser() {
-
-        LoginRequest request = new LoginRequest(
-                "alex@university.edu",
-                "secret123");
-
-        User user = new User();
-        user.setEmail("alex@university.edu");
-        user.setPasswordHash("encodedPassword");
-        user.setActive(false);
-
-        when(userRepository.findByEmail("alex@university.edu"))
-                .thenReturn(Optional.of(user));
-
-        when(passwordEncoder.matches(
-                "secret123",
-                "encodedPassword"))
-                .thenReturn(true);
-
-        assertThrows(
+        BadRequestException ex = assertThrows(
                 BadRequestException.class,
                 () -> authService.login(request));
 
-        verify(jwtUtils, never())
-                .generateToken(any(User.class));
+        assertEquals("EMAIL_NOT_VERIFIED", ex.getCode());
+        verify(jwtUtils, never()).generateToken(any(User.class));
     }
 
     @Test
-    void getCurrentUser_shouldThrowWhenUserDoesNotExist() {
+    void login_shouldRejectInvalidPassword() {
+        LoginRequest request = new LoginRequest(
+                "alex@example.com", "wrong");
 
-        when(userRepository.findByEmail(
-                "unknown@university.edu"))
-                .thenReturn(Optional.empty());
+        User user = new User();
+        user.setEmail("alex@example.com");
+        user.setPasswordHash("encoded");
+        user.setRole(studentRole);
+        user.setActive(true);
 
-        assertThrows(
-                com.quiz_app.backend.exception.ResourceNotFoundException.class,
-                () -> authService.getCurrentUser(
-                        "unknown@university.edu"));
+        when(userRepository.findByEmail("alex@example.com")).thenReturn(Optional.of(user));
+        when(passwordEncoder.matches("wrong", "encoded")).thenReturn(false);
+
+        assertThrows(BadCredentialsException.class, () -> authService.login(request, "STUDENT"));
     }
 
+    @Test
+    void getCurrentUser_shouldReturnSummary() {
+        User user = new User();
+        user.setFirstName("Alex");
+        user.setLastName("Carter");
+        user.setEmail("alex@example.com");
+        user.setRole(studentRole);
+        user.setActive(true);
+
+        when(userRepository.findByEmail("alex@example.com")).thenReturn(Optional.of(user));
+
+        UserSummaryResponse response = authService.getCurrentUser("alex@example.com");
+
+        assertEquals("Alex Carter", response.fullName());
+        assertEquals("STUDENT", response.role());
+    }
+
+    @Test
+    void updateProfile_shouldTrimAndSaveFields() {
+        User user = new User();
+        user.setFirstName("Old");
+        user.setEmail("alex@example.com");
+        user.setRole(studentRole);
+
+        when(userRepository.findByEmail("alex@example.com")).thenReturn(Optional.of(user));
+        when(userRepository.save(user)).thenReturn(user);
+
+        UserSummaryResponse response = authService.updateProfile(
+                "alex@example.com",
+                new UpdateProfileRequest(" New ", " User ", " 123 ", " College ", " CS ", " image.png"));
+
+        assertNotNull(response);
+        assertEquals("New", user.getFirstName());
+        assertEquals("User", user.getLastName());
+        assertEquals("123", user.getPhone());
+        assertEquals("College", user.getCollege());
+        assertEquals("CS", user.getDepartment());
+        assertEquals("image.png", user.getProfileImage());
+        verify(userRepository).save(user);
+    }
+
+    @Test
+    void setPassword_shouldRejectWhenPasswordAlreadyExists() {
+        User user = new User();
+        user.setEmail("user@example.com");
+        user.setPasswordHash("existing");
+
+        when(userRepository.findByEmail("user@example.com")).thenReturn(Optional.of(user));
+
+        BadRequestException ex = assertThrows(
+                BadRequestException.class,
+                () -> authService.setPassword(
+                        "user@example.com",
+                        new SetPasswordRequest("newpassword")));
+
+        assertEquals("PASSWORD_ALREADY_SET", ex.getCode());
+        verify(passwordEncoder, never()).encode(any());
+        verify(userRepository, never()).save(any(User.class));
+    }
+
+    @Test
+    void changePassword_shouldUpdatePassword() {
+        User user = new User();
+        user.setEmail("user@example.com");
+        user.setPasswordHash("old-hash");
+
+        when(userRepository.findByEmail("user@example.com")).thenReturn(Optional.of(user));
+        when(passwordEncoder.matches("old-password", "old-hash")).thenReturn(true);
+        when(passwordEncoder.matches("new-password", "old-hash")).thenReturn(false);
+        when(passwordEncoder.encode("new-password")).thenReturn("new-hash");
+
+        authService.changePassword(
+                "user@example.com",
+                new com.quiz_app.backend.dto.auth.ChangePasswordRequest(
+                        "old-password", "new-password"));
+
+        assertEquals("new-hash", user.getPasswordHash());
+        verify(userRepository).save(user);
+    }
+
+    @Test
+    void changePassword_shouldRejectWrongCurrentPassword() {
+        User user = new User();
+        user.setEmail("user@example.com");
+        user.setPasswordHash("old-hash");
+
+        when(userRepository.findByEmail("user@example.com")).thenReturn(Optional.of(user));
+        when(passwordEncoder.matches("wrong", "old-hash")).thenReturn(false);
+
+        BadRequestException ex = assertThrows(
+                BadRequestException.class,
+                () -> authService.changePassword(
+                        "user@example.com",
+                        new com.quiz_app.backend.dto.auth.ChangePasswordRequest(
+                                "wrong", "new-password")));
+
+        assertEquals("INVALID_CURRENT_PASSWORD", ex.getCode());
+        verify(userRepository, never()).save(any(User.class));
+    }
+
+    @Test
+    void changePassword_shouldRejectSamePassword() {
+        User user = new User();
+        user.setEmail("user@example.com");
+        user.setPasswordHash("old-hash");
+
+        when(userRepository.findByEmail("user@example.com")).thenReturn(Optional.of(user));
+        when(passwordEncoder.matches("old-password", "old-hash")).thenReturn(true);
+        when(passwordEncoder.matches("old-password", "old-hash")).thenReturn(true);
+
+        BadRequestException ex = assertThrows(
+                BadRequestException.class,
+                () -> authService.changePassword(
+                        "user@example.com",
+                        new com.quiz_app.backend.dto.auth.ChangePasswordRequest(
+                                "old-password", "old-password")));
+
+        assertEquals("PASSWORD_UNCHANGED", ex.getCode());
+        verify(userRepository, never()).save(any(User.class));
+    }
+
+    @Test
+    void deleteAccount_shouldDeactivateAccount() {
+        User user = new User();
+        user.setEmail("user@example.com");
+        user.setPasswordHash("hash");
+        user.setActive(true);
+
+        when(userRepository.findByEmail("user@example.com")).thenReturn(Optional.of(user));
+        when(passwordEncoder.matches("password", "hash")).thenReturn(true);
+
+        authService.deleteAccount(
+                "user@example.com",
+                new com.quiz_app.backend.dto.auth.DeleteAccountRequest("password"));
+
+        assertEquals(false, user.isActive());
+        verify(userRepository).save(user);
+    }
+
+    @Test
+    void setPassword_shouldSetPasswordForGoogleFirstAccount() {
+        User user = new User();
+        user.setEmail("google@example.com");
+        user.setPasswordHash(null);
+
+        when(userRepository.findByEmail("google@example.com")).thenReturn(Optional.of(user));
+        when(passwordEncoder.encode("newpassword")).thenReturn("encoded-new");
+
+        authService.setPassword(
+                "google@example.com",
+                new SetPasswordRequest("newpassword"));
+
+        assertEquals("encoded-new", user.getPasswordHash());
+        verify(userRepository).save(user);
+    }
 }

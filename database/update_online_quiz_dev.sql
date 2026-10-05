@@ -98,3 +98,85 @@ CREATE INDEX IF NOT EXISTS idx_email_verification_tokens_expiry
     ON email_verification_tokens(expires_at);
 
 
+-- =========================================================
+-- Authentication + Institution SSO: User Identities (OIDC)
+-- =========================================================
+
+CREATE TABLE IF NOT EXISTS user_identities (
+    identity_id BIGSERIAL PRIMARY KEY,
+    user_id BIGINT NOT NULL REFERENCES users(user_id) ON DELETE CASCADE,
+    provider VARCHAR(30) NOT NULL,
+    issuer VARCHAR(500) NOT NULL,
+    subject VARCHAR(255) NOT NULL,
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT uq_user_identity UNIQUE (issuer, subject)
+);
+
+CREATE INDEX IF NOT EXISTS idx_user_identities_user_id
+    ON user_identities(user_id);
+
+
+
+
+-- =========================================================
+-- Password Reset Tokens
+-- =========================================================
+
+CREATE TABLE IF NOT EXISTS password_reset_tokens (
+    token_id BIGSERIAL PRIMARY KEY,
+    user_id BIGINT NOT NULL
+        REFERENCES users(user_id)
+        ON UPDATE CASCADE
+        ON DELETE CASCADE,
+    token_hash VARCHAR(255) NOT NULL UNIQUE,
+    expires_at TIMESTAMP NOT NULL,
+    used BOOLEAN NOT NULL DEFAULT FALSE,
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX IF NOT EXISTS idx_password_reset_tokens_user
+    ON password_reset_tokens(user_id);
+
+CREATE INDEX IF NOT EXISTS idx_password_reset_tokens_expiry
+    ON password_reset_tokens(expires_at);
+
+-- =========================================================
+-- Notification Preferences
+-- =========================================================
+
+CREATE TABLE IF NOT EXISTS user_notification_preferences (
+    preference_id BIGSERIAL PRIMARY KEY,
+    user_id BIGINT NOT NULL UNIQUE
+        REFERENCES users(user_id)
+        ON UPDATE CASCADE
+        ON DELETE CASCADE,
+    assessment_results BOOLEAN NOT NULL DEFAULT TRUE,
+    upcoming_assessments BOOLEAN NOT NULL DEFAULT TRUE,
+    proctoring_reports BOOLEAN NOT NULL DEFAULT FALSE,
+    browser_push BOOLEAN NOT NULL DEFAULT FALSE
+);
+
+-- =========================================================
+-- Proctoring Events
+-- =========================================================
+
+CREATE TABLE IF NOT EXISTS quiz_attempt_proctoring_events (
+    event_id BIGSERIAL PRIMARY KEY,
+    attempt_id BIGINT NOT NULL
+        REFERENCES quiz_attempts(attempt_id)
+        ON DELETE CASCADE,
+    event_type VARCHAR(40) NOT NULL,
+    occurred_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    metadata_json TEXT,
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX IF NOT EXISTS idx_proctoring_events_attempt_time
+    ON quiz_attempt_proctoring_events(attempt_id, occurred_at);
+
+CREATE INDEX IF NOT EXISTS idx_proctoring_events_attempt_type
+    ON quiz_attempt_proctoring_events(attempt_id, event_type);
+
+
+ALTER TABLE quiz_attempts
+    ADD COLUMN IF NOT EXISTS termination_reason VARCHAR(50);

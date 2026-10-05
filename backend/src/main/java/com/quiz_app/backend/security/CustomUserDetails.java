@@ -2,6 +2,7 @@ package com.quiz_app.backend.security;
 
 import java.util.Collection;
 import java.util.Collections;
+import java.util.Locale;
 
 import org.springframework.security.core.GrantedAuthority;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
@@ -25,7 +26,12 @@ public class CustomUserDetails implements UserDetails {
         this.password = user.getPasswordHash();
         this.active = user.isActive();
 
-        String roleName = user.getRole() != null ? user.getRole().getName() : "STUDENT";
+        if (user.getRole() == null || user.getRole().getName() == null
+                || user.getRole().getName().isBlank()) {
+            throw new IllegalStateException("User has no valid role");
+        }
+
+        String roleName = user.getRole().getName().trim().toUpperCase(Locale.ROOT);
         if (!roleName.startsWith("ROLE_")) {
             roleName = "ROLE_" + roleName;
         }

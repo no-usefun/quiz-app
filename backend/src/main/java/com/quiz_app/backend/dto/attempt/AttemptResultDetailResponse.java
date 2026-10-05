@@ -8,6 +8,7 @@ import com.quiz_app.backend.entity.AnswerStatus;
 public record AttemptResultDetailResponse(
         Long questionId,
         String questionText,
+        String explanation,
         Integer displayOrder,
         List<Long> selectedOptionIds,
         List<Long> correctOptionIds,

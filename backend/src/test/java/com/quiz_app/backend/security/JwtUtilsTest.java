@@ -2,6 +2,7 @@ package com.quiz_app.backend.security;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -47,6 +48,15 @@ class JwtUtilsTest {
         assertTrue(jwtUtils.validateToken(token));
         assertEquals("jane.doe@university.edu", jwtUtils.getEmailFromToken(token));
         assertEquals("TEACHER", jwtUtils.getRoleFromToken(token));
+    }
+
+    @Test
+    void generateToken_shouldFailClosedWhenRoleIsMissing() {
+        User user = new User();
+        user.setEmail("user@example.com");
+        user.setAuthProvider("LOCAL");
+
+        assertThrows(IllegalStateException.class, () -> jwtUtils.generateToken(user));
     }
 
     @Test

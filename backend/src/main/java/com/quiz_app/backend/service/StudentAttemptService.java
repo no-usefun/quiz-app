@@ -16,6 +16,9 @@ import java.util.stream.Collectors;
 import org.springframework.stereotype.Service;
 
 import com.quiz_app.backend.dto.attempt.AttemptResponse;
+import com.quiz_app.backend.dto.attempt.AttemptAnswerStateResponse;
+import com.quiz_app.backend.dto.attempt.AttemptStateResponse;
+import com.quiz_app.backend.dto.attempt.ProctoringEventRequest;
 import com.quiz_app.backend.dto.attempt.AttemptResultDetailResponse;
 import com.quiz_app.backend.dto.attempt.AttemptResultResponse;
 import com.quiz_app.backend.dto.attempt.LeaderboardEntryResponse;
@@ -30,6 +33,7 @@ import com.quiz_app.backend.entity.Option;
 import com.quiz_app.backend.entity.Question;
 import com.quiz_app.backend.entity.Quiz;
 import com.quiz_app.backend.entity.QuizAttempt;
+import com.quiz_app.backend.entity.QuizAttemptProctoringEvent;
 import com.quiz_app.backend.entity.QuizAvailabilityStatus;
 import com.quiz_app.backend.entity.QuizStatus;
 import com.quiz_app.backend.entity.ResultVisibility;
@@ -44,6 +48,7 @@ import com.quiz_app.backend.repository.OptionRepository;
 import com.quiz_app.backend.repository.QuestionRepository;
 import com.quiz_app.backend.repository.QuizAllowedStudentRepository;
 import com.quiz_app.backend.repository.QuizAttemptRepository;
+import com.quiz_app.backend.repository.QuizAttemptProctoringEventRepository;
 import com.quiz_app.backend.repository.QuizRepository;
 import com.quiz_app.backend.repository.StudentAnswerRepository;
 import com.quiz_app.backend.repository.StudentSelectedOptionRepository;
@@ -55,6 +60,7 @@ import jakarta.transaction.Transactional;
 public class StudentAttemptService {
 
         private final QuizAttemptRepository quizAttemptRepository;
+        private final QuizAttemptProctoringEventRepository proctoringEventRepository;
         private final QuizRepository quizRepository;
         private final UserRepository userRepository;
         private final StudentAnswerRepository studentAnswerRepository;
@@ -67,7 +73,9 @@ public class StudentAttemptService {
         private static final ZoneId QUIZ_TIMEZONE = ZoneId.of("Asia/Kolkata");
 
         public StudentAttemptService(
-                        QuizAttemptRepository quizAttemptRepository, QuizRepository quizRepository,
+                        QuizAttemptRepository quizAttemptRepository,
+                        QuizAttemptProctoringEventRepository proctoringEventRepository,
+                        QuizRepository quizRepository,
                         UserRepository userRepository,
                         StudentAnswerRepository studentAnswerRepository,
                         StudentSelectedOptionRepository studentSelectedOptionRepository,
@@ -76,6 +84,7 @@ public class StudentAttemptService {
                         QuizAllowedStudentRepository quizAllowedStudentRepository,
                         Clock clock) {
                 this.quizAttemptRepository = quizAttemptRepository;
+                this.proctoringEventRepository = proctoringEventRepository;
                 this.quizRepository = quizRepository;
                 this.userRepository = userRepository;
                 this.studentAnswerRepository = studentAnswerRepository;
@@ -197,8 +206,21 @@ public class StudentAttemptService {
 
                         QuizAttempt attempt = existingAttempt.get();
 
-                        // An active attempt can be resumed.
+                        // Resume is explicitly controlled by the quiz setting.
                         if (attempt.getStatus() == AttemptStatus.IN_PROGRESS) {
+                                if (!quiz.isAllowResume()) {
+                                        throw new ConflictException(
+                                                        "ATTEMPT_RESUME_NOT_ALLOWED",
+                                                        "This assessment does not allow an unfinished attempt to be resumed.");
+                                }
+
+                                LocalDateTime effectiveDeadline = attempt.getStartedAt()
+                                                .plusSeconds(quiz.getOverallTimerSeconds());
+
+                                if (quiz.getEndTime() != null
+                                                && quiz.getEndTime().isBefore(effectiveDeadline)) {
+                                        effectiveDeadline = quiz.getEndTime();
+                                }
 
                                 return new AttemptResponse(
                                                 attempt.getId(),
@@ -208,7 +230,8 @@ public class StudentAttemptService {
                                                 attempt.getSubmittedAt(),
                                                 attempt.getStatus(),
                                                 attempt.getCurrentQuestion(),
-                                                attempt.getTotalTimeTaken());
+                                                attempt.getTotalTimeTaken(),
+                                                effectiveDeadline);
                         }
 
                         // A completed attempt cannot be started again.
@@ -237,6 +260,14 @@ public class StudentAttemptService {
 
                 attempt = quizAttemptRepository.save(attempt);
 
+                LocalDateTime effectiveDeadline = attempt.getStartedAt()
+                                .plusSeconds(quiz.getOverallTimerSeconds());
+
+                if (quiz.getEndTime() != null
+                                && quiz.getEndTime().isBefore(effectiveDeadline)) {
+                        effectiveDeadline = quiz.getEndTime();
+                }
+
                 // 9. Return safe response
                 return new AttemptResponse(
                                 attempt.getId(),
@@ -246,7 +277,8 @@ public class StudentAttemptService {
                                 attempt.getSubmittedAt(),
                                 attempt.getStatus(),
                                 attempt.getCurrentQuestion(),
-                                attempt.getTotalTimeTaken());
+                                attempt.getTotalTimeTaken(),
+                                effectiveDeadline);
         }
 
         private void validateSelectionCount(
@@ -311,6 +343,13 @@ public class StudentAttemptService {
                         throw new AccessDeniedApplicationException(
                                         "ATTEMPT_NOT_OWNED",
                                         "You are not authorized to access this attempt");
+                }
+
+                LocalDateTime now = LocalDateTime.now(clock.withZone(QUIZ_TIMEZONE));
+                if (!isAttemptDeadlineExceeded(attempt, attempt.getQuiz(), now)) {
+                        throw new ConflictException(
+                                        "ATTEMPT_DEADLINE_NOT_REACHED",
+                                        "The attempt deadline has not been reached yet");
                 }
 
                 return finalizeAttempt(
@@ -758,6 +797,129 @@ public class StudentAttemptService {
                 return (int) Math.max(0, timeTaken);
         }
 
+        @Transactional
+        public AttemptStateResponse getAttemptState(Long attemptId, Long studentId) {
+                QuizAttempt attempt = getOwnedAttempt(attemptId, studentId);
+
+                LocalDateTime effectiveDeadline = attempt.getStartedAt()
+                                .plusSeconds(attempt.getQuiz().getOverallTimerSeconds());
+
+                if (attempt.getQuiz().getEndTime() != null
+                                && attempt.getQuiz().getEndTime().isBefore(effectiveDeadline)) {
+                        effectiveDeadline = attempt.getQuiz().getEndTime();
+                }
+
+                List<AttemptAnswerStateResponse> answers = studentAnswerRepository
+                                .findByAttemptId(attemptId)
+                                .stream()
+                                .map(answer -> new AttemptAnswerStateResponse(
+                                                answer.getQuestion().getId(),
+                                                studentSelectedOptionRepository.findByAnswerId(answer.getId())
+                                                                .stream()
+                                                                .map(selected -> selected.getOption().getId())
+                                                                .toList(),
+                                                answer.getResponseTimeSeconds(),
+                                                answer.getAnsweredAt()))
+                                .toList();
+
+                return new AttemptStateResponse(
+                                attempt.getId(),
+                                attempt.getQuiz().getId(),
+                                attempt.getStatus(),
+                                effectiveDeadline,
+                                attempt.getCurrentQuestion(),
+                                attempt.getTotalTimeTaken(),
+                                answers);
+        }
+
+        @Transactional
+        public void recordProctoringEvent(
+                        Long attemptId,
+                        Long studentId,
+                        ProctoringEventRequest request) {
+
+                QuizAttempt attempt = getOwnedAttempt(attemptId, studentId);
+
+                if (attempt.getStatus() != AttemptStatus.IN_PROGRESS) {
+                        throw new ConflictException(
+                                        "ATTEMPT_NOT_ACTIVE",
+                                        "Proctoring events can only be recorded for an active attempt");
+                }
+
+                String eventType = request.type().trim().toLowerCase(java.util.Locale.ROOT);
+                Set<String> allowedTypes = Set.of(
+                                "tab_switch", "fullscreen_exit", "right_click",
+                                "copy_attempt", "cut_attempt", "paste_attempt",
+                                "focus_loss", "keyboard_attempt",
+                                "refresh_count", "reconnect_count");
+
+                if (!allowedTypes.contains(eventType)) {
+                        throw new BadRequestException(
+                                        "INVALID_PROCTORING_EVENT",
+                                        "Unsupported proctoring event type");
+                }
+
+                QuizAttemptProctoringEvent event = new QuizAttemptProctoringEvent();
+                event.setAttempt(attempt);
+                event.setEventType(eventType);
+                event.setOccurredAt(request.occurredAt() == null
+                                ? LocalDateTime.now(clock.withZone(QUIZ_TIMEZONE))
+                                : request.occurredAt());
+                try {
+                        event.setMetadataJson(request.metadata() == null
+                                        ? null
+                                        : new com.fasterxml.jackson.databind.ObjectMapper()
+                                                        .writeValueAsString(request.metadata()));
+                        proctoringEventRepository.save(event);
+                } catch (com.fasterxml.jackson.core.JsonProcessingException e) {
+                        throw new BadRequestException(
+                                        "INVALID_PROCTORING_METADATA",
+                                        "Proctoring metadata could not be serialized");
+                }
+
+                if ("refresh_count".equals(eventType)) {
+                        attempt.setRefreshCount(attempt.getRefreshCount() + 1);
+                } else if ("reconnect_count".equals(eventType)) {
+                        attempt.setReconnectCount(attempt.getReconnectCount() + 1);
+                }
+
+                if ("tab_switch".equals(eventType)) {
+                        long tabSwitchCount = proctoringEventRepository
+                                        .countByAttemptIdAndEventType(attemptId, "tab_switch");
+
+                        Integer maxTabSwitch = attempt.getQuiz().getMaxTabSwitch();
+                        if (maxTabSwitch != null && tabSwitchCount > maxTabSwitch) {
+                                attempt.setTerminationReason("TAB_SWITCH_LIMIT");
+                                quizAttemptRepository.save(attempt);
+                                finalizeAttempt(attempt, AttemptStatus.AUTO_SUBMITTED);
+                                return;
+                        }
+                }
+
+                quizAttemptRepository.save(attempt);
+        }
+
+        private QuizAttempt getOwnedAttempt(Long attemptId, Long studentId) {
+                if (attemptId == null || studentId == null) {
+                        throw new BadRequestException(
+                                        "ATTEMPT_ID_REQUIRED",
+                                        "Attempt ID and authenticated student are required");
+                }
+
+                QuizAttempt attempt = quizAttemptRepository.findById(attemptId)
+                                .orElseThrow(() -> new AccessDeniedApplicationException(
+                                                "ATTEMPT_NOT_OWNED",
+                                                "You are not authorized to access this attempt"));
+
+                if (attempt.getStudent() == null || !attempt.getStudent().getId().equals(studentId)) {
+                        throw new AccessDeniedApplicationException(
+                                        "ATTEMPT_NOT_OWNED",
+                                        "You are not authorized to access this attempt");
+                }
+
+                return attempt;
+        }
+
         public AttemptResultResponse getAttemptResult(
                         Long attemptId,
                         Long studentId) {
@@ -925,6 +1087,7 @@ public class StudentAttemptService {
                                         new AttemptResultDetailResponse(
                                                         question.getId(),
                                                         question.getQuestionText(),
+                                                        question.getExplanation(),
                                                         question.getDisplayOrder(),
                                                         selectedOptionIds,
                                                         correctOptionIds,
