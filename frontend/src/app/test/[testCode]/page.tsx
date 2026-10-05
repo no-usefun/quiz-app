@@ -444,6 +444,16 @@ export default function TestArenaPage({
                 );
               }
 
+              if (serverState.status !== "IN_PROGRESS") {
+                setSubmittedAttemptId(String(serverState.attemptId));
+                setIsSubmitted(true);
+                if (serverState.status === "AUTO_SUBMITTED") {
+                  setDeadlineNotice(
+                    "The server has already automatically submitted this assessment attempt.",
+                  );
+                }
+              }
+
               if (serverState.effectiveDeadline) {
                 setEffectiveDeadline(serverState.effectiveDeadline);
               }
