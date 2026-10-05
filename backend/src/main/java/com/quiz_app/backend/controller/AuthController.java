@@ -14,6 +14,8 @@ import org.springframework.web.bind.annotation.RestController;
 
 import com.quiz_app.backend.dto.auth.AuthResponse;
 import com.quiz_app.backend.dto.auth.ChangePasswordRequest;
+import com.quiz_app.backend.dto.auth.ForgotPasswordRequest;
+import com.quiz_app.backend.dto.auth.ResetPasswordRequest;
 import com.quiz_app.backend.dto.auth.DeleteAccountRequest;
 import com.quiz_app.backend.dto.auth.LoginRequest;
 import com.quiz_app.backend.dto.auth.ResendVerificationRequest;
@@ -25,6 +27,7 @@ import com.quiz_app.backend.dto.auth.UserSummaryResponse;
 import com.quiz_app.backend.exception.BadRequestException;
 import com.quiz_app.backend.service.AuthService;
 import com.quiz_app.backend.service.EmailVerificationService;
+import com.quiz_app.backend.service.PasswordResetService;
 
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -37,13 +40,16 @@ public class AuthController {
 
     private final AuthService authService;
     private final EmailVerificationService emailVerificationService;
+    private final PasswordResetService passwordResetService;
 
     public AuthController(
             AuthService authService,
-            EmailVerificationService emailVerificationService) {
+            EmailVerificationService emailVerificationService,
+            PasswordResetService passwordResetService) {
 
         this.authService = authService;
         this.emailVerificationService = emailVerificationService;
+        this.passwordResetService = passwordResetService;
     }
 
     @Operation(summary = "Register a student account", description = "Creates a student account and sends an email verification link. The account must be verified before login.")
@@ -111,6 +117,26 @@ public class AuthController {
         emailVerificationService.resendVerification(request.email());
 
         return ResponseEntity.ok().build();
+    }
+
+    @PostMapping("/forgot-password")
+    public ResponseEntity<com.quiz_app.backend.dto.auth.ApiResponse> forgotPassword(
+            @Valid @RequestBody ForgotPasswordRequest request) {
+
+        passwordResetService.requestReset(request.email());
+        return ResponseEntity.ok(
+                com.quiz_app.backend.dto.auth.ApiResponse.ok(
+                        "If the account is eligible, a password reset email has been sent."));
+    }
+
+    @PostMapping("/reset-password")
+    public ResponseEntity<com.quiz_app.backend.dto.auth.ApiResponse> resetPassword(
+            @Valid @RequestBody ResetPasswordRequest request) {
+
+        passwordResetService.resetPassword(request.token(), request.newPassword());
+        return ResponseEntity.ok(
+                com.quiz_app.backend.dto.auth.ApiResponse.ok(
+                        "Password has been reset successfully."));
     }
 
     @PostMapping("/set-password")
