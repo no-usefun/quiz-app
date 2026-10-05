@@ -70,6 +70,19 @@ export default function StudentLeaderboardPage({
     } catch (err) {
       if (err instanceof ApiClientError && err.status === 401) {
         setError("Your student session has expired. Please log in again.");
+      } else if (
+        err instanceof ApiClientError &&
+        err.status === 400 &&
+        ["LEADERBOARD_NOT_AVAILABLE", "RESULTS_NOT_PUBLISHED"].includes(
+          String(err.errorCode || "").toUpperCase(),
+        )
+      ) {
+        setEntries([]);
+        setError(
+          String(err.errorCode || "").toUpperCase() === "RESULTS_NOT_PUBLISHED"
+            ? "The instructor has not published the results yet."
+            : "The instructor has not enabled the leaderboard for this assessment.",
+        );
       } else if (err instanceof ApiClientError && err.status === 0) {
         setError(
           "Quizly backend is unreachable. Start the Spring Boot server and verify NEXT_PUBLIC_API_URL.",
