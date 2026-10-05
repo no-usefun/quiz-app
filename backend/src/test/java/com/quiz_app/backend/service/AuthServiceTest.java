@@ -215,7 +215,7 @@ class AuthServiceTest {
         when(userRepository.findByEmail("alex@example.com")).thenReturn(Optional.of(user));
         when(passwordEncoder.matches("wrong", "encoded")).thenReturn(false);
 
-        assertThrows(BadCredentialsException.class, () -> authService.login(request, "STUDENT"));
+        assertThrows(BadCredentialsException.class, () -> authService.login(request));
     }
 
     @Test
