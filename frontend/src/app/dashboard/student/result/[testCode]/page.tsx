@@ -197,11 +197,6 @@ export default function StudentResultPage({
           totalTimeTaken: formatNumber(resultData.totalTimeTaken),
           startedAt: resultData.startedAt,
           submittedAt: resultData.submittedAt,
-          timeBonusAwarded:
-            resultData.timeBonusAwarded != null
-              ? Number(resultData.timeBonusAwarded)
-              : null,
-          timeBonusApplied: resultData.timeBonusApplied === true,
         };
 
         let detailList: ResultDetail[] = [];
@@ -560,89 +555,6 @@ export default function StudentResultPage({
                     Total Time
                   </p>
                 </div>
-
-                {result.timeBonusApplied && result.timeBonusAwarded != null && (
-                  <div className="rounded-[12px] border border-[#73561a]/20 bg-[#f6efe1] p-3 text-center shadow-xs">
-                    <div className="mx-auto mb-1 inline-flex h-6 w-6 items-center justify-center rounded-[8px] bg-white border border-[#73561a]/20 text-[#73561a] shadow-xs">
-                      <Award className="h-3.5 w-3.5" />
-                    </div>
-
-                    <p className="text-base font-black text-[#73561a]">
-                      +{formatDisplayNumber(result.timeBonusAwarded)}
-                    </p>
-
-                    <p className="text-[9px] text-[#73561a] font-bold uppercase tracking-wider">
-                      Time Bonus
-                    </p>
-                  </div>
-                )
-              </div>
-            </div>
-          </div>
-        </section>
-
-        {canRevealSolutions && details.length > 0 ? (
-          <section className="space-y-2.5">
-            <h2 className="text-xs font-bold text-[#111111] uppercase tracking-wider">
-              Question Breakdown &amp; Solutions
-            </h2>
-
-            <div className="rounded-[14px] bg-white border border-[#d1dee8]/70 overflow-hidden divide-y divide-[#d1dee8]/40 shadow-sm">
-              {[...details]
-                .sort((a, b) => a.displayOrder - b.displayOrder)
-                .map((detail, idx) => (
-                  <div
-                    key={`${detail.questionId}-${idx}`}
-                    className="p-4 sm:p-5 space-y-2.5 text-xs"
-                  >
-                    <div className="flex items-start justify-between gap-2">
-                      <p className="font-bold text-[#111111] leading-snug">
-                        {idx + 1}. {detail.questionText || "Question"}
-                      </p>
-
-                      {detail.correct ? (
-                        <span className="inline-flex items-center gap-1 rounded-full bg-[#e2ede8] text-[#1d5237] px-2.5 py-0.5 text-[10px] font-bold shrink-0 shadow-xs">
-                          <CheckCircle2 className="h-3 w-3" />
-                          Correct
-                        </span>
-                      ) : (
-                        <span className="inline-flex items-center gap-1 rounded-full bg-[#fbeee8] text-[#8c381c] px-2.5 py-0.5 text-[10px] font-bold shrink-0 shadow-xs">
-                          <XCircle className="h-3 w-3" />
-                          Incorrect
-                        </span>
-                      )}
-                    </div>
-
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-[11px]">
-                      <div className="rounded-[10px] bg-[#f5f5f4] p-2.5 border border-[#d1dee8]/80 shadow-xs">
-                        <span className="text-[#78716b] block text-[9px] uppercase font-bold">
-                          Your Selected Option IDs:
-                        </span>
-
-                        <span className="font-semibold text-[#111111]">
-                          {formatOptionIds(detail.selectedOptionIds)}
-                        </span>
-                      </div>
-
-                      <div className="rounded-[10px] bg-[#e2ede8]/60 p-2.5 border border-[#1d5237]/20 shadow-xs">
-                        <span className="text-[#1d5237] block text-[9px] uppercase font-bold">
-                          Correct Option IDs:
-                        </span>
-
-                        <span className="font-bold text-[#1d5237]">
-                          {formatOptionIds(detail.correctOptionIds)}
-                        </span>
-                      </div>
-                    </div>
-
-                    {detail.explanation && (
-                      <div className="rounded-[10px] border border-[#d1dee8]/70 bg-[#eef4ff] p-2.5 text-[10px] leading-relaxed text-[#3f4b5f]">
-                        <span className="mb-1 block text-[9px] font-bold uppercase tracking-wider text-[#165dfb]">
-                          Explanation
-                        </span>
-                        {detail.explanation}
-                      </div>
-                    )}
 
                     <div className="flex flex-wrap gap-3 text-[10px] text-[#78716b] font-medium">
                       <span>
