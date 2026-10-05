@@ -797,7 +797,7 @@ public class StudentAttemptService {
                 return (int) Math.max(0, timeTaken);
         }
 
-        @Transactional(readOnly = true)
+        @Transactional
         public AttemptStateResponse getAttemptState(Long attemptId, Long studentId) {
                 QuizAttempt attempt = getOwnedAttempt(attemptId, studentId);
 
