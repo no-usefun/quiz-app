@@ -512,93 +512,185 @@ export function useProctoring(options: UseProctoringOptions = {}) {
         setProctorStatus("ACTIVE");
         setStatusMessage("Background Edge-AI Vision & Gaze proctor active");
 
-        // Edge-AI Face Detection & Identity Analysis Loop
-        const hasNativeFaceDetector =
-          typeof window !== "undefined" && "FaceDetector" in window;
-        const faceDetector = hasNativeFaceDetector
-          ? new (window as any).FaceDetector({ fastMode: true, maxDetectedFaces: 5 })
-          : null;
+        // Client-side AI face/gaze analysis.
+        // We prefer MediaPipe FaceLandmarker because the browser FaceDetector API
+        // is not consistently available in desktop browsers.
+        let aiFaceLandmarker: any = null;
+        let aiInitFailed = false;
+
+        try {
+          const visionModule: any = await import(
+            /* webpackIgnore: true */
+            "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.22/vision_bundle.js"
+          );
+          const { FaceLandmarker, FilesetResolver } = visionModule;
+          const vision = await FilesetResolver.forVisionTasks(
+            "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.22/wasm",
+          );
+
+          aiFaceLandmarker = await FaceLandmarker.createFromOptions(vision, {
+            baseOptions: {
+              modelAssetPath:
+                "https://storage.googleapis.com/mediapipe-models/face_landmarker/face_landmarker/float16/1/face_landmarker.task",
+              delegate: "GPU",
+            },
+            runningMode: "VIDEO",
+            numFaces: 2,
+            minFaceDetectionConfidence: 0.5,
+            minFacePresenceConfidence: 0.5,
+            minTrackingConfidence: 0.5,
+          });
+
+          setStatusMessage("AI face & gaze detector initialized");
+        } catch (aiError) {
+          aiInitFailed = true;
+          console.warn("MediaPipe AI initialization failed; trying native detector:", aiError);
+        }
+
+        let nativeFaceDetector: any = null;
+        if (!aiFaceLandmarker && "FaceDetector" in window) {
+          try {
+            nativeFaceDetector = new (window as any).FaceDetector({
+              fastMode: true,
+              maxDetectedFaces: 5,
+            });
+          } catch {
+            nativeFaceDetector = null;
+          }
+        }
+
+        if (!aiFaceLandmarker && !nativeFaceDetector) {
+          setProctorStatus("WARNING");
+          setStatusMessage(
+            aiInitFailed
+              ? "AI face detector unavailable. Camera monitoring remains active, but face analysis is unavailable."
+              : "Face detector unavailable. Camera monitoring remains active.",
+          );
+        }
 
         const canvas = document.createElement("canvas");
         canvas.width = 320;
         canvas.height = 240;
         const ctx = canvas.getContext("2d", { willReadFrequently: true });
-
         let totalGazeDeviations = 0;
+        let lastFaceEventAt = 0;
 
-        analysisInterval = setInterval(async () => {
-          if (!videoRef.current || isAutoSubmittedRef.current || !isMounted) return;
+        const logFaceViolation = (type: string, details: string) => {
+          const now = Date.now();
+          if (now - lastFaceEventAt < 5000) return;
+          lastFaceEventAt = now;
+          setProctorStatus("WARNING");
+          setStatusMessage(details);
+          logEventToBackend(type, details);
+        };
 
-          if (videoRef.current.readyState >= 2) {
-            if (faceDetector) {
-              try {
-                const faces = await faceDetector.detect(videoRef.current);
-                if (faces.length === 0) {
-                  consecutiveNoFaceRef.current += 1;
-                  consecutiveMultiFaceRef.current = 0;
+        const analyzeFrame = async () => {
+          const video = videoRef.current;
+          if (!video || video.readyState < 2 || isAutoSubmittedRef.current || !isMounted) {
+            return;
+          }
 
-                  if (consecutiveNoFaceRef.current >= 4) {
-                    setFaceStatus("NO_FACE");
-                    setStatusMessage("Prompt: Please align your face in camera view");
-                    consecutiveNoFaceRef.current = 0;
-                  }
-                } else if (faces.length > 1) {
-                  consecutiveMultiFaceRef.current += 1;
+          try {
+            if (aiFaceLandmarker) {
+              const result = aiFaceLandmarker.detectForVideo(video, performance.now());
+              const faces = result?.faceLandmarks || [];
+
+              if (faces.length === 0) {
+                consecutiveNoFaceRef.current += 1;
+                consecutiveMultiFaceRef.current = 0;
+                if (consecutiveNoFaceRef.current >= 3) {
+                  setFaceStatus("NO_FACE");
+                  logFaceViolation("FACE_NOT_DETECTED", "No face detected in camera frame");
                   consecutiveNoFaceRef.current = 0;
+                }
+                return;
+              }
 
-                  if (consecutiveMultiFaceRef.current >= 2) {
-                    setFaceStatus("MULTIPLE_FACES");
-                    setProctorStatus("WARNING");
-                    setStatusMessage("Alert: Multiple people detected in camera frame!");
-                    logEventToBackend(
-                      "MULTIPLE_FACES",
-                      `Multiple faces (${faces.length}) detected in camera view`,
+              if (faces.length > 1) {
+                consecutiveMultiFaceRef.current += 1;
+                consecutiveNoFaceRef.current = 0;
+                if (consecutiveMultiFaceRef.current >= 2) {
+                  setFaceStatus("MULTIPLE_FACES");
+                  logFaceViolation(
+                    "MULTIPLE_FACES",
+                    `Multiple faces (${faces.length}) detected in camera frame`,
+                  );
+                  consecutiveMultiFaceRef.current = 0;
+                }
+                return;
+              }
+
+              consecutiveNoFaceRef.current = 0;
+              consecutiveMultiFaceRef.current = 0;
+              const landmarks = faces[0];
+
+              // Lightweight head/gaze-direction heuristic from stable facial landmarks.
+              // This is intentionally described as "looking away", not identity recognition.
+              const nose = landmarks[1];
+              const leftEye = landmarks[33];
+              const rightEye = landmarks[263];
+
+              if (nose && leftEye && rightEye) {
+                const eyeMidX = (leftEye.x + rightEye.x) / 2;
+                const eyeDistance = Math.max(Math.abs(rightEye.x - leftEye.x), 0.001);
+                const horizontalOffset = (nose.x - eyeMidX) / eyeDistance;
+
+                if (Math.abs(horizontalOffset) > 0.42) {
+                  consecutiveLookingAwayRef.current += 1;
+                  if (consecutiveLookingAwayRef.current >= 3) {
+                    totalGazeDeviations += 1;
+                    setFaceStatus("LOOKING_AWAY");
+                    logFaceViolation(
+                      "LOOKING_AWAY",
+                      `Candidate appears to be looking away (event #${totalGazeDeviations})`,
                     );
-                    consecutiveMultiFaceRef.current = 0;
+                    consecutiveLookingAwayRef.current = 0;
                   }
                 } else {
-                  consecutiveNoFaceRef.current = 0;
-                  consecutiveMultiFaceRef.current = 0;
-
-                  const faceBox = faces[0].boundingBox;
-                  const videoW = videoRef.current.videoWidth || 320;
-                  const faceCenterX = faceBox.x + faceBox.width / 2;
-                  const normalizedX = faceCenterX / videoW;
-
-                  if (normalizedX < 0.18 || normalizedX > 0.82) {
-                    consecutiveLookingAwayRef.current += 1;
-                    if (consecutiveLookingAwayRef.current >= 3) {
-                      totalGazeDeviations += 1;
-                      setFaceStatus("LOOKING_AWAY");
-                      consecutiveLookingAwayRef.current = 0;
-
-                      if (totalGazeDeviations >= 10) {
-                        setProctorStatus("WARNING");
-                        setStatusMessage("Warning: Looking away from test screen frequently (>10 times)!");
-                        logEventToBackend(
-                          "LOOKING_AWAY",
-                          `Candidate looked away from screen ${totalGazeDeviations} times`,
-                        );
-                      }
-                    }
-                  } else {
-                    consecutiveLookingAwayRef.current = 0;
-                    setFaceStatus("OK");
-                    setProctorStatus("ACTIVE");
-                    setStatusMessage("Face verified & gaze aligned");
-                  }
+                  consecutiveLookingAwayRef.current = 0;
+                  setFaceStatus("OK");
+                  setProctorStatus("ACTIVE");
+                  setStatusMessage("Face detected & gaze aligned");
                 }
-              } catch {
-                // Fallback to video frame capture
               }
-            } else {
-              // Standard optical keep-alive
-              setFaceStatus("OK");
-              setProctorStatus("ACTIVE");
-              setStatusMessage("Proctor active | Gaze aligned");
+              return;
             }
+
+            if (nativeFaceDetector) {
+              const faces = await nativeFaceDetector.detect(video);
+              if (faces.length === 0) {
+                consecutiveNoFaceRef.current += 1;
+                if (consecutiveNoFaceRef.current >= 3) {
+                  setFaceStatus("NO_FACE");
+                  logFaceViolation("FACE_NOT_DETECTED", "No face detected in camera frame");
+                  consecutiveNoFaceRef.current = 0;
+                }
+              } else if (faces.length > 1) {
+                consecutiveMultiFaceRef.current += 1;
+                if (consecutiveMultiFaceRef.current >= 2) {
+                  setFaceStatus("MULTIPLE_FACES");
+                  logFaceViolation(
+                    "MULTIPLE_FACES",
+                    `Multiple faces (${faces.length}) detected in camera frame`,
+                  );
+                  consecutiveMultiFaceRef.current = 0;
+                }
+              } else {
+                consecutiveNoFaceRef.current = 0;
+                consecutiveMultiFaceRef.current = 0;
+                setFaceStatus("OK");
+                setProctorStatus("ACTIVE");
+                setStatusMessage("Face detected");
+              }
+            }
+          } catch (analysisError) {
+            console.warn("AI frame analysis failed:", analysisError);
           }
-        }, 1500);
+        };
+
+        analysisInterval = setInterval(() => {
+          void analyzeFrame();
+        }, 1200);
 
         // Periodic snapshot capture & candidate identity analysis every 30 seconds
         snapshotInterval = setInterval(() => {
