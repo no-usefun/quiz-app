@@ -90,10 +90,13 @@ export default function IdentityVerificationPage({
 
     try {
       const storedUser = JSON.parse(localStorage.getItem("dynoquizz_user") || "{}");
+      // The registration number entered for the current assessment must take
+      // precedence over the registration number stored on the student account.
+      // The join page writes these session values before routing here.
       const storedRegistration =
-        storedUser?.registrationNo ||
-        localStorage.getItem("dynoquizz_regNo") ||
         sessionStorage.getItem("dynoquizz_student_reg") ||
+        localStorage.getItem("dynoquizz_regNo") ||
+        storedUser?.registrationNo ||
         "";
 
       if (storedRegistration) {
