@@ -22,7 +22,7 @@ export type QuestionType = "MCQ" | "MSQ" | "TRUE_FALSE";
 
 export type AttemptStatus = "IN_PROGRESS" | "SUBMITTED" | "AUTO_SUBMITTED";
 
-export type AnswerStatus = "UNANSWERED" | "ANSWERED" | "CORRECT" | "INCORRECT";
+export type AnswerStatus = "ANSWERED" | "UNANSWERED" | "MARKED_FOR_REVIEW";
 
 export type QuizAvailabilityStatus =
   | "NOT_FOUND"
