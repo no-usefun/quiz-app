@@ -20,7 +20,7 @@ export type ResultVisibility =
 
 export type QuestionType = "MCQ" | "MSQ" | "TRUE_FALSE";
 
-export type AttemptStatus = "IN_PROGRESS" | "SUBMITTED" | "AUTO_SUBMITTED" | "EXPIRED";
+export type AttemptStatus = "IN_PROGRESS" | "SUBMITTED" | "AUTO_SUBMITTED";
 
 export type AnswerStatus = "UNANSWERED" | "ANSWERED" | "CORRECT" | "INCORRECT";
 
@@ -210,7 +210,6 @@ export interface SubmitAttemptResponse {
   totalMarks: number;
   totalTimeTaken: number;
   submittedAt: string;
-  timeBonusAwarded?: number | null;
 }
 
 export interface AttemptSavedAnswer {
@@ -230,44 +229,10 @@ export interface AttemptStateResponse {
   totalTimeTaken?: number | null;
 }
 
-export interface SaveAnswerRequest {
-  selectedOptionIds: number[];
-  responseTimeSeconds: number;
-}
-
 export interface ProctoringEventRequest {
   type: string;
   occurredAt: string;
   metadata?: Record<string, string | number | boolean | null>;
-}
-
-export interface ProctoringEventResponse {
-  eventId: number;
-  attemptId: number;
-  type: string;
-  occurredAt: string;
-}
-
-export interface LiveAttemptResponse {
-  attemptId: number;
-  studentId: number;
-  studentName: string;
-  quizId: number;
-  status: AttemptStatus;
-  currentQuestion?: number | null;
-  startedAt: string;
-  lastSeenAt?: string | null;
-  totalTimeTaken?: number | null;
-  warningCount?: number | null;
-  tabSwitchCount?: number | null;
-  fullscreenExitCount?: number | null;
-  focusLossCount?: number | null;
-  copyAttemptCount?: number | null;
-  cutAttemptCount?: number | null;
-  pasteAttemptCount?: number | null;
-  keyboardAttemptCount?: number | null;
-  reconnectCount?: number | null;
-  refreshCount?: number | null;
 }
 
 export interface StudentSubmissionResponse {
@@ -296,8 +261,6 @@ export interface AttemptResultResponse {
   totalTimeTaken: number;
   startedAt: string;
   submittedAt: string;
-  timeBonusAwarded?: number | null;
-  timeBonusApplied?: boolean;
 }
 
 export interface AttemptResultDetailResponse {
