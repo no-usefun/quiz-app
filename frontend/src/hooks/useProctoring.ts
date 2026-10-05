@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useRef, useCallback, useMemo } from "react";
+import { FaceLandmarker, FilesetResolver } from "@mediapipe/tasks-vision";
 
 export interface ProctoringViolation {
   id: string;
@@ -519,12 +520,7 @@ export function useProctoring(options: UseProctoringOptions = {}) {
         let aiInitFailed = false;
 
         try {
-          const visionModule: any = await import(
-            /* webpackIgnore: true */
-            "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.22/vision_bundle.js"
-          );
-          const { FaceLandmarker, FilesetResolver } = visionModule;
-          const vision = await FilesetResolver.forVisionTasks(
+                    const vision = await FilesetResolver.forVisionTasks(
             "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.22/wasm",
           );
 
