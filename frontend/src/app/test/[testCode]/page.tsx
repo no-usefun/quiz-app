@@ -23,16 +23,11 @@ import { type ProctoringEvent, useProctoring } from "@/hooks/useProctoring";
 import { ApiClientError, api, getAuthToken } from "@/lib/api/client";
 import { ENDPOINTS } from "@/lib/api/endpoints";
 import type {
-  AttemptResponse,
   AttemptStateResponse,
   QuizPackageResponse,
   QuestionResponse,
   SubmitAttemptResponse,
 } from "@/lib/types";
-
-type AuthoritativeAttemptResponse = AttemptResponse & {
-  effectiveDeadline: string;
-};
 
 type ActiveAnswerState = Record<number, number[]>;
 
@@ -186,32 +181,6 @@ function persistAttemptState(
   } catch {
     // Ignore browser storage failures.
   }
-}
-
-function saveAttemptTiming(attempt: AuthoritativeAttemptResponse) {
-  if (typeof window === "undefined") {
-    return;
-  }
-
-  const attemptId = String(attempt.attemptId);
-
-  localStorage.setItem("dynoquizz_attemptId", attemptId);
-  localStorage.setItem(`dynoquizz_attemptId_${attempt.quizId}`, attemptId);
-
-  localStorage.setItem(
-    `dynoquizz_attemptTiming_${attemptId}`,
-    JSON.stringify({
-      attemptId: attempt.attemptId,
-      quizId: attempt.quizId,
-      studentId: attempt.studentId,
-      startedAt: attempt.startedAt,
-      submittedAt: attempt.submittedAt ?? null,
-      status: attempt.status,
-      currentQuestion: attempt.currentQuestion ?? null,
-      totalTimeTaken: attempt.totalTimeTaken ?? null,
-      effectiveDeadline: attempt.effectiveDeadline,
-    }),
-  );
 }
 
 function cachePackage(testCode: string, packageData: QuizPackageResponse) {
@@ -438,40 +407,6 @@ export default function TestArenaPage({
       }
 
       try {
-        const timingRaw = localStorage.getItem(
-          `dynoquizz_attemptTiming_${activeAttemptId}`,
-        );
-
-        if (!timingRaw) {
-          throw new Error(
-            "The authoritative assessment timing could not be restored.",
-          );
-        }
-
-        const timing = JSON.parse(timingRaw);
-
-        if (
-          typeof timing?.effectiveDeadline !== "string" ||
-          !timing.effectiveDeadline
-        ) {
-          throw new Error(
-            "The server did not return the authoritative assessment deadline.",
-          );
-        }
-
-        setEffectiveDeadline(timing.effectiveDeadline);
-      } catch (error) {
-        console.error("[Assessment Timing] Restore failed:", error);
-
-        setTestLoadError(
-          getErrorMessage(
-            error,
-            "The authoritative assessment timing could not be restored.",
-          ),
-        );
-      }
-
-      try {
         const stateRaw = localStorage.getItem(
           `dynoquizz_active_test_${activeAttemptId}`,
         );
@@ -551,34 +486,17 @@ export default function TestArenaPage({
 
         if (activeAttemptId) {
           try {
-            const timingRaw = localStorage.getItem(
-              `dynoquizz_attemptTiming_${activeAttemptId}`,
-            );
-
-            if (timingRaw) {
-              const timing = JSON.parse(timingRaw);
-
-              if (
-                timing?.quizId != null &&
-                Number(timing.quizId) !== Number(packageData.quizId)
-              ) {
-                throw new Error(
-                  "The active attempt does not belong to this assessment.",
-                );
-              }
-            }
-          } catch (error) {
-            throw error;
-          }
-        }
-
-        if (activeAttemptId) {
-          try {
             const serverState = await api.get<AttemptStateResponse>(
               ENDPOINTS.student.attemptState(activeAttemptId),
             );
 
             if (!cancelled && serverState) {
+              if (Number(serverState.quizId) !== Number(packageData.quizId)) {
+                throw new Error(
+                  "The active server attempt does not belong to this assessment.",
+                );
+              }
+
               if (serverState.effectiveDeadline) {
                 setEffectiveDeadline(serverState.effectiveDeadline);
               }
@@ -927,7 +845,6 @@ export default function TestArenaPage({
 
       localStorage.removeItem(`dynoquizz_attemptId_${cleanCode}`);
       localStorage.removeItem("dynoquizz_attemptId");
-      localStorage.removeItem(`dynoquizz_attemptTiming_${activeAttemptId}`);
       localStorage.removeItem(`dynoquizz_active_test_${activeAttemptId}`);
       localStorage.removeItem(`exam_index_${activeAttemptId}`);
 
