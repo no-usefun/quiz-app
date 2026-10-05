@@ -259,7 +259,7 @@ export default function TeacherDashboard() {
             </h1>
 
             <p className="text-xs text-[#78716b] font-medium mt-0.5">
-              Manage your assessments, invite candidates, and monitor live exam
+              Manage your assessments, invite candidates, and review live results
               telemetry.
             </p>
           </div>
