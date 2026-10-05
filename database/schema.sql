@@ -131,6 +131,7 @@ CREATE TABLE quiz_attempts (
     refresh_count INTEGER NOT NULL DEFAULT 0 CHECK (refresh_count >= 0),
     reconnect_count INTEGER NOT NULL DEFAULT 0 CHECK (reconnect_count >= 0),
     final_score DECIMAL(8,2) NOT NULL DEFAULT 0,
+    termination_reason VARCHAR(50),
     created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     CONSTRAINT uq_student_quiz_attempt UNIQUE (quiz_id, student_id)
 );
