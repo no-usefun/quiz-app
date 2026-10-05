@@ -944,7 +944,6 @@ export default function TestArenaPage({
         activeAttemptId,
         answersRef.current,
         timeTakenRef.current,
-        markedForReview,
       );
     };
 
