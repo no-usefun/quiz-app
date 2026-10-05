@@ -144,26 +144,13 @@ public class AuthService {
         }
 
         @Transactional(readOnly = true)
-        public AuthResponse login(LoginRequest request, String role) {
+        public AuthResponse login(LoginRequest request) {
                 String normalizedEmail = request.email().trim().toLowerCase(Locale.ROOT);
-                String requestedRole = role == null
-                                ? ""
-                                : role.trim().toUpperCase(Locale.ROOT);
 
-                if (!requestedRole.equals("STUDENT") && !requestedRole.equals("TEACHER")) {
-                        throw new BadRequestException("INVALID_ROLE", "Role must be STUDENT or TEACHER");
-                }
-
-                // 1. Fetch user by email
+                // 1. Fetch user by email. The role is resolved from the persisted account,
+                // so clients do not need to send or select a role during login.
                 User user = userRepository.findByEmail(normalizedEmail)
                                 .orElseThrow(() -> new BadCredentialsException("Invalid email or password"));
-
-                if (user.getRole() == null
-                                || !requestedRole.equals(user.getRole().getName())) {
-                        throw new BadRequestException(
-                                        "ROLE_MISMATCH",
-                                        "The selected role does not match this account");
-                }
 
                 // 2. Validate password
                 if (user.getPasswordHash() == null
