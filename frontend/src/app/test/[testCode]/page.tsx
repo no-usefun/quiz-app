@@ -1481,7 +1481,6 @@ export default function TestArenaPage({
           )}
         </div>
 
-      <aside className="hidden w-72 flex-col gap-4 pl-6 lg:flex text-left">
         <div className="overflow-hidden rounded-[14px] bg-white border border-[#d1dee8]/70 shadow-sm">
           <div className="p-4 border-b border-[#d1dee8]/50 bg-[#f5f5f4]">
             <span className="text-[10px] font-bold uppercase tracking-wider text-[#165dfb] block mb-1">
@@ -1489,10 +1488,7 @@ export default function TestArenaPage({
             </span>
 
             <h3 className="font-bold text-[#111111] text-sm truncate font-mono">
-              {(typeof window !== "undefined"
-                ? localStorage.getItem("dynoquizz_regNo") ||
-                  sessionStorage.getItem("dynoquizz_student_reg")
-                : null) || "Registered Student"}
+              Authenticated Student
             </h3>
 
             <p className="mt-0.5 text-[10px] text-[#78716b] font-medium">
