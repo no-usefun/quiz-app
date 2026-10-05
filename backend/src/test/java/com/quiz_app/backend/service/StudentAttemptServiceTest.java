@@ -593,6 +593,10 @@ class StudentAttemptServiceTest {
         @Test
         void autoSubmitAttempt_shouldFinalizeAttempt() {
 
+                // The mocked clock is 20:30 IST. Start this attempt at 19:50 IST
+                // so its 30-minute deadline has already elapsed.
+                attempt.setStartedAt(LocalDateTime.of(2026, 9, 21, 19, 50));
+
                 when(userRepository.findById(1L))
                                 .thenReturn(Optional.of(student));
 

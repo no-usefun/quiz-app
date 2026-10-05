@@ -173,31 +173,10 @@ class AuthServiceTest {
         when(jwtUtils.generateToken(user)).thenReturn("jwt");
         when(jwtUtils.getExpirationMs()).thenReturn(3600000L);
 
-        AuthResponse response = authService.login(request, "student");
+        AuthResponse response = authService.login(request);
 
         assertEquals("jwt", response.token());
         assertEquals("STUDENT", response.user().role());
-    }
-
-    @Test
-    void login_shouldRejectRoleMismatch() {
-        LoginRequest request = new LoginRequest(
-                "alex@example.com", "secret123");
-
-        User user = new User();
-        user.setEmail("alex@example.com");
-        user.setPasswordHash("encoded");
-        user.setRole(studentRole);
-        user.setActive(true);
-
-        when(userRepository.findByEmail("alex@example.com")).thenReturn(Optional.of(user));
-
-        BadRequestException ex = assertThrows(
-                BadRequestException.class, () -> authService.login(request, "TEACHER"));
-
-        assertEquals("ROLE_MISMATCH", ex.getCode());
-        verify(passwordEncoder, never()).matches(any(), any());
-        verify(jwtUtils, never()).generateToken(any(User.class));
     }
 
     @Test
@@ -216,7 +195,7 @@ class AuthServiceTest {
 
         BadRequestException ex = assertThrows(
                 BadRequestException.class,
-                () -> authService.login(request, "STUDENT"));
+                () -> authService.login(request));
 
         assertEquals("EMAIL_NOT_VERIFIED", ex.getCode());
         verify(jwtUtils, never()).generateToken(any(User.class));

@@ -86,22 +86,26 @@ class AuthControllerTest {
         }
 
         @Test
-        void login_shouldRequireRole() throws Exception {
+        void login_shouldNotRequireRole() throws Exception {
+                when(authService.login(any(LoginRequest.class))).thenReturn(authResponse);
+
                 mockMvc.perform(post("/api/v1/auth/login")
                                 .contentType(MediaType.APPLICATION_JSON)
                                 .content("""
                                                 {"email":"jane@example.com","password":"password123"}
                                                 """))
-                                .andExpect(status().isBadRequest());
+                                .andExpect(status().isOk())
+                                .andExpect(jsonPath("$.token").value("jwt"))
+                                .andExpect(jsonPath("$.user.role").value("TEACHER"));
 
-                verify(authService, never()).login(any(LoginRequest.class), org.mockito.ArgumentMatchers.anyString());
+                verify(authService).login(any(LoginRequest.class));
         }
 
         @Test
         void login_shouldReturnToken() throws Exception {
-                when(authService.login(any(LoginRequest.class), org.mockito.ArgumentMatchers.eq("TEACHER"))).thenReturn(authResponse);
+                when(authService.login(any(LoginRequest.class))).thenReturn(authResponse);
 
-                mockMvc.perform(post("/api/v1/auth/login").param("role", "TEACHER")
+                mockMvc.perform(post("/api/v1/auth/login")
                                 .contentType(MediaType.APPLICATION_JSON)
                                 .content(objectMapper.writeValueAsString(loginRequest)))
                                 .andExpect(status().isOk())
