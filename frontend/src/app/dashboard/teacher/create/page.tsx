@@ -22,9 +22,6 @@ import {
 import { useSession } from "@/hooks/useSession";
 import { ENDPOINTS } from "@/lib/api/endpoints";
 
-const API_BASE = (
-  process.env.NEXT_PUBLIC_API_URL || "http://localhost:8080"
-).replace(/\/+$/, "");
 
 // Local cache fallback replacing the removed quizCache module.
 function getCachedQuizzes(teacherId?: number | string | null): any[] {
@@ -1314,8 +1311,6 @@ function CreateAssessmentContent() {
 
     const token = localStorage.getItem("dynoquizz_token");
 
-    // ──────────────────────────────────────────────────────────────────────
-
     try {
       const isEditing = Boolean(draftId);
 
@@ -1450,7 +1445,7 @@ function CreateAssessmentContent() {
         }
       } else {
         // ── Create path: POST /api/v1/teacher/quizzes ─────────────────────────
-        const createRes = await fetch(`${API_BASE}/api/v1/teacher/quizzes`, {
+        const createRes = await fetch(ENDPOINTS.teacher.createQuiz, {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
