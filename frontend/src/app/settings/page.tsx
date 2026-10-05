@@ -455,18 +455,6 @@ function PreferencesPanel({
           cache: "no-store",
         });
 
-        if (response.status === 404 || response.status === 405) {
-          const raw = localStorage.getItem("quizly_notification_preferences");
-          if (raw && !cancelled) {
-            try {
-              setPreferences((current) => ({ ...current, ...JSON.parse(raw) }));
-            } catch {
-              // Ignore malformed local preferences.
-            }
-          }
-          return;
-        }
-
         const data = await response.json().catch(() => ({}));
         if (!response.ok) {
           throw new Error(
@@ -489,7 +477,9 @@ function PreferencesPanel({
         if (!cancelled) {
           console.warn("Notification preferences unavailable:", error);
           setPreferenceError(
-            "Notification settings are currently using browser-local preferences.",
+            error instanceof Error
+              ? error.message
+              : "Unable to load notification preferences.",
           );
         }
       } finally {
@@ -530,17 +520,6 @@ function PreferencesPanel({
         body: JSON.stringify(preferences),
       });
 
-      if (response.status === 404 || response.status === 405) {
-        localStorage.setItem(
-          "quizly_notification_preferences",
-          JSON.stringify(preferences),
-        );
-        setPreferenceError(
-          "Saved in this browser. Server sync will activate after the notification-preferences backend endpoint is deployed.",
-        );
-        return;
-      }
-
       const data = await response.json().catch(() => ({}));
       if (!response.ok) {
         throw new Error(
@@ -552,11 +531,9 @@ function PreferencesPanel({
 
       onSave();
     } catch (error: any) {
-      localStorage.setItem(
-        "quizly_notification_preferences",
-        JSON.stringify(preferences),
+      setPreferenceError(
+        error?.message || "Unable to save notification preferences.",
       );
-      setPreferenceError(error?.message || "Unable to save notification preferences.");
     } finally {
       setSavingPreferences(false);
     }
