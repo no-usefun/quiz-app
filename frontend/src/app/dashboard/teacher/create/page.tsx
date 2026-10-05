@@ -701,7 +701,7 @@ function CreateAssessmentContent() {
 
             if (results.errors?.length) {
               setValidationError(
-                `CSV could not be parsed near row ${results.errors[0].row + 1}.`,
+                `CSV could not be parsed near row ${(results.errors[0]?.row ?? 0) + 1}.`,
               );
               setParsedQuestions([]);
               return;
