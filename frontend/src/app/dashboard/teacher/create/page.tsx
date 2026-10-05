@@ -616,7 +616,7 @@ function CreateAssessmentContent() {
               );
             }
 
-            const correctCount = options.filter((opt) => opt.isCorrect).length;
+            const correctCount = options.filter((opt: { isCorrect: boolean }) => opt.isCorrect).length;
 
             if (questionType === "MCQ" && correctCount !== 1) {
               throw new Error(
