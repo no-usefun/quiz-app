@@ -889,6 +889,8 @@ public class StudentAttemptService {
 
                         Integer maxTabSwitch = attempt.getQuiz().getMaxTabSwitch();
                         if (maxTabSwitch != null && tabSwitchCount > maxTabSwitch) {
+                                attempt.setTerminationReason("TAB_SWITCH_LIMIT");
+                                quizAttemptRepository.save(attempt);
                                 finalizeAttempt(attempt, AttemptStatus.AUTO_SUBMITTED);
                                 return;
                         }
