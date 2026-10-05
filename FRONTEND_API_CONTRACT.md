@@ -40,11 +40,7 @@ API calls must use process.env.NEXT_PUBLIC_API_URL.
 
 Login
 
-POST /api/v1/auth/login?role=STUDENT
-
-or
-
-POST /api/v1/auth/login?role=TEACHER
+POST /api/v1/auth/login
 
 Body:
 
@@ -53,7 +49,7 @@ Body:
 "password": "password"
 }
 
-Role is supplied as the request parameter. It is not a JSON body field.
+The current backend resolves the user's role from the persisted account. Do not send a role query parameter for local login.
 
 Protected requests:
 
