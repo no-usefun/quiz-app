@@ -375,7 +375,7 @@ export function useSession() {
     };
 
     const response = await fetch(
-      ENDPOINTS.auth.signup + "?role=" + encodeURIComponent(backendRole),
+      ENDPOINTS.auth.signup(backendRole),
       {
       method: "POST",
       headers: {
