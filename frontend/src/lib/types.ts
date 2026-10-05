@@ -229,11 +229,6 @@ export interface AttemptStateResponse {
   totalTimeTaken?: number | null;
 }
 
-export interface ProctoringEventRequest {
-  type: string;
-  occurredAt?: string;
-  metadata?: Record<string, string | number | boolean | null>;
-}
 
 export interface StudentSubmissionResponse {
   attemptId: number;
@@ -298,85 +293,6 @@ export interface QuizAvailabilityResponse {
   startTime?: string | null;
   endTime?: string | null;
 }
-
-/* -------------------------------------------------------------------------- */
-/* Legacy compatibility types                                                 */
-/* -------------------------------------------------------------------------- */
-
-/**
-
-* @deprecated Use QuestionResponse.
-*
-* Kept temporarily so older UI code can compile while it is migrated
-* to the backend DTO shape.
-  */
-export interface QuizQuestion {
-  id: number;
-  text: string;
-  options: string[];
-  correctOption?: string;
-  marks?: number;
-  negativeMarks?: number;
-  questionTimerSeconds?: number;
-}
-
-/**
-
-* @deprecated Use QuizResponse / QuizPackageResponse.
-  */
-export interface QuizTest {
-  testCode: string;
-  quizName: string;
-  description?: string;
-  subject?: string;
-  subjectCode?: string;
-  targetClass?: string;
-  totalTimeLimitMinutes: number;
-  settings?: {
-    negativeMarking: boolean;
-    timeBonusEnabled?: boolean;
-    allowReview?: boolean;
-    allowResume?: boolean;
-    autoSubmit?: boolean;
-  };
-  questions: QuizQuestion[];
-  allowedRegistrationNumbers?: string[];
-  createdAt?: string;
-  status: "LIVE" | "ENDED";
-}
-
-/**
-
-* @deprecated Backend scoring is authoritative.
-  */
-export interface StudentAnswer {
-  questionId: number;
-  selectedOptionIds?: number[];
-  selectedOption?: string | null;
-  responseTimeSeconds?: number;
-  timeTakenSeconds?: number;
-  isCorrect?: boolean;
-  score?: number;
-}
-
-/**
-
-* @deprecated Use AttemptResultResponse and
-* AttemptResultDetailResponse.
-  */
-export interface StudentTestResult {
-  testCode?: string;
-  quizName?: string;
-  studentName?: string;
-  answers: StudentAnswer[];
-  submittedAt: string;
-  score: number;
-  accuracyPercentage?: number;
-  totalQuestions?: number;
-  correctCount?: number;
-  timeTakenTotalSeconds?: number;
-}
-
 
 /* -------------------------------------------------------------------------- */
 /* Account preferences / password reset                                       */
