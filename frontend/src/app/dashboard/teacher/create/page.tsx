@@ -2467,6 +2467,7 @@ questionText,optionA,optionB,optionC,optionD,correctAnswer,marks,questionType,ne
                       blank to allow any domain.
                     </p>
                   </div>
+                  </div>
                 </motion.div>
               )}
             </AnimatePresence>
