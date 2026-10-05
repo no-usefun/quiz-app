@@ -18,6 +18,7 @@ import {
   Check,
   AlertCircle,
   FileQuestion,
+  GripVertical,
 } from "lucide-react";
 import { useSession } from "@/hooks/useSession";
 import { ENDPOINTS } from "@/lib/api/endpoints";
@@ -126,6 +127,7 @@ function CreateAssessmentContent() {
   const [loadingDraft, setLoadingDraft] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [validationError, setValidationError] = useState<string | null>(null);
+  const [draggedOption, setDraggedOption] = useState<{ qIdx: number; optIdx: number } | null>(null);
   const [publishRetryData, setPublishRetryData] = useState<{
     quizId: number;
     quizCode: string;
@@ -1132,6 +1134,30 @@ function CreateAssessmentContent() {
           }));
 
         return { ...q, options };
+      }),
+    );
+  };
+
+  const handleReorderOption = (qIdx: number, fromIndex: number, toIndex: number) => {
+    if (fromIndex === toIndex) return;
+
+    setParsedQuestions((prev) =>
+      prev.map((q, i) => {
+        if (i !== qIdx) return q;
+
+        const options = [...(q.options || [])];
+        const [movedOption] = options.splice(fromIndex, 1);
+        if (!movedOption) return q;
+
+        options.splice(toIndex, 0, movedOption);
+
+        return {
+          ...q,
+          options: options.map((opt: any, oi: number) => ({
+            ...opt,
+            optionOrder: oi + 1,
+          })),
+        };
       }),
     );
   };
@@ -2191,12 +2217,51 @@ function CreateAssessmentContent() {
                         {q.options.map((opt: any, oi: number) => (
                           <div
                             key={opt.optionId ?? `${idx}-${oi}`}
-                            className={`flex items-center gap-2.5 rounded-[10px] border px-3 py-2.5 text-xs transition-all ${
+                            draggable={q.questionType !== "TRUE_FALSE"}
+                            onDragStart={(e) => {
+                              if (q.questionType === "TRUE_FALSE") return;
+                              setDraggedOption({ qIdx: idx, optIdx: oi });
+                              e.dataTransfer.effectAllowed = "move";
+                            }}
+                            onDragOver={(e) => {
+                              if (
+                                q.questionType === "TRUE_FALSE" ||
+                                !draggedOption ||
+                                draggedOption.qIdx !== idx ||
+                                draggedOption.optIdx === oi
+                              ) return;
+                              e.preventDefault();
+                              e.dataTransfer.dropEffect = "move";
+                            }}
+                            onDrop={(e) => {
+                              if (
+                                q.questionType === "TRUE_FALSE" ||
+                                !draggedOption ||
+                                draggedOption.qIdx !== idx
+                              ) return;
+                              e.preventDefault();
+                              handleReorderOption(idx, draggedOption.optIdx, oi);
+                              setDraggedOption(null);
+                            }}
+                            onDragEnd={() => setDraggedOption(null)}
+                            className={`group flex items-center gap-2.5 rounded-[10px] border px-3 py-2.5 text-xs transition-all ${
                               opt.isCorrect
                                 ? "border-[#165dfb] bg-[#eef4ff] shadow-[0_0_0_3px_rgba(22,93,251,0.08)]"
                                 : "border-[#d1dee8]/80 bg-white hover:border-[#b9cbd9] hover:bg-[#fbfbfa] shadow-xs"
+                            } ${
+                              draggedOption?.qIdx === idx && draggedOption?.optIdx === oi
+                                ? "opacity-50"
+                                : ""
                             }`}
                           >
+                            <span
+                              className="flex h-6 w-4 shrink-0 cursor-grab items-center justify-center text-[#b0aaa5] opacity-0 transition-opacity group-hover:opacity-100 active:cursor-grabbing"
+                              title="Drag to reorder"
+                              aria-hidden="true"
+                            >
+                              <GripVertical className="h-4 w-4" />
+                            </span>
+
                             <button
                               type="button"
                               onClick={() => handleSetCorrectOption(idx, oi)}
