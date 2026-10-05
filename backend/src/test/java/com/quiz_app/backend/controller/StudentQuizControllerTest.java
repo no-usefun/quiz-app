@@ -161,21 +161,23 @@ class StudentQuizControllerTest {
 
         @Test
         void getQuizPackage_shouldDelegate() throws Exception {
-                when(quizService.getQuizPackage(10L)).thenReturn(null);
+                when(quizService.getQuizPackage(10L, 1L)).thenReturn(null);
 
-                mockMvc.perform(get("/api/v1/student/quizzes/10/package"))
+                mockMvc.perform(get("/api/v1/student/quizzes/10/package")
+                                .principal(authentication))
                                 .andExpect(status().isOk());
 
-                verify(quizService).getQuizPackage(10L);
+                verify(quizService).getQuizPackage(10L, 1L);
         }
 
         @Test
         void getQuizPackageByCode_shouldDelegate() throws Exception {
-                when(quizService.getQuizPackageByCode("123456")).thenReturn(null);
+                when(quizService.getQuizPackageByCode("123456", 1L)).thenReturn(null);
 
-                mockMvc.perform(get("/api/v1/student/quizzes/code/123456/package"))
+                mockMvc.perform(get("/api/v1/student/quizzes/code/123456/package")
+                                .principal(authentication))
                                 .andExpect(status().isOk());
 
-                verify(quizService).getQuizPackageByCode("123456");
+                verify(quizService).getQuizPackageByCode("123456", 1L);
         }
 }
