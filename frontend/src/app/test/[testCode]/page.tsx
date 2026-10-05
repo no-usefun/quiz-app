@@ -265,13 +265,6 @@ export default function TestArenaPage({
           }
         }
       } catch (error) {
-        if (
-          error instanceof ApiClientError &&
-          (error.status === 404 || error.status === 405)
-        ) {
-          return;
-        }
-
         console.warn("[Proctoring] Server event sync failed:", error);
       }
     },
