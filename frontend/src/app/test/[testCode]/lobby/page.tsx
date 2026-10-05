@@ -24,7 +24,6 @@ import { ENDPOINTS } from "@/lib/api/endpoints";
 import type {
   AttemptResponse,
   QuizAvailabilityResponse,
-  QuizPackageResponse,
 } from "@/lib/types";
 
 function formatDateTime(value?: string | null): string {
@@ -277,30 +276,9 @@ function LobbyInner({ testCode }: { testCode: string }) {
       localStorage.setItem(`dynoquizz_attemptId_${cleanCode}`, attemptId);
 
       /*
-       * Step 2:
-       * Download the backend-owned student-safe quiz package.
-       *
-       * A cached package may be reused for this quiz, but a missing or
-       * invalid cache is always replaced with the backend response.
-       */
-      const packageData = await api.get<QuizPackageResponse>(
-        ENDPOINTS.student.quizPackageByCode(cleanCode),
-      );
-
-      if (
-        !packageData ||
-        !Array.isArray(packageData.questions) ||
-        packageData.questions.length === 0
-      ) {
-        throw new Error(
-          "The server returned an invalid or empty assessment package.",
-        );
-      }
-
-      /*
-       * Step 3:
-       * Only enter the exam Arena after both the authoritative attempt
-       * and the student-safe package are ready.
+       * Only enter the exam arena after the backend has created/resolved
+       * the authoritative attempt. The arena then restores attempt state
+       * and fetches the student-safe quiz package.
        */
       router.push(`/test/${encodeURIComponent(cleanCode)}`);
     } catch (error) {
