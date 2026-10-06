@@ -52,6 +52,7 @@ export interface UserSummary {
   profileImage?: string | null;
   verified: boolean;
   active: boolean;
+  profileComplete: boolean;
 }
 
 export interface AuthResponse {
@@ -265,6 +266,8 @@ export interface AttemptResultDetailResponse {
   displayOrder: number;
   selectedOptionIds: number[];
   correctOptionIds: number[];
+  selectedOptionTexts?: string[];
+  correctOptionTexts?: string[];
   answerStatus: AnswerStatus;
   correct: boolean;
   marksAwarded: number;
