@@ -11,14 +11,12 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
-import jakarta.validation.Valid;
-
 import com.quiz_app.backend.dto.attempt.AttemptResponse;
-import com.quiz_app.backend.dto.attempt.AttemptStateResponse;
-import com.quiz_app.backend.dto.attempt.ProctoringEventRequest;
 import com.quiz_app.backend.dto.attempt.AttemptResultDetailResponse;
 import com.quiz_app.backend.dto.attempt.AttemptResultResponse;
+import com.quiz_app.backend.dto.attempt.AttemptStateResponse;
 import com.quiz_app.backend.dto.attempt.LeaderboardEntryResponse;
+import com.quiz_app.backend.dto.attempt.ProctoringEventRequest;
 import com.quiz_app.backend.dto.attempt.StudentSubmissionResponse;
 import com.quiz_app.backend.dto.attempt.SubmitAttemptRequest;
 import com.quiz_app.backend.dto.attempt.SubmitAttemptResponse;
@@ -27,6 +25,8 @@ import com.quiz_app.backend.dto.quiz.QuizAvailabilityResponse;
 import com.quiz_app.backend.security.CustomUserDetails;
 import com.quiz_app.backend.service.StudentAttemptService;
 import com.quiz_app.backend.service.StudentQuizService;
+
+import jakarta.validation.Valid;
 
 @RestController
 @RequestMapping("/api/v1/student")
