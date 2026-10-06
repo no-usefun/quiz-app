@@ -373,7 +373,7 @@ export default function TeacherDashboard() {
             </span>
           </div>
 
-          <div className="grid gap-3.5">
+          <div className="grid grid-cols-1 gap-3.5 sm:grid-cols-2">
             {loading ? (
               <div className="rounded-[14px] bg-white border border-[#d1dee8]/70 p-10 text-center text-xs text-[#78716b] shadow-sm">
                 Loading assessments roster...
