@@ -233,6 +233,7 @@ class AuthServiceTest {
 
         assertEquals("Alex Carter", response.fullName());
         assertEquals("STUDENT", response.role());
+        assertEquals(false, response.profileComplete());
     }
 
     @Test
@@ -247,7 +248,7 @@ class AuthServiceTest {
 
         UserSummaryResponse response = authService.updateProfile(
                 "alex@example.com",
-                new UpdateProfileRequest(" New ", " User ", " 123 ", " College ", " CS ", " image.png"));
+                new UpdateProfileRequest(" New ", " User ", " 123 ", " College ", " CS ", " reg-123 ", " image.png"));
 
         assertNotNull(response);
         assertEquals("New", user.getFirstName());
@@ -255,6 +256,7 @@ class AuthServiceTest {
         assertEquals("123", user.getPhone());
         assertEquals("College", user.getCollege());
         assertEquals("CS", user.getDepartment());
+        assertEquals("REG-123", user.getRegistrationNo());
         assertEquals("image.png", user.getProfileImage());
         verify(userRepository).save(user);
     }
