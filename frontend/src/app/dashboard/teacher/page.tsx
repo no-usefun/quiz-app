@@ -16,112 +16,66 @@ import {
 import { TopNav } from "@/components/TopNav";
 import { useSession } from "@/hooks/useSession";
 import { computeQuizDisplayState, QuizDisplayState } from "@/lib/quizStatus";
+import { ENDPOINTS } from "@/lib/api/endpoints";
+import { api } from "@/lib/api/client";
+import { QuizResponse, TeacherQuizDetailResponse } from "@/lib/types";
 
-const API_BASE = (
-  process.env.NEXT_PUBLIC_API_URL || "http://localhost:8080"
-).replace(/\/+$/, "");
+type TeacherDashboardQuiz = QuizResponse & {
+  displayState: QuizDisplayState;
+};
 
 export default function TeacherDashboard() {
   const router = useRouter();
   const { user, loading: sessionLoading } = useSession();
-  const [tests, setTests] = useState<any[]>([]);
+
+  const [tests, setTests] = useState<TeacherDashboardQuiz[]>([]);
   const [loading, setLoading] = useState(true);
   const [fetchError, setFetchError] = useState<string | null>(null);
   const [copiedCode, setCopiedCode] = useState<string | null>(null);
   const [mounted, setMounted] = useState(false);
 
-  // Modal and action states
   const [quizToEnd, setQuizToEnd] = useState<{
     quizId: number;
     quizCode: string;
     title: string;
   } | null>(null);
-  const [actionLoading, setActionLoading] = useState(false);
+
+  const [actionLoadingQuizId, setActionLoadingQuizId] = useState<number | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
+
+  const normalizeQuiz = (quiz: QuizResponse): TeacherDashboardQuiz => ({
+    ...quiz,
+    displayState: computeQuizDisplayState({
+      status: quiz.status,
+      examState: quiz.examState,
+      startTime: quiz.startTime,
+      endTime: quiz.endTime,
+    }),
+  });
+
+  const getErrorMessage = (error: unknown, fallback: string): string => {
+    if (error instanceof Error && error.message) {
+      return error.message;
+    }
+
+    return fallback;
+  };
 
   const fetchQuizzes = async () => {
     setLoading(true);
     setFetchError(null);
 
-    const token =
-      typeof window !== "undefined"
-        ? localStorage.getItem("dynoquizz_token")
-        : null;
-
-    if (!token) {
-      setTests([]);
-      setLoading(false);
-      return;
-    }
-
     try {
-      const res = await fetch(`${API_BASE}/api/v1/teacher/quizzes`, {
-        headers: {
-          Authorization: `Bearer ${token}`,
-          "Content-Type": "application/json",
-        },
-      });
+      const data = await api.get<QuizResponse[]>(ENDPOINTS.teacher.quizzes);
 
-      if (res.ok) {
-        const data = await res.json();
-        const list: any[] = Array.isArray(data)
-          ? data
-          : Array.isArray(data?.content)
-            ? data.content
-            : Array.isArray(data?.data)
-              ? data.data
-              : [];
+      setTests(data.map(normalizeQuiz));
+    } catch (error) {
+      console.error("Dashboard fetch error:", error);
 
-        const normalizedBackend = list.map((q: any) => {
-          const rawQuizId = q.quizId ?? q.id;
-          const quizCode = q.quizCode ?? q.testCode ?? "";
-          const status = (q.status ?? "DRAFT").toUpperCase();
-          const examState = (q.examState ?? "WAITING").toUpperCase();
-          const startTime = q.startTime ?? null;
-          const endTime = q.endTime ?? null;
+      setFetchError(
+        getErrorMessage(error, "Failed to load assessments from server."),
+      );
 
-          const displayState = computeQuizDisplayState({
-            status,
-            examState,
-            startTime,
-            endTime,
-          });
-
-          return {
-            quizId: rawQuizId,
-            quizCode,
-            teacherId: q.teacherId ?? 0,
-            title: q.title ?? q.quizName ?? "Assessment",
-            description: q.description ?? "",
-            instructions: q.instructions ?? "",
-            subject: q.subject ?? "",
-            subjectCode: q.subjectCode ?? "",
-            totalStudents: q.totalStudents ?? 0,
-            totalQuestions:
-              q.totalQuestions ??
-              (Array.isArray(q.questions) ? q.questions.length : 0),
-            totalMarks: q.totalMarks ?? 0,
-            overallTimerSeconds: q.overallTimerSeconds ?? 3600,
-            status,
-            examState,
-            startTime,
-            endTime,
-            displayState,
-            resultVisibility: q.resultVisibility ?? "NONE",
-            resultsPublished: Boolean(q.resultsPublished),
-          };
-        });
-
-        setTests(normalizedBackend);
-      } else {
-        const errData = await res.json().catch(() => ({}));
-        throw new Error(
-          errData.message || errData.error || `Server returned ${res.status}`,
-        );
-      }
-    } catch (e: any) {
-      console.error("Dashboard fetch error:", e);
-      setFetchError(e.message || "Failed to load assessments from server.");
       setTests([]);
     } finally {
       setLoading(false);
@@ -130,147 +84,123 @@ export default function TeacherDashboard() {
 
   useEffect(() => {
     setMounted(true);
+  }, []);
 
-    if (sessionLoading) return;
+  useEffect(() => {
+    if (sessionLoading) {
+      return;
+    }
 
     fetchQuizzes();
   }, [sessionLoading]);
 
-  const copyCode = (code: string) => {
-    navigator.clipboard.writeText(code);
-    setCopiedCode(code);
-    setTimeout(() => setCopiedCode(null), 2000);
+  const replaceQuizInState = (updatedQuiz: QuizResponse) => {
+    const normalized = normalizeQuiz(updatedQuiz);
+
+    setTests((prev) =>
+      prev.map((quiz) =>
+        quiz.quizId === normalized.quizId ? normalized : quiz,
+      ),
+    );
+  };
+
+  const refreshQuiz = async (quizId: number) => {
+    const detail = await api.get<TeacherQuizDetailResponse>(
+      ENDPOINTS.teacher.quizDetail(quizId),
+    );
+
+    replaceQuizInState(detail);
+    return detail;
+  };
+
+  const copyCode = async (code: string) => {
+    try {
+      await navigator.clipboard.writeText(code);
+      setCopiedCode(code);
+
+      setTimeout(() => {
+        setCopiedCode(null);
+      }, 2000);
+    } catch (error) {
+      console.error("Failed to copy quiz code:", error);
+    }
   };
 
   const handlePublishQuiz = async (quizId: number) => {
-    setActionLoading(true);
-    const token =
-      typeof window !== "undefined"
-        ? localStorage.getItem("dynoquizz_token")
-        : null;
+    setActionLoadingQuizId(quizId);
+    setActionError(null);
 
     try {
-      const res = await fetch(
-        `${API_BASE}/api/v1/teacher/quizzes/${quizId}/publish`,
-        {
-          method: "PUT",
-          headers: {
-            ...(token ? { Authorization: `Bearer ${token}` } : {}),
-          },
-        },
-      );
-      if (!res.ok) {
-        const err = await res.json().catch(() => ({}));
-        throw new Error(
-          err.message || err.error || `Publish failed (${res.status})`,
-        );
-      }
-      await fetchQuizzes();
-    } catch (err: any) {
-      alert(`Could not publish quiz: ${err.message}`);
+      await api.put<void>(ENDPOINTS.teacher.publishQuiz(quizId));
+      await refreshQuiz(quizId);
+    } catch (error) {
+      const message = getErrorMessage(error, "Publish failed.");
+
+      setActionError(message);
+      alert(`Could not publish quiz: ${message}`);
     } finally {
-      setActionLoading(false);
+      setActionLoadingQuizId(null);
     }
   };
 
   const confirmEndQuiz = async () => {
-    if (!quizToEnd) return;
-    setActionLoading(true);
+    if (!quizToEnd) {
+      return;
+    }
+
+    const quizId = quizToEnd.quizId;
+    setActionLoadingQuizId(quizId);
     setActionError(null);
-    const token =
-      typeof window !== "undefined"
-        ? localStorage.getItem("dynoquizz_token")
-        : null;
 
     try {
-      const res = await fetch(
-        `${API_BASE}/api/v1/teacher/quizzes/${quizToEnd.quizId}/complete`,
-        {
-          method: "PUT",
-          headers: {
-            ...(token ? { Authorization: `Bearer ${token}` } : {}),
-          },
-        },
+      const updatedQuiz = await api.put<QuizResponse>(
+        ENDPOINTS.teacher.completeQuiz(quizId),
       );
-      if (!res.ok) {
-        const err = await res.json().catch(() => ({}));
-        throw new Error(
-          err.message || err.error || `Complete failed (${res.status})`,
-        );
-      }
+
+      replaceQuizInState(updatedQuiz);
       setQuizToEnd(null);
-      await fetchQuizzes();
-    } catch (err: any) {
-      setActionError(err.message);
+    } catch (error) {
+      const message = getErrorMessage(error, "Failed to complete assessment.");
+
+      setActionError(message);
     } finally {
-      setActionLoading(false);
+      setActionLoadingQuizId(null);
     }
   };
 
   const handlePublishResults = async (quizId: number) => {
-    setActionLoading(true);
-    const token =
-      typeof window !== "undefined"
-        ? localStorage.getItem("dynoquizz_token")
-        : null;
+    setActionLoadingQuizId(quizId);
+    setActionError(null);
 
     try {
-      const res = await fetch(
-        `${API_BASE}/api/v1/teacher/quizzes/${quizId}/results/publish`,
-        {
-          method: "PUT",
-          headers: {
-            ...(token ? { Authorization: `Bearer ${token}` } : {}),
-          },
-        },
-      );
-      if (!res.ok) {
-        const err = await res.json().catch(() => ({}));
-        throw new Error(
-          err.message || err.error || `Publish results failed (${res.status})`,
-        );
-      }
-      await fetchQuizzes();
-    } catch (err: any) {
-      alert(`Could not publish results: ${err.message}`);
+      await api.put<void>(ENDPOINTS.teacher.publishResults(quizId));
+      await refreshQuiz(quizId);
+    } catch (error) {
+      const message = getErrorMessage(error, "Publish results failed.");
+
+      setActionError(message);
+      alert(`Could not publish results: ${message}`);
     } finally {
-      setActionLoading(false);
+      setActionLoadingQuizId(null);
     }
   };
 
   const handleUnpublishResults = async (quizId: number) => {
-    setActionLoading(true);
-    const token =
-      typeof window !== "undefined"
-        ? localStorage.getItem("dynoquizz_token")
-        : null;
+    setActionLoadingQuizId(quizId);
+    setActionError(null);
 
     try {
-      const res = await fetch(
-        `${API_BASE}/api/v1/teacher/quizzes/${quizId}/results/unpublish`,
-        {
-          method: "PUT",
-          headers: {
-            ...(token ? { Authorization: `Bearer ${token}` } : {}),
-          },
-        },
-      );
-      if (!res.ok) {
-        const err = await res.json().catch(() => ({}));
-        throw new Error(
-          err.message ||
-            err.error ||
-            `Unpublish results failed (${res.status})`,
-        );
-      }
-      await fetchQuizzes();
-    } catch (err: any) {
-      alert(`Could not unpublish results: ${err.message}`);
+      await api.put<void>(ENDPOINTS.teacher.unpublishResults(quizId));
+      await refreshQuiz(quizId);
+    } catch (error) {
+      const message = getErrorMessage(error, "Unpublish results failed.");
+
+      setActionError(message);
+      alert(`Could not unpublish results: ${message}`);
     } finally {
-      setActionLoading(false);
+      setActionLoadingQuizId(null);
     }
   };
-
 
   const displayName =
     user?.firstName ||
@@ -278,26 +208,36 @@ export default function TeacherDashboard() {
     user?.fullName?.split(" ")[0] ||
     "Instructor";
 
-  const liveCount = tests.filter((t) => t.displayState === "Live").length;
-  const draftCount = tests.filter((t) => t.displayState === "Draft").length;
+  const liveCount = tests.filter((test) => test.displayState === "Live").length;
+
+  const draftCount = tests.filter(
+    (test) => test.displayState === "Draft",
+  ).length;
+
   const completedCount = tests.filter(
-    (t) => t.displayState === "Completed",
+    (test) => test.displayState === "Completed",
   ).length;
 
   const getBadgeStyle = (displayState: QuizDisplayState) => {
     switch (displayState) {
       case "Live":
         return "bg-[#e2ede8] text-[#1d5237] border border-[#1d5237]/25";
+
       case "Scheduled":
         return "bg-[#e0f2fe] text-[#0369a1] border border-[#0369a1]/25";
+
       case "Draft":
         return "bg-[#fef3c7] text-[#92400e] border border-[#92400e]/25";
+
       case "Ended":
         return "bg-[#f1f5f9] text-[#475569] border border-[#475569]/25";
+
       case "Completed":
         return "bg-[#f3e8ff] text-[#6b21a8] border border-[#6b21a8]/25";
+
       case "Cancelled":
         return "bg-[#ffe4e6] text-[#be123c] border border-[#be123c]/25";
+
       default:
         return "bg-[#f5f5f4] text-[#78716b] border border-[#d1dee8]";
     }
@@ -313,11 +253,13 @@ export default function TeacherDashboard() {
             <span className="text-xs font-bold uppercase tracking-widest text-[#78716b]">
               Educator Control Center
             </span>
+
             <h1 className="text-2xl font-extrabold tracking-tight text-[#111111] mt-0.5">
               Welcome back, {displayName}
             </h1>
+
             <p className="text-xs text-[#78716b] font-medium mt-0.5">
-              Manage your assessments, invite candidates, and monitor live exam
+              Manage your assessments, invite candidates, and review live results
               telemetry.
             </p>
           </div>
@@ -336,30 +278,37 @@ export default function TeacherDashboard() {
             <span className="text-[10px] font-bold uppercase tracking-wider text-[#78716b]">
               Total Assessments
             </span>
+
             <p className="text-2xl font-black text-[#111111] mt-1">
               {loading ? "..." : tests.length}
             </p>
           </div>
+
           <div className="rounded-[14px] border border-[#d1dee8]/70 bg-white p-4 sm:p-5 shadow-sm hover:shadow-md transition-all duration-200">
             <span className="text-[10px] font-bold uppercase tracking-wider text-[#1d5237]">
               Live Sessions
             </span>
+
             <p className="text-2xl font-black text-[#1d5237] mt-1">
               {loading ? "..." : liveCount}
             </p>
           </div>
+
           <div className="rounded-[14px] border border-[#d1dee8]/70 bg-white p-4 sm:p-5 shadow-sm hover:shadow-md transition-all duration-200">
             <span className="text-[10px] font-bold uppercase tracking-wider text-[#92400e]">
               Draft Assessments
             </span>
+
             <p className="text-2xl font-black text-[#92400e] mt-1">
               {loading ? "..." : draftCount}
             </p>
           </div>
+
           <div className="rounded-[14px] border border-[#d1dee8]/70 bg-white p-4 sm:p-5 shadow-sm hover:shadow-md transition-all duration-200">
             <span className="text-[10px] font-bold uppercase tracking-wider text-[#6b21a8]">
               Completed
             </span>
+
             <p className="text-2xl font-black text-[#6b21a8] mt-1">
               {loading ? "..." : completedCount}
             </p>
@@ -371,6 +320,7 @@ export default function TeacherDashboard() {
             <h2 className="text-sm font-extrabold text-[#111111] uppercase tracking-wider">
               Assessments Roster ({tests.length})
             </h2>
+
             <span className="text-xs font-medium text-[#78716b]">
               Newest first
             </span>
@@ -384,6 +334,7 @@ export default function TeacherDashboard() {
             ) : fetchError ? (
               <div className="rounded-[14px] bg-[#fbeee8] border border-[#8c381c]/30 p-8 text-center space-y-3 shadow-sm">
                 <p className="font-bold text-[#8c381c] text-sm">{fetchError}</p>
+
                 <button
                   type="button"
                   onClick={fetchQuizzes}
@@ -397,46 +348,51 @@ export default function TeacherDashboard() {
                 <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-[12px] bg-[#f5f5f4] text-[#78716b] border border-[#d1dee8]/70">
                   <FileQuestion className="h-6 w-6 text-[#78716b]" />
                 </div>
+
                 <div>
                   <p className="font-bold text-[#111111] text-sm">
                     No assessments created yet
                   </p>
+
                   <p className="text-xs text-[#78716b] mt-0.5 font-medium max-w-sm mx-auto">
                     Click &ldquo;Create Assessment&rdquo; to build your first
                     proctored test.
                   </p>
                 </div>
+
                 <Link
                   href="/dashboard/teacher/create"
                   className="inline-flex items-center gap-1.5 rounded-[10px] bg-[#165dfb] px-4 py-2 text-xs font-bold text-white hover:bg-[#0f4fd8] shadow-sm shadow-[#165dfb]/20 active:scale-[0.98] transition-all"
                 >
-                  <Plus className="h-3.5 w-3.5 text-white" /> Create Assessment
+                  <Plus className="h-3.5 w-3.5 text-white" />
+                  Create Assessment
                 </Link>
               </div>
             ) : (
               tests.map((test, idx) => {
                 const quizId = test.quizId;
-                const code = test.quizCode || "";
+                const code = test.quizCode;
                 const name = test.title || "Assessment";
                 const displayState: QuizDisplayState = test.displayState;
 
-                // The whole card is clickable and goes to the state's primary page.
-                // Draft cards have no navigation destination — only the explicit
-                // "Publish" button (inside the stopPropagation wrapper) should act.
                 const handleCardClick = () => {
                   switch (displayState) {
                     case "Draft":
-                      // Do nothing: publishing is only triggered by the explicit
-                      // "Publish" button inside the action buttons area.
                       break;
+
                     case "Scheduled":
                     case "Live":
-                      if (code) router.push(`/dashboard/teacher/share/${code}`);
+                      if (code) {
+                        router.push(`/dashboard/teacher/share/${code}`);
+                      }
                       break;
+
                     case "Ended":
                     case "Completed":
                     case "Cancelled":
-                      if (code) router.push(`/dashboard/teacher/assessment/${code}`);
+                      if (code) {
+                        router.push(`/dashboard/teacher/assessment/${code}`);
+                      }
                       break;
                   }
                 };
@@ -447,8 +403,11 @@ export default function TeacherDashboard() {
                     role="link"
                     tabIndex={0}
                     onClick={handleCardClick}
-                    onKeyDown={(e) => {
-                      if (e.key === "Enter") handleCardClick();
+                    onKeyDown={(event) => {
+                      if (event.key === "Enter" || event.key === " ") {
+                        event.preventDefault();
+                        handleCardClick();
+                      }
                     }}
                     initial={mounted ? { opacity: 0, y: 4 } : false}
                     animate={mounted ? { opacity: 1, y: 0 } : false}
@@ -469,8 +428,10 @@ export default function TeacherDashboard() {
                           {displayState === "Live" && (
                             <span className="h-1.5 w-1.5 rounded-full bg-[#1d5237] animate-pulse" />
                           )}
+
                           {displayState}
                         </span>
+
                         <h3 className="font-extrabold text-[#111111] text-sm truncate">
                           {name}
                         </h3>
@@ -479,19 +440,21 @@ export default function TeacherDashboard() {
                       <div className="flex flex-wrap items-center gap-3 text-[11px] text-[#78716b] font-medium">
                         {test.subject && (
                           <span className="flex items-center gap-1">
-                            <BookOpen className="h-3 w-3 text-[#78716b]/80" />{" "}
+                            <BookOpen className="h-3 w-3 text-[#78716b]/80" />
                             {test.subject}
                             {test.subjectCode ? ` (${test.subjectCode})` : ""}
                           </span>
                         )}
-                        {/* TODO(backend): Ask backend to add submittedCount/attemptedCount to QuizResponse for GET /teacher/quizzes so the dashboard can show live attempt counts without N+1 leaderboard calls. */}
+
                         <span className="flex items-center gap-1">
-                          <Users className="h-3 w-3 text-[#78716b]/80" />{" "}
+                          <Users className="h-3 w-3 text-[#78716b]/80" />
                           {test.totalStudents > 0
                             ? `${test.totalStudents} Students`
                             : "Open to all students"}
                         </span>
+
                         <span>{test.totalQuestions || 0} Questions</span>
+
                         <span>
                           {Math.floor((test.overallTimerSeconds || 3600) / 60)}{" "}
                           mins
@@ -500,20 +463,20 @@ export default function TeacherDashboard() {
                         {code && (
                           <button
                             type="button"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              copyCode(String(code));
+                            onClick={(event) => {
+                              event.stopPropagation();
+                              void copyCode(code);
                             }}
                             className="flex items-center gap-1 font-mono text-[#165dfb] hover:underline font-bold cursor-pointer bg-transparent border-0"
                           >
-                            {copiedCode === String(code) ? (
+                            {copiedCode === code ? (
                               <>
-                                <CheckCircle2 className="h-3 w-3 text-[#1d5237]" />{" "}
+                                <CheckCircle2 className="h-3 w-3 text-[#1d5237]" />
                                 Copied
                               </>
                             ) : (
                               <>
-                                <Copy className="h-3 w-3 text-[#165dfb]" />{" "}
+                                <Copy className="h-3 w-3 text-[#165dfb]" />
                                 Code: {code}
                               </>
                             )}
@@ -524,28 +487,28 @@ export default function TeacherDashboard() {
 
                     <div
                       className="flex flex-wrap items-center gap-2 shrink-0"
-                      onClick={(e) => e.stopPropagation()}
+                      onClick={(event) => event.stopPropagation()}
                     >
                       {displayState === "Draft" && (
                         <>
                           <Link
-                            href={`/dashboard/teacher/create?draftId=${test.quizId || (test as any).id || quizId}`}
+                            href={`/dashboard/teacher/create?draftId=${test.quizId}`}
                             className="flex items-center gap-1 rounded-[10px] border border-[#d1dee8]/80 bg-white px-3 py-1.5 text-xs font-bold text-[#111111] hover:bg-[#f5f5f4] hover:border-[#b9cbd9] shadow-xs active:scale-[0.98] transition-all cursor-pointer"
                           >
                             <Settings className="h-3 w-3 text-[#78716b]" />
                             Edit Draft
                           </Link>
+
                           <button
                             type="button"
                             onClick={() => handlePublishQuiz(quizId)}
-                            disabled={actionLoading}
+                            disabled={actionLoadingQuizId === quizId}
                             className="flex items-center gap-1 rounded-[10px] bg-[#165dfb] px-3.5 py-1.5 text-xs font-bold text-white hover:bg-[#0f4fd8] shadow-xs active:scale-[0.98] transition-all border-0 cursor-pointer disabled:opacity-50"
                           >
                             Publish
                           </button>
                         </>
                       )}
-
 
                       {displayState === "Scheduled" && (
                         <Link
@@ -564,16 +527,17 @@ export default function TeacherDashboard() {
                           >
                             Share
                           </Link>
+
                           <button
                             type="button"
                             onClick={() =>
                               setQuizToEnd({
                                 quizId,
-                                quizCode: String(code),
+                                quizCode: code,
                                 title: name,
                               })
                             }
-                            disabled={actionLoading}
+                            disabled={actionLoadingQuizId === quizId}
                             className="flex items-center gap-1 rounded-[10px] border border-[#8c381c]/30 bg-[#fbeee8] px-3 py-1.5 text-xs font-bold text-[#8c381c] hover:bg-[#8c381c]/15 shadow-xs active:scale-[0.98] transition-all cursor-pointer disabled:opacity-50"
                           >
                             End Quiz
@@ -592,34 +556,18 @@ export default function TeacherDashboard() {
                             Results & Leaderboard
                           </Link>
 
-                          {displayState === "Ended" && test.status !== "COMPLETED" && (
-                            <button
-                              type="button"
-                              onClick={() =>
-                                setQuizToEnd({
-                                  quizId,
-                                  quizCode: String(code),
-                                  title: name,
-                                })
-                              }
-                              disabled={actionLoading}
-                              className="flex items-center gap-1 rounded-[10px] border border-[#8c381c]/30 bg-[#fbeee8] px-3 py-1.5 text-xs font-bold text-[#8c381c] hover:bg-[#8c381c]/15 shadow-xs active:scale-[0.98] transition-all cursor-pointer disabled:opacity-50"
-                            >
-                              End Quiz
-                            </button>
-                          )}
-
-                          {displayState !== "Cancelled" && (
-                            !test.resultsPublished ? (
+                          {displayState !== "Cancelled" &&
+                            (!test.resultsPublished ? (
                               <button
                                 type="button"
                                 disabled={
-                                  test.status !== "COMPLETED" || actionLoading
+                                  test.status !== "COMPLETED" || actionLoadingQuizId === quizId
                                 }
-                                onClick={() =>
-                                  test.status === "COMPLETED" &&
-                                  handlePublishResults(quizId)
-                                }
+                                onClick={() => {
+                                  if (test.status === "COMPLETED") {
+                                    void handlePublishResults(quizId);
+                                  }
+                                }}
                                 title={
                                   test.status !== "COMPLETED"
                                     ? "End quiz before publishing results"
@@ -632,14 +580,15 @@ export default function TeacherDashboard() {
                             ) : (
                               <button
                                 type="button"
-                                disabled={actionLoading}
-                                onClick={() => handleUnpublishResults(quizId)}
+                                disabled={actionLoadingQuizId === quizId}
+                                onClick={() =>
+                                  void handleUnpublishResults(quizId)
+                                }
                                 className="flex items-center gap-1 rounded-[10px] border border-[#d1dee8]/80 bg-white px-3 py-1.5 text-xs font-bold text-[#78716b] hover:bg-[#f5f5f4] hover:border-[#b9cbd9] shadow-xs active:scale-[0.98] transition-all cursor-pointer disabled:opacity-50"
                               >
                                 Unpublish Results
                               </button>
-                            )
-                          )}
+                            ))}
                         </>
                       )}
                     </div>
@@ -651,23 +600,26 @@ export default function TeacherDashboard() {
         </section>
       </main>
 
-      {/* Confirmation modal for End Assessment */}
       {quizToEnd && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4 text-left">
           <div className="w-full max-w-sm rounded-[14px] border border-[#d1dee8]/80 bg-white p-6 shadow-2xl space-y-4 animate-in fade-in zoom-in-95 duration-150">
             <h3 className="text-base font-extrabold text-[#111111]">
               End Assessment?
             </h3>
+
             <p className="text-xs text-[#78716b] leading-relaxed">
-              Are you sure you want to end &ldquo;{quizToEnd.title}&rdquo;? Active
-              student attempts will be concluded and the quiz will transition
-              to COMPLETED.
+              Are you sure you want to end &ldquo;
+              {quizToEnd.title}
+              &rdquo;? Active student attempts will be concluded and the quiz
+              will transition to COMPLETED.
             </p>
+
             {actionError && (
               <p className="text-xs font-semibold text-[#8c381c]">
                 {actionError}
               </p>
             )}
+
             <div className="flex items-center justify-end gap-2 pt-2">
               <button
                 type="button"
@@ -675,18 +627,19 @@ export default function TeacherDashboard() {
                   setQuizToEnd(null);
                   setActionError(null);
                 }}
-                disabled={actionLoading}
+                disabled={actionLoadingQuizId === quizToEnd.quizId}
                 className="rounded-[10px] border border-[#d1dee8]/80 bg-white px-3.5 py-1.5 text-xs font-bold text-[#78716b] hover:bg-[#f5f5f4] hover:border-[#b9cbd9] shadow-xs transition-all disabled:opacity-50 cursor-pointer"
               >
                 Cancel
               </button>
+
               <button
                 type="button"
                 onClick={confirmEndQuiz}
-                disabled={actionLoading}
+                disabled={actionLoadingQuizId === quizToEnd.quizId}
                 className="inline-flex items-center gap-1.5 rounded-[10px] bg-[#8c381c] px-3.5 py-1.5 text-xs font-bold text-white hover:bg-[#6e2b14] shadow-xs active:scale-[0.98] transition-all disabled:opacity-50 cursor-pointer border-0"
               >
-                {actionLoading && (
+                {actionLoadingQuizId === quizToEnd.quizId && (
                   <span className="h-3 w-3 animate-spin rounded-full border-2 border-white/30 border-t-white" />
                 )}
                 End Assessment
@@ -698,4 +651,3 @@ export default function TeacherDashboard() {
     </div>
   );
 }
-

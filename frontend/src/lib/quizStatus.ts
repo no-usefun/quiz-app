@@ -7,16 +7,16 @@ export type QuizDisplayState =
   | "Cancelled";
 
 /**
- * Computes the unified display state for a quiz based on backend status,
- * examState, startTime, and endTime.
+ * Backend lifecycle:
  *
- * Rules:
- * - status DRAFT -> "Draft"
- * - status PUBLISHED and now < startTime -> "Scheduled"
- * - status PUBLISHED and examState != ENDED and now within startTime..endTime (or examState == RUNNING) -> "Live"
- * - status PUBLISHED and now > endTime, or examState ENDED -> "Ended"
- * - status COMPLETED -> "Completed"
- * - status CANCELLED -> "Cancelled"
+ * QuizStatus:
+ *   DRAFT | PUBLISHED | COMPLETED | CANCELLED
+ *
+ * ExamState:
+ *   WAITING | RUNNING | PAUSED | ENDED
+ *
+ * This helper is display-only. The backend remains authoritative for
+ * whether a student can actually start an attempt.
  */
 export function computeQuizDisplayState(q: {
   status?: string | null;
@@ -24,45 +24,88 @@ export function computeQuizDisplayState(q: {
   startTime?: string | number | null;
   endTime?: string | number | null;
 }): QuizDisplayState {
-  const status = (q.status || "").toUpperCase();
-  const examState = (q.examState || "").toUpperCase();
+  const status = String(q.status ?? "")
+    .trim()
+    .toUpperCase();
+  const examState = String(q.examState ?? "")
+    .trim()
+    .toUpperCase();
 
-  if (status === "DRAFT") return "Draft";
-  if (status === "COMPLETED") return "Completed";
-  if (status === "CANCELLED") return "Cancelled";
+  if (status === "DRAFT") {
+    return "Draft";
+  }
 
-  if (status === "PUBLISHED" || status === "LIVE") {
-    const now = Date.now();
-    const start = q.startTime ? new Date(q.startTime).getTime() : null;
-    const end = q.endTime ? new Date(q.endTime).getTime() : null;
+  if (status === "COMPLETED") {
+    return "Completed";
+  }
 
-    // 1. Scheduled if quiz start is in the future
-    if (start && !isNaN(start) && now < start) {
-      return "Scheduled";
-    }
+  if (status === "CANCELLED") {
+    return "Cancelled";
+  }
 
-    // 2. Live if examState is explicitly RUNNING or now is within startTime..endTime (and examState != ENDED)
-    if (
-      examState === "RUNNING" ||
-      (examState !== "ENDED" &&
-        start &&
-        end &&
-        !isNaN(start) &&
-        !isNaN(end) &&
-        now >= start &&
-        now <= end)
-    ) {
-      return "Live";
-    }
+  /*
+   * The current backend does not use a LIVE QuizStatus.
+   * Keep it accepted only as a backward-compatibility value.
+   */
+  if (status !== "PUBLISHED" && status !== "LIVE") {
+    return "Draft";
+  }
 
-    // 3. Ended if examState is ENDED or current time passed endTime
-    if (examState === "ENDED" || (end && !isNaN(end) && now > end)) {
-      return "Ended";
-    }
+  /*
+   * Backend availability is based on the published status and the
+   * start/end window. For teacher UI, ExamState.ENDED also means ended.
+   */
+  if (examState === "ENDED") {
+    return "Ended";
+  }
 
-    // Default for published if timestamps are null or missing
+  const now = Date.now();
+
+  const start =
+    q.startTime !== null && q.startTime !== undefined
+      ? new Date(q.startTime).getTime()
+      : null;
+
+  const end =
+    q.endTime !== null && q.endTime !== undefined
+      ? new Date(q.endTime).getTime()
+      : null;
+
+  const hasValidStart = start !== null && Number.isFinite(start);
+
+  const hasValidEnd = end !== null && Number.isFinite(end);
+
+  if (hasValidStart && now < start) {
+    return "Scheduled";
+  }
+
+  if (hasValidEnd && now >= end) {
+    return "Ended";
+  }
+
+  /*
+   * RUNNING is explicitly live.
+   *
+   * PAUSED is still a published assessment inside the configured
+   * time window; the backend's exact state should be shown elsewhere
+   * when pause-specific UI is required.
+   */
+  if (examState === "RUNNING") {
     return "Live";
   }
 
-  return "Draft";
+  if (hasValidStart && hasValidEnd && now >= start && now < end) {
+    return "Live";
+  }
+
+  /*
+   * The backend requires published quizzes to have a start/end window
+   * before publishing. This fallback is only for incomplete/malformed
+   * display data and must not be used as an availability decision.
+   */
+  if (!hasValidStart || !hasValidEnd) {
+    return "Live";
+  }
+
+  return "Live";
 }

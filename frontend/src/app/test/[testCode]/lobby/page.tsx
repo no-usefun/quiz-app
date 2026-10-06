@@ -2,15 +2,14 @@
 
 // src/app/test/[testCode]/lobby/page.tsx
 
-import { use, useState, useEffect, Suspense } from "react";
-import { useRouter, useSearchParams } from "next/navigation";
+import { use, useEffect, useState, Suspense } from "react";
+import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { motion } from "framer-motion";
 import {
   ShieldCheck,
   Clock,
   FileQuestion,
-  User,
   ArrowRight,
   Loader2,
   Lock,
@@ -20,420 +19,281 @@ import {
 } from "lucide-react";
 import { Logo } from "@/components/Logo";
 
-const API_BASE = (
-  process.env.NEXT_PUBLIC_API_URL || "http://localhost:8080"
-).replace(/\/+$/, "");
+import { ApiClientError, api, getAuthToken } from "@/lib/api/client";
+import { ENDPOINTS } from "@/lib/api/endpoints";
+import type {
+  AttemptResponse,
+  QuizAvailabilityResponse,
+} from "@/lib/types";
 
-function getClientAuthToken(): string | null {
-  if (typeof window === "undefined") return null;
+function formatDateTime(value?: string | null): string {
+  if (!value) return "";
 
-  let token = localStorage.getItem("dynoquizz_token");
+  const date = new Date(value);
 
-  if (!token) {
-    const match = document.cookie.match(/(?:^|;\s*)dynoquizz_token=([^;]+)/);
-
-    if (match) {
-      token = match[1];
-
-      try {
-        localStorage.setItem("dynoquizz_token", token);
-      } catch {
-        // Ignore localStorage errors.
-      }
-    }
+  if (Number.isNaN(date.getTime())) {
+    return value;
   }
 
-  if (token) return token;
-
-  return null;
+  return date.toLocaleString("en-IN", {
+    dateStyle: "medium",
+    timeStyle: "short",
+  });
 }
 
-type AvailabilityStatus =
-  | "NOT_FOUND"
-  | "NOT_PUBLISHED"
-  | "NOT_STARTED"
-  | "LIVE"
-  | "ENDED";
+function getLoginRedirect(testCode: string): string {
+  return `/login?role=student&redirect=${encodeURIComponent(
+    `/test/${testCode}/lobby`,
+  )}`;
+}
 
-type QuizAvailabilityResponse = {
-  quizCode?: string;
-  available?: boolean;
-  status?: AvailabilityStatus | string;
-  startTime?: string | null;
-  endTime?: string | null;
-  message?: string;
-  error?: string;
-};
+function getApiErrorMessage(error: unknown, fallback: string): string {
+  if (error instanceof ApiClientError) {
+    return error.message || fallback;
+  }
+
+  if (error instanceof Error) {
+    return error.message || fallback;
+  }
+
+  return fallback;
+}
 
 function LobbyInner({ testCode }: { testCode: string }) {
   const router = useRouter();
-  const searchParams = useSearchParams();
-  const regParam = searchParams.get("reg") || "";
+  const cleanCode = String(testCode || "")
+    .trim()
+    .toUpperCase();
 
-  const [test, setTest] = useState<any | null>(null);
+  const [availability, setAvailability] =
+    useState<QuizAvailabilityResponse | null>(null);
+
   const [loading, setLoading] = useState(true);
-  const [registrationNumber, setRegistrationNumber] = useState(regParam);
-
-  // Backend attempt initialization
   const [isStarting, setIsStarting] = useState(false);
   const [startError, setStartError] = useState<string | null>(null);
-  const [packageError, setPackageError] = useState<string | null>(null);
-  const [hasExistingAttempt, setHasExistingAttempt] = useState(false);
-
-  // New availability state
-  const [availabilityStatus, setAvailabilityStatus] =
-    useState<AvailabilityStatus | null>(null);
 
   useEffect(() => {
-    const cleanCode = testCode.toUpperCase();
-
-    if (typeof window !== "undefined") {
-      const token = getClientAuthToken();
-
-      if (!token) {
-        router.push(`/login?role=student&redirect=/test/${cleanCode}/lobby`);
-        return;
-      }
-
-      const existingAttempt = localStorage.getItem(
-        `dynoquizz_attemptId_${cleanCode}`,
-      );
-
-      if (existingAttempt) {
-        setHasExistingAttempt(true);
-      }
+    if (!cleanCode) {
+      setAvailability({
+        quizCode: "",
+        available: false,
+        status: "NOT_FOUND",
+        startTime: null,
+        endTime: null,
+      });
+      setStartError("Assessment code is missing.");
+      setLoading(false);
+      return;
     }
 
-    const checkAvailability = async () => {
-      setLoading(true);
-      setPackageError(null);
-      setStartError(null);
-      setAvailabilityStatus(null);
+    const token = getAuthToken();
 
+    if (!token) {
+      router.replace(getLoginRedirect(cleanCode));
+      return;
+    }
+
+    let cancelled = false;
+
+    const loadAvailability = async () => {
       try {
-        const token = getClientAuthToken();
+        setLoading(true);
+        setStartError(null);
 
-        if (!token) {
-          router.push(`/login?role=student&redirect=/test/${cleanCode}/lobby`);
-          return;
-        }
-
-        const res = await fetch(
-          `${API_BASE}/api/v1/student/quizzes/${cleanCode}/availability`,
-          {
-            method: "GET",
-            headers: {
-              "Content-Type": "application/json",
-              Authorization: `Bearer ${token}`,
-            },
-            cache: "no-store",
-          },
+        const result = await api.get<QuizAvailabilityResponse>(
+          ENDPOINTS.student.availability(cleanCode),
         );
 
-        const data: QuizAvailabilityResponse = await res
-          .json()
-          .catch(() => ({}));
+        if (cancelled) return;
 
-        if (!res.ok) {
-          const errorMessage =
-            data.message ||
-            data.error ||
-            "Unable to check assessment availability.";
-
-          setAvailabilityStatus(res.status === 404 ? "NOT_FOUND" : null);
-
-          setPackageError(errorMessage);
-          setTest(null);
-          return;
-        }
-
-        const status = data.status;
-
-        if (status === "LIVE" && data.available === true) {
-          /*
-           * IMPORTANT:
-           *
-           * LIVE only means that the student is allowed
-           * to proceed to the next step.
-           *
-           * We intentionally DO NOT download the quiz
-           * package here.
-           *
-           * The package will be fetched only after:
-           *
-           * POST /api/v1/student/quizzes/{code}/attempts
-           *
-           * succeeds.
-           */
-
-          setAvailabilityStatus("LIVE");
-
-          setTest({
-            testCode: cleanCode,
-            quizName: "Assessment Ready",
-            description:
-              "This assessment is currently live. Start the assessment to initialize your secure session.",
-            targetClass: "General Batch",
-            totalTimeLimitMinutes: 0,
-            questions: [],
-          });
-
-          setLoading(false);
-          return;
-        }
-
-        setAvailabilityStatus(status as AvailabilityStatus | null);
-
-        setTest(null);
-
-        switch (status) {
-          case "NOT_STARTED":
-            setPackageError(
-              data.startTime
-                ? `This assessment has not started yet. It starts at ${new Date(
-                    data.startTime,
-                  ).toLocaleString()}`
-                : "This assessment has not started yet.",
-            );
-            break;
-
-          case "ENDED":
-            setPackageError("This assessment has already ended.");
-            break;
-
-          case "NOT_PUBLISHED":
-            setPackageError(
-              "This assessment is not open yet. Ask your teacher to publish it.",
-            );
-            break;
-
-          case "NOT_FOUND":
-            setPackageError(`The assessment code ${cleanCode} does not exist.`);
-            break;
-
-          default:
-            setPackageError("This assessment is not currently available.");
-            break;
-        }
+        setAvailability(result);
       } catch (error) {
+        if (cancelled) return;
+
         console.error("Assessment availability check failed:", error);
 
-        setAvailabilityStatus(null);
-        setTest(null);
+        if (error instanceof ApiClientError && error.status === 401) {
+          router.replace(getLoginRedirect(cleanCode));
+          return;
+        }
 
-        setPackageError(
-          "Could not check assessment availability. Please check your connection and try again.",
+        setStartError(
+          getApiErrorMessage(
+            error,
+            "Could not check assessment availability. Please try again.",
+          ),
         );
       } finally {
-        setLoading(false);
+        if (!cancelled) {
+          setLoading(false);
+        }
       }
     };
 
-    checkAvailability();
+    void loadAvailability();
 
-    if (!regParam && typeof window !== "undefined") {
-      const storedReg =
-        localStorage.getItem("dynoquizz_regNo") ||
-        sessionStorage.getItem("dynoquizz_student_reg");
+    return () => {
+      cancelled = true;
+    };
+  }, [cleanCode, router]);
 
-      if (storedReg) {
-        setRegistrationNumber(storedReg);
-      }
-    }
-  }, [testCode, regParam, router]);
+  const status = availability?.status;
+  const isLive = status === "LIVE" && availability?.available === true;
 
-  /*
-   * Start the server attempt and then download the authoritative
-   * quiz package. The Arena only opens after both succeed.
-   */
   const handleStartAssessment = async () => {
-    const cleanCode = testCode.toUpperCase();
-
-    if (availabilityStatus !== "LIVE") {
+    if (!isLive) {
       setStartError("This assessment is not currently live.");
+      return;
+    }
+
+    const token = getAuthToken();
+
+    if (!token) {
+      router.replace(getLoginRedirect(cleanCode));
       return;
     }
 
     setIsStarting(true);
     setStartError(null);
 
-    const reg = registrationNumber || "CANDIDATE";
-
-    if (typeof window !== "undefined") {
-      localStorage.setItem("dynoquizz_regNo", reg);
-      sessionStorage.setItem("dynoquizz_student_reg", reg);
-    }
-
     try {
-      const token = getClientAuthToken();
-
-      if (!token) {
-        throw new Error("Your login session has expired. Please log in again.");
+      // Fullscreen is required before the server creates the attempt.
+      // Starting an attempt outside fullscreen would bypass the exam UI
+      // protection, so a denied fullscreen request stops the flow here.
+      try {
+        if (typeof document !== "undefined" && !document.fullscreenElement) {
+          await document.documentElement.requestFullscreen();
+        }
+      } catch {
+        throw new Error(
+          "Fullscreen permission is required to start this assessment. Please allow fullscreen and try again.",
+        );
       }
 
-      /*
-       * Step 1: Create or resume the server-side attempt.
-       */
-      let attemptId =
-        localStorage.getItem(`dynoquizz_attemptId_${cleanCode}`) || null;
-
-      if (!attemptId) {
-        const attemptRes = await fetch(
-          `${API_BASE}/api/v1/student/quizzes/${cleanCode}/attempts`,
-          {
-            method: "POST",
-            headers: {
-              "Content-Type": "application/json",
-              Authorization: `Bearer ${token}`,
-            },
-          },
+      if (
+        typeof document !== "undefined" &&
+        !document.fullscreenElement
+      ) {
+        throw new Error(
+          "The assessment can only start in fullscreen mode. Please re-enter fullscreen and try again.",
         );
+      }
+      /*
+       * Step 1:
+       * Ask the backend to create or resume the attempt for the
+       * currently authenticated student.
+       *
+       * The backend derives student identity from the JWT.
+       * No registration number or attempt ID is sent in the request.
+       */
+      let attempt: AttemptResponse;
 
-        // Read the response body exactly once.
-        // Calling attemptRes.json() a second time causes:
-        // "Failed to execute 'json' on 'Response': body stream already read"
-        const attemptData = await attemptRes.json().catch(() => ({}));
+      try {
+        attempt = await api.post<AttemptResponse>(
+          ENDPOINTS.student.startAttempt(cleanCode),
+        );
+      } catch (error) {
+        if (error instanceof ApiClientError) {
+          const code = String(error.errorCode || "").toUpperCase();
 
-        if (!attemptRes.ok) {
-          const errorCode = attemptData.error;
-          const errorMessage = attemptData.message || errorCode;
+          if (error.status === 401) {
+            router.replace(getLoginRedirect(cleanCode));
+            return;
+          }
 
-          if (attemptRes.status === 409 && errorCode === "ALREADY_ATTEMPTED") {
+          if (error.status === 409 && code === "ATTEMPT_ALREADY_SUBMITTED") {
             throw new Error("This assessment has already been submitted.");
           }
 
-          if (errorCode === "QUIZ_NOT_STARTED") {
+          if (code === "QUIZ_NOT_STARTED") {
             throw new Error("This assessment has not started yet.");
           }
 
-          if (errorCode === "QUIZ_ENDED") {
+          if (code === "QUIZ_ENDED") {
             throw new Error("This assessment has already ended.");
           }
 
-          if (
-            errorCode === "QUIZ_NOT_AVAILABLE" ||
-            errorCode === "QUIZ_NOT_ACTIVE"
-          ) {
+          if (code === "QUIZ_NOT_AVAILABLE") {
             throw new Error("This assessment is not currently available.");
           }
 
-          if (
-            typeof errorMessage === "string" &&
-            errorMessage.toLowerCase().includes("not available to students")
-          ) {
+          if (code === "STUDENT_REGISTRATION_NOT_ALLOWED") {
             throw new Error(
-              "This assessment is not open yet. Ask your teacher to publish it.",
+              "Your registration number is not allowed for this assessment.",
             );
           }
 
-          if (attemptRes.status === 403) {
+          if (code === "STUDENT_NOT_ELIGIBLE") {
             throw new Error(
-              errorMessage || "You are not authorized to take this assessment.",
+              "Your account is not eligible for this assessment.",
             );
           }
 
-          throw new Error(
-            errorMessage ||
-              "Failed to initialize assessment attempt on the server.",
-          );
-        }
-
-        if (!attemptData.attemptId) {
-          throw new Error(
-            "The server created the attempt but did not return an attemptId.",
-          );
-        }
-
-        attemptId = String(attemptData.attemptId);
-
-        localStorage.setItem(`dynoquizz_attemptId_${cleanCode}`, attemptId);
-        localStorage.setItem("dynoquizz_attemptId", attemptId);
-      } else {
-        /*
-         * Existing attempt: make sure the generic key is also available
-         * for backward compatibility.
-         */
-        localStorage.setItem("dynoquizz_attemptId", attemptId);
-      }
-
-      /*
-       * Step 2: Reuse a valid cached package if one exists.
-       * Otherwise download the authoritative package from the backend.
-       */
-      const packageKey = `dynoquizz_pkg_${cleanCode}`;
-      let packageData: any = null;
-
-      const cachedPackage =
-        typeof window !== "undefined"
-          ? sessionStorage.getItem(packageKey)
-          : null;
-
-      if (cachedPackage) {
-        try {
-          const parsed = JSON.parse(cachedPackage);
-
           if (
-            parsed &&
-            Array.isArray(parsed.questions) &&
-            parsed.questions.length > 0
+            code === "ATTEMPT_RESUME_NOT_ALLOWED" ||
+            code === "RESUME_NOT_ALLOWED"
           ) {
-            packageData = parsed;
+            throw new Error(
+              "You already have an unfinished attempt for this assessment, but the instructor has disabled resume.",
+            );
           }
-        } catch {
-          sessionStorage.removeItem(packageKey);
+
+          if (code === "ATTEMPT_EXPIRED") {
+            throw new Error(
+              "Your previous assessment attempt has expired and cannot be resumed.",
+            );
+          }
+
+          if (error.status === 403) {
+            throw new Error(
+              error.message ||
+                "You are not authorized to take this assessment.",
+            );
+          }
         }
+
+        throw error;
       }
 
-      if (!packageData) {
-        const packageRes = await fetch(
-          `${API_BASE}/api/v1/quizzes/code/${cleanCode}/package`,
-          {
-            method: "GET",
-            headers: {
-              "Content-Type": "application/json",
-              Authorization: `Bearer ${token}`,
-            },
-            cache: "no-store",
-          },
+      if (!attempt?.attemptId) {
+        throw new Error(
+          "The server did not return a valid assessment attempt ID.",
         );
-
-        const packageErrorData = await packageRes.json().catch(() => ({}));
-
-        if (!packageRes.ok) {
-          throw new Error(
-            packageErrorData.message ||
-              packageErrorData.error ||
-              "The assessment package could not be downloaded.",
-          );
-        }
-
-        packageData = packageErrorData;
-
-        if (
-          !packageData ||
-          !Array.isArray(packageData.questions) ||
-          packageData.questions.length === 0
-        ) {
-          throw new Error(
-            "The server returned an invalid or empty assessment package.",
-          );
-        }
-
-        sessionStorage.setItem(packageKey, JSON.stringify(packageData));
       }
 
+      if (
+        typeof attempt.effectiveDeadline !== "string" ||
+        !attempt.effectiveDeadline
+      ) {
+        throw new Error(
+          "The server did not return the authoritative assessment deadline.",
+        );
+      }
+
+      const attemptId = String(attempt.attemptId);
+      localStorage.setItem("dynoquizz_attemptId", attemptId);
+      localStorage.setItem(`dynoquizz_attemptId_${attempt.quizId}`, attemptId);
+      localStorage.setItem(`dynoquizz_attemptId_${cleanCode}`, attemptId);
+
       /*
-       * Step 3: Only enter the Arena after the attempt and package
-       * are both ready.
+       * Only enter the exam arena after the backend has created/resolved
+       * the authoritative attempt. The arena then restores attempt state
+       * and fetches the student-safe quiz package.
        */
-      setHasExistingAttempt(true);
-      router.push(`/test/${cleanCode}`);
-    } catch (err: any) {
-      console.error("Start assessment error:", err);
+      router.push(`/test/${encodeURIComponent(cleanCode)}`);
+    } catch (error) {
+      console.error("Start assessment error:", error);
+
+      if (error instanceof ApiClientError && error.status === 401) {
+        router.replace(getLoginRedirect(cleanCode));
+        return;
+      }
 
       setStartError(
-        err?.message ||
+        getApiErrorMessage(
+          error,
           "Could not start the assessment. Please check your connection and try again.",
+        ),
       );
     } finally {
       setIsStarting(false);
@@ -451,12 +311,42 @@ function LobbyInner({ testCode }: { testCode: string }) {
     );
   }
 
-  /*
-   * Any non-LIVE state stops here.
-   *
-   * No quiz package has been downloaded.
-   */
-  if (!test || availabilityStatus !== "LIVE") {
+  if (!availability || !isLive) {
+    let availabilityMessage =
+      startError || "This assessment is not currently available.";
+
+    if (!startError) {
+      switch (status) {
+        case "NOT_STARTED":
+          availabilityMessage = availability?.startTime
+            ? `This assessment has not started yet. It starts at ${formatDateTime(
+                availability.startTime,
+              )}.`
+            : "This assessment has not started yet.";
+          break;
+
+        case "ENDED":
+          availabilityMessage = "This assessment has already ended.";
+          break;
+
+        case "NOT_PUBLISHED":
+          availabilityMessage =
+            "This assessment is not open yet. Ask your instructor to publish it.";
+          break;
+
+        case "NOT_FOUND":
+          availabilityMessage = `The assessment code ${cleanCode} does not exist.`;
+          break;
+
+        case "LIVE":
+          availabilityMessage = "This assessment is not currently available.";
+          break;
+
+        default:
+          break;
+      }
+    }
+
     return (
       <div className="mx-auto max-w-md rounded-[14px] border border-[#d1dee8]/70 bg-white p-8 text-center shadow-sm">
         <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-[12px] bg-[#fbeee8] text-[#8c381c] shadow-xs">
@@ -468,15 +358,7 @@ function LobbyInner({ testCode }: { testCode: string }) {
         </h2>
 
         <p className="mt-2 text-xs text-[#78716b] leading-relaxed font-medium">
-          {packageError || (
-            <>
-              The access code{" "}
-              <span className="font-mono font-bold text-[#111111]">
-                {testCode}
-              </span>{" "}
-              does not exist, has been archived, or is not currently open.
-            </>
-          )}
+          {availabilityMessage}
         </p>
 
         <Link
@@ -514,63 +396,26 @@ function LobbyInner({ testCode }: { testCode: string }) {
         <div className="border-b border-[#d1dee8]/50 pb-6">
           <div className="flex flex-wrap items-center justify-between gap-2 mb-2">
             <span className="rounded-full bg-[#165dfb] px-3 py-1 text-[10px] font-bold uppercase tracking-widest text-white shadow-xs">
-              {test.testCode}
+              {cleanCode}
             </span>
 
             <span className="text-xs font-semibold text-[#78716b]">
-              Target Class:{" "}
-              <span className="font-bold text-[#111111]">
-                {test.targetClass}
-              </span>
+              Assessment Status:{" "}
+              <span className="font-bold text-[#111111]">LIVE</span>
             </span>
           </div>
 
           <h1 className="text-2xl font-extrabold text-[#111111] tracking-tight">
-            {test.quizName}
+            Secure Assessment Lobby
           </h1>
 
           <p className="mt-2 text-xs text-[#78716b] leading-relaxed font-medium">
-            {test.description}
+            Your logged-in student account is validated by the server before
+            the assessment attempt is created or resumed.
           </p>
         </div>
 
-        <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-          <div className="rounded-[12px] border border-[#d1dee8]/70 bg-[#f5f5f4]/60 p-3.5 shadow-xs">
-            <div className="flex items-center gap-2 text-xs text-[#78716b] font-medium">
-              <FileQuestion className="h-3.5 w-3.5 text-[#165dfb]" />
-              Questions
-            </div>
-
-            <p className="mt-1 text-sm font-bold text-[#111111]">
-              {test.questions.length > 0
-                ? `${test.questions.length} Items`
-                : "Available after start"}
-            </p>
-          </div>
-
-          <div className="rounded-[12px] border border-[#d1dee8]/70 bg-[#f5f5f4]/60 p-3.5 shadow-xs">
-            <div className="flex items-center gap-2 text-xs text-[#78716b] font-medium">
-              <Clock className="h-3.5 w-3.5 text-[#165dfb]" />
-              Time Limit
-            </div>
-
-            <p className="mt-1 text-sm font-bold text-[#111111]">
-              {test.totalTimeLimitMinutes > 0
-                ? `${test.totalTimeLimitMinutes} Minutes`
-                : "Provided in package"}
-            </p>
-          </div>
-
-          <div className="rounded-[12px] border border-[#d1dee8]/70 bg-[#f5f5f4]/60 p-3.5 col-span-2 sm:col-span-1 shadow-xs">
-            <div className="flex items-center gap-2 text-xs text-[#78716b] font-medium">
-              <User className="h-3.5 w-3.5 text-[#165dfb]" />
-              Candidate Reg
-            </div>
-
-            <p className="mt-1 text-sm font-mono font-bold text-[#111111] truncate">
-              {registrationNumber || "NOT SPECIFIED"}
-            </p>
-          </div>
+        <div className="grid grid-cols-2 gap-3">
         </div>
 
         <motion.div
@@ -585,8 +430,9 @@ function LobbyInner({ testCode }: { testCode: string }) {
             </div>
 
             <p className="leading-relaxed font-medium">
-              This assessment is live. Start the secure server session to
-              download the authoritative assessment package.
+              The assessment is live. Starting the secure server session will
+              establish your attempt timing and load the authoritative
+              student-safe quiz package.
             </p>
           </div>
 
@@ -598,12 +444,12 @@ function LobbyInner({ testCode }: { testCode: string }) {
 
             <div className="flex items-center gap-2">
               <Check className="h-3.5 w-3.5 text-[#165dfb]" />
-              <span>Server attempt created before package access</span>
+              <span>Server creates or resumes the student attempt</span>
             </div>
 
             <div className="flex items-center gap-2">
               <Check className="h-3.5 w-3.5 text-[#165dfb]" />
-              <span>Package is cached locally before entering the Arena</span>
+              <span>Authoritative deadline is stored before Arena entry</span>
             </div>
           </div>
 
@@ -631,12 +477,19 @@ function LobbyInner({ testCode }: { testCode: string }) {
 
               <ul className="list-disc pl-4 space-y-1 font-medium">
                 <li>
-                  The timer starts once the secure assessment session is
-                  initialized.
+                  The server starts or resumes the attempt for the logged-in
+                  student.
                 </li>
                 <li>
-                  Your answers are automatically saved locally and submitted
-                  when you complete the assessment.
+                  The authoritative assessment deadline comes from the server
+                  response.
+                </li>
+                <li>
+                  The exam package is loaded only after the attempt is ready.
+                </li>
+                <li>
+                  Fullscreen is requested before entering the assessment. Leaving
+                  fullscreen may be recorded as suspicious activity.
                 </li>
               </ul>
             </div>
@@ -656,9 +509,7 @@ function LobbyInner({ testCode }: { testCode: string }) {
                 </>
               ) : (
                 <>
-                  {hasExistingAttempt
-                    ? "Resume Assessment"
-                    : "Start Assessment"}
+                  Start / Resume Assessment
                   <ArrowRight className="h-4 w-4" />
                 </>
               )}
