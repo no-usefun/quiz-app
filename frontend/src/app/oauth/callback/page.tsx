@@ -25,6 +25,10 @@ type OAuthUser = {
 
 type OAuthStatus = "processing" | "success" | "error";
 
+type ParamSource = {
+  get(name: string): string | null;
+};
+
 function normalizeRole(value: unknown): BackendRole | null {
   const role = String(value ?? "").trim().toUpperCase();
 
@@ -50,8 +54,8 @@ function getSafeRedirect(value: string | null): string | null {
 }
 
 function getCallbackValue(
-  searchParams: URLSearchParams,
-  hashParams: URLSearchParams,
+  searchParams: ParamSource,
+  hashParams: ParamSource,
   names: string[],
 ): string | null {
   for (const name of names) {
