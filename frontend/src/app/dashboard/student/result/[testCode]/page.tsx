@@ -28,7 +28,6 @@ import { ENDPOINTS } from "@/lib/api/endpoints";
 import type {
   AttemptResultResponse,
   AttemptResultDetailResponse,
-  QuizPackageResponse,
 } from "@/lib/types";
 
 type AttemptResult = AttemptResultResponse;
@@ -97,6 +96,71 @@ function formatOptionTexts(
       `Option ${optionId}`
     );
   });
+}
+
+function readOptionTextSnapshot(
+  attemptId: string,
+  quizId: number,
+): Record<number, Record<number, string>> {
+  if (typeof window === "undefined") {
+    return {};
+  }
+
+  const keys = [
+    `dynoquizz_option_texts_attempt_${attemptId}`,
+    `dynoquizz_option_texts_quiz_${quizId}`,
+  ];
+
+  for (const key of keys) {
+    try {
+      const raw = localStorage.getItem(key);
+
+      if (!raw) {
+        continue;
+      }
+
+      const parsed = JSON.parse(raw);
+
+      if (!parsed || typeof parsed !== "object") {
+        continue;
+      }
+
+      return Object.entries(parsed as Record<string, unknown>).reduce<
+        Record<number, Record<number, string>>
+      >((questionMap, [questionId, options]) => {
+        const numericQuestionId = Number(questionId);
+
+        if (
+          !Number.isFinite(numericQuestionId) ||
+          !options ||
+          typeof options !== "object"
+        ) {
+          return questionMap;
+        }
+
+        questionMap[numericQuestionId] = Object.entries(
+          options as Record<string, unknown>,
+        ).reduce<Record<number, string>>(
+          (optionMap, [optionId, text]) => {
+            const numericOptionId = Number(optionId);
+
+            if (Number.isFinite(numericOptionId)) {
+              optionMap[numericOptionId] = String(text ?? "");
+            }
+
+            return optionMap;
+          },
+          {},
+        );
+
+        return questionMap;
+      }, {});
+    } catch {
+      // Ignore invalid historical snapshots and try the next key.
+    }
+  }
+
+  return {};
 }
 
 function ScoreRing({ score }: { score: number }) {
@@ -268,54 +332,13 @@ export default function StudentResultPage({
           }
         }
 
-        let nextOptionTextByQuestion: Record<
-          number,
-          Record<number, string>
-        > = {};
-
-        if (detailList.length > 0) {
-          try {
-            const packageData = await api.get<QuizPackageResponse>(
-              ENDPOINTS.student.quizPackageById(normalized.quizId),
-            );
-
-            if (packageData && Array.isArray(packageData.questions)) {
-              nextOptionTextByQuestion = packageData.questions.reduce<
-                Record<number, Record<number, string>>
-              >((questionMap, question) => {
-                const questionId = Number(question.questionId);
-
-                if (!Number.isFinite(questionId) || questionId <= 0) {
-                  return questionMap;
-                }
-
-                questionMap[questionId] = Object.fromEntries(
-                  (question.options || []).map((option) => [
-                    Number(option.optionId),
-                    String(
-                      option.optionText ||
-                        `Option ${Number(option.optionId)}`,
-                    ),
-                  ]),
-                );
-
-                return questionMap;
-              }, {});
-            }
-          } catch (packageError) {
-            if (
-              packageError instanceof ApiClientError &&
-              packageError.status === 401
-            ) {
-              throw packageError;
-            }
-
-            console.info(
-              "[Student Result] Could not load answer option text:",
-              packageError,
-            );
-          }
-        }
+        // Results are historical data. Do not request the active student
+        // quiz package here: once a quiz ends, that endpoint is intentionally
+        // unavailable and would turn a valid result page into a 400.
+        const nextOptionTextByQuestion =
+          detailList.length > 0
+            ? readOptionTextSnapshot(attemptId, normalized.quizId)
+            : {};
 
         if (!cancelled) {
           setResult(normalized);
