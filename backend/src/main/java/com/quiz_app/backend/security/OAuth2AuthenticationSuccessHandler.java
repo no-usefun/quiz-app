@@ -146,6 +146,7 @@ public class OAuth2AuthenticationSuccessHandler
                 user = createNewSsoUser(
                         oidcUser,
                         normalizedEmail,
+                        subject,
                         requestedRole);
 
                 createIdentity(
@@ -239,6 +240,7 @@ public class OAuth2AuthenticationSuccessHandler
     private User createNewSsoUser(
             OidcUser oidcUser,
             String email,
+            String subject,
             String requestedRole) {
 
         Role role = roleRepository
