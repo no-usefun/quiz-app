@@ -36,14 +36,17 @@ public class SecurityConfig {
     private final AuthEntryPointJwt authEntryPointJwt;
     private final AccessDeniedHandlerJwt accessDeniedHandlerJwt;
     private final boolean oauth2Enabled;
+    private final boolean emailFeaturesEnabled;
 
     public SecurityConfig(JwtAuthenticationFilter jwtAuthenticationFilter, AuthEntryPointJwt authEntryPointJwt,
             AccessDeniedHandlerJwt accessDeniedHandlerJwt,
-            @Value("${app.auth.oauth2-enabled:false}") boolean oauth2Enabled) {
+            @Value("${app.auth.oauth2-enabled:false}") boolean oauth2Enabled,
+            @Value("${app.auth.email-features-enabled:true}") boolean emailFeaturesEnabled) {
         this.jwtAuthenticationFilter = jwtAuthenticationFilter;
         this.authEntryPointJwt = authEntryPointJwt;
         this.accessDeniedHandlerJwt = accessDeniedHandlerJwt;
         this.oauth2Enabled = oauth2Enabled;
+        this.emailFeaturesEnabled = emailFeaturesEnabled;
     }
 
     @Bean
@@ -79,10 +82,11 @@ public class SecurityConfig {
                         .accessDeniedHandler(accessDeniedHandlerJwt))
                 .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .authorizeHttpRequests(auth -> auth
-                        .requestMatchers("/api/v1/auth/login", "/api/v1/auth/signup", "/api/v1/auth/verify-email",
-                                "/api/v1/auth/resend-verification", "/api/v1/auth/forgot-password",
-                                "/api/v1/auth/reset-password", "/", "/api/v1/health", "/favicon.ico")
+                        .requestMatchers("/api/v1/auth/login", "/api/v1/auth/signup", "/", "/api/v1/health", "/favicon.ico")
                         .permitAll()
+                        .requestMatchers("/api/v1/auth/verify-email", "/api/v1/auth/resend-verification",
+                                "/api/v1/auth/forgot-password", "/api/v1/auth/reset-password")
+                        .access((authentication, context) -> new org.springframework.security.authorization.AuthorizationDecision(emailFeaturesEnabled))
                         .requestMatchers("/v3/api-docs/**", "/swagger-ui/**", "/swagger-ui.html").permitAll()
                         .requestMatchers("/error").permitAll()
                         .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
