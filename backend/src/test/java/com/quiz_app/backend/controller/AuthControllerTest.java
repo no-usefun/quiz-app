@@ -74,13 +74,16 @@ class AuthControllerTest {
         @Test
         void signup_shouldReturnCreated() throws Exception {
                 when(authService.register(any(SignupRequest.class), org.mockito.ArgumentMatchers.eq("TEACHER")))
-                                .thenReturn(new SignupResponse("Account created successfully. Please verify your email before logging in.", true, summary));
+                                .thenReturn(new SignupResponse(
+                                                "Account created successfully. Please verify your email before logging in.",
+                                                true, summary));
 
                 mockMvc.perform(post("/api/v1/auth/signup").param("role", "TEACHER")
                                 .contentType(MediaType.APPLICATION_JSON)
                                 .content(objectMapper.writeValueAsString(signupRequest)))
                                 .andExpect(status().isCreated())
-                                .andExpect(jsonPath("$.message").value("Account created successfully. Please verify your email before logging in."))
+                                .andExpect(jsonPath("$.message").value(
+                                                "Account created successfully. Please verify your email before logging in."))
                                 .andExpect(jsonPath("$.verificationRequired").value(true))
                                 .andExpect(jsonPath("$.user.email").value("jane@example.com"));
         }
