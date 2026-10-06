@@ -1,5 +1,6 @@
 import time
 import uuid
+import secrets
 import numpy as np
 import logging
 from dataclasses import dataclass, field
@@ -13,6 +14,7 @@ class ProctoringSession:
     attempt_id: int
     student_id: str
     test_code: str
+    ws_ticket: str = field(default_factory=lambda: secrets.token_urlsafe(32))
     reference_embedding: Optional[np.ndarray] = None
     reference_image_b64: Optional[str] = None
     spring_boot_url: str = "http://localhost:8080"
@@ -51,11 +53,13 @@ class SessionManager:
         auth_token: Optional[str] = None
     ) -> ProctoringSession:
         session_id = str(uuid.uuid4())
+        ws_ticket = secrets.token_urlsafe(32)
         session = ProctoringSession(
             session_id=session_id,
             attempt_id=attempt_id,
             student_id=student_id,
             test_code=test_code,
+            ws_ticket=ws_ticket,
             reference_embedding=reference_embedding,
             reference_image_b64=reference_image_b64,
             spring_boot_url=spring_boot_url,
@@ -64,6 +68,34 @@ class SessionManager:
         self.sessions[session_id] = session
         logger.info("Created proctoring session %s for attempt %d (student %s)", session_id, attempt_id, student_id)
         return session
+
+    def validate_session_auth(
+        self,
+        session_id: str,
+        ticket: Optional[str] = None,
+        auth_token: Optional[str] = None,
+        student_id: Optional[str] = None,
+        attempt_id: Optional[int] = None
+    ) -> tuple[bool, str]:
+        session = self.get_session(session_id)
+        if not session:
+            return False, "SESSION_NOT_FOUND"
+        if not session.is_active:
+            return False, "SESSION_INACTIVE"
+
+        if student_id is not None and str(student_id) != str(session.student_id):
+            return False, "STUDENT_MISMATCH"
+
+        if attempt_id is not None and int(attempt_id) != int(session.attempt_id):
+            return False, "ATTEMPT_MISMATCH"
+
+        ticket_match = (ticket is not None and ticket == session.ws_ticket)
+        token_match = (auth_token is not None and session.auth_token is not None and auth_token == session.auth_token)
+
+        if not ticket_match and not token_match:
+            return False, "INVALID_CREDENTIALS"
+
+        return True, "AUTHORIZED"
 
     def get_session(self, session_id: str) -> Optional[ProctoringSession]:
         return self.sessions.get(session_id)

@@ -801,8 +801,8 @@ export default function TestArenaPage({
     setIsSubmitted(true);
     setSubmissionNotice(null);
 
-    // Stop proctoring camera, mic, and remote AI session immediately
-    proctoring.cleanup();
+    // Stop proctoring camera, mic, and remote AI session immediately and await summary dispatch
+    await proctoring.cleanup();
 
     persistCurrentState(latestAnswers, latestTimeTaken);
 

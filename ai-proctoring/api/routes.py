@@ -55,6 +55,7 @@ class StartSessionRequest(BaseModel):
 
 class StartSessionResponse(BaseModel):
     sessionId: str
+    wsTicket: str
     status: str
     faceDetected: bool
     referenceRegistered: bool
@@ -168,6 +169,7 @@ def start_proctoring_session(req: StartSessionRequest):
 
     return StartSessionResponse(
         sessionId=session.session_id,
+        wsTicket=session.ws_ticket,
         status="INITIALIZED",
         faceDetected=True,
         referenceRegistered=True,
@@ -267,15 +269,19 @@ async def analyze_frame(req: AnalyzeFrameRequest):
 
 @router.post("/proctor/stop", response_model=StopSessionResponse)
 async def stop_session(req: StopSessionRequest):
-    session = session_manager.end_session(req.sessionId)
+    session = session_manager.get_session(req.sessionId)
     if not session:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Session not found."
         )
 
-    # Dispatch final real verification metrics to Spring Boot
-    await malpractice_detector.dispatch_session_summary(session)
+    already_ended = not session.is_active
+    session = session_manager.end_session(req.sessionId)
+
+    # Dispatch final real verification metrics to Spring Boot only once
+    if not already_ended:
+        await malpractice_detector.dispatch_session_summary(session)
 
     return StopSessionResponse(
         status="STOPPED",

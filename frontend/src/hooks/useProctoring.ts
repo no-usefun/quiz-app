@@ -38,6 +38,9 @@ export function useProctoring({
   const frameIntervalRef = useRef<NodeJS.Timeout | null>(null);
   const sessionIdRef = useRef<string | null>(null);
   const isCleaningUpRef = useRef(false);
+  const cleanupPromiseRef = useRef<Promise<void> | null>(null);
+  const isWsAuthenticatedRef = useRef(false);
+  const inFlightRestRef = useRef(false);
 
   // Audio PCM buffer
   const latestAudioSamplesRef = useRef<number[]>([]);
@@ -73,61 +76,77 @@ export function useProctoring({
     autoSubmitted: false,
   });
 
-  // Thorough Hardware & Resource Cleanup (Point 11)
-  const cleanup = useCallback(() => {
-    if (isCleaningUpRef.current) return;
-    isCleaningUpRef.current = true;
-
-    // 1. Clear frame processing intervals
-    if (frameIntervalRef.current) {
-      clearInterval(frameIntervalRef.current);
-      frameIntervalRef.current = null;
+  // Thorough Hardware & Resource Cleanup (Idempotent Async Finalization)
+  const cleanup = useCallback((): Promise<void> => {
+    if (cleanupPromiseRef.current) {
+      return cleanupPromiseRef.current;
     }
 
-    // 2. Stop WebSocket connection
-    if (wsRef.current) {
-      try {
-        wsRef.current.close();
-      } catch {
-        // Ignore
+    cleanupPromiseRef.current = (async () => {
+      isCleaningUpRef.current = true;
+      isWsAuthenticatedRef.current = false;
+
+      // 1. Clear frame processing intervals immediately
+      if (frameIntervalRef.current) {
+        clearInterval(frameIntervalRef.current);
+        frameIntervalRef.current = null;
       }
-      wsRef.current = null;
-    }
 
-    // 3. Stop all camera & microphone MediaStream tracks
-    if (streamRef.current) {
-      streamRef.current.getTracks().forEach((track) => {
+      // 2. Stop WebSocket connection immediately
+      if (wsRef.current) {
         try {
-          track.stop();
+          wsRef.current.close();
         } catch {
           // Ignore
         }
-      });
-      streamRef.current = null;
-    }
-
-    // 4. Detach video element stream
-    if (videoRef.current) {
-      videoRef.current.srcObject = null;
-    }
-
-    // 5. Close Web Audio Context
-    if (audioContextRef.current && audioContextRef.current.state !== "closed") {
-      try {
-        void audioContextRef.current.close();
-      } catch {
-        // Ignore
+        wsRef.current = null;
       }
-      audioContextRef.current = null;
-    }
 
-    // 6. Stop remote AI proctoring session
-    if (sessionIdRef.current) {
-      void stopProctoringSession(sessionIdRef.current);
+      // 3. Stop all camera & microphone MediaStream tracks
+      if (streamRef.current) {
+        streamRef.current.getTracks().forEach((track) => {
+          try {
+            track.stop();
+          } catch {
+            // Ignore
+          }
+        });
+        streamRef.current = null;
+      }
+
+      // 4. Detach video element stream
+      if (videoRef.current) {
+        videoRef.current.srcObject = null;
+      }
+
+      // 5. Close Web Audio Context
+      if (audioContextRef.current && audioContextRef.current.state !== "closed") {
+        try {
+          await audioContextRef.current.close();
+        } catch {
+          // Ignore
+        }
+        audioContextRef.current = null;
+      }
+
+      // 6. Stop remote AI proctoring session and await summary dispatch with timeout
+      const sid = sessionIdRef.current;
       sessionIdRef.current = null;
-    }
+      if (sid) {
+        try {
+          await Promise.race([
+            stopProctoringSession(sid),
+            new Promise((resolve) => setTimeout(resolve, 3000)),
+          ]);
+        } catch (err) {
+          console.warn("Error stopping proctoring session:", err);
+        }
+      }
 
-    setCameraActive(false);
+      setCameraActive(false);
+    })();
+
+    return cleanupPromiseRef.current;
   }, []);
 
   const handleTelemetryUpdate = useCallback(
@@ -270,16 +289,31 @@ export function useProctoring({
           console.warn("Web Audio API initialization failed:", audioErr);
         }
 
-        // 5. Connect WebSocket streaming
+        // 5. Connect WebSocket streaming with authenticated handshake
         try {
           const wsUrl = `${AI_PROCTORING_WS_URL}/ws/proctor/${sessionRes.sessionId}`;
           const ws = new WebSocket(wsUrl);
           wsRef.current = ws;
 
+          ws.onopen = () => {
+            // Send mandatory authentication handshake as the first message
+            ws.send(
+              JSON.stringify({
+                type: "auth",
+                ticket: sessionRes.wsTicket,
+                authToken: authToken,
+                studentId: studentId,
+                attemptId: attemptId,
+              })
+            );
+          };
+
           ws.onmessage = (event) => {
             try {
               const data = JSON.parse(event.data);
-              if (data.type === "telemetry" && mounted) {
+              if (data.type === "authenticated") {
+                isWsAuthenticatedRef.current = true;
+              } else if (data.type === "telemetry" && mounted) {
                 handleTelemetryUpdate(data);
               }
             } catch {
@@ -294,7 +328,7 @@ export function useProctoring({
           console.warn("WebSocket init failed, using REST fallback");
         }
 
-        // 6. Continuous Streaming Loop (every 350ms)
+        // 6. Continuous Streaming Loop (every 350ms) with in-flight guard
         frameIntervalRef.current = setInterval(async () => {
           if (!mounted || isCleaningUpRef.current) return;
 
@@ -304,27 +338,29 @@ export function useProctoring({
           const audioSamples = latestAudioSamplesRef.current;
           latestAudioSamplesRef.current = []; // drain
 
-          // If WebSocket is open, send over WS
-          if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
+          // If WebSocket is open and authenticated, send over WS
+          if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN && isWsAuthenticatedRef.current) {
             wsRef.current.send(
               JSON.stringify({
                 frame: frameB64,
                 audio: audioSamples,
               })
             );
-          } else if (sessionIdRef.current) {
-            // Fallback to REST
+          } else if (sessionIdRef.current && !inFlightRestRef.current) {
+            inFlightRestRef.current = true;
             try {
               const res = await analyzeFrameREST({
                 sessionId: sessionIdRef.current,
                 frame: frameB64,
                 audio: audioSamples,
               });
-              if (mounted) {
+              if (mounted && !isCleaningUpRef.current) {
                 handleTelemetryUpdate(res);
               }
             } catch {
               // Frame dropped
+            } finally {
+              inFlightRestRef.current = false;
             }
           }
         }, 350);
@@ -336,14 +372,14 @@ export function useProctoring({
     void initProctoring();
 
     const handleBeforeUnload = () => {
-      cleanup();
+      void cleanup();
     };
     window.addEventListener("beforeunload", handleBeforeUnload);
 
     return () => {
       mounted = false;
       window.removeEventListener("beforeunload", handleBeforeUnload);
-      cleanup();
+      void cleanup();
     };
   }, [
     enabled,

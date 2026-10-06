@@ -29,6 +29,7 @@ export interface StartSessionParams {
 
 export interface StartSessionResult {
   sessionId: string;
+  wsTicket?: string;
   status: string;
   faceDetected: boolean;
   referenceRegistered: boolean;

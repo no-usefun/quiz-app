@@ -21,19 +21,77 @@ ws_router = APIRouter()
 async def proctoring_websocket_endpoint(websocket: WebSocket, session_id: str):
     await websocket.accept()
     session = session_manager.get_session(session_id)
-    if not session or not session.is_active:
-        logger.warning("WebSocket connection rejected: invalid or inactive session %s", session_id)
-        await websocket.send_json({"error": "SESSION_NOT_FOUND", "message": "Session not found or inactive."})
+    if not session:
+        logger.warning("WebSocket connection rejected: session not found %s", session_id)
+        await websocket.send_json({"error": "SESSION_NOT_FOUND", "message": "Session not found."})
         await websocket.close(code=4004)
         return
 
-    logger.info("WebSocket client connected for proctoring session %s", session_id)
+    if not session.is_active:
+        logger.warning("WebSocket connection rejected: inactive session %s", session_id)
+        await websocket.send_json({"error": "SESSION_INACTIVE", "message": "Session is inactive or already closed."})
+        await websocket.close(code=4003)
+        return
+
+    # Mandatory Authentication Handshake Phase (Must authenticate as first message)
+    try:
+        data_auth = await websocket.receive_text()
+        if not data_auth:
+            await websocket.send_json({"error": "MISSING_AUTH", "message": "Empty authentication message."})
+            await websocket.close(code=4001)
+            return
+
+        try:
+            auth_msg = json.loads(data_auth)
+        except json.JSONDecodeError:
+            await websocket.send_json({"error": "INVALID_JSON", "message": "Malformed JSON in auth handshake."})
+            await websocket.close(code=4001)
+            return
+
+        if auth_msg.get("type") != "auth":
+            logger.warning("WebSocket rejected: first message was not auth for session %s", session_id)
+            await websocket.send_json({"error": "UNAUTHORIZED", "message": "Authentication handshake required as first message."})
+            await websocket.close(code=4001)
+            return
+
+        is_auth, auth_err = session_manager.validate_session_auth(
+            session_id=session_id,
+            ticket=auth_msg.get("ticket"),
+            auth_token=auth_msg.get("authToken") or auth_msg.get("token"),
+            student_id=auth_msg.get("studentId"),
+            attempt_id=auth_msg.get("attemptId")
+        )
+
+        if not is_auth:
+            logger.warning("WebSocket authentication failed for session %s: %s", session_id, auth_err)
+            await websocket.send_json({"error": "UNAUTHORIZED", "message": f"Authentication failed: {auth_err}"})
+            await websocket.close(code=4001)
+            return
+
+        # Send authentication confirmation
+        await websocket.send_json({
+            "type": "authenticated",
+            "status": "ACTIVE",
+            "sessionId": session_id
+        })
+        logger.info("WebSocket client authenticated successfully for proctoring session %s", session_id)
+
+    except Exception as e:
+        logger.error("Error during WebSocket auth handshake for session %s: %s", session_id, e)
+        try:
+            await websocket.close(code=4001)
+        except Exception:
+            pass
+        return
 
     try:
-        while True:
+        while session.is_active:
             data_text = await websocket.receive_text()
             if not data_text:
                 continue
+
+            if not session.is_active:
+                break
 
             try:
                 msg = json.loads(data_text)
