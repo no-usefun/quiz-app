@@ -12,6 +12,7 @@ public record TeacherProctoringReportResponse(
     String quizTitle,
     String status,
     int warningCount,
+    int totalViolationsCount,
     int riskScore,
     String riskLevel,
     int totalFaceChecks,
@@ -19,6 +20,8 @@ public record TeacherProctoringReportResponse(
     int identityMismatches,
     int faceAbsenceCount,
     int multipleFacesCount,
+    int multiplePersonsCount,
+    int lookingAwayCount,
     int phoneDetectionsCount,
     int voiceDetectionsCount,
     int tabSwitchesCount,
@@ -31,6 +34,7 @@ public record TeacherProctoringReportResponse(
         String eventType,
         String details,
         String severity,
+        Double confidence,
         LocalDateTime timestamp
     ) {}
 }

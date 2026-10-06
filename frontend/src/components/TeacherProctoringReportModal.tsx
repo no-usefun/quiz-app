@@ -12,6 +12,9 @@ import {
   Clock,
   Loader2,
   AlertCircle,
+  EyeOff,
+  Maximize2,
+  UserCheck,
 } from "lucide-react";
 import { api, getAuthToken } from "@/lib/api/client";
 
@@ -20,6 +23,7 @@ interface ProctoringEventDetail {
   eventType: string;
   details: string;
   severity: string;
+  confidence?: number;
   timestamp: string;
 }
 
@@ -32,6 +36,7 @@ interface ProctoringReportData {
   quizTitle: string;
   status: string;
   warningCount: number;
+  totalViolationsCount: number;
   riskScore: number;
   riskLevel: string;
   totalFaceChecks: number;
@@ -39,6 +44,8 @@ interface ProctoringReportData {
   identityMismatches: number;
   faceAbsenceCount: number;
   multipleFacesCount: number;
+  multiplePersonsCount: number;
+  lookingAwayCount: number;
   phoneDetectionsCount: number;
   voiceDetectionsCount: number;
   tabSwitchesCount: number;
@@ -118,7 +125,7 @@ export function TeacherProctoringReportModal({
                 AI Proctoring Integrity Report
               </h2>
               <p className="text-[11px] text-[#78716b] font-semibold">
-                Attempt #{attemptId} &bull; Biometric &amp; Device Malpractice Audit
+                Attempt #{attemptId} &bull; Biometric &amp; Malpractice Audit
               </p>
             </div>
           </div>
@@ -212,16 +219,22 @@ export function TeacherProctoringReportModal({
 
               {/* Infraction Breakdown Grid */}
               <div className="rounded-[12px] border border-[#d1dee8] p-4 space-y-3 bg-white">
-                <h3 className="text-xs font-bold text-[#111111] uppercase tracking-wider">
-                  Detection Category Breakdown
-                </h3>
+                <div className="flex items-center justify-between">
+                  <h3 className="text-xs font-bold text-[#111111] uppercase tracking-wider">
+                    Detection Category Breakdown
+                  </h3>
+                  <span className="text-[10px] font-extrabold text-[#78716b] bg-[#f5f5f4] px-2 py-0.5 rounded-full border border-[#d1dee8]">
+                    {report.totalViolationsCount || report.events.length} Total Infractions
+                  </span>
+                </div>
+
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-2 text-xs">
                   <div className="p-2.5 rounded-[8px] bg-[#f5f5f4] flex items-center justify-between">
                     <span className="text-[#78716b] flex items-center gap-1.5 font-medium">
                       <Smartphone className="h-3.5 w-3.5 text-rose-500" /> Phone
                     </span>
                     <span className="font-bold text-[#111111]">
-                      {report.phoneDetectionsCount}
+                      {report.phoneDetectionsCount || 0}
                     </span>
                   </div>
 
@@ -230,7 +243,7 @@ export function TeacherProctoringReportModal({
                       <UserX className="h-3.5 w-3.5 text-amber-500" /> Absent
                     </span>
                     <span className="font-bold text-[#111111]">
-                      {report.faceAbsenceCount}
+                      {report.faceAbsenceCount || 0}
                     </span>
                   </div>
 
@@ -239,7 +252,25 @@ export function TeacherProctoringReportModal({
                       <Users className="h-3.5 w-3.5 text-rose-500" /> Multi-Face
                     </span>
                     <span className="font-bold text-[#111111]">
-                      {report.multipleFacesCount}
+                      {report.multipleFacesCount || 0}
+                    </span>
+                  </div>
+
+                  <div className="p-2.5 rounded-[8px] bg-[#f5f5f4] flex items-center justify-between">
+                    <span className="text-[#78716b] flex items-center gap-1.5 font-medium">
+                      <Users className="h-3.5 w-3.5 text-rose-600" /> Multi-Person
+                    </span>
+                    <span className="font-bold text-[#111111]">
+                      {report.multiplePersonsCount || 0}
+                    </span>
+                  </div>
+
+                  <div className="p-2.5 rounded-[8px] bg-[#f5f5f4] flex items-center justify-between">
+                    <span className="text-[#78716b] flex items-center gap-1.5 font-medium">
+                      <EyeOff className="h-3.5 w-3.5 text-amber-500" /> Gaze / Away
+                    </span>
+                    <span className="font-bold text-[#111111]">
+                      {report.lookingAwayCount || 0}
                     </span>
                   </div>
 
@@ -248,7 +279,25 @@ export function TeacherProctoringReportModal({
                       <Volume2 className="h-3.5 w-3.5 text-amber-500" /> Voice
                     </span>
                     <span className="font-bold text-[#111111]">
-                      {report.voiceDetectionsCount}
+                      {report.voiceDetectionsCount || 0}
+                    </span>
+                  </div>
+
+                  <div className="p-2.5 rounded-[8px] bg-[#f5f5f4] flex items-center justify-between">
+                    <span className="text-[#78716b] flex items-center gap-1.5 font-medium">
+                      <Maximize2 className="h-3.5 w-3.5 text-purple-500" /> Tab / Fullscreen
+                    </span>
+                    <span className="font-bold text-[#111111]">
+                      {report.tabSwitchesCount || 0}
+                    </span>
+                  </div>
+
+                  <div className="p-2.5 rounded-[8px] bg-[#f5f5f4] flex items-center justify-between">
+                    <span className="text-[#78716b] flex items-center gap-1.5 font-medium">
+                      <UserCheck className="h-3.5 w-3.5 text-rose-500" /> ID Mismatch
+                    </span>
+                    <span className="font-bold text-[#111111]">
+                      {report.identityMismatches || 0}
                     </span>
                   </div>
                 </div>
@@ -284,6 +333,11 @@ export function TeacherProctoringReportModal({
                             >
                               {ev.eventType}
                             </span>
+                            {ev.confidence !== undefined && ev.confidence > 0 && (
+                              <span className="text-[9px] font-bold text-[#78716b] bg-white px-1.5 py-0.5 rounded border border-[#d1dee8]">
+                                {Math.round(ev.confidence * 100)}% conf
+                              </span>
+                            )}
                             <span className="text-[10px] text-[#78716b] font-medium">
                               {new Date(ev.timestamp).toLocaleTimeString("en-IN", {
                                 hour: "2-digit",

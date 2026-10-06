@@ -32,3 +32,4 @@ frontend/out/
 .DS_Store
 Thumbs.db
 *.log
+scratch/

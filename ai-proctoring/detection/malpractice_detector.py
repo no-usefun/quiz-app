@@ -203,3 +203,30 @@ class MalpracticeDetector:
             logger.error("Failed to dispatch event to Spring Boot: %s", e)
 
         return None
+
+    async def dispatch_session_summary(self, session: ProctoringSession):
+        """
+        Sends the final real verification counts to Spring Boot backend.
+        """
+        url = f"{session.spring_boot_url.rstrip('/')}/api/v1/attempts/{session.attempt_id}/proctoring-summary"
+        headers = {
+            "Content-Type": "application/json"
+        }
+        if session.auth_token:
+            headers["Authorization"] = f"Bearer {session.auth_token}"
+
+        payload = {
+            "totalFaceChecks": session.total_verifications,
+            "identityMatches": session.identity_matches,
+            "identityMismatches": session.identity_mismatches
+        }
+
+        try:
+            resp = await self.http_client.post(url, json=payload, headers=headers)
+            if resp.status_code in (200, 201):
+                logger.info("Successfully posted proctoring summary to Spring Boot for attempt %d: checks=%d, matches=%d",
+                            session.attempt_id, session.total_verifications, session.identity_matches)
+            else:
+                logger.warning("Spring Boot proctoring summary returned %d: %s", resp.status_code, resp.text)
+        except Exception as e:
+            logger.error("Failed to post proctoring summary to Spring Boot: %s", e)

@@ -22,6 +22,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 
 import com.quiz_app.backend.dto.proctoring.ProctoringEventRequest;
 import com.quiz_app.backend.dto.proctoring.ProctoringEventResponse;
+import com.quiz_app.backend.dto.proctoring.ProctoringSummaryRequest;
 import com.quiz_app.backend.dto.proctoring.TeacherProctoringReportResponse;
 import com.quiz_app.backend.dto.proctoring.TeacherQuizProctoringOverviewResponse;
 import com.quiz_app.backend.entity.AttemptStatus;
@@ -93,7 +94,7 @@ class ProctoringServiceTest {
     }
 
     @Test
-    void testRecordProctoringEvent_IncrementsWarning() {
+    void testRecordProctoringEvent_IncrementsWarningOne() {
         when(quizAttemptRepository.findById(100L)).thenReturn(Optional.of(testAttempt));
         when(quizAttemptRepository.save(any(QuizAttempt.class))).thenReturn(testAttempt);
 
@@ -105,6 +106,21 @@ class ProctoringServiceTest {
         assertEquals(1, response.warningCount());
         assertFalse(response.autoSubmitted());
         verify(proctoringEventRepository).save(any(QuizAttemptProctoringEvent.class));
+    }
+
+    @Test
+    void testRecordProctoringEvent_IncrementsWarningTwo() {
+        testAttempt.setWarningsCount(1);
+        when(quizAttemptRepository.findById(100L)).thenReturn(Optional.of(testAttempt));
+        when(quizAttemptRepository.save(any(QuizAttempt.class))).thenReturn(testAttempt);
+
+        ProctoringEventRequest request = new ProctoringEventRequest("LOOKING_AWAY", "Gaze deviation left", "HIGH", 0.90, null);
+        ProctoringEventResponse response = proctoringService.recordProctoringEvent(100L, request, 10L);
+
+        assertNotNull(response);
+        assertTrue(response.recorded());
+        assertEquals(2, response.warningCount());
+        assertFalse(response.autoSubmitted());
     }
 
     @Test
@@ -120,34 +136,119 @@ class ProctoringServiceTest {
         assertTrue(response.recorded());
         assertEquals(3, response.warningCount());
         assertTrue(response.autoSubmitted());
+        assertEquals("MALPRACTICE_WARNING_LIMIT", testAttempt.getTerminationReason());
+        assertEquals(AttemptStatus.AUTO_SUBMITTED, testAttempt.getStatus());
+        assertNotNull(testAttempt.getSubmittedAt());
     }
 
     @Test
-    void testGetAttemptProctoringReport_CalculatesTrueMetrics() {
+    void testRecordProctoringEvent_RejectsFourthEventAfterAutoSubmit() {
+        testAttempt.setStatus(AttemptStatus.AUTO_SUBMITTED);
+        testAttempt.setWarningsCount(3);
         when(quizAttemptRepository.findById(100L)).thenReturn(Optional.of(testAttempt));
 
-        QuizAttemptProctoringEvent ev1 = new QuizAttemptProctoringEvent();
-        setField(ev1, "id", 1L);
-        ev1.setEventType("PHONE_DETECTED");
-        ev1.setMetadataJson("Phone in frame");
-        ev1.setOccurredAt(LocalDateTime.now());
+        ProctoringEventRequest request = new ProctoringEventRequest("PHONE_DETECTED", "Phone after submit", "CRITICAL", 0.95, null);
+        ProctoringEventResponse response = proctoringService.recordProctoringEvent(100L, request, 10L);
 
-        QuizAttemptProctoringEvent ev2 = new QuizAttemptProctoringEvent();
-        setField(ev2, "id", 2L);
-        ev2.setEventType("FACE_NOT_DETECTED");
-        ev2.setMetadataJson("No face in frame");
-        ev2.setOccurredAt(LocalDateTime.now());
+        assertNotNull(response);
+        assertFalse(response.recorded());
+        assertEquals(3, response.warningCount());
+        assertTrue(response.autoSubmitted());
+    }
 
-        when(proctoringEventRepository.findByAttemptId(100L)).thenReturn(List.of(ev1, ev2));
+    @Test
+    void testRecordProctoringEvent_DebouncesDuplicateWithinWindow() {
+        when(quizAttemptRepository.findById(100L)).thenReturn(Optional.of(testAttempt));
+        when(quizAttemptRepository.save(any(QuizAttempt.class))).thenReturn(testAttempt);
+
+        ProctoringEventRequest request = new ProctoringEventRequest("VOICE_ACTIVITY", "Speech detected", "MEDIUM", 0.85, null);
+        ProctoringEventResponse response1 = proctoringService.recordProctoringEvent(100L, request, 10L);
+        assertTrue(response1.recorded());
+        assertEquals(1, response1.warningCount());
+
+        // Duplicate event within debounce interval
+        ProctoringEventResponse response2 = proctoringService.recordProctoringEvent(100L, request, 10L);
+        assertFalse(response2.recorded());
+        assertEquals(1, response2.warningCount());
+    }
+
+    @Test
+    void testRecordProctoringEvent_AllowsDifferentEventTypesWithinDebounce() {
+        when(quizAttemptRepository.findById(100L)).thenReturn(Optional.of(testAttempt));
+        when(quizAttemptRepository.save(any(QuizAttempt.class))).thenReturn(testAttempt);
+
+        ProctoringEventRequest req1 = new ProctoringEventRequest("MULTIPLE_PERSONS", "Two persons in room", "HIGH", 0.95, null);
+        ProctoringEventResponse resp1 = proctoringService.recordProctoringEvent(100L, req1, 10L);
+        assertTrue(resp1.recorded());
+        assertEquals(1, resp1.warningCount());
+
+        ProctoringEventRequest req2 = new ProctoringEventRequest("PHONE_DETECTED", "Phone in hand", "CRITICAL", 0.95, null);
+        ProctoringEventResponse resp2 = proctoringService.recordProctoringEvent(100L, req2, 10L);
+        assertTrue(resp2.recorded());
+        assertEquals(2, resp2.warningCount());
+    }
+
+    @Test
+    void testGetAttemptProctoringReport_UsesRealVerificationData() {
+        when(quizAttemptRepository.findById(100L)).thenReturn(Optional.of(testAttempt));
+
+        QuizAttemptProctoringEvent evSummary = new QuizAttemptProctoringEvent();
+        setField(evSummary, "id", 1L);
+        evSummary.setEventType("SESSION_SUMMARY");
+        evSummary.setMetadataJson("{\"totalFaceChecks\":42,\"identityMatches\":40,\"identityMismatches\":2}");
+        evSummary.setOccurredAt(LocalDateTime.now());
+
+        QuizAttemptProctoringEvent evPhone = new QuizAttemptProctoringEvent();
+        setField(evPhone, "id", 2L);
+        evPhone.setEventType("PHONE_DETECTED");
+        evPhone.setMetadataJson("{\"details\":\"Phone detected\",\"severity\":\"CRITICAL\",\"confidence\":0.95}");
+        evPhone.setOccurredAt(LocalDateTime.now());
+
+        QuizAttemptProctoringEvent evGaze = new QuizAttemptProctoringEvent();
+        setField(evGaze, "id", 3L);
+        evGaze.setEventType("LOOKING_AWAY");
+        evGaze.setMetadataJson("{\"details\":\"Looking left\",\"severity\":\"HIGH\",\"confidence\":0.90}");
+        evGaze.setOccurredAt(LocalDateTime.now());
+
+        when(proctoringEventRepository.findByAttemptId(100L)).thenReturn(List.of(evSummary, evPhone, evGaze));
 
         TeacherProctoringReportResponse report = proctoringService.getAttemptProctoringReport(100L, 20L);
 
         assertNotNull(report);
         assertEquals(100L, report.attemptId());
+        assertEquals(42, report.totalFaceChecks()); // Real value from summary
+        assertEquals(40, report.identityMatches()); // Real value from summary
+        assertEquals(2, report.identityMismatches()); // Real value from summary
         assertEquals(1, report.phoneDetectionsCount());
-        assertEquals(1, report.faceAbsenceCount());
+        assertEquals(1, report.lookingAwayCount());
+        assertEquals(4, report.totalViolationsCount());
+        assertEquals("CRITICAL", report.events().get(0).severity());
+        assertEquals(0.95, report.events().get(0).confidence());
+    }
+
+    @Test
+    void testGetAttemptProctoringReport_ZeroFaceChecksWhenNoSummary() {
+        when(quizAttemptRepository.findById(100L)).thenReturn(Optional.of(testAttempt));
+        when(proctoringEventRepository.findByAttemptId(100L)).thenReturn(List.of());
+
+        TeacherProctoringReportResponse report = proctoringService.getAttemptProctoringReport(100L, 20L);
+
+        assertNotNull(report);
+        assertEquals(0, report.totalFaceChecks()); // No artificial estimation
+        assertEquals(0, report.identityMatches());
         assertEquals(0, report.identityMismatches());
-        assertTrue(report.riskScore() >= 50); // 35 (phone) + 15 (face absence) = 50
+        assertEquals(0, report.totalViolationsCount());
+        assertEquals(0, report.riskScore());
+    }
+
+    @Test
+    void testRecordProctoringSummary_SavesSummaryEvent() {
+        when(quizAttemptRepository.findById(100L)).thenReturn(Optional.of(testAttempt));
+
+        ProctoringSummaryRequest request = new ProctoringSummaryRequest(50, 48, 2);
+        proctoringService.recordProctoringSummary(100L, request, 10L);
+
+        verify(proctoringEventRepository).save(any(QuizAttemptProctoringEvent.class));
     }
 
     @Test

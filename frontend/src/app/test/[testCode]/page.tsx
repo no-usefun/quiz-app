@@ -31,6 +31,13 @@ import type {
   SubmitAttemptResponse,
 } from "@/lib/types";
 
+interface ProctoringEventResponse {
+  recorded: boolean;
+  warningCount: number;
+  autoSubmitted: boolean;
+  message: string;
+}
+
 type ActiveAnswerState = Record<number, number[]>;
 
 function formatRemainingTime(seconds: number): string {
@@ -240,6 +247,10 @@ export default function TestArenaPage({
       ? sessionStorage.getItem("dynoquizz_reference_photo")
       : null;
 
+  const finishAssessmentRef = useRef<
+    ((latestAnswers?: ActiveAnswerState, latestTimeTaken?: Record<number, number>) => Promise<void>) | null
+  >(null);
+
   const proctoring = useProctoring({
     attemptId: Number(activeAttemptId || 0),
     studentId: "student",
@@ -247,10 +258,11 @@ export default function TestArenaPage({
     referenceImage: referencePhoto,
     authToken: getAuthToken() || undefined,
     onAutoSubmit: () => {
+      proctoring.cleanup();
       setDeadlineNotice(
         "Assessment automatically submitted due to reaching maximum proctoring violation warnings."
       );
-      void finishAssessment(answersRef.current, timeTakenRef.current);
+      void finishAssessmentRef.current?.(answersRef.current, timeTakenRef.current);
     },
     enabled: !isSubmitted && Boolean(activeAttemptId),
   });
@@ -303,6 +315,79 @@ export default function TestArenaPage({
 
     return () => window.removeEventListener("beforeunload", handleBeforeUnload);
   }, [isSubmitted]);
+
+  // Browser-level security and restriction event dispatching
+  useEffect(() => {
+    if (typeof window === "undefined" || isSubmitted || !activeAttemptId) {
+      return;
+    }
+
+    const reportEvent = async (eventType: string, details: string) => {
+      try {
+        const token = getAuthToken();
+        const res = await api.post<ProctoringEventResponse>(
+          `/api/v1/attempts/${activeAttemptId}/events`,
+          {
+            eventType,
+            details,
+            severity: "HIGH",
+            confidence: 1.0,
+          },
+          {
+            headers: token ? { Authorization: `Bearer ${token}` } : {},
+          }
+        );
+        if (res?.autoSubmitted) {
+          proctoring.cleanup();
+          void finishAssessmentRef.current?.(answersRef.current, timeTakenRef.current);
+        }
+      } catch {
+        // Drop network error gracefully
+      }
+    };
+
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === "hidden") {
+        void reportEvent("TAB_SWITCH", "Candidate switched tabs or minimized assessment window");
+      }
+    };
+
+    const handleBlur = () => {
+      void reportEvent("TAB_SWITCH", "Candidate lost browser window focus");
+    };
+
+    const handleFullscreenChange = () => {
+      if (!document.fullscreenElement) {
+        void reportEvent("FULLSCREEN_EXIT", "Candidate exited required fullscreen exam mode");
+      }
+    };
+
+    const handleContextMenu = (e: MouseEvent) => {
+      e.preventDefault();
+    };
+
+    const handleCopyPaste = (e: ClipboardEvent) => {
+      e.preventDefault();
+    };
+
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+    window.addEventListener("blur", handleBlur);
+    document.addEventListener("fullscreenchange", handleFullscreenChange);
+    document.addEventListener("contextmenu", handleContextMenu);
+    document.addEventListener("copy", handleCopyPaste);
+    document.addEventListener("cut", handleCopyPaste);
+    document.addEventListener("paste", handleCopyPaste);
+
+    return () => {
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
+      window.removeEventListener("blur", handleBlur);
+      document.removeEventListener("fullscreenchange", handleFullscreenChange);
+      document.removeEventListener("contextmenu", handleContextMenu);
+      document.removeEventListener("copy", handleCopyPaste);
+      document.removeEventListener("cut", handleCopyPaste);
+      document.removeEventListener("paste", handleCopyPaste);
+    };
+  }, [isSubmitted, activeAttemptId, proctoring]);
 
   useEffect(() => {
     if (isSubmitted) {
@@ -716,6 +801,9 @@ export default function TestArenaPage({
     setIsSubmitted(true);
     setSubmissionNotice(null);
 
+    // Stop proctoring camera, mic, and remote AI session immediately
+    proctoring.cleanup();
+
     persistCurrentState(latestAnswers, latestTimeTaken);
 
     try {
@@ -828,6 +916,10 @@ export default function TestArenaPage({
       submissionInFlightRef.current = false;
     }
   };
+
+  useEffect(() => {
+    finishAssessmentRef.current = finishAssessment;
+  }, [finishAssessment]);
 
   const handleOverallTimerExpired = () => {
     if (

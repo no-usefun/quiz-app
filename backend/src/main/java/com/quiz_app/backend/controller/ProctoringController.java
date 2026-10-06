@@ -10,6 +10,7 @@ import org.springframework.web.bind.annotation.RestController;
 
 import com.quiz_app.backend.dto.proctoring.ProctoringEventRequest;
 import com.quiz_app.backend.dto.proctoring.ProctoringEventResponse;
+import com.quiz_app.backend.dto.proctoring.ProctoringSummaryRequest;
 import com.quiz_app.backend.security.CustomUserDetails;
 import com.quiz_app.backend.service.ProctoringService;
 
@@ -38,5 +39,20 @@ public class ProctoringController {
 
         ProctoringEventResponse response = proctoringService.recordProctoringEvent(attemptId, request, userId);
         return ResponseEntity.ok(response);
+    }
+
+    @PostMapping("/{attemptId}/proctoring-summary")
+    public ResponseEntity<Void> recordProctoringSummary(
+            @PathVariable Long attemptId,
+            @Valid @RequestBody ProctoringSummaryRequest request,
+            Authentication authentication) {
+
+        Long userId = null;
+        if (authentication != null && authentication.getPrincipal() instanceof CustomUserDetails userDetails) {
+            userId = userDetails.getId();
+        }
+
+        proctoringService.recordProctoringSummary(attemptId, request, userId);
+        return ResponseEntity.ok().build();
     }
 }

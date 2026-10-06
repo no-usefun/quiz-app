@@ -266,13 +266,16 @@ async def analyze_frame(req: AnalyzeFrameRequest):
     )
 
 @router.post("/proctor/stop", response_model=StopSessionResponse)
-def stop_session(req: StopSessionRequest):
+async def stop_session(req: StopSessionRequest):
     session = session_manager.end_session(req.sessionId)
     if not session:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Session not found."
         )
+
+    # Dispatch final real verification metrics to Spring Boot
+    await malpractice_detector.dispatch_session_summary(session)
 
     return StopSessionResponse(
         status="STOPPED",
