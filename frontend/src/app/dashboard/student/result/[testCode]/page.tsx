@@ -80,12 +80,87 @@ function formatDisplayNumber(value: unknown): string {
   return Number.isInteger(n) ? String(n) : n.toFixed(2);
 }
 
-function formatOptionIds(ids: Array<number | string> | undefined) {
+function formatOptionTexts(
+  questionId: number,
+  ids: Array<number | string> | undefined,
+  optionTextByQuestion: Record<number, Record<number, string>>,
+) {
   if (!ids || ids.length === 0) {
-    return "Not answered";
+    return ["Not answered"];
   }
 
-  return ids.join(", ");
+  return ids.map((rawId) => {
+    const optionId = Number(rawId);
+    return (
+      optionTextByQuestion[questionId]?.[optionId] ||
+      `Option ${optionId}`
+    );
+  });
+}
+
+function readOptionTextSnapshot(
+  attemptId: string,
+  quizId: number,
+): Record<number, Record<number, string>> {
+  if (typeof window === "undefined") {
+    return {};
+  }
+
+  const keys = [
+    `dynoquizz_option_texts_attempt_${attemptId}`,
+    `dynoquizz_option_texts_quiz_${quizId}`,
+  ];
+
+  for (const key of keys) {
+    try {
+      const raw = localStorage.getItem(key);
+
+      if (!raw) {
+        continue;
+      }
+
+      const parsed = JSON.parse(raw);
+
+      if (!parsed || typeof parsed !== "object") {
+        continue;
+      }
+
+      return Object.entries(parsed as Record<string, unknown>).reduce<
+        Record<number, Record<number, string>>
+      >((questionMap, [questionId, options]) => {
+        const numericQuestionId = Number(questionId);
+
+        if (
+          !Number.isFinite(numericQuestionId) ||
+          !options ||
+          typeof options !== "object"
+        ) {
+          return questionMap;
+        }
+
+        questionMap[numericQuestionId] = Object.entries(
+          options as Record<string, unknown>,
+        ).reduce<Record<number, string>>(
+          (optionMap, [optionId, text]) => {
+            const numericOptionId = Number(optionId);
+
+            if (Number.isFinite(numericOptionId)) {
+              optionMap[numericOptionId] = String(text ?? "");
+            }
+
+            return optionMap;
+          },
+          {},
+        );
+
+        return questionMap;
+      }, {});
+    } catch {
+      // Ignore invalid historical snapshots and try the next key.
+    }
+  }
+
+  return {};
 }
 
 function ScoreRing({ score }: { score: number }) {
@@ -139,6 +214,10 @@ export default function StudentResultPage({
 
   const [details, setDetails] = useState<ResultDetail[]>([]);
 
+  const [optionTextByQuestion, setOptionTextByQuestion] = useState<
+    Record<number, Record<number, string>>
+  >({});
+
   const [detailsAvailable, setDetailsAvailable] = useState(false);
 
   const [loading, setLoading] = useState(true);
@@ -160,6 +239,7 @@ export default function StudentResultPage({
       if (!/^\d+$/.test(attemptId)) {
         setResult(null);
         setDetails([]);
+        setOptionTextByQuestion({});
         setDetailsAvailable(false);
         setPendingRelease(false);
         setError("The result URL must contain a valid attempt ID.");
@@ -252,9 +332,18 @@ export default function StudentResultPage({
           }
         }
 
+        // Results are historical data. Do not request the active student
+        // quiz package here: once a quiz ends, that endpoint is intentionally
+        // unavailable and would turn a valid result page into a 400.
+        const nextOptionTextByQuestion =
+          detailList.length > 0
+            ? readOptionTextSnapshot(attemptId, normalized.quizId)
+            : {};
+
         if (!cancelled) {
           setResult(normalized);
           setDetails(detailList);
+          setOptionTextByQuestion(nextOptionTextByQuestion);
           setDetailsAvailable(detailList.length > 0);
           setPendingRelease(false);
           setError(null);
@@ -608,22 +697,44 @@ export default function StudentResultPage({
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-[11px]">
                       <div className="rounded-[10px] bg-[#f5f5f4] p-2.5 border border-[#d1dee8]/80 shadow-xs">
                         <span className="text-[#78716b] block text-[9px] uppercase font-bold">
-                          Your Selected Option IDs:
+                          Your Answer:
                         </span>
 
-                        <span className="font-semibold text-[#111111]">
-                          {formatOptionIds(detail.selectedOptionIds)}
-                        </span>
+                        <div className="mt-1.5 flex flex-col gap-1.5">
+                          {formatOptionTexts(
+                            detail.questionId,
+                            detail.selectedOptionIds,
+                            optionTextByQuestion,
+                          ).map((optionText, optionIndex) => (
+                            <span
+                              key={`selected-${detail.questionId}-${optionIndex}`}
+                              className="rounded-[8px] border border-[#d1dee8]/70 bg-white px-2.5 py-1.5 font-semibold text-[#111111]"
+                            >
+                              {optionText}
+                            </span>
+                          ))}
+                        </div>
                       </div>
 
                       <div className="rounded-[10px] bg-[#e2ede8]/60 p-2.5 border border-[#1d5237]/20 shadow-xs">
                         <span className="text-[#1d5237] block text-[9px] uppercase font-bold">
-                          Correct Option IDs:
+                          Correct Answer:
                         </span>
 
-                        <span className="font-bold text-[#1d5237]">
-                          {formatOptionIds(detail.correctOptionIds)}
-                        </span>
+                        <div className="mt-1.5 flex flex-col gap-1.5">
+                          {formatOptionTexts(
+                            detail.questionId,
+                            detail.correctOptionIds,
+                            optionTextByQuestion,
+                          ).map((optionText, optionIndex) => (
+                            <span
+                              key={`correct-${detail.questionId}-${optionIndex}`}
+                              className="rounded-[8px] border border-[#1d5237]/20 bg-white px-2.5 py-1.5 font-bold text-[#1d5237]"
+                            >
+                              {optionText}
+                            </span>
+                          ))}
+                        </div>
                       </div>
                     </div>
 

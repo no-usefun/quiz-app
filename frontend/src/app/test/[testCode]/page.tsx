@@ -135,6 +135,51 @@ function persistAttemptDraft(
   }
 }
 
+function persistQuizOptionSnapshot(
+  attemptId: string | null,
+  quizId: number | string | null | undefined,
+  packageData: QuizPackageResponse,
+) {
+  if (typeof window === "undefined" || !attemptId) return;
+
+  const optionTextByQuestion = (packageData.questions ?? []).reduce<
+    Record<number, Record<number, string>>
+  >((questionMap, question) => {
+    const questionId = Number(question.questionId);
+
+    if (!Number.isFinite(questionId) || questionId <= 0) {
+      return questionMap;
+    }
+
+    questionMap[questionId] = Object.fromEntries(
+      (question.options ?? []).map((option) => [
+        Number(option.optionId),
+        String(option.optionText ?? ""),
+      ]),
+    );
+
+    return questionMap;
+  }, {});
+
+  try {
+    const serialized = JSON.stringify(optionTextByQuestion);
+
+    localStorage.setItem(
+      `dynoquizz_option_texts_attempt_${attemptId}`,
+      serialized,
+    );
+
+    if (quizId != null && Number.isFinite(Number(quizId))) {
+      localStorage.setItem(
+        `dynoquizz_option_texts_quiz_${Number(quizId)}`,
+        serialized,
+      );
+    }
+  } catch {
+    // Best-effort historical result snapshot only.
+  }
+}
+
 export default function TestArenaPage({
   params,
 }: {
@@ -361,6 +406,15 @@ export default function TestArenaPage({
             "The assessment package contains invalid question data.",
           );
         }
+
+        // Preserve the option labels locally while the attempt is active.
+        // Historical result pages must not depend on the quiz still being
+        // available through the student package endpoint after it ends.
+        persistQuizOptionSnapshot(
+          activeAttemptId,
+          packageData.quizId,
+          packageData,
+        );
 
         if (activeAttemptId) {
           try {
@@ -789,102 +843,30 @@ export default function TestArenaPage({
   };
 
   const handleOverallTimerExpired = () => {
-    const attemptId = activeAttemptId;
-
     if (
       expiryHandledRef.current ||
       isSubmitted ||
-      !currentQuestionRef.current ||
-      !attemptId
+      !activeAttemptId ||
+      !test
     ) {
       return;
     }
 
     expiryHandledRef.current = true;
+    setTimeLeft(0);
 
+    // Reuse the same single-flight submission path as manual submission.
+    // It marks the UI submitted immediately, then sends the complete answer
+    // sheet to the backend. The backend remains authoritative and will return
+    // AUTO_SUBMITTED because the deadline has been reached.
     setDeadlineNotice(
-      "The overall assessment time has ended. The server will finalize the attempt.",
+      "Time is up. Submitting your assessment automatically...",
     );
 
-    const question = currentQuestionRef.current;
-    const questionId = Number(question.questionId);
-
-    if (!Number.isFinite(questionId) || questionId <= 0) {
-      return;
-    }
-
-    const latestAnswers: ActiveAnswerState = {
-      ...answersRef.current,
-      [questionId]: answersRef.current[questionId] ?? [],
-    };
-
-    setAnswers(latestAnswers);
-    answersRef.current = latestAnswers;
-
-    persistCurrentState(latestAnswers, timeTakenRef.current);
-
-    void (async () => {
-      try {
-        const result = await api.post<SubmitAttemptResponse>(
-          ENDPOINTS.student.autoSubmitAttempt(attemptId),
-        );
-
-        setSubmittedAttemptId(String(result.attemptId));
-        setIsSubmitted(true);
-        setSubmissionNotice(
-          "The server automatically submitted the assessment at the authoritative deadline.",
-        );
-
-        localStorage.removeItem(
-          `dynoquizz_pending_submit_${attemptId}`,
-        );
-        localStorage.removeItem(`dynoquizz_attemptId_${cleanCode}`);
-        localStorage.removeItem("dynoquizz_attemptId");
-      } catch (error) {
-        if (error instanceof ApiClientError && error.status === 409) {
-          try {
-            const state = await api.get<AttemptStateResponse>(
-              ENDPOINTS.student.attemptState(attemptId),
-            );
-
-            setSubmittedAttemptId(String(state.attemptId));
-
-            if (state.status !== "IN_PROGRESS") {
-              setIsSubmitted(true);
-              setDeadlineNotice(
-                state.status === "AUTO_SUBMITTED"
-                  ? "The server automatically submitted the assessment at the deadline."
-                  : "This assessment attempt is no longer active.",
-              );
-
-              localStorage.removeItem(
-                `dynoquizz_pending_submit_${attemptId}`,
-              );
-              localStorage.removeItem(`dynoquizz_attemptId_${cleanCode}`);
-              localStorage.removeItem("dynoquizz_attemptId");
-              return;
-            }
-          } catch (reconcileError) {
-            console.warn(
-              "[Assessment Timer] Could not reconcile server state:",
-              reconcileError,
-            );
-          }
-        }
-
-        if (error instanceof ApiClientError && error.status === 401) {
-          setSessionExpired(true);
-          return;
-        }
-
-        setSubmissionNotice(
-          getErrorMessage(
-            error,
-            "The deadline was reached, but the backend has not finalized the attempt yet.",
-          ),
-        );
-      }
-    })();
+    void finishAssessment(
+      { ...answersRef.current },
+      { ...timeTakenRef.current },
+    );
   };
 
   useEffect(() => {
@@ -1053,23 +1035,13 @@ export default function TestArenaPage({
             </div>
           )}
 
-          <div className="flex gap-2 pt-4">
-            <Link
-              href={
-                submittedAttemptId
-                  ? `/dashboard/student/result/${submittedAttemptId}`
-                  : "/dashboard/student"
-              }
-              className="flex flex-1 items-center justify-center gap-1.5 rounded-[10px] bg-[#165dfb] py-2.5 text-xs font-bold text-white hover:bg-[#165dfb]/90 transition-all"
-            >
-              View Scorecard <ChevronRight className="h-4 w-4" />
-            </Link>
-
+          <div className="pt-4">
             <Link
               href="/dashboard/student"
-              className="flex items-center justify-center rounded-[10px] border border-[#d1dee8]/70 bg-white py-2.5 px-4 text-xs font-bold text-[#111111] hover:bg-[#f5f5f4] transition-all"
+              className="flex w-full items-center justify-center gap-1.5 rounded-[10px] bg-[#165dfb] py-2.5 text-xs font-bold text-white hover:bg-[#165dfb]/90 transition-all"
             >
-              Dashboard
+              Return to Dashboard
+              <ChevronRight className="h-4 w-4" />
             </Link>
           </div>
         </motion.div>
@@ -1299,7 +1271,7 @@ export default function TestArenaPage({
                 <div>
                   <strong className="font-bold">Fullscreen mode is off.</strong>
                   <p className="mt-0.5 font-medium">
-                    Leaving fullscreen is recorded as suspicious activity. Re-enter fullscreen before continuing.
+                    Re-enter fullscreen before continuing the assessment.
                   </p>
                 </div>
               </div>
@@ -1475,7 +1447,6 @@ export default function TestArenaPage({
           <div className="mt-3 grid grid-cols-2 gap-2">
             {[
               ["Tab switches", flags.tab_switch],
-              ["Fullscreen exits", flags.fullscreen_exit],
               ["Copy / cut / paste", flags.copy_attempt + flags.cut_attempt + flags.paste_attempt],
               ["Focus / keyboard", flags.focus_loss + flags.keyboard_attempt],
               ["Right clicks", flags.right_click],

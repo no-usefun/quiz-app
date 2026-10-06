@@ -61,6 +61,9 @@ export const ENDPOINTS = {
         quizCode,
       )}/package`,
 
+    quizPackageById: (quizId: number | string) =>
+      `${API_BASE}/api/v1/student/quizzes/${quizId}/package`,
+
     leaderboard: (quizId: number | string) =>
       `${API_BASE}/api/v1/student/quizzes/${quizId}/leaderboard`,
 
