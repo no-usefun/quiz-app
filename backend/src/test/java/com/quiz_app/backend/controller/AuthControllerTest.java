@@ -74,16 +74,13 @@ class AuthControllerTest {
         @Test
         void signup_shouldReturnCreated() throws Exception {
                 when(authService.register(any(SignupRequest.class), org.mockito.ArgumentMatchers.eq("TEACHER")))
-                                .thenReturn(new SignupResponse(
-                                                "Account created successfully. Please verify your email before logging in.",
-                                                true, summary));
+                                .thenReturn(new SignupResponse("Account created successfully. Please verify your email before logging in.", true, summary));
 
                 mockMvc.perform(post("/api/v1/auth/signup").param("role", "TEACHER")
                                 .contentType(MediaType.APPLICATION_JSON)
                                 .content(objectMapper.writeValueAsString(signupRequest)))
                                 .andExpect(status().isCreated())
-                                .andExpect(jsonPath("$.message").value(
-                                                "Account created successfully. Please verify your email before logging in."))
+                                .andExpect(jsonPath("$.message").value("Account created successfully. Please verify your email before logging in."))
                                 .andExpect(jsonPath("$.verificationRequired").value(true))
                                 .andExpect(jsonPath("$.user.email").value("jane@example.com"));
         }
@@ -193,7 +190,7 @@ class AuthControllerTest {
                                                                 "Jane", null, null, null, null, null, null)));
         }
 
-@Test
+        @Test
         void changePassword_shouldDelegate() {
                 when(userDetails.getUsername()).thenReturn("jane@example.com");
                 var request = new com.quiz_app.backend.dto.auth.ChangePasswordRequest(
@@ -201,3 +198,25 @@ class AuthControllerTest {
 
                 var response = new AuthController(authService, emailVerificationService)
                                 .changePassword(userDetails, request);
+
+                assertEquals(200, response.getStatusCode().value());
+                verify(authService).changePassword("jane@example.com", request);
+        }
+
+        @Test
+        void deleteAccount_shouldDelegate() {
+                when(userDetails.getUsername()).thenReturn("jane@example.com");
+                var request = new com.quiz_app.backend.dto.auth.DeleteAccountRequest("password123");
+
+                var response = new AuthController(authService, emailVerificationService)
+                                .deleteAccount(userDetails, request);
+
+                assertEquals(204, response.getStatusCode().value());
+                verify(authService).deleteAccount("jane@example.com", request);
+        }
+
+        private void assertThrowsBadRequest(Runnable action) {
+                org.junit.jupiter.api.Assertions.assertThrows(
+                                BadRequestException.class, action::run);
+        }
+}
