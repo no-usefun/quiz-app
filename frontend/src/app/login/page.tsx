@@ -207,7 +207,7 @@ function LoginContent() {
         throw new Error("Login succeeded but the backend did not return a session token.");
       }
 
-      const meData = await api.get(ENDPOINTS.auth.me, {
+      const meData = await api.get<AuthResponse["user"]>(ENDPOINTS.auth.me, {
         token,
         retry: 2,
         retryDelayMs: 300,
