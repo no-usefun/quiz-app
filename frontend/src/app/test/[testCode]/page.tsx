@@ -21,7 +21,6 @@ import {
 
 import { type ProctoringEvent, useProctoring } from "@/hooks/useProctoring";
 import { ApiClientError, api, getAuthToken } from "@/lib/api/client";
-import BackendStatus from "@/components/BackendStatus";
 import { ENDPOINTS } from "@/lib/api/endpoints";
 import type {
   AttemptStateResponse,
@@ -123,18 +122,16 @@ function persistAttemptDraft(
   attemptId: string | null,
   answers: ActiveAnswerState,
   timeTaken: Record<number, number>,
-): boolean {
-  if (typeof window === "undefined" || !attemptId) return false;
+) {
+  if (typeof window === "undefined" || !attemptId) return;
 
   try {
     localStorage.setItem(
       `dynoquizz_pending_submit_${attemptId}`,
       JSON.stringify({ answers, timeTaken, savedAt: Date.now() }),
     );
-    return true;
   } catch {
     // Best-effort retry storage only.
-    return false;
   }
 }
 
@@ -229,9 +226,6 @@ export default function TestArenaPage({
   const [sessionExpired, setSessionExpired] = useState(false);
   const [deadlineNotice, setDeadlineNotice] = useState<string | null>(null);
   const [submissionNotice, setSubmissionNotice] = useState<string | null>(null);
-  const [isSubmitting, setIsSubmitting] = useState(false);
-  const [answerSaveState, setAnswerSaveState] =
-    useState<"idle" | "saved" | "error">("idle");
 
   const answersRef = useRef<ActiveAnswerState>({});
   const timeTakenRef = useRef<Record<number, number>>({});
@@ -376,8 +370,6 @@ export default function TestArenaPage({
           timeTakenRef.current = pendingTimes;
           setTimeTakenPerQuestion(pendingTimes);
         }
-
-        setAnswerSaveState("saved");
       }
     } catch {
       localStorage.removeItem(`dynoquizz_pending_submit_${activeAttemptId}`);
@@ -390,7 +382,6 @@ export default function TestArenaPage({
 
         const packageData = await api.get<QuizPackageResponse>(
           ENDPOINTS.student.quizPackageByCode(cleanCode),
-          { retry: 2, retryDelayMs: 300, cache: "no-store" },
         );
 
         if (
@@ -429,7 +420,6 @@ export default function TestArenaPage({
           try {
             const serverState = await api.get<AttemptStateResponse>(
               ENDPOINTS.student.attemptState(activeAttemptId),
-              { retry: 2, retryDelayMs: 300, cache: "no-store" },
             );
 
             if (!cancelled && serverState) {
@@ -577,7 +567,7 @@ export default function TestArenaPage({
   }, [cleanCode, activeAttemptId, router]);
 
   useEffect(() => {
-    if (!currentQuestion || isSubmitted || isSubmitting) {
+    if (!currentQuestion || isSubmitted) {
       return;
     }
 
@@ -604,20 +594,18 @@ export default function TestArenaPage({
   const persistCurrentState = (
     nextAnswers: ActiveAnswerState = answersRef.current,
     nextTimeTaken: Record<number, number> = timeTakenRef.current,
-  ): boolean => {
-    return persistAttemptDraft(activeAttemptId, nextAnswers, nextTimeTaken);
+  ) => {
+    persistAttemptDraft(activeAttemptId, nextAnswers, nextTimeTaken);
   };
 
   const setCurrentAnswers = (next: ActiveAnswerState) => {
     answersRef.current = next;
     setAnswers(next);
-
-    const savedLocally = persistCurrentState(next, timeTakenRef.current);
-    setAnswerSaveState(savedLocally ? "saved" : "error");
+    persistCurrentState(next, timeTakenRef.current);
   };
 
   const handleSelectOption = (optionId: number) => {
-    if (!currentQuestion || isSubmitted || isSubmitting || timeLeft <= 0) {
+    if (!currentQuestion || isSubmitted || timeLeft <= 0) {
       return;
     }
 
@@ -704,7 +692,7 @@ export default function TestArenaPage({
   };
 
   const goToQuestion = (nextIndex: number) => {
-    if (nextIndex < 0 || nextIndex >= questions.length || isSubmitted || isSubmitting) {
+    if (nextIndex < 0 || nextIndex >= questions.length || isSubmitted) {
       return;
     }
 
@@ -726,7 +714,6 @@ export default function TestArenaPage({
     if (
       submissionInFlightRef.current ||
       isSubmitted ||
-      isSubmitting ||
       !test ||
       !attemptId
     ) {
@@ -739,7 +726,7 @@ export default function TestArenaPage({
     }
 
     submissionInFlightRef.current = true;
-    setIsSubmitting(true);
+    setIsSubmitted(true);
     setSubmissionNotice(null);
 
     persistCurrentState(latestAnswers, latestTimeTaken);
@@ -780,7 +767,6 @@ export default function TestArenaPage({
       }
 
       setSubmittedAttemptId(returnedAttemptId);
-      setIsSubmitted(true);
 
       localStorage.setItem(
         `dynoquizz_submittedAttemptId_${cleanCode}`,
@@ -810,13 +796,11 @@ export default function TestArenaPage({
       }
     } catch (error) {
       console.error("[Assessment Submission] Failed:", error);
-      setIsSubmitted(false);
 
       if (error instanceof ApiClientError && error.status === 409) {
         try {
           const state = await api.get<AttemptStateResponse>(
             ENDPOINTS.student.attemptState(attemptId),
-            { retry: 2, retryDelayMs: 300, cache: "no-store" },
           );
 
           setSubmittedAttemptId(String(state.attemptId));
@@ -855,7 +839,6 @@ export default function TestArenaPage({
       }
     } finally {
       submissionInFlightRef.current = false;
-      setIsSubmitting(false);
     }
   };
 
@@ -939,12 +922,11 @@ export default function TestArenaPage({
     }
 
     const flush = () => {
-      const savedLocally = persistAttemptDraft(
+      persistAttemptDraft(
         activeAttemptId,
         answersRef.current,
         timeTakenRef.current,
       );
-      setAnswerSaveState(savedLocally ? "saved" : "error");
     };
 
     const handleVisibilityChange = () => {
@@ -1184,7 +1166,7 @@ export default function TestArenaPage({
         className="flex h-full w-full flex-1 flex-col bg-white overflow-hidden border-0 shadow-none text-left"
       >
         <header className="flex flex-wrap items-center justify-between bg-white px-6 py-4 gap-3 border-b border-[#d1dee8]/50">
-className="flex flex-wrap items-center gap-2.5">center gap-3.5">
+          <div className="flex items-center gap-3.5">
             <span className="rounded-full bg-[#f5f5f4] px-3 py-1 text-xs font-bold text-[#165dfb] font-mono border border-[#d1dee8]/70">
               {cleanCode}
             </span>
@@ -1202,10 +1184,6 @@ className="flex flex-wrap items-center gap-2.5">center gap-3.5">
           </div>
 
           <div className="flex items-center gap-3.5">
-            <BackendStatus />
-            <span className="inline-flex items-center gap-1.5 rounded-full bg-[#f5f5f4] px-2.5 py-1 text-[10px] font-bold text-[#78716b] border border-[#d1dee8]/70">
-              {answerSaveState === "saved" ? "Local draft saved" : answerSaveState === "error" ? "Local draft save failed" : "Draft not saved yet"}
-            </span>
             <div className="flex items-center gap-2">
               <div
                 className={
@@ -1254,7 +1232,6 @@ className="flex flex-wrap items-center gap-2.5">center gap-3.5">
                   onClick={() => goToQuestion(index)}
                   disabled={
                     isSubmitted ||
-                    isSubmitting ||
                     (test?.allowReview === false && index < currentIndex)
                   }
                   className={`relative flex h-8 min-w-8 items-center justify-center rounded-lg border px-2 text-[10px] font-bold transition-all ${
@@ -1276,25 +1253,6 @@ className="flex flex-wrap items-center gap-2.5">center gap-3.5">
             })}
           </div>
         </div>
-
-        {submissionNotice && !isSubmitted && (
-          <div className="border-b border-[#8c381c]/20 bg-[#fff8f5] px-4 py-3 md:px-6">
-            <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-              <div className="flex items-start gap-2 text-xs font-semibold text-[#8c381c]">
-                <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
-                <span>{submissionNotice}</span>
-              </div>
-              <button
-                type="button"
-                onClick={() => void finishAssessment({ ...answersRef.current }, { ...timeTakenRef.current })}
-                disabled={isSubmitting}
-                className="inline-flex shrink-0 items-center justify-center rounded-[10px] bg-[#8c381c] px-3 py-2 text-[10px] font-bold text-white transition-all hover:bg-[#6e2b14] disabled:cursor-not-allowed disabled:opacity-50"
-              >
-                {isSubmitting ? "Submitting..." : "Retry Submission"}
-              </button>
-            </div>
-          </div>
-        )}
 
         {deadlineNotice && !isSubmitted && (
           <div className="border-b border-[#73561a]/20 bg-[#f6efe1] px-4 py-3 md:px-6">
@@ -1366,7 +1324,6 @@ className="flex flex-wrap items-center gap-2.5">center gap-3.5">
                       onClick={() => handleSelectOption(optionId)}
                       disabled={
                         isSubmitted ||
-                        isSubmitting ||
                         timeLeft <= 0
                       }
                       className={`w-full rounded-[10px] border p-3.5 text-left text-xs font-bold transition-all duration-150 cursor-pointer disabled:cursor-not-allowed disabled:opacity-50 ${
@@ -1404,7 +1361,6 @@ className="flex flex-wrap items-center gap-2.5">center gap-3.5">
                 onClick={() => goToQuestion(currentIndex - 1)}
                 disabled={
                   isSubmitted ||
-                  isSubmitting ||
                   currentIndex === 0 ||
                   test?.allowReview === false
                 }
@@ -1417,9 +1373,7 @@ className="flex flex-wrap items-center gap-2.5">center gap-3.5">
               <button
                 type="button"
                 onClick={toggleReview}
-                disabled={
-                  isSubmitted || isSubmitting || test?.allowReview === false
-                }
+                disabled={isSubmitted || test?.allowReview === false}
                 className={`inline-flex items-center gap-1 rounded-lg border px-3 py-2 text-[10px] font-bold transition-all disabled:opacity-40 ${
                   markedForReview[Number(currentQuestion?.questionId)]
                     ? "border-[#73561a]/30 bg-[#f6efe1] text-[#73561a]"
@@ -1437,7 +1391,6 @@ className="flex flex-wrap items-center gap-2.5">center gap-3.5">
                 onClick={clearCurrentAnswer}
                 disabled={
                   isSubmitted ||
-                  isSubmitting ||
                   (answers[Number(currentQuestion?.questionId)] ?? []).length === 0
                 }
                 className="inline-flex items-center gap-1 rounded-lg border border-[#d1dee8]/80 bg-white px-3 py-2 text-[10px] font-bold text-[#78716b] transition-all hover:bg-[#f5f5f4] disabled:cursor-not-allowed disabled:opacity-40"
@@ -1456,12 +1409,12 @@ className="flex flex-wrap items-center gap-2.5">center gap-3.5">
                   void finishAssessment(answersRef.current, timeTakenRef.current);
                 }
               }}
-              disabled={isSubmitted || isSubmitting}
+              disabled={isSubmitted}
               className="inline-flex items-center gap-1 rounded-lg bg-[#165dfb] px-4 py-2.5 text-xs font-bold text-white shadow-xs transition-all hover:bg-[#0f4fd8] active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-40"
             >
               {currentIndex === questions.length - 1 ? (
                 <>
-                  {isSubmitting ? "Submitting..." : "Submit Assessment"}
+                  Submit Assessment
                   <ChevronRight className="h-3.5 w-3.5" />
                 </>
               ) : (
