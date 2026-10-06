@@ -143,8 +143,8 @@ function CreateAssessmentContent() {
   const [instructions, setInstructions] = useState(
     "Read all questions carefully before submitting.",
   );
-  const [subject, setSubject] = useState("Computer Science");
-  const [subjectCode, setSubjectCode] = useState("CS-201");
+  const [subject, setSubject] = useState("");
+  const [subjectCode, setSubjectCode] = useState("");
   const [allowedRollsText, setAllowedRollsText] = useState("");
   const [timeLimit, setTimeLimit] = useState(30);
   const setOverallTimerSeconds = (secs: number) => {
