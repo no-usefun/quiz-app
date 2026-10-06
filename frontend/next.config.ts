@@ -1,9 +1,14 @@
 import type { NextConfig } from "next";
 
+const configuredOrigins = String(process.env.ALLOWED_DEV_ORIGINS ?? "")
+  .split(",")
+  .map((origin) => origin.trim())
+  .filter(Boolean);
+
 const nextConfig: NextConfig = {
   devIndicators: false,
-  allowedDevOrigins: ["172.20.32.53", "localhost:3000"],
+  allowedDevOrigins:
+    configuredOrigins.length > 0 ? configuredOrigins : ["localhost:3000"],
 };
 
 export default nextConfig;
-

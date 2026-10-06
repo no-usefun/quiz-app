@@ -10,6 +10,9 @@ export const API_BASE = (
 ).replace(/\/+$/, "");
 
 export const ENDPOINTS = {
+  system: {
+    health: `${API_BASE}/api/v1/health`,
+  },
   auth: {
     login: `${API_BASE}/api/v1/auth/login`,
     signup: (role: "STUDENT" | "TEACHER") =>

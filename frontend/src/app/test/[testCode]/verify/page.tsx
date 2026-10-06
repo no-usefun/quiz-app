@@ -3,6 +3,7 @@
 import { use, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { motion } from "framer-motion";
+import { api } from "@/lib/api/client";
 import {
   ShieldCheck,
   ArrowRight,
@@ -117,27 +118,15 @@ export default function IdentityVerificationPage({
         setLoadingSession(true);
         setError(null);
 
-        const availabilityRes = await fetch(
+        const data = await api.get<AvailabilityResponse>(
           ENDPOINTS.student.availability(cleanCode),
           {
-            method: "GET",
-            headers: {
-              Authorization: `Bearer ${token}`,
-              "Content-Type": "application/json",
-            },
+            token,
+            retry: 2,
+            retryDelayMs: 300,
             cache: "no-store",
           },
         );
-
-        const data: AvailabilityResponse = await availabilityRes
-          .json()
-          .catch(() => ({}));
-
-        if (!availabilityRes.ok) {
-          throw new Error(
-            `Unable to verify assessment (${availabilityRes.status}).`,
-          );
-        }
 
         if (cancelled) return;
 

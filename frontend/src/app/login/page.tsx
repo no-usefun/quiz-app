@@ -4,8 +4,11 @@ import { Suspense, useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { ArrowLeft, ArrowRight, Eye, EyeOff } from "lucide-react";
+import { ApiClientError, api } from "@/lib/api/client";
 import { ENDPOINTS } from "@/lib/api/endpoints";
+import { isLanExamMode } from "@/lib/examMode";
 import { APP_NAME } from "@/lib/constants";
+import type { AuthResponse } from "@/lib/types";
 
 function GoogleIcon() {
   return (
@@ -91,6 +94,7 @@ function LoginContent() {
   const activeRole = getRoleFromQuery(searchParams.get("role"));
   const redirectTarget = searchParams.get("redirect") || "";
   const selectedBackendRole = activeRole ? roleToBackendRole(activeRole) : null;
+  const lanExamMode = isLanExamMode();
 
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -149,6 +153,11 @@ function LoginContent() {
   const handleGoogleAuth = () => {
     if (!selectedBackendRole) return;
 
+    if (lanExamMode) {
+      setError("Google sign-in is unavailable in LAN exam mode. Use your local exam account.");
+      return;
+    }
+
     setError("");
 
     sessionStorage.setItem("dynoquizz_google_role", selectedBackendRole);
@@ -181,45 +190,29 @@ function LoginContent() {
     setLoading(true);
 
     try {
-      const response = await fetch(
+      const data = await api.post<AuthResponse>(
         ENDPOINTS.auth.login,
         {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            Accept: "application/json",
-          },
-          body: JSON.stringify({
-            email: trimmedEmail,
-            password,
-          }),
+          email: trimmedEmail,
+          password,
+        },
+        {
+          skipAuth: true,
           cache: "no-store",
         },
       );
-
-      const data = await response.json().catch(() => ({}));
-
-      if (!response.ok) {
-        throw new Error(data?.message || data?.error || "Login failed. Please check your credentials.");
-      }
 
       const token = typeof data?.token === "string" ? data.token.trim() : "";
       if (!token) {
         throw new Error("Login succeeded but the backend did not return a session token.");
       }
 
-      const meResponse = await fetch(ENDPOINTS.auth.me, {
-        headers: {
-          Authorization: "Bearer " + token,
-          Accept: "application/json",
-        },
+      const meData = await api.get(ENDPOINTS.auth.me, {
+        token,
+        retry: 2,
+        retryDelayMs: 300,
         cache: "no-store",
       });
-
-      const meData = await meResponse.json().catch(() => ({}));
-      if (!meResponse.ok) {
-        throw new Error(meData?.message || meData?.error || "Unable to verify the authenticated session.");
-      }
 
       const backendRole = normalizeRole(meData?.role || data?.user?.role);
       if (!backendRole) {
@@ -254,7 +247,13 @@ function LoginContent() {
       router.refresh();
       window.location.href = getPostAuthDestination(backendRole, redirectTarget);
     } catch (requestError) {
-      setError(requestError instanceof Error ? requestError.message : "Cannot connect to the authentication server.");
+      setError(
+        requestError instanceof ApiClientError && requestError.status === 0
+          ? "The local exam server is unreachable. Verify the LAN connection and NEXT_PUBLIC_API_URL."
+          : requestError instanceof Error
+            ? requestError.message
+            : "Cannot connect to the authentication server.",
+      );
     } finally {
       setLoading(false);
     }
@@ -305,6 +304,11 @@ function LoginContent() {
 
           <div className="mb-6">
             <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-neutral-400">{APP_NAME} Authentication</p>
+            {lanExamMode && (
+              <span className="mt-2 inline-flex rounded-full bg-[#e8f0ff] px-2.5 py-1 text-[9px] font-bold uppercase tracking-wider text-[#165dfb]">
+                LAN Exam Mode · Local Authentication
+              </span>
+            )}
             <h1 className="mt-1.5 text-2xl font-bold tracking-tight text-neutral-900">Log in as {roleLabel}</h1>
             <p className="mt-1.5 text-sm leading-relaxed text-neutral-500">Use your account credentials or continue with Google.</p>
           </div>
@@ -313,10 +317,12 @@ function LoginContent() {
             <div className="mb-4 rounded-lg border border-red-100 bg-red-50 p-3 text-sm font-medium text-red-700">{error}</div>
           )}
 
+          {!lanExamMode && (
           <button type="button" onClick={handleGoogleAuth} disabled={loading} className="flex w-full items-center justify-center gap-2.5 rounded-lg border border-neutral-200 bg-white px-4 py-3 text-sm font-semibold text-neutral-900 transition-all hover:border-neutral-300 hover:bg-neutral-50 active:scale-[0.99] disabled:cursor-not-allowed disabled:opacity-60">
             <GoogleIcon />
             Sign in with Google
           </button>
+          )}
 
           <div className="my-5 flex items-center gap-3">
             <div className="h-px flex-1 bg-neutral-100" />
@@ -333,7 +339,7 @@ function LoginContent() {
             <div className="space-y-1.5">
               <div className="flex items-center justify-between gap-3">
                 <label className="block text-xs font-bold text-neutral-700">Password</label>
-                {activeRole && (
+                {!lanExamMode && activeRole && (
                   <Link
                     href={"/forgot-password?role=" + activeRole}
                     className="text-[10px] font-bold text-[#165dfb] hover:underline"
@@ -356,10 +362,12 @@ function LoginContent() {
             </button>
           </form>
 
-          <p className="mt-5 text-center text-sm text-neutral-500">
-            Don&apos;t have an account?{" "}
-            <Link href={`/signup?role=${activeRole}`} className="font-bold text-neutral-900 hover:underline">Sign up</Link>
-          </p>
+          {!lanExamMode && (
+            <p className="mt-5 text-center text-sm text-neutral-500">
+              Don&apos;t have an account?{" "}
+              <Link href={`/signup?role=${activeRole}`} className="font-bold text-neutral-900 hover:underline">Sign up</Link>
+            </p>
+          )}
         </div>
       </div>
     </main>

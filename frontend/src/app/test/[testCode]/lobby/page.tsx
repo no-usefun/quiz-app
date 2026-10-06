@@ -102,6 +102,11 @@ function LobbyInner({ testCode }: { testCode: string }) {
 
         const result = await api.get<QuizAvailabilityResponse>(
           ENDPOINTS.student.availability(cleanCode),
+          {
+            retry: 2,
+            retryDelayMs: 300,
+            cache: "no-store",
+          },
         );
 
         if (cancelled) return;
