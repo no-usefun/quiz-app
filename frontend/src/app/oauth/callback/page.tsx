@@ -280,12 +280,10 @@ function OAuthCallbackContent() {
         persistOAuthSession(token, normalizedUser, expiresInParam);
 
         const destination =
-          normalizedUser.profileComplete === false
-            ? "/settings?profile=complete"
-            : savedRedirect ||
-              (backendRole === "TEACHER"
-                ? "/dashboard/teacher"
-                : "/dashboard/student");
+          savedRedirect ||
+          (backendRole === "TEACHER"
+            ? "/dashboard/teacher"
+            : "/dashboard/student");
 
         cleanOAuthStorage();
 

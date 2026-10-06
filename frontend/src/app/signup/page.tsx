@@ -205,30 +205,138 @@ function SignupContent() {
       if (res.ok) {
         const verificationRequired = data?.verificationRequired === true;
 
-        setSuccess(
-          verificationRequired
-            ? data?.message ||
-                "Account created. Please verify your email before logging in."
-            : data?.message ||
-                "Account created successfully. You can now log in.",
-        );
         setError("");
 
-        // Signup does not return an authenticated JWT.
-        if (typeof window !== "undefined") {
-          localStorage.removeItem("dynoquizz_token");
-          localStorage.removeItem("token");
-          localStorage.removeItem("dynoquizz_user");
-          localStorage.removeItem("dynoquizz_role");
+        if (verificationRequired) {
+          setSuccess(
+            data?.message ||
+              "Account created. Please verify your email before signing in.",
+          );
 
-          const normalizedRegistrationNo = registrationNo.trim().toUpperCase();
+          if (typeof window !== "undefined") {
+            localStorage.removeItem("dynoquizz_token");
+            localStorage.removeItem("token");
+            localStorage.removeItem("dynoquizz_user");
+            localStorage.removeItem("dynoquizz_role");
+
+            const normalizedRegistrationNo = registrationNo.trim().toUpperCase();
+
+            if (normalizedRegistrationNo) {
+              localStorage.setItem("dynoquizz_regNo", normalizedRegistrationNo);
+            } else {
+              localStorage.removeItem("dynoquizz_regNo");
+            }
+          }
+
+          return;
+        }
+
+        setSuccess("Account created. Signing you in...");
+
+        const loginRes = await fetch(ENDPOINTS.auth.login, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Accept: "application/json",
+          },
+          body: JSON.stringify({
+            email: email.trim(),
+            password,
+          }),
+          cache: "no-store",
+        });
+
+        const loginData = await loginRes.json().catch(() => ({}));
+
+        if (!loginRes.ok) {
+          throw new Error(
+            loginData?.message ||
+              loginData?.error ||
+              "Account was created, but automatic sign-in failed. Please try logging in.",
+          );
+        }
+
+        const token =
+          typeof loginData?.token === "string" ? loginData.token.trim() : "";
+
+        if (!token) {
+          throw new Error(
+            "Account was created, but the authentication token was not returned.",
+          );
+        }
+
+        const meRes = await fetch(ENDPOINTS.auth.me, {
+          method: "GET",
+          headers: {
+            Authorization: "Bearer " + token,
+            Accept: "application/json",
+          },
+          cache: "no-store",
+        });
+
+        const meData = await meRes.json().catch(() => ({}));
+
+        if (!meRes.ok) {
+          throw new Error(
+            meData?.message ||
+              meData?.error ||
+              "Account was created, but the authenticated session could not be verified.",
+          );
+        }
+
+        const backendRole = String(meData?.role || "").trim().toUpperCase();
+
+        if (
+          backendRole !== "TEACHER" &&
+          backendRole !== "STUDENT"
+        ) {
+          throw new Error(
+            "Account was created, but the backend returned an invalid account role.",
+          );
+        }
+
+        const normalizedRegistrationNo = String(
+          meData?.registrationNo || registrationNo || "",
+        )
+          .trim()
+          .toUpperCase();
+
+        if (typeof window !== "undefined") {
+          localStorage.setItem("dynoquizz_token", token);
+          localStorage.removeItem("token");
+          localStorage.setItem("dynoquizz_user", JSON.stringify(meData));
+          localStorage.setItem("dynoquizz_role", backendRole);
 
           if (normalizedRegistrationNo) {
             localStorage.setItem("dynoquizz_regNo", normalizedRegistrationNo);
           } else {
             localStorage.removeItem("dynoquizz_regNo");
           }
+
+          const expiresInMs = Number(loginData?.expiresIn);
+          const maxAgeSeconds =
+            Number.isFinite(expiresInMs) && expiresInMs > 0
+              ? Math.max(1, Math.floor(expiresInMs / 1000))
+              : 86400;
+
+          document.cookie =
+            "dynoquizz_token=" +
+            encodeURIComponent(token) +
+            "; path=/; max-age=" +
+            maxAgeSeconds +
+            "; samesite=lax";
         }
+
+        setSuccess("Account created. Redirecting to your dashboard...");
+
+        const redirectTarget = searchParams?.get("redirect");
+        const destination =
+          redirectTarget ||
+          (backendRole === "TEACHER"
+            ? "/dashboard/teacher"
+            : "/dashboard/student");
+
+        router.replace(destination);
       } else {
         setSuccess("");
         setError(

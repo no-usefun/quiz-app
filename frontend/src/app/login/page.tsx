@@ -79,13 +79,8 @@ function roleDestination(role: "TEACHER" | "STUDENT"): string {
 
 function getPostAuthDestination(
   role: "TEACHER" | "STUDENT",
-  profileComplete: unknown,
   redirectTarget: string,
 ): string {
-  if (profileComplete === false) {
-    return "/settings?profile=complete";
-  }
-
   return redirectTarget || roleDestination(role);
 }
 
@@ -138,11 +133,7 @@ function LoginContent() {
 
         localStorage.setItem("dynoquizz_user", JSON.stringify(user));
         localStorage.setItem("dynoquizz_role", backendRole);
-        window.location.href = getPostAuthDestination(
-          backendRole,
-          user?.profileComplete,
-          redirectTarget,
-        );
+        window.location.href = getPostAuthDestination(backendRole, redirectTarget);
       } catch {
         // Keep the login screen usable when the backend is temporarily offline.
       }
@@ -261,11 +252,7 @@ function LoginContent() {
         "; samesite=lax";
 
       router.refresh();
-      window.location.href = getPostAuthDestination(
-        backendRole,
-        meData?.profileComplete,
-        redirectTarget,
-      );
+      window.location.href = getPostAuthDestination(backendRole, redirectTarget);
     } catch (requestError) {
       setError(requestError instanceof Error ? requestError.message : "Cannot connect to the authentication server.");
     } finally {
