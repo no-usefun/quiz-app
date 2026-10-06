@@ -13,12 +13,37 @@ import {
   AlertCircle,
 } from "lucide-react";
 import { TopNav } from "@/components/TopNav";
-import { useSession } from "@/hooks/useSession";
-import { resolveQuizIdentifiers } from "@/lib/quizCache";
+import { ENDPOINTS } from "@/lib/api/endpoints";
 
-const API_BASE = (
-  process.env.NEXT_PUBLIC_API_URL || "http://localhost:8080"
-).replace(/\/+$/, "");
+type QuizData = {
+  quizId?: number | string;
+  quizCode?: string;
+  title?: string;
+  subject?: string;
+  totalStudents?: number;
+  totalQuestions?: number;
+  questions?: unknown[];
+  overallTimerSeconds?: number;
+  status?: string;
+  examState?: string;
+};
+
+function normalizeQuiz(raw: any): QuizData | null {
+  if (!raw || typeof raw !== "object") return null;
+
+  return {
+    ...raw,
+    quizId: raw.quizId ?? raw.id,
+    quizCode: raw.quizCode ?? raw.testCode ?? "",
+    title: raw.title ?? raw.quizName ?? raw.quizTitle ?? "Assessment Session",
+    subject: raw.subject ?? raw.subjectName ?? "",
+    totalStudents: Number(raw.totalStudents ?? 0),
+    totalQuestions:
+      raw.totalQuestions ??
+      (Array.isArray(raw.questions) ? raw.questions.length : 0),
+    overallTimerSeconds: Number(raw.overallTimerSeconds ?? 0),
+  };
+}
 
 export default function ShareAssessmentPage({
   params,
@@ -26,104 +51,147 @@ export default function ShareAssessmentPage({
   params: Promise<{ testCode: string }>;
 }) {
   const { testCode } = use(params);
-  const { user } = useSession();
-  const [quizData, setQuizData] = useState<any>(null);
+
+  const [quizData, setQuizData] = useState<QuizData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [copiedLink, setCopiedLink] = useState(false);
   const [copiedCode, setCopiedCode] = useState(false);
-
-  // resolvedCode is the human-readable access code the backend expects.
-  // testCode (from the URL) may be a numeric quizId after a creation redirect.
-  const [resolvedCode, setResolvedCode] = useState<string>(testCode);
+  const [resolvedCode, setResolvedCode] = useState(testCode);
 
   useEffect(() => {
+    let cancelled = false;
+
     const fetchQuizDetails = async () => {
+      setLoading(true);
+      setError(null);
+
       try {
         const token = localStorage.getItem("dynoquizz_token");
+
+        if (!token) {
+          throw new Error(
+            "Your teacher session has expired. Please log in again.",
+          );
+        }
+
         const headers = {
-          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+          Authorization: `Bearer ${token}`,
           "Content-Type": "application/json",
         };
 
-        // 1. Fetch teacher quizzes from backend to resolve this quiz
-        let foundQuiz: any = null;
-        if (token) {
-          const teacherRes = await fetch(`${API_BASE}/api/v1/teacher/quizzes`, {
-            headers,
-          }).catch(() => null);
+        // Current backend source of truth:
+        // GET /api/v1/teacher/quizzes -> List<QuizResponse>
+        // This lets us resolve either a quiz ID or the human-readable quiz code.
+        const rosterRes = await fetch(ENDPOINTS.teacher.quizzes, {
+          method: "GET",
+          headers,
+          cache: "no-store",
+        });
 
-          if (teacherRes && teacherRes.ok) {
-            const data = await teacherRes.json();
-            const list: any[] = Array.isArray(data)
-              ? data
-              : Array.isArray(data?.content)
-                ? data.content
-                : Array.isArray(data?.data)
-                  ? data.data
-                  : [];
-
-            foundQuiz = list.find(
-              (q) =>
-                String(q.quizId ?? q.id) === String(testCode) ||
-                String(q.quizCode) === String(testCode),
-            );
-          }
-        }
-
-        if (foundQuiz) {
-          const code = foundQuiz.quizCode || testCode;
-          setResolvedCode(code);
-          setQuizData(foundQuiz);
-          setLoading(false);
-          return;
-        }
-
-        // 2. Fallback: fetch package by access code if not resolved in teacher list
-        const pkgRes = await fetch(
-          `${API_BASE}/api/v1/quizzes/code/${testCode}/package`,
-          { headers },
-        );
-
-        if (pkgRes.ok) {
-          const pkgData = await pkgRes.json();
-          if (pkgData.quizCode || pkgData.accessCode) {
-            setResolvedCode(pkgData.quizCode || pkgData.accessCode);
-          }
-          setQuizData(pkgData);
-        } else {
+        if (!rosterRes.ok) {
+          const errData = await rosterRes.json().catch(() => ({}));
           throw new Error(
-            "Assessment not found on the server. Ensure it was created correctly.",
+            errData?.message ||
+              errData?.error ||
+              `Unable to load your assessments (${rosterRes.status}).`,
           );
         }
-      } catch (e: any) {
-        console.error("Failed to load quiz for sharing:", e);
-        setError(
-          e.message ||
-            "We couldn't retrieve the assessment details from the server. Please check your backend connection.",
+
+        const rosterData = await rosterRes.json();
+
+        const list: any[] = Array.isArray(rosterData)
+          ? rosterData
+          : Array.isArray(rosterData?.content)
+            ? rosterData.content
+            : Array.isArray(rosterData?.data)
+              ? rosterData.data
+              : [];
+
+        let matched = list.find(
+          (q) =>
+            String(q?.quizCode ?? q?.testCode ?? "") === String(testCode) ||
+            String(q?.quizId ?? q?.id ?? "") === String(testCode),
         );
+
+        // When the URL contains a numeric quiz ID and the roster did not
+        // resolve it, use the current teacher detail endpoint.
+        if (!matched && /^\d+$/.test(String(testCode))) {
+          const detailRes = await fetch(
+            ENDPOINTS.teacher.quizDetail(testCode),
+            {
+              method: "GET",
+              headers,
+              cache: "no-store",
+            },
+          );
+
+          if (detailRes.ok) {
+            matched = await detailRes.json();
+          }
+        }
+
+        const normalized = normalizeQuiz(matched);
+
+        if (!normalized) {
+          throw new Error(
+            "Assessment not found. Check the assessment URL or return to the teacher dashboard.",
+          );
+        }
+
+        const code = String(normalized.quizCode || "").trim();
+
+        if (!code) {
+          throw new Error(
+            "Assessment was found, but the backend did not return its access code.",
+          );
+        }
+
+        if (cancelled) return;
+
+        setResolvedCode(code);
+        setQuizData(normalized);
+      } catch (e: any) {
+        if (cancelled) return;
+
+        console.error("Failed to load quiz for sharing:", e);
         setQuizData(null);
+        setError(
+          e?.message ||
+            "We couldn't retrieve the assessment details from the server.",
+        );
       } finally {
-        setLoading(false);
+        if (!cancelled) {
+          setLoading(false);
+        }
       }
     };
 
-    fetchQuizDetails();
+    void fetchQuizDetails();
+
+    return () => {
+      cancelled = true;
+    };
   }, [testCode]);
 
   const assessmentLink =
     typeof window !== "undefined"
-      ? `${window.location.origin}/join?code=${resolvedCode}`
-      : `http://localhost:3000/join?code=${resolvedCode}`;
+      ? `${window.location.origin}/join?code=${encodeURIComponent(resolvedCode)}`
+      : `/join?code=${encodeURIComponent(resolvedCode)}`;
 
-  const copyToClipboard = (text: string, type: "link" | "code") => {
-    navigator.clipboard.writeText(text);
-    if (type === "link") {
-      setCopiedLink(true);
-      setTimeout(() => setCopiedLink(false), 2000);
-    } else {
-      setCopiedCode(true);
-      setTimeout(() => setCopiedCode(false), 2000);
+  const copyToClipboard = async (text: string, type: "link" | "code") => {
+    try {
+      await navigator.clipboard.writeText(text);
+
+      if (type === "link") {
+        setCopiedLink(true);
+        setTimeout(() => setCopiedLink(false), 2000);
+      } else {
+        setCopiedCode(true);
+        setTimeout(() => setCopiedCode(false), 2000);
+      }
+    } catch (err) {
+      console.error("Clipboard copy failed:", err);
     }
   };
 
@@ -167,7 +235,8 @@ export default function ShareAssessmentPage({
 
   const title = quizData.title || "Assessment Session";
   const totalQuestions =
-    quizData.totalQuestions || quizData.questions?.length || 0;
+    quizData.totalQuestions ||
+    (Array.isArray(quizData.questions) ? quizData.questions.length : 0);
   const timeLimitMins = Math.floor((quizData.overallTimerSeconds || 0) / 60);
 
   return (
@@ -183,6 +252,7 @@ export default function ShareAssessmentPage({
             >
               <ArrowLeft className="h-4 w-4" />
             </Link>
+
             <div>
               <span className="text-[10px] font-bold uppercase tracking-widest text-[#78716b]">
                 ASSESSMENT DISTRIBUTION
@@ -198,33 +268,40 @@ export default function ShareAssessmentPage({
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-[#d1dee8]/30 pb-6">
             <div>
               <span className="rounded-full bg-[#e2ede8] text-[#1d5237] px-2.5 py-0.5 text-[10px] font-bold border border-[#1d5237]/20">
-                PUBLISHED &amp; ACTIVE
+                {String(quizData.status || "").toUpperCase() === "PUBLISHED"
+                  ? "PUBLISHED & ACTIVE"
+                  : String(quizData.status || "ASSESSMENT").toUpperCase()}
               </span>
+
               <h2 className="text-2xl font-black text-[#111111] mt-2">
                 {title}
               </h2>
+
               <div className="flex flex-wrap items-center gap-4 mt-2 text-xs text-[#78716b] font-medium">
                 <span className="flex items-center gap-1">
-                  <BookOpen className="h-3.5 w-3.5" />{" "}
+                  <BookOpen className="h-3.5 w-3.5" />
                   {quizData.subject || "General Subject"}
                 </span>
+
                 <span className="flex items-center gap-1">
-                  <Users className="h-3.5 w-3.5" />{" "}
+                  <Users className="h-3.5 w-3.5" />
                   {quizData.totalStudents || 0} Target Students
                 </span>
+
                 <span className="flex items-center gap-1">
-                  <Clock className="h-3.5 w-3.5" /> {timeLimitMins} mins ·{" "}
-                  {totalQuestions} Qs
+                  <Clock className="h-3.5 w-3.5" />
+                  {timeLimitMins} mins · {totalQuestions} Qs
                 </span>
               </div>
             </div>
 
             <div className="flex items-center gap-2">
               <Link
-                href={`/dashboard/teacher/live/${testCode}`}
+                href={`/dashboard/teacher/live/${resolvedCode}`}
                 className="inline-flex items-center gap-1.5 rounded-[10px] bg-[#165dfb] px-4 py-2.5 text-xs font-bold text-white hover:bg-[#0f4fd8] shadow-sm shadow-[#165dfb]/20 active:scale-[0.98] transition-all"
               >
-                <BarChart3 className="h-4 w-4 text-white" /> Monitor Live Stream
+                <BarChart3 className="h-4 w-4 text-white" />
+                View Leaderboard
               </Link>
             </div>
           </div>
@@ -234,29 +311,33 @@ export default function ShareAssessmentPage({
               <span className="text-[10px] font-bold uppercase tracking-wider text-[#78716b]">
                 Session Access Code
               </span>
+
               <div className="flex items-center justify-between bg-white border border-[#d1dee8]/80 p-3 rounded-[10px] shadow-xs">
                 <span className="font-mono text-lg font-black text-[#165dfb] tracking-wider">
                   {resolvedCode.toUpperCase()}
                 </span>
+
                 <button
+                  type="button"
                   onClick={() => copyToClipboard(resolvedCode, "code")}
                   className="flex items-center gap-1 px-3 py-1.5 rounded-[8px] bg-[#f5f5f4] hover:bg-[#e6e3e2] hover:border-[#b9cbd9] text-xs font-bold text-[#111111] transition-all cursor-pointer border border-[#d1dee8]/60 shadow-xs active:scale-95"
                 >
                   {copiedCode ? (
                     <>
-                      <CheckCircle2 className="h-3.5 w-3.5 text-[#1d5237]" />{" "}
+                      <CheckCircle2 className="h-3.5 w-3.5 text-[#1d5237]" />
                       Copied
                     </>
                   ) : (
                     <>
-                      <Copy className="h-3.5 w-3.5 text-[#78716b]" /> Copy Code
+                      <Copy className="h-3.5 w-3.5 text-[#78716b]" />
+                      Copy Code
                     </>
                   )}
                 </button>
               </div>
+
               <p className="text-[11px] text-[#78716b] font-medium">
-                Candidates type this code along with their registration number
-                on the join portal.
+                Candidates type this code on the join portal.
               </p>
             </div>
 
@@ -264,29 +345,33 @@ export default function ShareAssessmentPage({
               <span className="text-[10px] font-bold uppercase tracking-wider text-[#78716b]">
                 Direct Candidate Link
               </span>
+
               <div className="flex items-center justify-between bg-white border border-[#d1dee8]/80 p-3 rounded-[10px] overflow-hidden shadow-xs">
                 <span className="font-mono text-xs text-[#78716b] truncate pr-2">
                   {assessmentLink}
                 </span>
+
                 <button
+                  type="button"
                   onClick={() => copyToClipboard(assessmentLink, "link")}
                   className="flex shrink-0 items-center gap-1 px-3 py-1.5 rounded-[8px] bg-[#f5f5f4] hover:bg-[#e6e3e2] hover:border-[#b9cbd9] text-xs font-bold text-[#111111] transition-all cursor-pointer border border-[#d1dee8]/60 shadow-xs active:scale-95"
                 >
                   {copiedLink ? (
                     <>
-                      <CheckCircle2 className="h-3.5 w-3.5 text-[#1d5237]" />{" "}
+                      <CheckCircle2 className="h-3.5 w-3.5 text-[#1d5237]" />
                       Copied
                     </>
                   ) : (
                     <>
-                      <Copy className="h-3.5 w-3.5 text-[#78716b]" /> Copy Link
+                      <Copy className="h-3.5 w-3.5 text-[#78716b]" />
+                      Copy Link
                     </>
                   )}
                 </button>
               </div>
+
               <p className="text-[11px] text-[#78716b] font-medium">
-                Share this direct link via email or messaging groups for instant
-                authentication.
+                Share this direct link so candidates can open the join portal.
               </p>
             </div>
           </div>

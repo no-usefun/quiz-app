@@ -9,6 +9,7 @@ import {
   ArrowLeft,
   Upload,
   FileType,
+  Download,
   Clock,
   ChevronDown,
   Trash2,
@@ -17,22 +18,41 @@ import {
   Check,
   AlertCircle,
   FileQuestion,
+  GripVertical,
 } from "lucide-react";
 import { useSession } from "@/hooks/useSession";
-import { resolveQuizIdentifiers, getCachedQuizzes } from "@/lib/quizCache";
+import { ENDPOINTS } from "@/lib/api/endpoints";
 
-const API_BASE = (
-  process.env.NEXT_PUBLIC_API_URL || "http://localhost:8080"
-).replace(/\/+$/, "");
+
+// Local cache fallback replacing the removed quizCache module.
+function getCachedQuizzes(teacherId?: number | string | null): any[] {
+  if (typeof window === "undefined") return [];
+
+  const keys = [
+    teacherId != null ? `dynoquizz_quizzes_${teacherId}` : "",
+    "dynoquizz_teacher_quizzes",
+  ].filter(Boolean);
+
+  for (const key of keys) {
+    try {
+      const raw = localStorage.getItem(key);
+      if (!raw) continue;
+      const parsed = JSON.parse(raw);
+      if (Array.isArray(parsed)) return parsed;
+    } catch {
+      // Ignore invalid cache and continue with the next source.
+    }
+  }
+
+  return [];
+}
 
 function formatForDateTimeInput(
   val: string | number | null | undefined,
 ): string {
   if (!val) return "";
   const str = String(val).trim();
-  const match = str.match(
-    /^(\d{4}-\d{2}-\d{2})[T ](\d{2}:\d{2})(?::(\d{2}))?/,
-  );
+  const match = str.match(/^(\d{4}-\d{2}-\d{2})[T ](\d{2}:\d{2})(?::(\d{2}))?/);
   if (match) {
     const [, date, time, sec] = match;
     return sec && sec !== "00" ? `${date}T${time}:${sec}` : `${date}T${time}`;
@@ -48,9 +68,7 @@ function formatForDateTimeInput(
 function formatToLocalDateTime(val: string | null | undefined): string {
   if (!val) return "";
   const str = String(val).trim();
-  const match = str.match(
-    /^(\d{4}-\d{2}-\d{2})[T ](\d{2}:\d{2})(?::(\d{2}))?/,
-  );
+  const match = str.match(/^(\d{4}-\d{2}-\d{2})[T ](\d{2}:\d{2})(?::(\d{2}))?/);
   if (match) {
     const [, date, time, sec] = match;
     return `${date}T${time}:${sec || "00"}`;
@@ -66,7 +84,10 @@ function formatToLocalDateTime(val: string | null | undefined): string {
 // Computes end time as startTime + timeLimitMinutes using pure local arithmetic.
 // Returns a datetime-local string (YYYY-MM-DDTHH:mm) with NO timezone conversion.
 // Returns "" when startTime is empty or timeLimitMinutes is <= 0.
-function computeEndTime(startTimeLocal: string, timeLimitMinutes: number): string {
+function computeEndTime(
+  startTimeLocal: string,
+  timeLimitMinutes: number,
+): string {
   if (!startTimeLocal || timeLimitMinutes <= 0) return "";
   // Parse as local by replacing any existing T separator
   const match = startTimeLocal.match(
@@ -89,6 +110,14 @@ function computeEndTime(startTimeLocal: string, timeLimitMinutes: number): strin
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
 }
 
+type EditableOption = {
+  optionId: number | null;
+  optionText: string;
+  optionImage: string;
+  optionOrder: number;
+  isCorrect: boolean;
+};
+
 function CreateAssessmentContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -98,6 +127,7 @@ function CreateAssessmentContent() {
   const [loadingDraft, setLoadingDraft] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [validationError, setValidationError] = useState<string | null>(null);
+  const [draggedOption, setDraggedOption] = useState<{ qIdx: number; optIdx: number } | null>(null);
   const [publishRetryData, setPublishRetryData] = useState<{
     quizId: number;
     quizCode: string;
@@ -279,33 +309,98 @@ function CreateAssessmentContent() {
           : findQuestions(data);
 
     if (rawQuestions.length > 0) {
-      const mappedQuestions = rawQuestions.map((q: any, i: number) => ({
-        // Preserve IDs so PUT /settings sends them back to the backend
-        questionId: q.questionId ?? q.id ?? null,
-        questionText: String(q.questionText || q.text || q.prompt || ""),
-        imageUrl: q.imageUrl || "",
-        explanation: q.explanation || "",
-        // Backend package returns "MCQ"; UI expects "MULTIPLE_CHOICE"
-        questionType:
-          q.questionType === "MCQ"
-            ? "MULTIPLE_CHOICE"
-            : q.questionType || "MULTIPLE_CHOICE",
-        marks: Number(q.marks || 1),
-        negativeMarks: Number(q.negativeMarks || 0),
-        questionTimerSeconds: Number(q.questionTimerSeconds || 60),
-        difficulty: q.difficulty || "MEDIUM",
-        displayOrder: q.displayOrder || i + 1,
-        options: (q.options || []).map((opt: any, oi: number) => ({
-          optionId: opt.optionId ?? opt.id ?? null,
-          optionText: String(opt.optionText || opt.text || ""),
-          optionImage: opt.optionImage || "",
-          // Backend package uses optionOrder; UI uses displayOrder
-          displayOrder: opt.optionOrder || opt.displayOrder || oi + 1,
-          // /package strips isCorrect (student-facing); prefer cached value,
-          // default to false so the UI doesn't crash — teacher re-checks answers
-          isCorrect: Boolean(opt.isCorrect === true || opt.correct === true),
-        })),
-      }));
+      const mappedQuestions = rawQuestions.map((q: any, i: number) => {
+        const rawType = String(q.questionType || "MCQ").toUpperCase();
+        const questionType =
+          rawType === "MULTIPLE_CHOICE" ? "MCQ" : rawType;
+
+        let mappedOptions: EditableOption[] = (q.options || []).map(
+          (opt: any, oi: number): EditableOption => ({
+            optionId: opt.optionId ?? opt.id ?? null,
+            optionText: String(opt.optionText || opt.text || ""),
+            optionImage: opt.optionImage || "",
+            optionOrder: Number(opt.optionOrder || opt.displayOrder || oi + 1),
+            isCorrect: Boolean(opt.isCorrect === true || opt.correct === true),
+          }),
+        );
+
+        // Keep the editor consistent with the create flow. MCQ/MSQ start with
+        // at least four answer slots; TRUE/FALSE is always exactly two.
+        if (questionType === "TRUE_FALSE") {
+          mappedOptions = [
+            {
+              ...(mappedOptions[0] || {}),
+              optionText: "True",
+              optionImage: mappedOptions[0]?.optionImage || "",
+              optionOrder: 1,
+              isCorrect:
+                mappedOptions.length > 0
+                  ? Boolean(mappedOptions[0].isCorrect)
+                  : true,
+            },
+            {
+              ...(mappedOptions[1] || {}),
+              optionText: "False",
+              optionImage: mappedOptions[1]?.optionImage || "",
+              optionOrder: 2,
+              isCorrect: false,
+            },
+          ];
+
+          // Backend data should have exactly one correct answer. If the stored
+          // state is invalid, normalize it instead of making the editor show
+          // multiple correct TRUE/FALSE answers.
+          if (!mappedOptions.some((opt) => opt.isCorrect)) {
+            mappedOptions[0].isCorrect = true;
+          }
+        } else {
+          while (mappedOptions.length < 4) {
+            mappedOptions.push({
+              optionId: null,
+              optionText: "",
+              optionImage: "",
+              optionOrder: mappedOptions.length + 1,
+              isCorrect: false,
+            });
+          }
+
+          if (questionType === "MULTIPLE_CHOICE") {
+            const firstCorrect = mappedOptions.findIndex(
+              (opt) => opt.isCorrect,
+            );
+            const correctIndex = firstCorrect >= 0 ? firstCorrect : 0;
+            mappedOptions = mappedOptions.map((opt, oi) => ({
+              ...opt,
+              optionOrder: oi + 1,
+              isCorrect: oi === correctIndex,
+            }));
+          } else if (questionType === "MSQ") {
+            const hasCorrect = mappedOptions.some((opt) => opt.isCorrect);
+            if (!hasCorrect) {
+              mappedOptions[0].isCorrect = true;
+            }
+            mappedOptions = mappedOptions.map((opt, oi) => ({
+              ...opt,
+              optionOrder: oi + 1,
+            }));
+          }
+        }
+
+        return {
+          // Preserve IDs so PUT /settings sends them back to the backend.
+          questionId: q.questionId ?? q.id ?? null,
+          questionText: String(q.questionText || q.text || q.prompt || ""),
+          imageUrl: q.imageUrl || "",
+          explanation: q.explanation || "",
+          questionType,
+          marks: Number(q.marks || 1),
+          negativeMarks: Number(q.negativeMarks || 0),
+          questionTimerSeconds: Number(q.questionTimerSeconds || 60),
+          difficulty: q.difficulty || "MEDIUM",
+          displayOrder: q.displayOrder || i + 1,
+          options: mappedOptions,
+        };
+      });
       console.log("[Quiz Edit] Raw questions:", rawQuestions);
       console.log("[Quiz Edit] Mapped questions:", mappedQuestions);
       setParsedQuestions(mappedQuestions);
@@ -317,469 +412,96 @@ function CreateAssessmentContent() {
     if (!draftId) return;
 
     let isMounted = true;
+    setLoadingDraft(true);
+    setValidationError(null);
 
-    // Check localStorage immediately on mount to populate all metadata and settings
-    const cachedDraft =
+    const cachedDraftRaw =
       typeof window !== "undefined"
         ? localStorage.getItem(`quiz_draft_${draftId}`)
         : null;
-    if (cachedDraft) {
+
+    let cachedDraft: any = null;
+
+    if (cachedDraftRaw) {
       try {
-        const parsed = JSON.parse(cachedDraft);
-        if (parsed && typeof parsed === "object") {
-          setTitle(parsed.title || "");
-          setSubject(parsed.subject || "");
-          setSubjectCode(parsed.subjectCode || "");
-          setDescription(parsed.description || "");
-          setInstructions(parsed.instructions || "");
-          setOverallTimerSeconds(parsed.overallTimerSeconds || 0);
-          setAcceptedDomain(
-            parsed.acceptedEmailDomain || parsed.acceptedDomain || "",
+        cachedDraft = JSON.parse(cachedDraftRaw);
+
+        if (cachedDraft && typeof cachedDraft === "object") {
+          hydrateFromQuizData(
+            cachedDraft,
+            Array.isArray(cachedDraft.questions) ? cachedDraft.questions : [],
           );
-          if (parsed.allowedRollsText) {
-            setAllowedRollsText(parsed.allowedRollsText);
-          } else if (Array.isArray(parsed.allowedRolls)) {
-            setAllowedRollsText(parsed.allowedRolls.join(", "));
-          }
-          if (parsed.negativeMarking !== undefined) {
-            setNegativeMarking(Boolean(parsed.negativeMarking));
-          }
-          if (parsed.negativeMarks !== undefined) {
-            setNegativeMarks(Number(parsed.negativeMarks));
-          }
-          if (parsed.publishScoresImmediately !== undefined) {
+
+          if (cachedDraft.publishScoresImmediately !== undefined) {
             setPublishScoresImmediately(
-              Boolean(parsed.publishScoresImmediately),
+              Boolean(cachedDraft.publishScoresImmediately),
             );
           }
-          if (parsed.revealSolutions !== undefined) {
-            setRevealSolutions(Boolean(parsed.revealSolutions));
-          }
-          if (parsed.startTime)
-            setStartTime(formatForDateTimeInput(parsed.startTime));
-          // endTime is derived from startTime + timeLimit; no need to restore from cache.
-          if (parsed.maxTabSwitch !== undefined) {
-            setMaxTabSwitch(Number(parsed.maxTabSwitch));
-          }
-          if (parsed.timeBonusEnabled !== undefined) {
-            setTimeBonusEnabled(Boolean(parsed.timeBonusEnabled));
-          }
-          if (parsed.randomQuestionOrder !== undefined) {
-            setRandomQuestionOrder(Boolean(parsed.randomQuestionOrder));
-          }
-          if (parsed.randomOptionOrder !== undefined) {
-            setRandomOptionOrder(Boolean(parsed.randomOptionOrder));
-          }
-          if (parsed.allowReview !== undefined) {
-            setAllowReview(Boolean(parsed.allowReview));
-          }
-          if (parsed.allowResume !== undefined) {
-            setAllowResume(Boolean(parsed.allowResume));
-          }
-          if (parsed.autoSubmit !== undefined) {
-            setAutoSubmit(Boolean(parsed.autoSubmit));
-          }
-          if (
-            parsed.negativeMarking ||
-            parsed.publishScoresImmediately ||
-            parsed.revealSolutions ||
-            parsed.acceptedEmailDomain ||
-            parsed.acceptedDomain
-          ) {
-            setShowAdvanced(true);
-          }
-          // Fallback for questions if the API /package fetch hasn't overwritten them yet
-          if (parsed.questions?.length) {
-            setParsedQuestions(parsed.questions);
+
+          if (cachedDraft.revealSolutions !== undefined) {
+            setRevealSolutions(Boolean(cachedDraft.revealSolutions));
           }
         }
-      } catch (e) {
+      } catch (error) {
         console.warn(
-          "[DynoQuizz] Failed to parse saved draft from localStorage:",
-          e,
+          "[Quizly] Saved draft cache could not be restored:",
+          error,
         );
       }
     }
 
     const fetchDraft = async () => {
-      setLoadingDraft(true);
-      setValidationError(null);
-
-      const token =
-        typeof window !== "undefined"
-          ? localStorage.getItem("dynoquizz_token")
-          : null;
-
-      const headers: Record<string, string> = {
-        "Content-Type": "application/json",
-        ...(token ? { Authorization: `Bearer ${token}` } : {}),
-      };
-
       try {
-        let data: any = null;
+        const token =
+          typeof window !== "undefined"
+            ? localStorage.getItem("dynoquizz_token")
+            : null;
 
-        // Helper: the /package endpoint is student-facing and strips isCorrect.
-        // Whenever we have raw questions from a package fetch, immediately check
-        // localStorage for a teacher-side cache that still has isCorrect intact.
-        // Returns the localStorage array when found, the packageQuestions otherwise.
-        const preferLocalStorageQuestions = (
-          packageQuestions: any[],
-        ): any[] => {
-          const localRaw =
-            localStorage.getItem(`draft_questions_${draftId}`) ||
-            (data?.quizId
-              ? localStorage.getItem(`draft_questions_${data.quizId}`)
-              : null) ||
-            (data?.id
-              ? localStorage.getItem(`draft_questions_${data.id}`)
-              : null);
+        const response = await fetch(ENDPOINTS.teacher.quizDetail(draftId), {
+          method: "GET",
+          headers: {
+            Accept: "application/json",
+            ...(token ? { Authorization: `Bearer ${token}` } : {}),
+          },
+          cache: "no-store",
+        });
 
-          if (!localRaw) {
-            return packageQuestions;
-          }
+        const data = await response.json().catch(() => ({}));
 
-          try {
-            const localQuestions = JSON.parse(localRaw);
-
-            if (!Array.isArray(localQuestions) || localQuestions.length === 0) {
-              return packageQuestions;
-            }
-
-            return packageQuestions.map(
-              (backendQuestion: any, questionIndex: number) => {
-                const backendQId =
-                  backendQuestion.questionId ?? backendQuestion.id ?? null;
-
-                const localQuestion =
-                  localQuestions.find(
-                    (q: any) =>
-                      backendQId != null &&
-                      (q.questionId != null || q.id != null) &&
-                      String(q.questionId ?? q.id) === String(backendQId),
-                  ) || localQuestions[questionIndex];
-
-                if (!localQuestion) {
-                  return {
-                    ...backendQuestion,
-                    questionId: backendQId,
-                    options: (backendQuestion.options || []).map(
-                      (backendOption: any, optionIndex: number) => ({
-                        ...backendOption,
-                        optionId:
-                          backendOption.optionId ?? backendOption.id ?? null,
-                        displayOrder:
-                          backendOption.optionOrder ||
-                          backendOption.displayOrder ||
-                          optionIndex + 1,
-                        isCorrect: Boolean(
-                          backendOption.isCorrect === true ||
-                          backendOption.correct === true,
-                        ),
-                      }),
-                    ),
-                  };
-                }
-
-                return {
-                  ...backendQuestion,
-                  questionId:
-                    backendQId ??
-                    localQuestion.questionId ??
-                    localQuestion.id ??
-                    null,
-                  explanation:
-                    localQuestion.explanation ??
-                    backendQuestion.explanation ??
-                    "",
-                  imageUrl:
-                    localQuestion.imageUrl ?? backendQuestion.imageUrl ?? "",
-                  options: (backendQuestion.options || []).map(
-                    (backendOption: any, optionIndex: number) => {
-                      const backendOptId =
-                        backendOption.optionId ?? backendOption.id ?? null;
-
-                      const localOption =
-                        (localQuestion.options || []).find(
-                          (opt: any) =>
-                            backendOptId != null &&
-                            (opt.optionId != null || opt.id != null) &&
-                            String(opt.optionId ?? opt.id) ===
-                              String(backendOptId),
-                        ) || (localQuestion.options || [])[optionIndex];
-
-                      return {
-                        ...backendOption,
-                        optionId:
-                          backendOptId ??
-                          localOption?.optionId ??
-                          localOption?.id ??
-                          null,
-                        isCorrect: Boolean(
-                          localOption?.isCorrect ??
-                          localOption?.correct ??
-                          backendOption.isCorrect ??
-                          backendOption.correct ??
-                          false,
-                        ),
-                      };
-                    },
-                  ),
-                };
-              },
-            );
-          } catch (error) {
-            console.warn(
-              "[DynoQuizz] Failed to merge localStorage question cache:",
-              error,
-            );
-
-            return packageQuestions;
-          }
-        };
-
-        // 1. Primary: GET /api/v1/teacher/quizzes/${draftId}
-        const directRes = await fetch(
-          `${API_BASE}/api/v1/teacher/quizzes/${draftId}`,
-          { headers },
-        ).catch(() => null);
-
-        if (directRes && directRes.ok) {
-          data = await directRes.json();
-          console.log("Draft Hydration Payload:", data);
-        }
-
-        let rawQuestions =
-          data?.questions ||
-          data?.quizPackage?.questions ||
-          data?.package?.questions ||
-          data?.questionList ||
-          data?.data?.questions ||
-          [];
-
-        // If the teacher detail endpoint already returned questions, normalize them
-        // with localStorage (for isCorrect restoration) and do not call student package endpoints.
-        if (rawQuestions.length > 0) {
-          rawQuestions = preferLocalStorageQuestions(rawQuestions);
-        } else {
-          // 2. Only use package endpoints when appropriate for published quizzes.
-          // The student-facing package endpoint is not the authoritative draft-edit endpoint
-          // and may reject DRAFT quizzes.
-          const isPublished = data?.status === "PUBLISHED";
-
-          if (isPublished) {
-            try {
-              const pkgByIdRes = await fetch(
-                `${API_BASE}/api/v1/quizzes/${draftId}/package`,
-                {
-                  headers: {
-                    "Content-Type": "application/json",
-                    ...(token ? { Authorization: `Bearer ${token}` } : {}),
-                  },
-                },
-              );
-              if (pkgByIdRes.ok) {
-                const pkgByIdData = await pkgByIdRes.json();
-                console.log("Package-by-ID Payload:", pkgByIdData);
-                const pkgByIdQuestions =
-                  pkgByIdData.questions ||
-                  pkgByIdData.quizPackage?.questions ||
-                  pkgByIdData.package?.questions ||
-                  pkgByIdData.data?.questions ||
-                  [];
-                rawQuestions = preferLocalStorageQuestions(pkgByIdQuestions);
-                data = {
-                  ...(data || {}),
-                  ...pkgByIdData,
-                  questions: rawQuestions,
-                };
-              }
-            } catch (e) {
-              console.warn("Package-by-ID fetch failed:", e);
-            }
-
-            // Secondary fallback for published quizzes: GET /api/v1/quizzes/code/{code}/package
-            if (rawQuestions.length === 0) {
-              try {
-                const resolvedCode =
-                  data?.quizCode ||
-                  data?.testCode ||
-                  getCachedQuizzes(user?.id).find(
-                    (q: any) => String(q.quizId ?? q.id) === String(draftId),
-                  )?.quizCode ||
-                  null;
-                if (resolvedCode) {
-                  const pkgRes = await fetch(
-                    `${API_BASE}/api/v1/quizzes/code/${encodeURIComponent(resolvedCode)}/package`,
-                    {
-                      headers: {
-                        "Content-Type": "application/json",
-                        ...(token ? { Authorization: `Bearer ${token}` } : {}),
-                      },
-                    },
-                  );
-                  if (pkgRes.ok) {
-                    const pkgData = await pkgRes.json();
-                    console.log("Package-by-code Payload:", pkgData);
-                    const pkgQuestions =
-                      pkgData.questions ||
-                      pkgData.quizPackage?.questions ||
-                      pkgData.package?.questions ||
-                      pkgData.data?.questions ||
-                      [];
-                    rawQuestions = preferLocalStorageQuestions(pkgQuestions);
-                    data = {
-                      ...(data || {}),
-                      ...pkgData,
-                      questions: rawQuestions,
-                    };
-                  }
-                }
-              } catch (e) {
-                console.warn("Package-by-code fetch failed:", e);
-              }
-            }
-          }
-
-          // Fall back directly to localStorage when not published or package endpoints did not return questions
-          if (rawQuestions.length === 0) {
-            const localQuestions =
-              localStorage.getItem(`draft_questions_${draftId}`) ||
-              (data?.quizId
-                ? localStorage.getItem(`draft_questions_${data.quizId}`)
-                : null) ||
-              (data?.id
-                ? localStorage.getItem(`draft_questions_${data.id}`)
-                : null);
-            if (localQuestions) {
-              try {
-                rawQuestions = JSON.parse(localQuestions);
-                console.log(
-                  "Successfully restored questions from localStorage!",
-                );
-                data = {
-                  ...(data || {}),
-                  questions: rawQuestions,
-                };
-              } catch (parseErr) {
-                console.error(
-                  "Failed to parse cached questions from localStorage:",
-                  parseErr,
-                );
-              }
-            }
-          }
-        }
-
-        // If still no questions, resolve access code from teacher quizzes roster
-        if (rawQuestions.length === 0) {
-          try {
-            const rosterRes = await fetch(
-              `${API_BASE}/api/v1/teacher/quizzes`,
-              {
-                headers,
-              },
-            );
-            if (rosterRes.ok) {
-              const rData = await rosterRes.json();
-              const list = Array.isArray(rData)
-                ? rData
-                : Array.isArray(rData?.content)
-                  ? rData.content
-                  : Array.isArray(rData?.data)
-                    ? rData.data
-                    : [];
-              const matched = list.find(
-                (q: any) =>
-                  String(q.quizId ?? q.id) === String(draftId) ||
-                  String(q.quizCode ?? q.testCode ?? "") === String(draftId),
-              );
-              if (matched) {
-                data = { ...(matched || {}), ...(data || {}) };
-                const resolvedCode = matched.quizCode || matched.testCode;
-                if (resolvedCode && matched.status === "PUBLISHED") {
-                  const pkgRes = await fetch(
-                    `${API_BASE}/api/v1/quizzes/code/${encodeURIComponent(resolvedCode)}/package`,
-                    { headers },
-                  );
-                  if (pkgRes.ok) {
-                    const pkgData = await pkgRes.json();
-                    console.log(
-                      "Fallback Package from Roster Payload:",
-                      pkgData,
-                    );
-                    const rosterPkgQuestions =
-                      pkgData.questions ||
-                      pkgData.quizPackage?.questions ||
-                      pkgData.package?.questions ||
-                      pkgData.data?.questions ||
-                      [];
-                    // /package is student-facing — prefer localStorage if available
-                    rawQuestions =
-                      preferLocalStorageQuestions(rosterPkgQuestions);
-                    data = {
-                      ...data,
-                      ...pkgData,
-                      questions: rawQuestions,
-                    };
-                  }
-                }
-              }
-            }
-          } catch (e) {
-            console.error("Fallback roster fetch failed:", e);
-          }
-        }
-
-        // If still no questions, check localStorage cache
-        if (rawQuestions.length === 0) {
-          const cachedList = getCachedQuizzes();
-          const cachedMatched = cachedList.find(
-            (q: any) =>
-              String(q.quizId ?? q.id) === String(draftId) ||
-              String(q.quizCode ?? q.testCode ?? "") === String(draftId),
-          );
-          if (cachedMatched) {
-            rawQuestions =
-              cachedMatched.questions ||
-              cachedMatched.quizPackage?.questions ||
-              cachedMatched.package?.questions ||
-              [];
-            if (rawQuestions.length > 0) {
-              data = {
-                ...(data || {}),
-                ...cachedMatched,
-                questions: rawQuestions,
-              };
-            }
-          }
-        }
-
-        if (!data) {
-          const cachedRaw = localStorage.getItem(`quiz_draft_${draftId}`);
-          if (cachedRaw) {
-            try {
-              data = JSON.parse(cachedRaw);
-              if (!rawQuestions.length && Array.isArray(data?.questions)) {
-                rawQuestions = data.questions;
-              }
-            } catch {}
-          }
-        }
-
-        if (!data) {
+        if (!response.ok) {
           throw new Error(
-            `Unable to retrieve draft assessment #${draftId} from the server.`,
+            data?.message ||
+              data?.error ||
+              `Unable to load draft (HTTP ${response.status}).`,
           );
         }
 
-        if (isMounted) {
-          hydrateFromQuizData(data, rawQuestions);
+        if (!isMounted) return;
+
+        const questions = Array.isArray(data?.questions)
+          ? data.questions
+          : [];
+
+        // The teacher detail endpoint is authoritative for both settings and
+        // question correctness. Do not read student package endpoints here.
+        hydrateFromQuizData(data, questions);
+      } catch (error) {
+        if (!isMounted) return;
+
+        /*
+         * A cached draft is useful only as an offline/read-through fallback.
+         * Once the backend is reachable, its teacher-detail response replaces
+         * the cached state above.
+         */
+        if (cachedDraft) {
+          return;
         }
-      } catch (err: any) {
-        console.error("Error fetching draft assessment:", err);
-        if (isMounted) {
-          setValidationError(`Could not load draft: ${err.message}`);
-        }
+
+        setValidationError(
+          error instanceof Error
+            ? error.message
+            : "Unable to load this assessment from the server.",
+        );
       } finally {
         if (isMounted) {
           setLoadingDraft(false);
@@ -787,7 +509,7 @@ function CreateAssessmentContent() {
       }
     };
 
-    fetchDraft();
+    void fetchDraft();
 
     return () => {
       isMounted = false;
@@ -799,110 +521,178 @@ function CreateAssessmentContent() {
     if (!file) return;
 
     setValidationError(null);
+
     const reader = new FileReader();
 
     reader.onload = (event) => {
       const text = event.target?.result as string;
+
       if (!text || !text.trim()) {
         setValidationError("The uploaded file is empty.");
         setParsedQuestions([]);
         return;
       }
 
-      if (file.name.endsWith(".json")) {
+      if (file.name.toLowerCase().endsWith(".json")) {
         try {
           const parsed = JSON.parse(text);
           const rawList = Array.isArray(parsed)
             ? parsed
-            : Array.isArray(parsed.questions)
+            : Array.isArray(parsed?.questions)
               ? parsed.questions
               : null;
 
           if (!rawList || rawList.length === 0) {
-            setValidationError(
+            throw new Error(
               "JSON file must contain a non-empty array of questions.",
             );
-            return setParsedQuestions([]);
           }
 
-          const validated: any[] = [];
-          for (let idx = 0; idx < rawList.length; idx++) {
-            const q = rawList[idx];
+          const validated: any[] = rawList.map((q: any, idx: number) => {
             const qNum = idx + 1;
-            const qText = (q.questionText || q.text || "").trim();
-            if (!qText)
-              return (
-                setValidationError(`Question ${qNum}: text is required.`),
-                setParsedQuestions([])
-              );
+            const questionText = String(
+              q?.questionText ?? q?.text ?? q?.prompt ?? "",
+            ).trim();
+            const imageUrl = String(
+              q?.imageUrl ?? q?.image ?? "",
+            ).trim();
 
-            let normalizedOpts: any[] = [];
-            if (typeof q.options[0] === "string") {
-              const strOpts: string[] = q.options.map((o: any) =>
-                String(o).trim(),
+            if (!questionText && !imageUrl) {
+              throw new Error(
+                `Question ${qNum}: text or image is required.`,
               );
-              const correctStr = (
-                q.correctOption ||
-                q.correctAnswer ||
-                q.answer ||
-                ""
-              ).trim();
-              if (!correctStr)
-                return (
-                  setValidationError(
-                    `Question ${qNum}: correct option required.`,
-                  ),
-                  setParsedQuestions([])
-                );
-
-              const matchedIndex = strOpts.findIndex(
-                (o) =>
-                  o.toLowerCase() === correctStr.toLowerCase() ||
-                  (correctStr.length === 1 &&
-                    String.fromCharCode(65 + strOpts.indexOf(o)) ===
-                      correctStr.toUpperCase()),
-              );
-
-              normalizedOpts = strOpts.map((optText, oIdx) => ({
-                optionText: optText,
-                optionImage: "",
-                optionOrder: oIdx + 1,
-                isCorrect:
-                  oIdx ===
-                  (matchedIndex !== -1
-                    ? matchedIndex
-                    : strOpts.indexOf(correctStr)),
-              }));
-            } else {
-              normalizedOpts = q.options.map((opt: any, oIdx: number) => ({
-                optionText: (opt.optionText || opt.text).trim(),
-                optionImage: "",
-                optionOrder: opt.optionOrder || oIdx + 1,
-                isCorrect: !!opt.isCorrect,
-              }));
             }
 
-            validated.push({
-              questionText: qText,
-              imageUrl: "",
-              explanation: q.explanation || "",
-              questionType: q.questionType || "MCQ",
-              marks: Number(q.marks) || 1,
+            const rawType = String(q?.questionType || "MCQ")
+              .trim()
+              .toUpperCase();
+
+            const questionType =
+              rawType === "MULTIPLE_CHOICE" ? "MCQ" : rawType;
+
+            if (!["MCQ", "MSQ", "TRUE_FALSE"].includes(questionType)) {
+              throw new Error(
+                `Question ${qNum}: unsupported question type "${rawType}".`,
+              );
+            }
+
+            const sourceOptions = Array.isArray(q?.options) ? q.options : [];
+
+            let options = sourceOptions.map((opt: any, optionIndex: number) => ({
+              optionText: String(opt?.optionText ?? opt?.text ?? "").trim(),
+              optionImage: String(opt?.optionImage ?? "").trim(),
+              optionOrder: optionIndex + 1,
+              isCorrect: Boolean(opt?.isCorrect ?? opt?.correct),
+            }));
+
+            if (questionType === "TRUE_FALSE") {
+              const trueCorrect =
+                options[0]?.isCorrect ||
+                String(q?.correctAnswer ?? q?.answer ?? "").toUpperCase() ===
+                  "TRUE";
+
+              const falseCorrect =
+                options[1]?.isCorrect ||
+                String(q?.correctAnswer ?? q?.answer ?? "").toUpperCase() ===
+                  "FALSE";
+
+              options = [
+                {
+                  optionText: "True",
+                  optionImage: options[0]?.optionImage || "",
+                  optionOrder: 1,
+                  isCorrect: trueCorrect && !falseCorrect,
+                },
+                {
+                  optionText: "False",
+                  optionImage: options[1]?.optionImage || "",
+                  optionOrder: 2,
+                  isCorrect: falseCorrect && !trueCorrect,
+                },
+              ];
+            }
+
+            if (options.length < 2) {
+              throw new Error(
+                `Question ${qNum}: at least two options are required.`,
+              );
+            }
+
+            const correctCount = options.filter((opt: { isCorrect: boolean }) => opt.isCorrect).length;
+
+            if (questionType === "MCQ" && correctCount !== 1) {
+              throw new Error(
+                `Question ${qNum}: MCQ requires exactly one correct option.`,
+              );
+            }
+
+            if (questionType === "MSQ" && correctCount < 1) {
+              throw new Error(
+                `Question ${qNum}: MSQ requires at least one correct option.`,
+              );
+            }
+
+            if (questionType === "TRUE_FALSE" && correctCount !== 1) {
+              throw new Error(
+                `Question ${qNum}: TRUE_FALSE requires exactly one correct option.`,
+              );
+            }
+
+            const marks = Number(q?.marks ?? 1);
+            const questionTimerSeconds = Number(
+              q?.questionTimerSeconds ?? 60,
+            );
+
+            if (!Number.isFinite(marks) || marks <= 0) {
+              throw new Error(
+                `Question ${qNum}: marks must be a positive number.`,
+              );
+            }
+
+            if (
+              !Number.isFinite(questionTimerSeconds) ||
+              questionTimerSeconds <= 0
+            ) {
+              throw new Error(
+                `Question ${qNum}: questionTimerSeconds must be positive.`,
+              );
+            }
+
+            const difficulty = String(q?.difficulty || "MEDIUM")
+              .trim()
+              .toUpperCase();
+
+            if (!["EASY", "MEDIUM", "HARD"].includes(difficulty)) {
+              throw new Error(
+                `Question ${qNum}: difficulty must be EASY, MEDIUM or HARD.`,
+              );
+            }
+
+            return {
+              questionId: q?.questionId ?? q?.id ?? null,
+              questionText,
+              imageUrl,
+              explanation: String(q?.explanation ?? "").trim(),
+              questionType,
+              marks,
               negativeMarks:
-                q.negativeMarks !== undefined
+                q?.negativeMarks !== undefined
                   ? Number(q.negativeMarks)
                   : negativeMarking
                     ? 0.25
                     : 0,
-              questionTimerSeconds: q.questionTimerSeconds || 60,
-              difficulty: q.difficulty || "MEDIUM",
+              questionTimerSeconds,
+              difficulty,
               displayOrder: qNum,
-              options: normalizedOpts,
-            });
-          }
+              options,
+            };
+          });
+
           setParsedQuestions(validated);
-        } catch (err: any) {
-          setValidationError(`Failed to parse JSON file.`);
+        } catch (error) {
+          setValidationError(
+            error instanceof Error ? error.message : "Failed to parse JSON file.",
+          );
           setParsedQuestions([]);
         }
       } else {
@@ -910,71 +700,247 @@ function CreateAssessmentContent() {
           skipEmptyLines: true,
           complete: (results) => {
             const rows = results.data as string[][];
-            if (rows.length === 0) {
-              setValidationError("CSV file is empty.");
-              return setParsedQuestions([]);
+
+            if (results.errors?.length) {
+              setValidationError(
+                `CSV could not be parsed near row ${(results.errors[0]?.row ?? 0) + 1}.`,
+              );
+              setParsedQuestions([]);
+              return;
             }
 
-            const firstLineLower = rows[0].join(" ").toLowerCase();
+            if (rows.length === 0) {
+              setValidationError("CSV file is empty.");
+              setParsedQuestions([]);
+              return;
+            }
+
+            const firstRow = rows[0].map((value) => value.trim().toLowerCase());
             const hasHeader =
-              firstLineLower.includes("question") ||
-              firstLineLower.includes("option");
+              firstRow.includes("questiontext") ||
+              firstRow.includes("question") ||
+              firstRow.includes("optiona");
+
             const contentRows = hasHeader ? rows.slice(1) : rows;
 
             const validatedQuestions: any[] = [];
+
             for (let index = 0; index < contentRows.length; index++) {
-              const parts = contentRows[index].map((s) => s.trim());
-              if (parts.length < 3) continue;
+              const rowNumber = index + (hasHeader ? 2 : 1);
+              const parts = contentRows[index].map((value) => value.trim());
 
-              const qText = parts[0];
-              const optA = parts[1] || "";
-              const optB = parts[2] || "";
-              const optC = parts[3] || "";
-              const optD = parts[4] || "";
-              const correctIdentifier = (
-                parts[5] ||
-                parts[parts.length - 1] ||
-                ""
-              ).trim();
+              if (parts.every((value) => value === "")) {
+                continue;
+              }
 
-              const availableOptions = [
-                { text: optA, letter: "A" },
-                { text: optB, letter: "B" },
-                ...(optC ? [{ text: optC, letter: "C" }] : []),
-                ...(optD ? [{ text: optD, letter: "D" }] : []),
+              if (parts.length < 6) {
+                throw new Error(
+                  `CSV row ${rowNumber}: expected at least 6 columns.`,
+                );
+              }
+
+              const questionText = parts[0];
+
+              if (!questionText) {
+                throw new Error(
+                  `CSV row ${rowNumber}: questionText is required.`,
+                );
+              }
+
+              const questionTypeRaw = String(parts[7] || "MCQ").toUpperCase();
+              const questionType =
+                questionTypeRaw === "MULTIPLE_CHOICE"
+                  ? "MCQ"
+                  : questionTypeRaw;
+
+              if (!["MCQ", "MSQ", "TRUE_FALSE"].includes(questionType)) {
+                throw new Error(
+                  `CSV row ${rowNumber}: unsupported questionType "${questionTypeRaw}".`,
+                );
+              }
+
+              let optionTexts = [parts[1], parts[2], parts[3], parts[4]]
+                .map((value) => value.trim())
+                .filter(Boolean);
+
+              if (
+                questionType === "TRUE_FALSE" &&
+                optionTexts.length === 0
+              ) {
+                optionTexts = ["True", "False"];
+              }
+
+              if (optionTexts.length < 2) {
+                throw new Error(
+                  `CSV row ${rowNumber}: at least two options are required.`,
+                );
+              }
+
+              if (questionType === "TRUE_FALSE") {
+                optionTexts = ["True", "False"];
+              }
+
+              const correctIdentifier = (parts[5] || "").trim();
+
+              if (!correctIdentifier) {
+                throw new Error(
+                  `CSV row ${rowNumber}: correctAnswer is required.`,
+                );
+              }
+
+              const correctIdentifiers =
+                questionType === "MSQ"
+                  ? correctIdentifier
+                      .split(/[|;]/)
+                      .map((value) => value.trim())
+                      .filter(Boolean)
+                  : [correctIdentifier];
+
+              const resolveCorrect = (identifier: string) => {
+                const upperIdentifier = identifier.toUpperCase();
+
+                if (
+                  questionType === "TRUE_FALSE" &&
+                  (upperIdentifier === "TRUE" || upperIdentifier === "FALSE")
+                ) {
+                  return upperIdentifier === "TRUE" ? 0 : 1;
+                }
+
+                return optionTexts.findIndex(
+                  (optionText, optionIndex) =>
+                    String.fromCharCode(65 + optionIndex) === upperIdentifier ||
+                    optionText.toLowerCase() === identifier.toLowerCase(),
+                );
+              };
+
+              const correctIndexes = [
+                ...new Set(
+                  correctIdentifiers
+                    .map(resolveCorrect)
+                    .filter((value) => value >= 0),
+                ),
               ];
 
-              const matchedOptIndex = availableOptions.findIndex(
-                (o) =>
-                  o.letter.toUpperCase() === correctIdentifier.toUpperCase() ||
-                  o.text.toLowerCase() === correctIdentifier.toLowerCase(),
-              );
+              if (correctIndexes.length === 0) {
+                throw new Error(
+                  `CSV row ${rowNumber}: correctAnswer must match an option letter (A-D) or option text.`,
+                );
+              }
+
+              if (questionType === "MCQ" && correctIndexes.length !== 1) {
+                throw new Error(
+                  `CSV row ${rowNumber}: MCQ requires exactly one correct answer.`,
+                );
+              }
+
+              if (
+                questionType === "TRUE_FALSE" &&
+                (optionTexts.length !== 2 || correctIndexes.length !== 1)
+              ) {
+                throw new Error(
+                  `CSV row ${rowNumber}: TRUE_FALSE requires exactly two options and one correct answer.`,
+                );
+              }
+
+              const marks = Number(parts[6] || 1);
+              const negativeMarks =
+                parts[8] !== undefined && parts[8] !== ""
+                  ? Number(parts[8])
+                  : negativeMarking
+                    ? 0.25
+                    : 0;
+              const questionTimerSeconds = Number(parts[9] || 60);
+              const difficulty = String(parts[10] || "MEDIUM").toUpperCase();
+
+              if (!Number.isFinite(marks) || marks <= 0) {
+                throw new Error(
+                  `CSV row ${rowNumber}: marks must be a positive number.`,
+                );
+              }
+
+              if (
+                !Number.isFinite(negativeMarks) ||
+                negativeMarks < 0
+              ) {
+                throw new Error(
+                  `CSV row ${rowNumber}: negativeMarks must be zero or greater.`,
+                );
+              }
+
+              if (
+                !Number.isFinite(questionTimerSeconds) ||
+                questionTimerSeconds <= 0
+              ) {
+                throw new Error(
+                  `CSV row ${rowNumber}: questionTimerSeconds must be positive.`,
+                );
+              }
+
+              if (!["EASY", "MEDIUM", "HARD"].includes(difficulty)) {
+                throw new Error(
+                  `CSV row ${rowNumber}: difficulty must be EASY, MEDIUM or HARD.`,
+                );
+              }
 
               validatedQuestions.push({
-                questionText: qText,
+                questionText,
                 imageUrl: "",
-                explanation: "",
-                questionType: "MCQ",
-                marks: parts[6] ? Number(parts[6]) : 1,
-                negativeMarks: negativeMarking ? 0.25 : 0,
-                questionTimerSeconds: 60,
-                difficulty: "MEDIUM",
+                explanation: parts[11] || "",
+                questionType,
+                marks,
+                negativeMarks,
+                questionTimerSeconds,
+                difficulty,
                 displayOrder: index + 1,
-                options: availableOptions.map((opt, oIdx) => ({
-                  optionText: opt.text,
+                options: optionTexts.map((optionText, optionIndex) => ({
+                  optionText,
                   optionImage: "",
-                  optionOrder: oIdx + 1,
-                  isCorrect:
-                    oIdx === (matchedOptIndex === -1 ? 0 : matchedOptIndex),
+                  optionOrder: optionIndex + 1,
+                  isCorrect: correctIndexes.includes(optionIndex),
                 })),
               });
             }
+
+            if (validatedQuestions.length === 0) {
+              throw new Error("CSV file contains no question rows.");
+            }
+
             setParsedQuestions(validatedQuestions);
+            setValidationError(null);
+          },
+          error: () => {
+            setValidationError("Unable to read the CSV file.");
+            setParsedQuestions([]);
           },
         });
       }
     };
+
     reader.readAsText(file);
+    e.target.value = "";
+  };
+
+  const downloadCsvTemplate = () => {
+    const csv = [
+      "questionText,optionA,optionB,optionC,optionD,correctAnswer,marks,questionType,negativeMarks,questionTimerSeconds,difficulty,explanation",
+      '\"What is the time complexity of binary search?\",\"O(n)\",\"O(log n)\",\"O(n^2)\",\"O(1)\",\"B\",\"1\",\"MCQ\",\"0.25\",\"60\",\"EASY\",\"Binary search halves the search space.\"',
+      '\"Which are linear data structures?\",\"Array\",\"Linked List\",\"Tree\",\"Graph\",\"A|B\",\"2\",\"MSQ\",\"0.5\",\"90\",\"MEDIUM\",\"Array and linked list are linear data structures.\"',
+      '\"Java is a programming language.\",\"True\",\"False\",\"\",\"\",\"A\",\"1\",\"TRUE_FALSE\",\"0\",\"45\",\"EASY\",\"\"',
+      "",
+    ].join("\n");
+
+    const blob = new Blob([csv], {
+      type: "text/csv;charset=utf-8;",
+    });
+
+    const url = URL.createObjectURL(blob);
+    const anchor = document.createElement("a");
+    anchor.href = url;
+    anchor.download = "quizly-question-template.csv";
+    document.body.appendChild(anchor);
+    anchor.click();
+    anchor.remove();
+    URL.revokeObjectURL(url);
   };
 
   const handleAddNewQuestion = () => {
@@ -1026,15 +992,172 @@ function CreateAssessmentContent() {
     );
   };
 
+  const handleSetQuestionType = (qIdx: number, questionType: string) => {
+    setParsedQuestions((prev) =>
+      prev.map((q, i) => {
+        if (i !== qIdx) return q;
+
+        // TRUE/FALSE is always exactly two options.
+        if (questionType === "TRUE_FALSE") {
+          return {
+            ...q,
+            questionType,
+            options: [
+              {
+                ...(q.options?.[0] || {}),
+                optionText: "True",
+                optionImage: q.options?.[0]?.optionImage || "",
+                optionOrder: 1,
+                isCorrect: true,
+              },
+              {
+                ...(q.options?.[1] || {}),
+                optionText: "False",
+                optionImage: q.options?.[1]?.optionImage || "",
+                optionOrder: 2,
+                isCorrect: false,
+              },
+            ],
+          };
+        }
+
+        // MCQ/MSQ should start with at least the normal four answer slots.
+        // When coming back from TRUE/FALSE, do not leave the question stuck
+        // with only the old True/False pair.
+        const existing = Array.isArray(q.options) ? q.options : [];
+        const options = [...existing];
+
+        while (options.length < 4) {
+          options.push({
+            optionText: "",
+            optionImage: "",
+            optionOrder: options.length + 1,
+            isCorrect: false,
+          });
+        }
+
+        // Switching to MCQ must immediately collapse any MSQ multi-selection
+        // to exactly one correct answer. Preserve the first currently-correct
+        // option; if none exists, make option A correct.
+        if (questionType === "MCQ") {
+          const firstCorrectIndex = options.findIndex((opt: any) =>
+            Boolean(opt.isCorrect),
+          );
+          const correctIndex = firstCorrectIndex >= 0 ? firstCorrectIndex : 0;
+
+          return {
+            ...q,
+            questionType,
+            options: options.map((opt: any, oi: number) => ({
+              ...opt,
+              optionOrder: oi + 1,
+              isCorrect: oi === correctIndex,
+            })),
+          };
+        }
+
+        // Switching to MSQ keeps any existing correct answers. If there are
+        // none, make option A the initial correct answer so the state remains
+        // valid and predictable.
+        const hasCorrect = options.some((opt: any) => Boolean(opt.isCorrect));
+        return {
+          ...q,
+          questionType,
+          options: options.map((opt: any, oi: number) => ({
+            ...opt,
+            optionOrder: oi + 1,
+            isCorrect: hasCorrect ? Boolean(opt.isCorrect) : oi === 0,
+          })),
+        };
+      }),
+    );
+  };
+
   const handleSetCorrectOption = (qIdx: number, optIdx: number) => {
     setParsedQuestions((prev) =>
       prev.map((q, i) => {
         if (i !== qIdx) return q;
-        const newOpts = q.options.map((opt: any, oi: number) => ({
+
+        const type =
+          q.questionType === "MULTIPLE_CHOICE" ? "MCQ" : q.questionType;
+        const newOpts = (q.options || []).map((opt: any, oi: number) => ({
           ...opt,
-          isCorrect: oi === optIdx,
+          // MCQ/TRUE_FALSE: exactly one correct option.
+          // MSQ: each option can be toggled independently.
+          isCorrect:
+            type === "MSQ"
+              ? oi === optIdx
+                ? !Boolean(opt.isCorrect)
+                : Boolean(opt.isCorrect)
+              : oi === optIdx,
         }));
+
         return { ...q, options: newOpts };
+      }),
+    );
+  };
+
+  const handleAddOption = (qIdx: number) => {
+    setParsedQuestions((prev) =>
+      prev.map((q, i) => {
+        if (i !== qIdx) return q;
+        if (q.questionType === "TRUE_FALSE") return q;
+
+        const options = Array.isArray(q.options) ? q.options : [];
+        const nextOrder = options.length + 1;
+        return {
+          ...q,
+          options: [
+            ...options,
+            {
+              optionText: "",
+              optionImage: "",
+              optionOrder: nextOrder,
+              isCorrect: false,
+            },
+          ],
+        };
+      }),
+    );
+  };
+
+  const handleDeleteOption = (qIdx: number, optIdx: number) => {
+    setParsedQuestions((prev) =>
+      prev.map((q, i) => {
+        if (i !== qIdx || q.questionType === "TRUE_FALSE") return q;
+
+        const options = (q.options || [])
+          .filter((_: any, oi: number) => oi !== optIdx)
+          .map((opt: any, oi: number) => ({
+            ...opt,
+            optionOrder: oi + 1,
+          }));
+
+        return { ...q, options };
+      }),
+    );
+  };
+
+  const handleReorderOption = (qIdx: number, fromIndex: number, toIndex: number) => {
+    if (fromIndex === toIndex) return;
+
+    setParsedQuestions((prev) =>
+      prev.map((q, i) => {
+        if (i !== qIdx) return q;
+
+        const options = [...(q.options || [])];
+        const [movedOption] = options.splice(fromIndex, 1);
+        if (!movedOption) return q;
+
+        options.splice(toIndex, 0, movedOption);
+
+        return {
+          ...q,
+          options: options.map((opt: any, oi: number) => ({
+            ...opt,
+            optionOrder: oi + 1,
+          })),
+        };
       }),
     );
   };
@@ -1052,15 +1175,41 @@ function CreateAssessmentContent() {
     if (!title.trim()) return "Please enter an assessment title.";
     if (!startTime) return "Please select a start time.";
     if (timeLimit <= 0) return "Time limit must be at least 1 minute.";
-    if (!endTime) return "Could not calculate end time — check start time and time limit.";
+    if (!Number.isFinite(maxTabSwitch) || maxTabSwitch < 0)
+      return "Maximum tab switches cannot be negative.";
+    if (!endTime)
+      return "Could not calculate end time — check start time and time limit.";
     if (parsedQuestions.length === 0)
       return "Please add at least one question before saving.";
     for (let i = 0; i < parsedQuestions.length; i++) {
-      if (!parsedQuestions[i].questionText.trim())
-        return `Question ${i + 1} cannot have empty text.`;
-      for (let j = 0; j < parsedQuestions[i].options.length; j++) {
-        if (!parsedQuestions[i].options[j].optionText.trim())
-          return `Option ${String.fromCharCode(65 + j)} in Question ${i + 1} cannot be empty.`;
+      const q = parsedQuestions[i];
+      if (!q.questionText.trim() && !String(q.imageUrl || "").trim())
+        return `Question ${i + 1} must contain text or an image.`;
+
+      if (!Array.isArray(q.options) || q.options.length < 2)
+        return `Question ${i + 1} must have at least 2 options.`;
+
+      const type =
+        q.questionType === "MULTIPLE_CHOICE" ? "MCQ" : q.questionType;
+      const correctCount = q.options.filter((opt: any) =>
+        Boolean(opt.isCorrect),
+      ).length;
+
+      if (type === "MCQ" && correctCount !== 1)
+        return `Question ${i + 1} must have exactly one correct option.`;
+      if (type === "MSQ" && correctCount < 1)
+        return `Question ${i + 1} must have at least one correct option.`;
+      if (
+        type === "TRUE_FALSE" &&
+        (q.options.length !== 2 || correctCount !== 1)
+      )
+        return `Question ${i + 1} must have exactly two options with exactly one correct option.`;
+
+      for (let j = 0; j < q.options.length; j++) {
+        const optionText = String(q.options[j].optionText || "").trim();
+        const optionImage = String(q.options[j].optionImage || "").trim();
+        if (!optionText && !optionImage)
+          return `Option ${String.fromCharCode(65 + j)} in Question ${i + 1} must contain text or an image.`;
       }
     }
     return null;
@@ -1097,7 +1246,9 @@ function CreateAssessmentContent() {
       questionType:
         q.questionType === "MULTIPLE_CHOICE" ? "MCQ" : q.questionType || "MCQ",
       marks: Number(q.marks || 1),
-      negativeMarks: Number(negativeMarking ? negativeMarks : 0),
+      negativeMarks: Number(
+        negativeMarking ? (q.negativeMarks ?? negativeMarks) : 0,
+      ),
       questionTimerSeconds: Number(q.questionTimerSeconds || 60),
       difficulty: q.difficulty || "MEDIUM",
       displayOrder: Number(q.displayOrder || index + 1),
@@ -1186,71 +1337,8 @@ function CreateAssessmentContent() {
 
     const token = localStorage.getItem("dynoquizz_token");
 
-    // ── JWT diagnostic instrumentation ────────────────────────────────────
-    if (token) {
-      const parts = token.split(".");
-      const isWellFormed = parts.length === 3;
-      let jwtPayload: any = null;
-      let isFallbackToken = false;
-      try {
-        jwtPayload = JSON.parse(atob(parts[1]));
-        // Fallback tokens (frontend-signed) use email as userId/sub and lack
-        // a numeric "id" field that Spring Boot's CustomUserDetails would have.
-        // Spring Security throws `String cannot be cast to CustomUserDetails`
-        // when the principal is such a bare-string subject.
-        isFallbackToken =
-          typeof jwtPayload?.userId === "string" &&
-          (jwtPayload?.userId?.includes("@") ?? false) &&
-          !jwtPayload?.id;
-      } catch {
-        // malformed payload segment
-      }
-      console.group("[DynoQuizz] Quiz-creation token diagnostics");
-      console.log(
-        "Token length:",
-        token.length,
-        "| First 12:",
-        token.slice(0, 12),
-        "| Last 12:",
-        token.slice(-12),
-      );
-      console.log("Well-formed JWT (3 segments):", isWellFormed);
-      if (jwtPayload) {
-        const expMs = (jwtPayload.exp || 0) * 1000;
-        const nowMs = Date.now();
-        console.log(
-          "JWT exp:",
-          new Date(expMs).toISOString(),
-          "| Current time:",
-          new Date(nowMs).toISOString(),
-          "| Expired:",
-          nowMs > expMs,
-        );
-        console.log(
-          "JWT sub/userId:",
-          jwtPayload.sub || jwtPayload.userId,
-          "| role:",
-          jwtPayload.role,
-        );
-        if (isFallbackToken) {
-          console.warn(
-            "[DynoQuizz] ⚠️  FALLBACK TOKEN DETECTED — this is a frontend-signed JWT" +
-              " (the Spring Boot backend was unreachable at login time). Spring Security" +
-              " will reject it with 'String cannot be cast to CustomUserDetails'." +
-              " The teacher must log out and log in again while the backend is running.",
-          );
-        }
-      }
-      console.groupEnd();
-    } else {
-      console.warn(
-        "[DynoQuizz] No dynoquizz_token found in localStorage before quiz creation POST.",
-      );
-    }
-    // ──────────────────────────────────────────────────────────────────────
-
     try {
-      const isEditing = Boolean(draftId);
+      const isEditing = draftId !== null;
 
       // Helper: persist the full state bundle so the edit page can restore
       // everything (title, subject, settings, questions with isCorrect) instantly
@@ -1300,7 +1388,7 @@ function CreateAssessmentContent() {
           );
         }
       };
-      // Keep the legacy questions-only key for the preferLocalStorageQuestions helper
+      // Keep the question-specific cache separate from the full draft bundle.
       let rawQuizId: number | string | null = null;
       let quizCode = "";
       if (isEditing) {
@@ -1308,18 +1396,17 @@ function CreateAssessmentContent() {
         const settingsPayload = {
           ...buildUpdatePayload(),
         };
-
-        const settingsRes = await fetch(
-          `${API_BASE}/api/v1/teacher/quizzes/${draftId}/settings`,
-          {
-            method: "PUT",
-            headers: {
-              "Content-Type": "application/json",
-              ...(token ? { Authorization: `Bearer ${token}` } : {}),
-            },
-            body: JSON.stringify(settingsPayload),
+        if (!draftId) {
+          throw new Error("Quiz draft ID is missing.");
+        }
+        const settingsRes = await fetch(ENDPOINTS.teacher.settings(draftId), {
+          method: "PUT",
+          headers: {
+            "Content-Type": "application/json",
+            ...(token ? { Authorization: `Bearer ${token}` } : {}),
           },
-        );
+          body: JSON.stringify(settingsPayload),
+        });
 
         if (!settingsRes.ok) {
           const errData = await settingsRes.json().catch(() => ({}));
@@ -1384,7 +1471,7 @@ function CreateAssessmentContent() {
         }
       } else {
         // ── Create path: POST /api/v1/teacher/quizzes ─────────────────────────
-        const createRes = await fetch(`${API_BASE}/api/v1/teacher/quizzes`, {
+        const createRes = await fetch(ENDPOINTS.teacher.createQuiz, {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
@@ -1410,6 +1497,31 @@ function CreateAssessmentContent() {
       if (!rawQuizId) throw new Error("Quiz response missing quizId");
       const numericQuizId = Number(rawQuizId);
 
+      /*
+       * CreateQuizRequest currently does not expose maxTabSwitch, while the
+       * settings endpoint does. Persist that value immediately after creation
+       * so a newly created quiz does not fall back to the backend default.
+       */
+      if (!isEditing) {
+        try {
+          await fetch(ENDPOINTS.teacher.settings(numericQuizId), {
+            method: "PUT",
+            headers: {
+              "Content-Type": "application/json",
+              ...(token ? { Authorization: `Bearer ${token}` } : {}),
+            },
+            body: JSON.stringify({
+              maxTabSwitch: Math.max(0, Number(maxTabSwitch) || 0),
+            }),
+          });
+        } catch (error) {
+          console.warn(
+            "[Quizly] Could not persist maxTabSwitch after quiz creation.",
+            error,
+          );
+        }
+      }
+
       // Persist full state bundle (metadata + questions) for instant edit hydration
       saveFullDraftBundle(numericQuizId, quizCode);
       if (draftId && String(draftId) !== String(numericQuizId)) {
@@ -1419,7 +1531,7 @@ function CreateAssessmentContent() {
       // ── Publish: PUT /api/v1/teacher/quizzes/{quizId}/publish ────────────
       try {
         const pubRes = await fetch(
-          `${API_BASE}/api/v1/teacher/quizzes/${numericQuizId}/publish`,
+          ENDPOINTS.teacher.publishQuiz(numericQuizId),
           {
             method: "PUT",
             headers: {
@@ -1475,7 +1587,7 @@ function CreateAssessmentContent() {
     const token = localStorage.getItem("dynoquizz_token");
 
     try {
-      const isEditing = Boolean(draftId);
+      const isEditing = draftId !== null;
 
       // Build the full state bundle for localStorage (same shape as handleSave)
       const saveFullDraftBundle = (
@@ -1529,17 +1641,14 @@ function CreateAssessmentContent() {
 
       if (isEditing) {
         // ── Edit path: PUT /api/v1/teacher/quizzes/{quizId}/settings ──────────
-        const settingsPayload = {
-          ...buildUpdatePayload(),
-        };
+        const settingsPayload = buildUpdatePayload();
 
-        console.log(
-          "FINAL SAVE SETTINGS PAYLOAD:",
-          JSON.stringify(settingsPayload, null, 2),
-        );
+        if (!draftId) {
+          throw new Error("Quiz draft ID is missing.");
+        }
 
         const settingsRes = await fetch(
-          `${API_BASE}/api/v1/teacher/quizzes/${draftId}/settings`,
+          ENDPOINTS.teacher.settings(draftId),
           {
             method: "PUT",
             headers: {
@@ -1552,12 +1661,6 @@ function CreateAssessmentContent() {
 
         if (!settingsRes.ok) {
           const errText = await settingsRes.text();
-
-          console.error("SAVE DRAFT BACKEND ERROR:", {
-            status: settingsRes.status,
-            statusText: settingsRes.statusText,
-            response: errText,
-          });
 
           throw new Error(
             `Backend ${settingsRes.status}: ${errText || settingsRes.statusText}`,
@@ -1613,7 +1716,7 @@ function CreateAssessmentContent() {
       } else {
         const createPayload = buildCreatePayload(); // true = POST schema (isCorrect, no IDs)
 
-        const createRes = await fetch(`${API_BASE}/api/v1/teacher/quizzes`, {
+        const createRes = await fetch(ENDPOINTS.teacher.createQuiz, {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
@@ -1667,7 +1770,7 @@ function CreateAssessmentContent() {
 
     try {
       const pubRes = await fetch(
-        `${API_BASE}/api/v1/teacher/quizzes/${publishRetryData.quizId}/publish`,
+        ENDPOINTS.teacher.publishQuiz(publishRetryData.quizId),
         {
           method: "PUT",
           headers: {
@@ -1926,6 +2029,8 @@ function CreateAssessmentContent() {
                         </label>
                         <input
                           type="number"
+                          min="0"
+                          step="0.25"
                           value={q.marks}
                           onChange={(e) =>
                             handleUpdateQuestionField(
@@ -1934,7 +2039,8 @@ function CreateAssessmentContent() {
                               Number(e.target.value),
                             )
                           }
-                          className="w-14 rounded-[8px] border border-[#d1dee8]/80 bg-white px-2 py-1 text-center text-xs font-bold text-[#111111] outline-none transition-all focus:border-[#165dfb] focus:ring-4 focus:ring-[#165dfb]/10 shadow-xs"
+                          className="w-16 rounded-[8px] border border-[#d1dee8]/80 bg-white px-2 py-1 text-center text-xs font-bold text-[#111111] outline-none transition-all focus:border-[#165dfb] focus:ring-4 focus:ring-[#165dfb]/10 shadow-xs"
+                          aria-label={"Marks for question " + (idx + 1)}
                         />
                         <button
                           type="button"
@@ -1948,34 +2054,171 @@ function CreateAssessmentContent() {
                     </div>
 
                     <div className="space-y-4 p-5">
-                      <input
-                        type="text"
-                        value={q.questionText}
-                        onChange={(e) =>
-                          handleUpdateQuestionField(
-                            idx,
-                            "questionText",
-                            e.target.value,
-                          )
-                        }
-                        placeholder="Type your question"
-                        className="w-full rounded-[10px] border border-[#d1dee8]/80 bg-[#fbfbfa] px-3.5 py-2.5 text-sm font-semibold text-[#111111] outline-none transition-all placeholder:font-medium placeholder:text-[#a8a29d] hover:border-[#b9cbd9] focus:border-[#165dfb] focus:bg-white focus:ring-4 focus:ring-[#165dfb]/10 shadow-xs"
-                      />
+                      <div className="grid gap-3 sm:grid-cols-[1fr_auto]">
+                        <input
+                          type="text"
+                          value={q.questionText}
+                          onChange={(e) =>
+                            handleUpdateQuestionField(
+                              idx,
+                              "questionText",
+                              e.target.value,
+                            )
+                          }
+                          placeholder="Type your question (optional if an image is provided)"
+                          className="w-full rounded-[10px] border border-[#d1dee8]/80 bg-[#fbfbfa] px-3.5 py-2.5 text-sm font-semibold text-[#111111] outline-none transition-all placeholder:font-medium placeholder:text-[#a8a29d] hover:border-[#b9cbd9] focus:border-[#165dfb] focus:bg-white focus:ring-4 focus:ring-[#165dfb]/10 shadow-xs"
+                        />
+                        <select
+                          value={
+                            q.questionType === "MULTIPLE_CHOICE"
+                              ? "MCQ"
+                              : q.questionType || "MCQ"
+                          }
+                          onChange={(e) =>
+                            handleSetQuestionType(idx, e.target.value)
+                          }
+                          className="rounded-[10px] border border-[#d1dee8]/80 bg-white px-3 py-2.5 text-xs font-bold text-[#111111] outline-none focus:border-[#165dfb] focus:ring-4 focus:ring-[#165dfb]/10"
+                          aria-label={`Question ${idx + 1} type`}
+                        >
+                          <option value="MCQ">MCQ — Single correct</option>
+                          <option value="MSQ">MSQ — Multiple correct</option>
+                          <option value="TRUE_FALSE">True / False</option>
+                        </select>
+                      </div>
+
+                      {negativeMarking && (
+                        <div>
+                          <label className="mb-1.5 block text-[10px] font-bold uppercase tracking-wider text-[#78716b]">
+                            Negative Marks
+                          </label>
+                          <input
+                            type="number"
+                            min="0"
+                            step="0.01"
+                            value={Number(q.negativeMarks ?? negativeMarks ?? 0)}
+                            onChange={(e) =>
+                              handleUpdateQuestionField(
+                                idx,
+                                "negativeMarks",
+                                Math.max(0, Number(e.target.value)),
+                              )
+                            }
+                            className={inputClass}
+                          />
+                        </div>
+                      )}
+
+                      <div className="grid gap-2">
+                        <label className="text-[10px] font-bold uppercase tracking-wider text-[#78716b]">
+                          Question Image URL{" "}
+                          <span className="normal-case font-medium text-[#a8a29d]">
+                            (optional)
+                          </span>
+                        </label>
+                        <input
+                          type="url"
+                          value={q.imageUrl || ""}
+                          onChange={(e) =>
+                            handleUpdateQuestionField(
+                              idx,
+                              "imageUrl",
+                              e.target.value,
+                            )
+                          }
+                          placeholder="https://example.com/question-image.png"
+                          className="w-full rounded-[10px] border border-[#d1dee8]/80 bg-white px-3.5 py-2.5 text-xs text-[#111111] outline-none transition-all placeholder:text-[#a8a29d] hover:border-[#b9cbd9] focus:border-[#165dfb] focus:ring-4 focus:ring-[#165dfb]/10"
+                        />
+                        {q.imageUrl && (
+                          <img
+                            src={q.imageUrl}
+                            alt={`Question ${idx + 1}`}
+                            className="max-h-48 max-w-full rounded-[10px] border border-[#d1dee8]/70 object-contain bg-[#fbfbfa] p-1"
+                            onError={(e) => {
+                              e.currentTarget.style.display = "none";
+                            }}
+                          />
+                        )}
+                      </div>
+
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <p className="text-[10px] font-bold uppercase tracking-wider text-[#78716b]">
+                            {q.questionType === "MSQ"
+                              ? "Select all correct answers"
+                              : "Select correct answer"}
+                          </p>
+                          <p className="mt-0.5 text-[10px] text-[#a8a29d]">
+                            {q.questionType === "MSQ"
+                              ? "Multiple options can be correct."
+                              : q.questionType === "TRUE_FALSE"
+                                ? "Exactly one of True / False must be correct."
+                                : "Exactly one option must be correct."}
+                          </p>
+                        </div>
+                        {q.questionType !== "TRUE_FALSE" && (
+                          <button
+                            type="button"
+                            onClick={() => handleAddOption(idx)}
+                            className="inline-flex items-center gap-1.5 rounded-[9px] border border-[#d1dee8]/80 bg-white px-3 py-1.5 text-[10px] font-bold text-[#165dfb] shadow-xs hover:border-[#165dfb] hover:bg-[#eef4ff]"
+                          >
+                            <PlusCircle className="h-3.5 w-3.5" /> Add Option
+                          </button>
+                        )}
+                      </div>
 
                       <div className="grid gap-2.5 sm:grid-cols-2">
                         {q.options.map((opt: any, oi: number) => (
                           <div
-                            key={oi}
-                            className={`flex items-center gap-2.5 rounded-[10px] border px-3 py-2.5 text-xs transition-all ${
+                            key={opt.optionId ?? `${idx}-${oi}`}
+                            draggable={q.questionType !== "TRUE_FALSE"}
+                            onDragStart={(e) => {
+                              if (q.questionType === "TRUE_FALSE") return;
+                              setDraggedOption({ qIdx: idx, optIdx: oi });
+                              e.dataTransfer.effectAllowed = "move";
+                            }}
+                            onDragOver={(e) => {
+                              if (
+                                q.questionType === "TRUE_FALSE" ||
+                                !draggedOption ||
+                                draggedOption.qIdx !== idx ||
+                                draggedOption.optIdx === oi
+                              ) return;
+                              e.preventDefault();
+                              e.dataTransfer.dropEffect = "move";
+                            }}
+                            onDrop={(e) => {
+                              if (
+                                q.questionType === "TRUE_FALSE" ||
+                                !draggedOption ||
+                                draggedOption.qIdx !== idx
+                              ) return;
+                              e.preventDefault();
+                              handleReorderOption(idx, draggedOption.optIdx, oi);
+                              setDraggedOption(null);
+                            }}
+                            onDragEnd={() => setDraggedOption(null)}
+                            className={`group flex items-center gap-2.5 rounded-[10px] border px-3 py-2.5 text-xs transition-all ${
                               opt.isCorrect
                                 ? "border-[#165dfb] bg-[#eef4ff] shadow-[0_0_0_3px_rgba(22,93,251,0.08)]"
                                 : "border-[#d1dee8]/80 bg-white hover:border-[#b9cbd9] hover:bg-[#fbfbfa] shadow-xs"
+                            } ${
+                              draggedOption?.qIdx === idx && draggedOption?.optIdx === oi
+                                ? "opacity-50"
+                                : ""
                             }`}
                           >
+                            <span
+                              className="flex h-6 w-4 shrink-0 cursor-grab items-center justify-center text-[#b0aaa5] opacity-0 transition-opacity group-hover:opacity-100 active:cursor-grabbing"
+                              title="Drag to reorder"
+                              aria-hidden="true"
+                            >
+                              <GripVertical className="h-4 w-4" />
+                            </span>
+
                             <button
                               type="button"
                               onClick={() => handleSetCorrectOption(idx, oi)}
-                              aria-label={`Mark option ${String.fromCharCode(65 + oi)} correct`}
+                              aria-label={`Mark option ${String.fromCharCode(65 + oi)} ${opt.isCorrect ? "incorrect" : "correct"}`}
                               className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-[11px] font-bold transition-all ${
                                 opt.isCorrect
                                   ? "bg-[#165dfb] text-white shadow-xs shadow-[#165dfb]/30"
@@ -1993,8 +2236,9 @@ function CreateAssessmentContent() {
                             </button>
                             <input
                               type="text"
-                              value={opt.optionText}
+                              value={opt.optionText || ""}
                               placeholder={`Option ${String.fromCharCode(65 + oi)}`}
+                              disabled={q.questionType === "TRUE_FALSE"}
                               onChange={(e) =>
                                 handleUpdateOption(idx, oi, e.target.value)
                               }
@@ -2002,13 +2246,24 @@ function CreateAssessmentContent() {
                                 opt.isCorrect
                                   ? "font-semibold text-[#0f3fa8]"
                                   : "text-[#111111]"
-                              }`}
+                              } ${q.questionType === "TRUE_FALSE" ? "cursor-not-allowed opacity-80" : ""}`}
                             />
                             {opt.isCorrect && (
                               <span className="shrink-0 rounded-full bg-[#165dfb]/10 px-2 py-0.5 text-[9px] font-bold uppercase tracking-wider text-[#165dfb]">
                                 Correct
                               </span>
                             )}
+                            {q.questionType !== "TRUE_FALSE" &&
+                              q.options.length > 2 && (
+                                <button
+                                  type="button"
+                                  onClick={() => handleDeleteOption(idx, oi)}
+                                  aria-label={`Delete option ${String.fromCharCode(65 + oi)}`}
+                                  className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-[#a8a29d] hover:bg-[#fbeee8] hover:text-[#8c381c]"
+                                >
+                                  <Trash2 className="h-3.5 w-3.5" />
+                                </button>
+                              )}
                           </div>
                         ))}
                       </div>
@@ -2023,23 +2278,72 @@ function CreateAssessmentContent() {
                 type="file"
                 id="csv-upload"
                 className="hidden"
-                accept=".csv, .json"
+                accept=".csv,.json"
                 onChange={handleFileUpload}
               />
+
               <label htmlFor="csv-upload" className="cursor-pointer block">
                 <span className="mx-auto mb-3 flex h-11 w-11 items-center justify-center rounded-[12px] bg-white shadow-xs ring-1 ring-[#165dfb]/10">
                   <FileType className="h-5 w-5 text-[#165dfb]" />
                 </span>
+
                 <h4 className="text-xs font-bold text-[#111111]">
                   Import via CSV or JSON
                 </h4>
+
                 <p className="mt-1 text-[11px] text-[#78716b]">
-                  Question, options, then the correct answer
+                  Import multiple questions at once using the format below.
                 </p>
+
                 <div className="mt-3 inline-flex items-center gap-1.5 rounded-[10px] border border-[#d1dee8]/80 bg-white px-4 py-2 text-xs font-bold shadow-xs transition-all hover:border-[#165dfb] hover:text-[#165dfb] active:scale-95">
                   <Upload className="h-3.5 w-3.5" /> Select File
                 </div>
               </label>
+
+              <details className="mx-auto mt-4 max-w-3xl rounded-[12px] border border-[#d1dee8]/70 bg-white text-left shadow-xs">
+                <summary className="cursor-pointer list-none px-4 py-3 text-xs font-bold text-[#111111]">
+                  <span className="inline-flex items-center gap-2">
+                    <FileType className="h-3.5 w-3.5 text-[#165dfb]" />
+                    CSV Format Guide
+                  </span>
+                </summary>
+
+                <div className="border-t border-[#d1dee8]/50 p-4 space-y-3">
+                  <p className="text-[10px] leading-relaxed text-[#78716b]">
+                    Use one question per row. The first row should contain the
+                    headers below. Keep the order exactly as shown.
+                  </p>
+
+                  <div className="overflow-x-auto rounded-[10px] border border-[#d1dee8]/70 bg-[#fbfbfa]">
+                    <pre className="min-w-[980px] p-3 text-[9px] leading-relaxed text-[#111111] font-mono whitespace-pre-wrap">
+questionText,optionA,optionB,optionC,optionD,correctAnswer,marks,questionType,negativeMarks,questionTimerSeconds,difficulty,explanation
+"What is the time complexity of binary search?","O(n)","O(log n)","O(n^2)","O(1)","B","1","MCQ","0.25","60","EASY","Binary search halves the search space."
+"Which are linear data structures?","Array","Linked List","Tree","Graph","A|B","2","MSQ","0.5","90","MEDIUM","Array and linked list are linear."
+"Java is a programming language.","True","False","","","A","1","TRUE_FALSE","0","45","EASY",""
+                    </pre>
+                  </div>
+
+                  <div className="grid gap-2 text-[10px] text-[#57534e] sm:grid-cols-2">
+                    <p>
+                      <span className="font-bold text-[#111111]">correctAnswer:</span>{" "}
+                      A-D for MCQ, A|C for MSQ, or A/B (TRUE/FALSE) for TRUE_FALSE.
+                    </p>
+                    <p>
+                      <span className="font-bold text-[#111111]">questionType:</span>{" "}
+                      MCQ, MSQ, or TRUE_FALSE.
+                    </p>
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={downloadCsvTemplate}
+                    className="inline-flex items-center gap-1.5 rounded-[10px] border border-[#d1dee8]/80 bg-white px-3.5 py-2 text-[10px] font-bold text-[#111111] shadow-xs transition-all hover:border-[#165dfb] hover:text-[#165dfb] active:scale-[0.98]"
+                  >
+                    <Download className="h-3.5 w-3.5" />
+                    Download Sample CSV
+                  </button>
+                </div>
+              </details>
             </div>
 
             <button
@@ -2076,14 +2380,44 @@ function CreateAssessmentContent() {
                   <div className="p-4 grid gap-3 sm:grid-cols-2">
                     {[
                       {
-                        label: "Release Scores Instantly",
+                        label: "Show Leaderboard After Results",
                         val: publishScoresImmediately,
                         setter: setPublishScoresImmediately,
                       },
                       {
-                        label: "Allow Students to View Solutions",
+                        label: "Show Question-wise Results",
                         val: revealSolutions,
                         setter: setRevealSolutions,
+                      },
+                      {
+                        label: "Time Bonus Enabled",
+                        val: timeBonusEnabled,
+                        setter: setTimeBonusEnabled,
+                      },
+                      {
+                        label: "Randomize Questions",
+                        val: randomQuestionOrder,
+                        setter: setRandomQuestionOrder,
+                      },
+                      {
+                        label: "Randomize Options",
+                        val: randomOptionOrder,
+                        setter: setRandomOptionOrder,
+                      },
+                      {
+                        label: "Allow Review",
+                        val: allowReview,
+                        setter: setAllowReview,
+                      },
+                      {
+                        label: "Allow Resume",
+                        val: allowResume,
+                        setter: setAllowResume,
+                      },
+                      {
+                        label: "Auto Submit On Deadline",
+                        val: autoSubmit,
+                        setter: setAutoSubmit,
                       },
                       {
                         label: "Enable Negative Marking",
@@ -2117,10 +2451,32 @@ function CreateAssessmentContent() {
                       </div>
                     ))}
                   </div>
-                  <div className="border-t border-[#d1dee8]/30 px-4 pb-4 pt-3 text-left">
-                    <label className="mb-1.5 block text-[11px] font-bold uppercase tracking-wider text-[#57534e]">
-                      Accepted Email Domain
-                    </label>
+                  <div className="border-t border-[#d1dee8]/30 px-4 pb-4 pt-3 text-left space-y-4">
+                    <div className="grid gap-3 sm:grid-cols-2">
+                      <div>
+                        <label className="mb-1.5 block text-[11px] font-bold uppercase tracking-wider text-[#57534e]">
+                          Maximum Tab Switches
+                        </label>
+                        <input
+                          type="number"
+                          min="0"
+                          step="1"
+                          value={maxTabSwitch}
+                          onChange={(e) =>
+                            setMaxTabSwitch(Math.max(0, Number(e.target.value)))
+                          }
+                          className={inputClass}
+                        />
+                        <p className="mt-1 text-[10px] text-[#78716b]">
+                          Backend should enforce this limit for the attempt.
+                        </p>
+                      </div>
+                    </div>
+
+                    <div>
+                      <label className="mb-1.5 block text-[11px] font-bold uppercase tracking-wider text-[#57534e]">
+                        Accepted Email Domain
+                      </label>
                     <input
                       type="text"
                       value={acceptedDomain}
@@ -2132,6 +2488,7 @@ function CreateAssessmentContent() {
                       Only students with a matching email domain can join. Leave
                       blank to allow any domain.
                     </p>
+                  </div>
                   </div>
                 </motion.div>
               )}

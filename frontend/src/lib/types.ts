@@ -1,63 +1,319 @@
-export interface QuizQuestion {
+/**
+
+* Shared frontend types aligned with the current Spring Boot API contract.
+*
+* Backend is the source of truth for quiz state, questions, attempts,
+* scoring, and published results.
+  */
+
+export type UserRole = "STUDENT" | "TEACHER";
+
+export type QuizStatus = "DRAFT" | "PUBLISHED" | "COMPLETED" | "CANCELLED";
+
+export type ExamState = "WAITING" | "RUNNING" | "PAUSED" | "ENDED";
+
+export type ResultVisibility =
+  | "NONE"
+  | "LEADERBOARD"
+  | "QUESTION_WISE"
+  | "BOTH";
+
+export type QuestionType = "MCQ" | "MSQ" | "TRUE_FALSE";
+
+export type AttemptStatus = "IN_PROGRESS" | "SUBMITTED" | "AUTO_SUBMITTED";
+
+export type AnswerStatus = "ANSWERED" | "UNANSWERED" | "MARKED_FOR_REVIEW";
+
+export type QuizAvailabilityStatus =
+  | "NOT_FOUND"
+  | "NOT_PUBLISHED"
+  | "NOT_STARTED"
+  | "LIVE"
+  | "ENDED";
+
+export type Difficulty = "EASY" | "MEDIUM" | "HARD";
+
+/* -------------------------------------------------------------------------- */
+/* Authentication                                                             */
+/* -------------------------------------------------------------------------- */
+
+export interface UserSummary {
   id: number;
-  text: string;
-  options: string[];
-  correctOption: string;
-  marks?: number;
-  negativeMarks?: number;
-  questionTimerSeconds?: number;
+  firstName: string;
+  lastName?: string | null;
+  fullName: string;
+  email: string;
+  role: string;
+  college?: string | null;
+  department?: string | null;
+  registrationNo?: string | null;
+  phone?: string | null;
+  authProvider?: string | null;
+  profileImage?: string | null;
+  verified: boolean;
+  active: boolean;
 }
 
-export interface QuizTest {
-  testCode: string;
-  quizName: string;
-  description?: string;
-  subject?: string;
-  subjectCode?: string;
-  targetClass: string;
-  totalTimeLimitMinutes: number;
-  passingMarks?: number;
-  settings: {
-    negativeMarking: boolean;
-    automatedAiPenalty: boolean;
-    publishScoresImmediately: boolean; // default: false
-    revealSolutions: boolean;          // default: false
-    showIntegrityFlagsToStudent: boolean; // default: false
-    timeBonusEnabled?: boolean;
-    allowReview?: boolean;
-    allowResume?: boolean;
-    autoSubmit?: boolean;
-  };
-  questions: QuizQuestion[];
-  allowedRegistrationNumbers?: string[];
-  createdAt: string;
-  status: "LIVE" | "ENDED";
+export interface AuthResponse {
+  token: string;
+  tokenType: string;
+  expiresIn: number;
+  user: UserSummary;
 }
 
-export interface StudentAnswer {
+export interface SignupResponse {
+  message: string;
+  verificationRequired: boolean;
+  user: UserSummary;
+}
+
+/* -------------------------------------------------------------------------- */
+/* Quiz package / student exam                                               */
+/* -------------------------------------------------------------------------- */
+
+export interface OptionResponse {
+  optionId: number;
+  optionText?: string | null;
+  optionImage?: string | null;
+  optionOrder: number;
+}
+
+export interface QuestionResponse {
   questionId: number;
-  selectedOption: string | null;
-  timeTakenSeconds: number;
-  isCorrect?: boolean;
-  score?: number;
+  questionText: string;
+  imageUrl?: string | null;
+  questionType: QuestionType;
+  marks: number;
+  negativeMarks?: number | null;
+  questionTimerSeconds?: number | null;
+  difficulty?: Difficulty | null;
+  displayOrder: number;
+  options: OptionResponse[];
 }
 
-export interface StudentTestResult {
-  testCode: string;
-  quizName: string;
-  targetClass: string;
-  studentName: string;
-  answers: StudentAnswer[];
-  submittedAt: string;
-  score: number;           // Unified time-decay score (percentage or points)
-  accuracyPercentage?: number;
+export interface QuizPackageResponse {
+  quizId: number;
+  title: string;
+  description?: string | null;
+  instructions?: string | null;
+  subject?: string | null;
+  subjectCode?: string | null;
+  totalStudents: number;
   totalQuestions: number;
-  correctCount: number;
-  timeTakenTotalSeconds: number;
-  flags: {
-    type: "tab_switch" | "fullscreen_exit" | "right_click" | "copy_attempt";
-    label: string;
-    count: number;
-  }[];
+  totalMarks: number;
+  overallTimerSeconds: number;
+  negativeMarking: boolean;
+  negativeMarks?: number | null;
+  randomQuestionOrder: boolean;
+  randomOptionOrder: boolean;
+  allowReview: boolean;
+  allowResume: boolean;
+  autoSubmit: boolean;
+  startTime?: string | null;
+  endTime?: string | null;
+  questions: QuestionResponse[];
 }
 
+/* -------------------------------------------------------------------------- */
+/* Teacher quiz responses                                                     */
+/* -------------------------------------------------------------------------- */
+
+export interface QuizResponse {
+  quizId: number;
+  quizCode: string;
+  teacherId: number;
+  title: string;
+  description?: string | null;
+  instructions?: string | null;
+  subject?: string | null;
+  subjectCode?: string | null;
+  totalStudents: number;
+  totalQuestions: number;
+  totalMarks: number;
+  overallTimerSeconds: number;
+  negativeMarking: boolean;
+  negativeMarks?: number | null;
+  timeBonusEnabled: boolean;
+  randomQuestionOrder: boolean;
+  randomOptionOrder: boolean;
+  allowReview: boolean;
+  allowResume: boolean;
+  autoSubmit: boolean;
+  startTime?: string | null;
+  endTime?: string | null;
+  resultVisibility: ResultVisibility;
+  resultsPublished: boolean;
+  acceptedEmailDomain?: string | null;
+  allowedRegistrationNumbers?: string[];
+  status: QuizStatus;
+  examState: ExamState;
+}
+
+export interface TeacherOptionDetail {
+  optionId: number;
+  optionText?: string | null;
+  optionImage?: string | null;
+  correct: boolean;
+  optionOrder: number;
+}
+
+export interface TeacherQuestionDetail {
+  questionId: number;
+  questionText: string;
+  imageUrl?: string | null;
+  explanation?: string | null;
+  questionType: QuestionType;
+  marks: number;
+  negativeMarks?: number | null;
+  questionTimerSeconds?: number | null;
+  difficulty?: Difficulty | null;
+  displayOrder: number;
+  options: TeacherOptionDetail[];
+}
+
+export interface TeacherQuizDetailResponse extends QuizResponse {
+  maxTabSwitch?: number | null;
+  questions: TeacherQuestionDetail[];
+}
+
+/* -------------------------------------------------------------------------- */
+/* Attempts                                                                   */
+/* -------------------------------------------------------------------------- */
+
+export interface AttemptResponse {
+  attemptId: number;
+  quizId: number;
+  studentId: number;
+  startedAt: string;
+  submittedAt?: string | null;
+  status: AttemptStatus;
+  currentQuestion?: number | null;
+  totalTimeTaken?: number | null;
+  effectiveDeadline: string;
+}
+
+export interface SubmitAnswerRequest {
+  questionId: number;
+  selectedOptionIds: number[];
+  responseTimeSeconds: number;
+}
+
+export interface SubmitAttemptRequest {
+  answers: SubmitAnswerRequest[];
+}
+
+export interface SubmitAttemptResponse {
+  attemptId: number;
+  quizId: number;
+  status: AttemptStatus;
+  finalScore: number;
+  totalMarks: number;
+  totalTimeTaken: number;
+  submittedAt: string;
+}
+
+export interface AttemptSavedAnswer {
+  questionId: number;
+  selectedOptionIds: number[];
+  responseTimeSeconds: number;
+  savedAt?: string | null;
+}
+
+export interface AttemptStateResponse {
+  attemptId: number;
+  quizId: number;
+  status: AttemptStatus;
+  effectiveDeadline: string;
+  currentQuestion?: number | null;
+  answers: AttemptSavedAnswer[];
+  totalTimeTaken?: number | null;
+}
+
+
+export interface StudentSubmissionResponse {
+  attemptId: number;
+  quizId: number;
+  quizTitle: string;
+  status: AttemptStatus;
+  finalScore?: number | null;
+  totalMarks?: number | null;
+  percentage?: number | null;
+  totalTimeTaken?: number | null;
+  startedAt: string;
+  submittedAt?: string | null;
+  resultsAvailable: boolean;
+}
+
+export interface AttemptResultResponse {
+  attemptId: number;
+  quizId: number;
+  quizTitle: string;
+  studentId: number;
+  status: AttemptStatus;
+  finalScore: number;
+  totalMarks: number;
+  percentage: number;
+  totalTimeTaken: number;
+  startedAt: string;
+  submittedAt: string;
+}
+
+export interface AttemptResultDetailResponse {
+  questionId: number;
+  questionText: string;
+  explanation?: string | null;
+  displayOrder: number;
+  selectedOptionIds: number[];
+  correctOptionIds: number[];
+  answerStatus: AnswerStatus;
+  correct: boolean;
+  marksAwarded: number;
+  questionMarks: number;
+  responseTimeSeconds?: number | null;
+}
+
+export interface LeaderboardEntryResponse {
+  rank: number;
+  studentId: number;
+  studentName: string;
+  score: number;
+  totalMarks: number;
+  percentage: number;
+  totalTimeTaken: number;
+}
+
+/* -------------------------------------------------------------------------- */
+/* Availability                                                               */
+/* -------------------------------------------------------------------------- */
+
+export interface QuizAvailabilityResponse {
+  quizCode: string;
+  available: boolean;
+  status: QuizAvailabilityStatus;
+  startTime?: string | null;
+  endTime?: string | null;
+}
+
+/* -------------------------------------------------------------------------- */
+/* Account preferences / password reset                                       */
+/* -------------------------------------------------------------------------- */
+
+export interface SetPasswordRequest {
+  newPassword: string;
+}
+
+export interface ForgotPasswordRequest {
+  email: string;
+}
+
+export interface ResetPasswordRequest {
+  token: string;
+  newPassword: string;
+}
+
+export interface NotificationPreferences {
+  assessmentResults: boolean;
+  upcomingAssessments: boolean;
+  proctoringReports: boolean;
+  browserPush: boolean;
+}
