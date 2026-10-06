@@ -15,13 +15,13 @@ import java.util.stream.Collectors;
 
 import org.springframework.stereotype.Service;
 
-import com.quiz_app.backend.dto.attempt.AttemptResponse;
 import com.quiz_app.backend.dto.attempt.AttemptAnswerStateResponse;
-import com.quiz_app.backend.dto.attempt.AttemptStateResponse;
-import com.quiz_app.backend.dto.attempt.ProctoringEventRequest;
+import com.quiz_app.backend.dto.attempt.AttemptResponse;
 import com.quiz_app.backend.dto.attempt.AttemptResultDetailResponse;
 import com.quiz_app.backend.dto.attempt.AttemptResultResponse;
+import com.quiz_app.backend.dto.attempt.AttemptStateResponse;
 import com.quiz_app.backend.dto.attempt.LeaderboardEntryResponse;
+import com.quiz_app.backend.dto.attempt.ProctoringEventRequest;
 import com.quiz_app.backend.dto.attempt.StudentSubmissionResponse;
 import com.quiz_app.backend.dto.attempt.SubmitAnswerRequest;
 import com.quiz_app.backend.dto.attempt.SubmitAttemptRequest;
@@ -47,8 +47,8 @@ import com.quiz_app.backend.exception.ResourceNotFoundException;
 import com.quiz_app.backend.repository.OptionRepository;
 import com.quiz_app.backend.repository.QuestionRepository;
 import com.quiz_app.backend.repository.QuizAllowedStudentRepository;
-import com.quiz_app.backend.repository.QuizAttemptRepository;
 import com.quiz_app.backend.repository.QuizAttemptProctoringEventRepository;
+import com.quiz_app.backend.repository.QuizAttemptRepository;
 import com.quiz_app.backend.repository.QuizRepository;
 import com.quiz_app.backend.repository.StudentAnswerRepository;
 import com.quiz_app.backend.repository.StudentSelectedOptionRepository;
@@ -1050,8 +1050,8 @@ public class StudentAttemptService {
 
                         StudentAnswer answer = answerMap.get(question.getId());
 
-                        List<Option> questionOptions =
-                                        optionRepository.findByQuestionIdOrderByOptionOrder(question.getId());
+                        List<Option> questionOptions = optionRepository
+                                        .findByQuestionIdOrderByOptionOrder(question.getId());
 
                         List<Long> selectedOptionIds = new java.util.ArrayList<>();
 

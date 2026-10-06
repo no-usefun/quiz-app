@@ -1326,8 +1326,7 @@ class StudentAttemptServiceTest {
                 when(studentSelectedOptionRepository.findByAnswerId(501L))
                                 .thenReturn(List.of(selected1, selected2));
 
-                List<AttemptResultDetailResponse> result =
-                                attemptService.getAttemptResultDetails(1000L, 1L);
+                List<AttemptResultDetailResponse> result = attemptService.getAttemptResultDetails(1000L, 1L);
 
                 AttemptResultDetailResponse detail = result.get(0);
 
