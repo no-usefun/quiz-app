@@ -6,7 +6,6 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import static org.mockito.ArgumentMatchers.any;
 import org.mockito.Mock;
-import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 import org.mockito.junit.jupiter.MockitoExtension;
@@ -20,9 +19,14 @@ import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.quiz_app.backend.dto.auth.AuthResponse;
+import com.quiz_app.backend.dto.auth.ChangePasswordRequest;
+import com.quiz_app.backend.dto.auth.DeleteAccountRequest;
 import com.quiz_app.backend.dto.auth.LoginRequest;
+import com.quiz_app.backend.dto.auth.ResendVerificationRequest;
+import com.quiz_app.backend.dto.auth.SetPasswordRequest;
 import com.quiz_app.backend.dto.auth.SignupRequest;
 import com.quiz_app.backend.dto.auth.SignupResponse;
+import com.quiz_app.backend.dto.auth.UpdateProfileRequest;
 import com.quiz_app.backend.dto.auth.UserSummaryResponse;
 import com.quiz_app.backend.exception.BadRequestException;
 import com.quiz_app.backend.exception.GlobalExceptionHandler;
@@ -66,7 +70,7 @@ class AuthControllerTest {
                 summary = new UserSummaryResponse(
                                 1L, "Jane", "Smith", "Jane Smith", "jane@example.com",
                                 "TEACHER", "College", "CS", null, null, "LOCAL",
-                                null, true, true, false);
+                                null, true, true, true);
 
                 authResponse = new AuthResponse("jwt", 3600000L, summary);
         }
@@ -148,7 +152,7 @@ class AuthControllerTest {
         void resendVerification_shouldDelegate() {
                 var response = new AuthController(authService, emailVerificationService)
                                 .resendVerification(
-                                                new com.quiz_app.backend.dto.auth.ResendVerificationRequest(
+                                                new ResendVerificationRequest(
                                                                 "jane@example.com"));
 
                 assertEquals(200, response.getStatusCode().value());
@@ -162,18 +166,18 @@ class AuthControllerTest {
                 var response = new AuthController(authService, emailVerificationService)
                                 .setPassword(
                                                 userDetails,
-                                                new com.quiz_app.backend.dto.auth.SetPasswordRequest("password123"));
+                                                new SetPasswordRequest("password123"));
 
                 assertEquals(200, response.getStatusCode().value());
                 verify(authService).setPassword(
                                 "jane@example.com",
-                                new com.quiz_app.backend.dto.auth.SetPasswordRequest("password123"));
+                                new SetPasswordRequest("password123"));
         }
 
         @Test
         void updateProfile_shouldDelegate() {
                 when(userDetails.getUsername()).thenReturn("jane@example.com");
-                var request = new com.quiz_app.backend.dto.auth.UpdateProfileRequest(
+                var request = new UpdateProfileRequest(
                                 "Jane", "Smith", null, null, null, null, null);
                 when(authService.updateProfile("jane@example.com", request)).thenReturn(summary);
 
@@ -189,14 +193,14 @@ class AuthControllerTest {
         void updateProfile_shouldRejectMissingPrincipal() {
                 assertThrowsBadRequest(() -> new AuthController(authService, emailVerificationService)
                                 .updateProfile(null,
-                                                new com.quiz_app.backend.dto.auth.UpdateProfileRequest(
+                                                new UpdateProfileRequest(
                                                                 "Jane", null, null, null, null, null, null)));
         }
 
         @Test
         void changePassword_shouldDelegate() {
                 when(userDetails.getUsername()).thenReturn("jane@example.com");
-                var request = new com.quiz_app.backend.dto.auth.ChangePasswordRequest(
+                var request = new ChangePasswordRequest(
                                 "old-password", "new-password");
 
                 var response = new AuthController(authService, emailVerificationService)
@@ -209,7 +213,7 @@ class AuthControllerTest {
         @Test
         void deleteAccount_shouldDelegate() {
                 when(userDetails.getUsername()).thenReturn("jane@example.com");
-                var request = new com.quiz_app.backend.dto.auth.DeleteAccountRequest("password123");
+                var request = new DeleteAccountRequest("password123");
 
                 var response = new AuthController(authService, emailVerificationService)
                                 .deleteAccount(userDetails, request);
