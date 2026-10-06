@@ -23,6 +23,7 @@ type SessionUser = {
   profileImage?: string;
   verified?: boolean;
   active?: boolean;
+  profileComplete?: boolean;
   [key: string]: unknown;
 };
 
@@ -137,7 +138,7 @@ function clearSessionStorage() {
     "dynoquizz_token=; expires=Thu, 01 Jan 1970 00:00:00 GMT; path=/;";
 }
 
-function persistToken(token: string) {
+function persistToken(token: string, expiresIn?: unknown) {
   if (typeof window === "undefined") return;
 
   const cleanToken = token.replace(/^["']|["']$/g, "").trim();
@@ -149,9 +150,15 @@ function persistToken(token: string) {
   localStorage.setItem("dynoquizz_token", cleanToken);
   localStorage.removeItem("token");
 
+  const expiresInMs = Number(expiresIn);
+  const maxAgeSeconds =
+    Number.isFinite(expiresInMs) && expiresInMs > 0
+      ? Math.max(1, Math.floor(expiresInMs / 1000))
+      : 86400;
+
   document.cookie = `dynoquizz_token=${encodeURIComponent(
     cleanToken,
-  )}; path=/; max-age=86400`;
+  )}; path=/; max-age=${maxAgeSeconds}; samesite=lax`;
 }
 
 export function useSession() {
@@ -293,7 +300,7 @@ export function useSession() {
       );
     }
 
-    persistToken(token);
+    persistToken(token, data?.expiresIn);
 
     /*
      * /auth/login already returns UserSummaryResponse, but /auth/me is
