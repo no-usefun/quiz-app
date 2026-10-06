@@ -14,6 +14,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.http.MediaType;
 import org.springframework.security.core.Authentication;
 import org.springframework.test.web.servlet.MockMvc;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -46,6 +47,15 @@ class TeacherQuizControllerTest {
 
                 when(authentication.getPrincipal()).thenReturn(userDetails);
                 when(userDetails.getId()).thenReturn(2L);
+        }
+
+        @Test
+        void deleteDraftQuiz_shouldCallService() throws Exception {
+                mockMvc.perform(delete("/api/v1/teacher/quizzes/10")
+                                .principal(authentication))
+                                .andExpect(status().isNoContent());
+
+                verify(teacherQuizService).deleteDraftQuiz(10L, 2L);
         }
 
         @Test
