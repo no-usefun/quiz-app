@@ -362,12 +362,12 @@ function LoginContent() {
             </button>
           </form>
 
-          {!lanExamMode && (
-            <p className="mt-5 text-center text-sm text-neutral-500">
-              Don&apos;t have an account?{" "}
-              <Link href={`/signup?role=${activeRole}`} className="font-bold text-neutral-900 hover:underline">Sign up</Link>
-            </p>
-          )}
+          <p className="mt-5 text-center text-sm text-neutral-500">
+            Don&apos;t have an account?{" "}
+            <Link href={`/signup?role=${activeRole}`} className="font-bold text-neutral-900 hover:underline">
+              Sign up
+            </Link>
+          </p>
         </div>
       </div>
     </main>
