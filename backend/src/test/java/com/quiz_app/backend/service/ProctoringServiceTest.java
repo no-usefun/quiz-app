@@ -273,11 +273,34 @@ class ProctoringServiceTest {
     @Test
     void testRecordProctoringSummary_SavesSummaryEvent() {
         when(quizAttemptRepository.findById(100L)).thenReturn(Optional.of(testAttempt));
+        when(proctoringEventRepository.findByAttemptId(100L)).thenReturn(List.of());
 
         ProctoringSummaryRequest request = new ProctoringSummaryRequest(50, 48, 2);
         proctoringService.recordProctoringSummary(100L, request, 10L);
 
         verify(proctoringEventRepository).save(any(QuizAttemptProctoringEvent.class));
+    }
+
+    @Test
+    void testRecordProctoringSummary_IdempotentDuplicateCallUpdatesExistingEvent() {
+        when(quizAttemptRepository.findById(100L)).thenReturn(Optional.of(testAttempt));
+
+        QuizAttemptProctoringEvent existingSummary = new QuizAttemptProctoringEvent();
+        setField(existingSummary, "id", 101L);
+        existingSummary.setAttempt(testAttempt);
+        existingSummary.setEventType("SESSION_SUMMARY");
+        existingSummary.setMetadataJson("{\"totalFaceChecks\":10,\"identityMatches\":10,\"identityMismatches\":0}");
+
+        when(proctoringEventRepository.findByAttemptId(100L)).thenReturn(List.of(existingSummary));
+
+        ProctoringSummaryRequest updatedRequest = new ProctoringSummaryRequest(60, 58, 2);
+        proctoringService.recordProctoringSummary(100L, updatedRequest, 10L);
+
+        // Verify the existing event was saved with updated content instead of creating a second entity
+        verify(proctoringEventRepository).save(existingSummary);
+        assertTrue(existingSummary.getMetadataJson().contains("\"totalFaceChecks\":60"));
+        assertTrue(existingSummary.getMetadataJson().contains("\"identityMatches\":58"));
+        assertTrue(existingSummary.getMetadataJson().contains("\"identityMismatches\":2"));
     }
 
     @Test

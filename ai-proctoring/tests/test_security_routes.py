@@ -534,3 +534,20 @@ def test_attack_scenario_i_cross_session_ticket_reuse():
     resp_get = client.get(f"/proctor/session/{session_b.session_id}?ticket={ticket_a}")
     assert resp_get.status_code in [401, 403]
 
+def test_attack_scenario_ssrf_untrusted_backend_url_rejected():
+    """Security Test: Arbitrary/untrusted browser-supplied springBootUrl cannot be used for authenticated calls."""
+    fake_b64 = create_synthetic_face_image_b64()
+
+    # Attacker tries to provide malicious server to exfiltrate JWT
+    resp = client.post("/proctor/start", json={
+        "attemptId": 999,
+        "studentId": "student-attacker",
+        "testCode": "CS101",
+        "referenceImage": fake_b64,
+        "authToken": "victim-secret-jwt",
+        "springBootUrl": "http://malicious-attacker-server.com/steal"
+    })
+    assert resp.status_code == 400
+    assert "UNTRUSTED_BACKEND_URL" in resp.json()["detail"]
+
+

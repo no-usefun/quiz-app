@@ -203,9 +203,16 @@ public class ProctoringService {
             );
             String metadataJson = objectMapper.writeValueAsString(metaMap);
 
-            QuizAttemptProctoringEvent event = new QuizAttemptProctoringEvent();
-            event.setAttempt(attempt);
-            event.setEventType("SESSION_SUMMARY");
+            List<QuizAttemptProctoringEvent> existingEvents = proctoringEventRepository.findByAttemptId(attemptId);
+            QuizAttemptProctoringEvent event = existingEvents.stream()
+                    .filter(e -> "SESSION_SUMMARY".equals(e.getEventType()))
+                    .findFirst()
+                    .orElseGet(() -> {
+                        QuizAttemptProctoringEvent ev = new QuizAttemptProctoringEvent();
+                        ev.setAttempt(attempt);
+                        ev.setEventType("SESSION_SUMMARY");
+                        return ev;
+                    });
             event.setOccurredAt(LocalDateTime.now());
             event.setMetadataJson(metadataJson);
             proctoringEventRepository.save(event);

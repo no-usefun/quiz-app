@@ -16,7 +16,7 @@ from detection import (
     MalpracticeDetector
 )
 from sessions.session_manager import SessionManager
-from config import SPRING_BOOT_URL
+from config import SPRING_BOOT_URL, is_trusted_backend_url
 
 logger = logging.getLogger("ai-proctoring.routes")
 
@@ -146,7 +146,12 @@ async def start_proctoring_session(
         )
 
     # 1. Authoritative Backend Validation against Spring Boot
-    spring_url = req.springBootUrl or SPRING_BOOT_URL
+    if req.springBootUrl and not is_trusted_backend_url(req.springBootUrl):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="UNTRUSTED_BACKEND_URL: Browser-supplied springBootUrl points to an untrusted host."
+        )
+    spring_url = req.springBootUrl.strip() if req.springBootUrl else SPRING_BOOT_URL
     validation_res = await malpractice_detector.verify_backend_attempt_access(
         spring_boot_url=spring_url,
         attempt_id=req.attemptId,

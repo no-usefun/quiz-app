@@ -1,6 +1,8 @@
 import os
 import urllib.request
+import urllib.parse
 import logging
+from typing import Optional
 
 logger = logging.getLogger("ai-proctoring.config")
 
@@ -21,6 +23,24 @@ PROCTOR_FRONTEND_ORIGINS = [
     ).split(",")
     if origin.strip()
 ]
+
+def is_trusted_backend_url(url: Optional[str] = None) -> bool:
+    """Validate that the backend URL is an allowed trusted backend destination."""
+    if not url:
+        return True
+    try:
+        parsed = urllib.parse.urlparse(url.strip())
+        if parsed.scheme not in ("http", "https"):
+            return False
+        hostname = (parsed.hostname or "").lower()
+        if not hostname:
+            return False
+        configured_host = (urllib.parse.urlparse(SPRING_BOOT_URL).hostname or "").lower()
+        trusted_hosts = {"localhost", "127.0.0.1", "host.docker.internal", configured_host}
+        return hostname in trusted_hosts
+    except Exception:
+        return False
+
 
 # Model Paths
 YUNET_MODEL_PATH = os.path.join(MODELS_DIR, "face_detection_yunet_2023mar.onnx")
