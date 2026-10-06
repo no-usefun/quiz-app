@@ -4,6 +4,7 @@ import java.util.List;
 
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -30,6 +31,20 @@ public class TeacherQuizController {
                         TeacherQuizService teacherQuizService) {
 
                 this.teacherQuizService = teacherQuizService;
+        }
+
+        @DeleteMapping("/quizzes/{quizId}")
+        public ResponseEntity<Void> deleteDraftQuiz(
+                        @PathVariable Long quizId,
+                        Authentication authentication) {
+
+                CustomUserDetails userDetails = (CustomUserDetails) authentication.getPrincipal();
+
+                teacherQuizService.deleteDraftQuiz(
+                                quizId,
+                                userDetails.getId());
+
+                return ResponseEntity.noContent().build();
         }
 
         @PutMapping("/quizzes/{quizId}/publish")

@@ -35,6 +35,7 @@ import com.quiz_app.backend.exception.ResourceNotFoundException;
 import com.quiz_app.backend.repository.OptionRepository;
 import com.quiz_app.backend.repository.QuestionRepository;
 import com.quiz_app.backend.repository.QuizAllowedStudentRepository;
+import com.quiz_app.backend.repository.QuizAttemptRepository;
 import com.quiz_app.backend.repository.QuizRepository;
 
 @ExtendWith(MockitoExtension.class)
@@ -52,6 +53,9 @@ class TeacherQuizServiceTest {
 
         @Mock
         private QuizAllowedStudentRepository quizAllowedStudentRepository;
+
+        @Mock
+        private QuizAttemptRepository quizAttemptRepository;
 
         @InjectMocks
         private TeacherQuizService teacherQuizService;
@@ -111,6 +115,103 @@ class TeacherQuizServiceTest {
                 when(option2.getOptionImage()).thenReturn(null);
                 when(option2.isCorrect()).thenReturn(false);
                 when(option2.getOptionOrder()).thenReturn((short) 2);
+        }
+
+        // ============================================================
+        // DELETE DRAFT QUIZ
+        // ============================================================
+
+        @Test
+        void deleteDraftQuiz_shouldDeleteOwnedUnusedDraft() {
+
+                when(quizRepository.findById(10L))
+                                .thenReturn(Optional.of(quiz));
+
+                when(quizAttemptRepository.existsByQuizId(10L))
+                                .thenReturn(false);
+
+                teacherQuizService.deleteDraftQuiz(10L, 2L);
+
+                verify(quizRepository).delete(quiz);
+        }
+
+        @Test
+        void deleteDraftQuiz_shouldRejectNullQuizId() {
+
+                assertThrows(
+                                BadRequestException.class,
+                                () -> teacherQuizService.deleteDraftQuiz(null, 2L));
+
+                verify(quizRepository, never()).findById(any());
+        }
+
+        @Test
+        void deleteDraftQuiz_shouldRejectNullTeacherId() {
+
+                assertThrows(
+                                BadRequestException.class,
+                                () -> teacherQuizService.deleteDraftQuiz(10L, null));
+
+                verify(quizRepository, never()).findById(any());
+        }
+
+        @Test
+        void deleteDraftQuiz_shouldRejectMissingQuiz() {
+
+                when(quizRepository.findById(10L))
+                                .thenReturn(Optional.empty());
+
+                assertThrows(
+                                ResourceNotFoundException.class,
+                                () -> teacherQuizService.deleteDraftQuiz(10L, 2L));
+        }
+
+        @Test
+        void deleteDraftQuiz_shouldRejectUnauthorizedTeacher() {
+
+                when(quizRepository.findById(10L))
+                                .thenReturn(Optional.of(quiz));
+
+                when(teacher.getId()).thenReturn(999L);
+
+                assertThrows(
+                                AccessDeniedApplicationException.class,
+                                () -> teacherQuizService.deleteDraftQuiz(10L, 2L));
+
+                verify(quizRepository, never()).delete(any());
+                verify(quizAttemptRepository, never()).existsByQuizId(any());
+        }
+
+        @Test
+        void deleteDraftQuiz_shouldRejectNonDraftQuiz() {
+
+                when(quizRepository.findById(10L))
+                                .thenReturn(Optional.of(quiz));
+
+                when(quiz.getStatus()).thenReturn(QuizStatus.PUBLISHED);
+
+                assertThrows(
+                                BadRequestException.class,
+                                () -> teacherQuizService.deleteDraftQuiz(10L, 2L));
+
+                verify(quizRepository, never()).delete(any());
+                verify(quizAttemptRepository, never()).existsByQuizId(any());
+        }
+
+        @Test
+        void deleteDraftQuiz_shouldRejectQuizWithStudentAttempt() {
+
+                when(quizRepository.findById(10L))
+                                .thenReturn(Optional.of(quiz));
+
+                when(quizAttemptRepository.existsByQuizId(10L))
+                                .thenReturn(true);
+
+                assertThrows(
+                                BadRequestException.class,
+                                () -> teacherQuizService.deleteDraftQuiz(10L, 2L));
+
+                verify(quizRepository, never()).delete(any());
         }
 
         // ============================================================
