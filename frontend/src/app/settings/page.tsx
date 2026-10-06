@@ -171,6 +171,7 @@ function ProfilePanel({
   const [email, setEmail] = useState("");
   const [institution, setInstitution] = useState("");
   const [program, setProgram] = useState("");
+  const [registrationNo, setRegistrationNo] = useState("");
   const [phone, setPhone] = useState("");
   const [profileImage, setProfileImage] = useState("");
   const [saving, setSaving] = useState(false);
@@ -246,6 +247,7 @@ function ProfilePanel({
     setEmail(user.email || "");
     setInstitution(user.college || user.institution || "");
     setProgram(user.department || user.program || "");
+    setRegistrationNo(user.registrationNo || "");
     setPhone(user.phone || "");
     setProfileImage(user.profileImage || "");
   }, [user]);
@@ -275,12 +277,19 @@ function ProfilePanel({
       const lastName =
         firstSpace === -1 ? "" : trimmedName.slice(firstSpace + 1).trim();
 
+      const isStudent = String(user?.role || "").toUpperCase() === "STUDENT";
+
+      if (isStudent && !registrationNo.trim()) {
+        throw new Error("Registration number is required for student profiles.");
+      }
+
       const requestBody = {
         firstName,
         lastName,
         phone: phone.trim() || null,
         college: institution.trim() || null,
         department: program.trim() || null,
+        registrationNo: registrationNo.trim() || null,
         profileImage: profileImage.trim() || null,
       };
 
@@ -448,6 +457,22 @@ function ProfilePanel({
             onChange={(event) => setPhone(event.target.value)}
           />
         </Field>
+
+        {String(user?.role || "").toUpperCase() === "STUDENT" && (
+          <Field
+            label="Registration / Roll Number"
+            hint="Required for a complete student profile."
+          >
+            <TextInput
+              placeholder="e.g. 22BCE0001"
+              value={registrationNo}
+              onChange={(event) =>
+                setRegistrationNo(event.target.value.toUpperCase())
+              }
+              maxLength={100}
+            />
+          </Field>
+        )}
 
         <Field
           label="Profile Image URL"
