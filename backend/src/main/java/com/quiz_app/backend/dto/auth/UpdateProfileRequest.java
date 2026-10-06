@@ -14,5 +14,7 @@ public record UpdateProfileRequest(
 
         @Size(max = 100, message = "Department cannot exceed 100 characters") String department,
 
+        @Size(max = 100, message = "Registration number cannot exceed 100 characters") String registrationNo,
+
         String profileImage) {
 }
