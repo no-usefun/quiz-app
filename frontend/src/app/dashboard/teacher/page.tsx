@@ -34,6 +34,12 @@ export default function TeacherDashboard() {
   const [copiedCode, setCopiedCode] = useState<string | null>(null);
   const [mounted, setMounted] = useState(false);
   const [visibleCount, setVisibleCount] = useState(5);
+  const [statusFilter, setStatusFilter] = useState<
+    "ALL" | "DRAFT" | "UPCOMING" | "LIVE" | "COMPLETED" | "CANCELLED"
+  >("ALL");
+  const [sortOrder, setSortOrder] = useState<
+    "NEWEST" | "OLDEST" | "TITLE_ASC" | "TITLE_DESC"
+  >("NEWEST");
 
   const [quizToEnd, setQuizToEnd] = useState<{
     quizId: number;
@@ -270,11 +276,92 @@ export default function TeacherDashboard() {
     (test) => test.displayState === "Completed",
   ).length;
 
-  const visibleTests = tests.slice(0, visibleCount);
-  const hasMoreTests = visibleCount < tests.length;
+  const filteredTests = tests.filter((test) => {
+    switch (statusFilter) {
+      case "DRAFT":
+        return test.displayState === "Draft";
+
+      case "UPCOMING":
+        return test.displayState === "Scheduled";
+
+      case "LIVE":
+        return test.displayState === "Live";
+
+      case "COMPLETED":
+        return (
+          test.displayState === "Completed" ||
+          test.displayState === "Ended"
+        );
+
+      case "CANCELLED":
+        return test.displayState === "Cancelled";
+
+      case "ALL":
+      default:
+        return true;
+    }
+  });
+
+  const sortedTests = [...filteredTests];
+
+  switch (sortOrder) {
+    case "OLDEST":
+      sortedTests.reverse();
+      break;
+
+    case "TITLE_ASC":
+      sortedTests.sort((a, b) =>
+        String(a.title || "Assessment").localeCompare(
+          String(b.title || "Assessment"),
+          undefined,
+          { sensitivity: "base" },
+        ),
+      );
+      break;
+
+    case "TITLE_DESC":
+      sortedTests.sort((a, b) =>
+        String(b.title || "Assessment").localeCompare(
+          String(a.title || "Assessment"),
+          undefined,
+          { sensitivity: "base" },
+        ),
+      );
+      break;
+
+    case "NEWEST":
+    default:
+      // The backend response is already newest-first. Preserve that order.
+      break;
+  }
+
+  const visibleTests = sortedTests.slice(0, visibleCount);
+  const hasMoreTests = visibleCount < sortedTests.length;
 
   const handleLoadMore = () => {
-    setVisibleCount((current) => Math.min(current + 5, tests.length));
+    setVisibleCount((current) =>
+      Math.min(current + 5, sortedTests.length),
+    );
+  };
+
+  const handleFilterChange = (
+    nextFilter:
+      | "ALL"
+      | "DRAFT"
+      | "UPCOMING"
+      | "LIVE"
+      | "COMPLETED"
+      | "CANCELLED",
+  ) => {
+    setStatusFilter(nextFilter);
+    setVisibleCount(5);
+  };
+
+  const handleSortChange = (
+    nextSort: "NEWEST" | "OLDEST" | "TITLE_ASC" | "TITLE_DESC",
+  ) => {
+    setSortOrder(nextSort);
+    setVisibleCount(5);
   };
 
   const getBadgeStyle = (displayState: QuizDisplayState) => {
@@ -375,14 +462,67 @@ export default function TeacherDashboard() {
         </section>
 
         <section className="space-y-4">
-          <div className="flex items-center justify-between">
-            <h2 className="text-sm font-extrabold text-[#111111] uppercase tracking-wider">
-              Assessments Roster ({tests.length})
-            </h2>
+          <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+            <div className="flex items-center gap-2">
+              <h2 className="text-sm font-extrabold text-[#111111] uppercase tracking-wider">
+                Assessments Roster (
+                {statusFilter === "ALL"
+                  ? tests.length
+                  : `${filteredTests.length} of ${tests.length}`}
+                )
+              </h2>
+            </div>
 
-            <span className="text-xs font-medium text-[#78716b]">
-              Newest first
-            </span>
+            <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+              <div className="flex flex-wrap gap-1.5">
+                {(
+                  [
+                    ["ALL", "All"],
+                    ["DRAFT", "Draft"],
+                    ["UPCOMING", "Upcoming"],
+                    ["LIVE", "Live"],
+                    ["COMPLETED", "Completed"],
+                    ["CANCELLED", "Cancelled"],
+                  ] as const
+                ).map(([value, label]) => (
+                  <button
+                    key={value}
+                    type="button"
+                    onClick={() => handleFilterChange(value)}
+                    className={
+                      "rounded-full border px-3 py-1.5 text-[10px] font-bold transition-all " +
+                      (statusFilter === value
+                        ? "border-[#165dfb] bg-[#165dfb] text-white shadow-xs"
+                        : "border-[#d1dee8]/80 bg-white text-[#78716b] hover:border-[#165dfb]/40 hover:text-[#111111]")
+                    }
+                  >
+                    {label}
+                  </button>
+                ))}
+              </div>
+
+              <label className="flex items-center gap-2 rounded-[10px] border border-[#d1dee8]/80 bg-white px-3 py-1.5 text-[10px] font-bold text-[#78716b] shadow-xs">
+                <span className="whitespace-nowrap">Sort</span>
+                <select
+                  value={sortOrder}
+                  onChange={(event) =>
+                    handleSortChange(
+                      event.target.value as
+                        | "NEWEST"
+                        | "OLDEST"
+                        | "TITLE_ASC"
+                        | "TITLE_DESC",
+                    )
+                  }
+                  className="min-w-[138px] cursor-pointer border-0 bg-transparent text-[10px] font-bold text-[#111111] outline-none"
+                >
+                  <option value="NEWEST">Newest first</option>
+                  <option value="OLDEST">Oldest first</option>
+                  <option value="TITLE_ASC">Title A → Z</option>
+                  <option value="TITLE_DESC">Title Z → A</option>
+                </select>
+              </label>
+            </div>
           </div>
 
           <div className="grid gap-3.5">
@@ -426,6 +566,30 @@ export default function TeacherDashboard() {
                   <Plus className="h-3.5 w-3.5 text-white" />
                   Create Assessment
                 </Link>
+              </div>
+            ) : visibleTests.length === 0 ? (
+              <div className="rounded-[14px] bg-white border border-[#d1dee8]/70 p-10 text-center space-y-3 shadow-sm">
+                <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-[12px] bg-[#f5f5f4] text-[#78716b] border border-[#d1dee8]/70">
+                  <FileQuestion className="h-6 w-6 text-[#78716b]" />
+                </div>
+
+                <div>
+                  <p className="font-bold text-[#111111] text-sm">
+                    No matching assessments
+                  </p>
+
+                  <p className="text-xs text-[#78716b] mt-0.5 font-medium max-w-sm mx-auto">
+                    Try a different status filter or sort option.
+                  </p>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={() => handleFilterChange("ALL")}
+                  className="inline-flex items-center gap-1.5 rounded-[10px] border border-[#d1dee8]/80 bg-white px-4 py-2 text-xs font-bold text-[#111111] hover:bg-[#f5f5f4] hover:border-[#b9cbd9] shadow-xs active:scale-[0.98] transition-all cursor-pointer"
+                >
+                  Clear Filter
+                </button>
               </div>
             ) : (
               visibleTests.map((test, idx) => {
@@ -666,7 +830,7 @@ export default function TeacherDashboard() {
               >
                 Load More
                 <span className="ml-1.5 text-[#78716b]">
-                  ({Math.min(5, tests.length - visibleCount)} more)
+                  ({Math.min(5, sortedTests.length - visibleCount)} more)
                 </span>
               </button>
             </div>
