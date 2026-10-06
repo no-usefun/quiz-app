@@ -141,7 +141,10 @@ function persistOAuthSession(token: string, user: OAuthUser, expiresIn: unknown)
     "; samesite=lax";
 }
 
-function getOAuthErrorMessage(code: string | null, fallback: string | null) {
+function getOAuthErrorMessage(
+  code: string | null | undefined,
+  fallback: string | null | undefined,
+) {
   const normalizedCode = String(code ?? "").trim().toUpperCase();
 
   switch (normalizedCode) {
