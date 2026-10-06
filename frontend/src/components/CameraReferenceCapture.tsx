@@ -20,14 +20,20 @@ export function CameraReferenceCapture({
   const [cameraError, setCameraError] = useState<string | null>(null);
   const [capturedPhoto, setCapturedPhoto] = useState<string | null>(null);
   const [isProcessing, setIsProcessing] = useState(false);
-  const [aiStatus, setAiStatus] = useState<"CHECKING" | "ONLINE" | "OFFLINE">("CHECKING");
+  const [aiStatus, setAiStatus] = useState<"CHECKING" | "ONLINE" | "OFFLINE" | "BIOMETRICS_OFFLINE">("CHECKING");
 
   // Check AI service status
   useEffect(() => {
     let mounted = true;
     checkAIHealth().then((res) => {
       if (mounted) {
-        setAiStatus(res.isOnline ? "ONLINE" : "OFFLINE");
+        if (!res.isOnline) {
+          setAiStatus("OFFLINE");
+        } else if (!res.biometricReady) {
+          setAiStatus("BIOMETRICS_OFFLINE");
+        } else {
+          setAiStatus("ONLINE");
+        }
       }
     });
     return () => {
@@ -128,13 +134,15 @@ export function CameraReferenceCapture({
             className={`h-2 w-2 rounded-full ${
               aiStatus === "ONLINE"
                 ? "bg-emerald-500 animate-pulse"
+                : aiStatus === "BIOMETRICS_OFFLINE"
+                ? "bg-amber-500 animate-pulse"
                 : aiStatus === "OFFLINE"
                 ? "bg-rose-500"
-                : "bg-amber-400 animate-pulse"
+                : "bg-stone-400 animate-pulse"
             }`}
           />
           <span className="text-[10px] font-bold text-[#78716b]">
-            AI Proctor: {aiStatus}
+            AI Proctor: {aiStatus === "BIOMETRICS_OFFLINE" ? "BIOMETRICS OFFLINE" : aiStatus}
           </span>
         </div>
       </div>

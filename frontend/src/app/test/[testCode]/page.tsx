@@ -1422,8 +1422,13 @@ export default function TestArenaPage({
           cameraActive={proctoring.cameraActive}
           faceDetected={proctoring.faceDetected}
           numFaces={proctoring.numFaces}
+          numPersons={proctoring.numPersons}
           identityVerified={proctoring.identityVerified}
           similarityScore={proctoring.similarityScore}
+          gazeDirection={proctoring.gazeDirection}
+          yaw={proctoring.yaw}
+          pitch={proctoring.pitch}
+          isLookingAway={proctoring.isLookingAway}
           phoneDetected={proctoring.phoneDetected}
           micLevel={proctoring.micLevel}
           voiceActive={proctoring.voiceActive}

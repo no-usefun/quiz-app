@@ -3,10 +3,18 @@ import cv2
 import numpy as np
 import logging
 from fastapi import APIRouter, HTTPException, status
-from pydantic import BaseModel, Field
+from pydantic import BaseModel
 from typing import Optional, List
 
-from detection import FaceDetector, BiometricFaceRecognizer, AudioActivityDetector, PhoneDetector, MalpracticeDetector
+from detection import (
+    FaceDetector,
+    BiometricFaceRecognizer,
+    AudioActivityDetector,
+    PhoneDetector,
+    PersonDetector,
+    GazeDetector,
+    MalpracticeDetector
+)
 from sessions.session_manager import SessionManager
 from config import SPRING_BOOT_URL
 
@@ -19,6 +27,8 @@ face_detector = FaceDetector()
 face_recognizer = BiometricFaceRecognizer()
 audio_detector = AudioActivityDetector()
 phone_detector = PhoneDetector()
+person_detector = PersonDetector()
+gaze_detector = GazeDetector()
 malpractice_detector = MalpracticeDetector()
 session_manager = SessionManager()
 
@@ -48,6 +58,7 @@ class StartSessionResponse(BaseModel):
     status: str
     faceDetected: bool
     referenceRegistered: bool
+    biometricReady: bool
     message: str
 
 class AnalyzeFrameRequest(BaseModel):
@@ -59,8 +70,13 @@ class AnalyzeFrameResponse(BaseModel):
     status: str
     faceDetected: bool
     numFaces: int
+    numPersons: int
     identityVerified: bool
     similarityScore: float
+    gazeDirection: str
+    yaw: float
+    pitch: float
+    isLookingAway: bool
     phoneDetected: bool
     micLevel: float
     voiceActive: bool
@@ -82,18 +98,33 @@ class StopSessionResponse(BaseModel):
 
 @router.get("/health")
 def health_check():
+    sface_ready = face_recognizer.recognizer is not None
+    yunet_ready = face_detector.detector is not None
+    phone_ready = phone_detector.model is not None
+    person_ready = person_detector.model is not None
+    overall_status = "UP" if (sface_ready and yunet_ready) else "DEGRADED"
+
     return {
-        "status": "UP",
+        "status": overall_status,
         "service": "ai-proctoring",
+        "biometricAvailable": sface_ready,
         "models": {
-            "yunet": face_detector.detector is not None,
-            "sface": face_recognizer.recognizer is not None,
-            "yolo": phone_detector.model is not None
+            "yunet": yunet_ready,
+            "sface": sface_ready,
+            "yolo_phone": phone_ready,
+            "yolo_person": person_ready
         }
     }
 
 @router.post("/proctor/start", response_model=StartSessionResponse)
 def start_proctoring_session(req: StartSessionRequest):
+    # Biometric Model Check - Strictly reject fake fallbacks
+    if face_recognizer.recognizer is None:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="BIOMETRIC_UNAVAILABLE: SFace biometric recognition model is offline or unavailable. Cannot establish biometric identity baseline."
+        )
+
     img = decode_base64_image(req.referenceImage)
     if img is None:
         raise HTTPException(
@@ -120,7 +151,10 @@ def start_proctoring_session(req: StartSessionRequest):
         ref_embedding = face_recognizer.extract_embedding(img, raw_faces[0])
 
     if ref_embedding is None:
-        logger.warning("DNN biometric embedding extraction failed, falling back to cropped template")
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="EMBEDDING_EXTRACTION_FAILED: Failed to extract biometric facial embedding from reference image. Ensure clear lighting and facing camera directly."
+        )
 
     session = session_manager.create_session(
         attempt_id=req.attemptId,
@@ -137,6 +171,7 @@ def start_proctoring_session(req: StartSessionRequest):
         status="INITIALIZED",
         faceDetected=True,
         referenceRegistered=True,
+        biometricReady=True,
         message="Reference biometric identity registered successfully."
     )
 
@@ -150,27 +185,40 @@ async def analyze_frame(req: AnalyzeFrameRequest):
         )
 
     faces_count = 0
-    identity_match = True
-    similarity_score = 1.0
+    persons_count = 0
+    gaze_res = {"gaze_direction": "CENTER", "yaw": 0.0, "pitch": 0.0, "is_looking_away": False}
+    identity_match = False  # Strict: Never default to True
+    similarity_score = 0.0  # Strict: Never default to 1.0
     phone_detected = False
 
     # 1. Image Frame Processing
     if req.frame:
         img = decode_base64_image(req.frame)
         if img is not None:
+            # Face Detection
             faces_data, raw_faces = face_detector.detect_faces(img)
             faces_count = len(faces_data)
+
+            # Person Detection (YOLO)
+            persons_count, _ = person_detector.detect_persons(img)
+
+            # Gaze / Head Pose Estimation
+            if faces_count > 0 and len(faces_data) > 0:
+                gaze_res = gaze_detector.estimate_gaze(faces_data[0].get("landmarks", []), img.shape)
 
             # Phone detection
             phone_detected, _ = phone_detector.detect_phone(img)
 
-            # Biometric Identity matching
+            # Biometric Identity matching (Strict real embedding comparison only)
             if faces_count == 1 and session.reference_embedding is not None and raw_faces is not None:
                 live_emb = face_recognizer.extract_embedding(img, raw_faces[0])
                 if live_emb is not None:
                     identity_match, similarity_score = face_recognizer.match(session.reference_embedding, live_emb)
                     session_manager.record_verification(session.session_id, identity_match)
-            elif faces_count != 1:
+                else:
+                    identity_match = False
+                    similarity_score = 0.0
+            else:
                 identity_match = False
                 similarity_score = 0.0
 
@@ -183,6 +231,11 @@ async def analyze_frame(req: AnalyzeFrameRequest):
     eval_res = await malpractice_detector.evaluate_frame(
         session=session,
         faces_count=faces_count,
+        persons_count=persons_count,
+        gaze_direction=gaze_res["gaze_direction"],
+        yaw=gaze_res["yaw"],
+        pitch=gaze_res["pitch"],
+        is_looking_away=gaze_res["is_looking_away"],
         identity_match=identity_match,
         similarity_score=similarity_score,
         phone_detected=phone_detected,
@@ -195,8 +248,13 @@ async def analyze_frame(req: AnalyzeFrameRequest):
         status="ACTIVE",
         faceDetected=(faces_count > 0),
         numFaces=faces_count,
+        numPersons=persons_count,
         identityVerified=identity_match,
         similarityScore=similarity_score,
+        gazeDirection=gaze_res["gaze_direction"],
+        yaw=gaze_res["yaw"],
+        pitch=gaze_res["pitch"],
+        isLookingAway=gaze_res["is_looking_away"],
         phoneDetected=phone_detected,
         micLevel=audio_res["mic_level"],
         voiceActive=audio_res["is_speech"],

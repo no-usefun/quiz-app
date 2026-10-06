@@ -196,8 +196,8 @@ public class ProctoringService {
         for (QuizAttemptProctoringEvent ev : events) {
             String type = ev.getEventType() != null ? ev.getEventType().toUpperCase(Locale.ROOT) : "UNKNOWN";
             switch (type) {
-                case "FACE_NOT_DETECTED" -> faceAbsence++;
-                case "MULTIPLE_FACES" -> multiFaces++;
+                case "FACE_NOT_DETECTED", "LOOKING_AWAY" -> faceAbsence++;
+                case "MULTIPLE_FACES", "MULTIPLE_PERSONS" -> multiFaces++;
                 case "PHONE_DETECTED" -> phoneDetections++;
                 case "IDENTITY_MISMATCH" -> identityMismatches++;
                 case "VOICE_ACTIVITY", "LOUD_VOICE" -> voiceDetections++;

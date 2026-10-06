@@ -47,8 +47,13 @@ export function useProctoring({
   const [isOnline, setIsOnline] = useState(false);
   const [faceDetected, setFaceDetected] = useState(true);
   const [numFaces, setNumFaces] = useState(1);
-  const [identityVerified, setIdentityVerified] = useState(true);
-  const [similarityScore, setSimilarityScore] = useState(1.0);
+  const [numPersons, setNumPersons] = useState(1);
+  const [identityVerified, setIdentityVerified] = useState(false); // Strict: Initial false until first verification
+  const [similarityScore, setSimilarityScore] = useState(0.0);
+  const [gazeDirection, setGazeDirection] = useState<"CENTER" | "LEFT" | "RIGHT" | "UP" | "DOWN">("CENTER");
+  const [yaw, setYaw] = useState(0.0);
+  const [pitch, setPitch] = useState(0.0);
+  const [isLookingAway, setIsLookingAway] = useState(false);
   const [phoneDetected, setPhoneDetected] = useState(false);
   const [micLevel, setMicLevel] = useState(0.0);
   const [voiceActive, setVoiceActive] = useState(false);
@@ -129,8 +134,23 @@ export function useProctoring({
     (telemetry: TelemetryResponse) => {
       setFaceDetected(telemetry.faceDetected);
       setNumFaces(telemetry.numFaces);
+      if (telemetry.numPersons !== undefined) {
+        setNumPersons(telemetry.numPersons);
+      }
       setIdentityVerified(telemetry.identityVerified);
       setSimilarityScore(telemetry.similarityScore);
+      if (telemetry.gazeDirection) {
+        setGazeDirection(telemetry.gazeDirection);
+      }
+      if (telemetry.yaw !== undefined) {
+        setYaw(telemetry.yaw);
+      }
+      if (telemetry.pitch !== undefined) {
+        setPitch(telemetry.pitch);
+      }
+      if (telemetry.isLookingAway !== undefined) {
+        setIsLookingAway(telemetry.isLookingAway);
+      }
       setPhoneDetected(telemetry.phoneDetected);
       setMicLevel(telemetry.micLevel);
       setVoiceActive(telemetry.voiceActive);
@@ -187,8 +207,8 @@ export function useProctoring({
       if (!mounted) return;
       setIsOnline(health.isOnline);
 
-      if (!health.isOnline) {
-        console.warn("AI Proctoring service is offline. Running in standby mode.");
+      if (!health.isOnline || !health.biometricReady) {
+        console.warn("AI Proctoring service or biometric model is unavailable.");
         return;
       }
 
@@ -250,7 +270,7 @@ export function useProctoring({
           console.warn("Web Audio API initialization failed:", audioErr);
         }
 
-        // 5. Connect WebSocket streaming (Point 10)
+        // 5. Connect WebSocket streaming
         try {
           const wsUrl = `${AI_PROCTORING_WS_URL}/ws/proctor/${sessionRes.sessionId}`;
           const ws = new WebSocket(wsUrl);
@@ -348,8 +368,13 @@ export function useProctoring({
     isOnline,
     faceDetected,
     numFaces,
+    numPersons,
     identityVerified,
     similarityScore,
+    gazeDirection,
+    yaw,
+    pitch,
+    isLookingAway,
     phoneDetected,
     micLevel,
     voiceActive,

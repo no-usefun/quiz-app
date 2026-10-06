@@ -4,6 +4,8 @@ import logging
 from config import (
     STREAK_NO_FACE,
     STREAK_MULTIPLE_FACES,
+    STREAK_MULTIPLE_PERSONS,
+    STREAK_LOOKING_AWAY,
     STREAK_PHONE,
     STREAK_IDENTITY_MISMATCH,
     STREAK_VOICE
@@ -20,6 +22,11 @@ class MalpracticeDetector:
         self,
         session: ProctoringSession,
         faces_count: int,
+        persons_count: int,
+        gaze_direction: str,
+        yaw: float,
+        pitch: float,
+        is_looking_away: bool,
         identity_match: bool,
         similarity_score: float,
         phone_detected: bool,
@@ -42,6 +49,7 @@ class MalpracticeDetector:
         if faces_count == 0:
             session.streaks["no_face"] += 1
             session.streaks["multiple_faces"] = 0
+            session.streaks["looking_away"] = 0
             session.streaks["identity_mismatch"] = 0
             if session.streaks["no_face"] >= STREAK_NO_FACE:
                 confirmed_event = "FACE_NOT_DETECTED"
@@ -62,7 +70,29 @@ class MalpracticeDetector:
         else:
             session.streaks["multiple_faces"] = 0
 
-        # 3. Evaluate Phone Detection
+        # 3. Evaluate Multiple Persons (YOLO body detection)
+        if persons_count > 1:
+            session.streaks["multiple_persons"] += 1
+            if session.streaks["multiple_persons"] >= STREAK_MULTIPLE_PERSONS:
+                confirmed_event = "MULTIPLE_PERSONS"
+                event_message = f"Multiple persons ({persons_count}) detected in room"
+                severity = "HIGH"
+                confidence = 0.95
+        else:
+            session.streaks["multiple_persons"] = 0
+
+        # 4. Evaluate Gaze / Looking Away (~2 seconds sustained deviation)
+        if faces_count == 1 and is_looking_away:
+            session.streaks["looking_away"] += 1
+            if session.streaks["looking_away"] >= STREAK_LOOKING_AWAY:
+                confirmed_event = "LOOKING_AWAY"
+                event_message = f"Sustained gaze deviation: Looking {gaze_direction} (yaw: {yaw}°, pitch: {pitch}°)"
+                severity = "HIGH"
+                confidence = 0.90
+        else:
+            session.streaks["looking_away"] = 0
+
+        # 5. Evaluate Phone Detection
         if phone_detected:
             session.streaks["phone"] += 1
             if session.streaks["phone"] >= STREAK_PHONE:
@@ -73,8 +103,9 @@ class MalpracticeDetector:
         else:
             session.streaks["phone"] = 0
 
-        # 4. Evaluate Biometric Identity Mismatch
+        # 6. Evaluate Biometric Identity Mismatch
         if faces_count == 1:
+            # Identity mismatch is evaluated only when face is present and match is False
             if not identity_match and similarity_score > 0.0:
                 session.streaks["identity_mismatch"] += 1
                 if session.streaks["identity_mismatch"] >= STREAK_IDENTITY_MISMATCH:
@@ -85,7 +116,7 @@ class MalpracticeDetector:
             else:
                 session.streaks["identity_mismatch"] = 0
 
-        # 5. Evaluate Voice Activity
+        # 7. Evaluate Voice Activity
         if is_loud:
             confirmed_event = "LOUD_VOICE"
             event_message = f"Loud voice detected (level: {mic_level:.2f})"

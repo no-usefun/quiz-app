@@ -27,8 +27,14 @@ def test_biometric_matching_different():
     assert is_match is False
     assert score < 0.1
 
-def test_biometric_none_inputs():
+def test_biometric_none_inputs_never_match():
     recognizer = BiometricFaceRecognizer()
-    is_match, score = recognizer.match(None, None)
-    assert is_match is False
-    assert score == 0.0
+    assert recognizer.match(None, None) == (False, 0.0)
+    emb = np.random.randn(1, 128).astype(np.float32)
+    assert recognizer.match(emb, None) == (False, 0.0)
+    assert recognizer.match(None, emb) == (False, 0.0)
+
+def test_biometric_extract_embedding_invalid_inputs():
+    recognizer = BiometricFaceRecognizer()
+    assert recognizer.extract_embedding(None, None) is None
+    assert recognizer.extract_embedding(np.zeros((10, 10, 3), dtype=np.uint8), None) is None

@@ -27,6 +27,8 @@ class ProctoringSession:
     streaks: Dict[str, int] = field(default_factory=lambda: {
         "no_face": 0,
         "multiple_faces": 0,
+        "multiple_persons": 0,
+        "looking_away": 0,
         "phone": 0,
         "identity_mismatch": 0,
         "voice": 0

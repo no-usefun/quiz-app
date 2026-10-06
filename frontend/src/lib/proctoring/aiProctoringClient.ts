@@ -9,10 +9,12 @@ export const AI_PROCTORING_WS_URL =
 export interface AIHealthResponse {
   status: string;
   service: string;
+  biometricAvailable: boolean;
   models: {
     yunet: boolean;
     sface: boolean;
-    yolo: boolean;
+    yolo_phone: boolean;
+    yolo_person: boolean;
   };
 }
 
@@ -30,6 +32,7 @@ export interface StartSessionResult {
   status: string;
   faceDetected: boolean;
   referenceRegistered: boolean;
+  biometricReady: boolean;
   message: string;
 }
 
@@ -43,8 +46,13 @@ export interface TelemetryResponse {
   status: string;
   faceDetected: boolean;
   numFaces: number;
+  numPersons: number;
   identityVerified: boolean;
   similarityScore: number;
+  gazeDirection: "CENTER" | "LEFT" | "RIGHT" | "UP" | "DOWN";
+  yaw: number;
+  pitch: number;
+  isLookingAway: boolean;
   phoneDetected: boolean;
   micLevel: number;
   voiceActive: boolean;
@@ -64,10 +72,10 @@ export interface StopSessionResult {
 }
 
 /**
- * Check if the Python AI microservice is online and loaded.
+ * Check if the Python AI microservice is online and loaded with biometric models.
  * No fake fallbacks allowed.
  */
-export async function checkAIHealth(): Promise<{ isOnline: boolean; details?: AIHealthResponse }> {
+export async function checkAIHealth(): Promise<{ isOnline: boolean; biometricReady: boolean; details?: AIHealthResponse }> {
   try {
     const res = await fetch(`${AI_PROCTORING_BASE_URL}/health`, {
       method: "GET",
@@ -76,17 +84,19 @@ export async function checkAIHealth(): Promise<{ isOnline: boolean; details?: AI
     });
     if (res.ok) {
       const data = (await res.json()) as AIHealthResponse;
-      return { isOnline: data.status === "UP", details: data };
+      const isOnline = data.status === "UP" || data.status === "DEGRADED";
+      const biometricReady = data.biometricAvailable === true && data.models?.sface === true;
+      return { isOnline, biometricReady, details: data };
     }
   } catch {
     // Offline
   }
-  return { isOnline: false };
+  return { isOnline: false, biometricReady: false };
 }
 
 /**
  * Registers student reference photo and initializes authoritative AI proctoring session.
- * Throws explicit error if Python AI is offline or reference face registration fails.
+ * Strictly throws explicit error if Python AI is offline or reference face registration fails.
  */
 export async function startProctoringSession(
   params: StartSessionParams
@@ -95,6 +105,11 @@ export async function startProctoringSession(
   if (!health.isOnline) {
     throw new Error(
       "AI_PROCTORING_OFFLINE: The AI Proctoring service is currently unavailable. Contact your test administrator."
+    );
+  }
+  if (!health.biometricReady) {
+    throw new Error(
+      "BIOMETRIC_OFFLINE: SFace biometric verification engine is offline. AI Proctoring cannot initialize."
     );
   }
 
@@ -112,7 +127,12 @@ export async function startProctoringSession(
     throw new Error(err.detail || "Reference photo registration failed. Ensure your face is clearly visible.");
   }
 
-  return (await res.json()) as StartSessionResult;
+  const result = (await res.json()) as StartSessionResult;
+  if (!result.referenceRegistered || !result.biometricReady) {
+    throw new Error("BIOMETRIC_REGISTRATION_FAILED: Could not establish biometric identity baseline.");
+  }
+
+  return result;
 }
 
 /**

@@ -10,6 +10,9 @@ import {
   MicOff,
   Volume2,
   Users,
+  Eye,
+  EyeOff,
+  Compass,
 } from "lucide-react";
 
 interface AIProctoringHUDProps {
@@ -17,8 +20,13 @@ interface AIProctoringHUDProps {
   cameraActive: boolean;
   faceDetected: boolean;
   numFaces: number;
+  numPersons?: number;
   identityVerified: boolean;
   similarityScore: number;
+  gazeDirection?: "CENTER" | "LEFT" | "RIGHT" | "UP" | "DOWN";
+  yaw?: number;
+  pitch?: number;
+  isLookingAway?: boolean;
   phoneDetected: boolean;
   micLevel: number; // 0.0 to 1.0
   voiceActive: boolean;
@@ -32,8 +40,13 @@ export function AIProctoringHUD({
   cameraActive,
   faceDetected,
   numFaces,
+  numPersons = 1,
   identityVerified,
   similarityScore,
+  gazeDirection = "CENTER",
+  yaw = 0.0,
+  pitch = 0.0,
+  isLookingAway = false,
   phoneDetected,
   micLevel,
   voiceActive,
@@ -99,11 +112,27 @@ export function AIProctoringHUD({
             </div>
           )}
 
+          {/* Multiple Persons Alert */}
+          {numPersons > 1 && (
+            <div className="inline-flex items-center gap-1 bg-rose-600/90 text-white text-[9px] font-bold px-1.5 py-0.5 rounded-[6px] shadow-sm animate-pulse">
+              <Users className="h-2.5 w-2.5" />
+              <span>{numPersons} PERSONS</span>
+            </div>
+          )}
+
           {/* Multiple Faces Alert */}
-          {numFaces > 1 && (
+          {numFaces > 1 && numPersons <= 1 && (
             <div className="inline-flex items-center gap-1 bg-rose-600/90 text-white text-[9px] font-bold px-1.5 py-0.5 rounded-[6px] shadow-sm">
               <Users className="h-2.5 w-2.5" />
               <span>{numFaces} FACES</span>
+            </div>
+          )}
+
+          {/* Looking Away Alert */}
+          {isLookingAway && faceDetected && (
+            <div className="inline-flex items-center gap-1 bg-amber-600/90 text-white text-[9px] font-bold px-1.5 py-0.5 rounded-[6px] shadow-sm">
+              <EyeOff className="h-2.5 w-2.5" />
+              <span>LOOKING {gazeDirection}</span>
             </div>
           )}
 
@@ -155,9 +184,33 @@ export function AIProctoringHUD({
           </span>
         </div>
 
+        {/* Gaze / Head Pose */}
+        <div className="flex items-center justify-between px-1 py-0.5 rounded-[6px] bg-[#f5f5f4]">
+          <span className="text-[#78716b] font-semibold flex items-center gap-1">
+            <Compass className="h-3 w-3" /> Gaze Pose
+          </span>
+          <span
+            className={`font-bold flex items-center gap-1 ${
+              !isLookingAway
+                ? "text-emerald-600"
+                : "text-amber-600"
+            }`}
+          >
+            {!isLookingAway ? (
+              <>
+                <Eye className="h-3 w-3" /> Center ({yaw > 0 ? `+${yaw}` : yaw}°, {pitch > 0 ? `+${pitch}` : pitch}°)
+              </>
+            ) : (
+              <>
+                <EyeOff className="h-3 w-3" /> {gazeDirection} ({yaw > 0 ? `+${yaw}` : yaw}°, {pitch > 0 ? `+${pitch}` : pitch}°)
+              </>
+            )}
+          </span>
+        </div>
+
         {/* Biometric Match */}
         <div className="flex items-center justify-between px-1 py-0.5 rounded-[6px] bg-[#f5f5f4]">
-          <span className="text-[#78716b] font-semibold">Identity</span>
+          <span className="text-[#78716b] font-semibold">Biometric ID</span>
           <span
             className={`font-bold ${
               identityVerified ? "text-emerald-600" : "text-rose-600"
@@ -165,7 +218,9 @@ export function AIProctoringHUD({
           >
             {identityVerified
               ? `Verified (${Math.round(similarityScore * 100)}%)`
-              : "Mismatch"}
+              : similarityScore > 0
+              ? `Mismatch (${Math.round(similarityScore * 100)}%)`
+              : "Unverified"}
           </span>
         </div>
 

@@ -28,6 +28,13 @@ FACE_CONFIDENCE_THRESHOLD = 0.50
 FACE_NMS_THRESHOLD = 0.30
 BIOMETRIC_COSINE_SIMILARITY_THRESHOLD = 0.363  # Validated OpenCV SFace threshold
 PHONE_CONFIDENCE_THRESHOLD = 0.30
+PERSON_CONFIDENCE_THRESHOLD = 0.35
+
+# Head Pose / Gaze Thresholds (in degrees)
+YAW_LEFT_THRESHOLD = -15.0
+YAW_RIGHT_THRESHOLD = 15.0
+PITCH_UP_THRESHOLD = -12.0
+PITCH_DOWN_THRESHOLD = 15.0
 
 # VAD Audio Thresholds
 VAD_ENERGY_THRESHOLD = 0.025
@@ -35,12 +42,14 @@ VAD_SPEECH_FREQ_MIN = 300   # Hz
 VAD_SPEECH_FREQ_MAX = 3400  # Hz
 LOUD_VOICE_RMS_THRESHOLD = 0.65
 
-# Temporal Consecutive Frame Thresholds (for debounced malpractice confirmation)
-STREAK_NO_FACE = 6         # ~2.0 seconds at 300ms intervals
-STREAK_MULTIPLE_FACES = 3  # ~1.0 second
-STREAK_PHONE = 2           # ~0.6 seconds
-STREAK_IDENTITY_MISMATCH = 4 # ~1.5 seconds
-STREAK_VOICE = 3           # ~1.0 second
+# Temporal Consecutive Frame Thresholds (for debounced malpractice confirmation at ~350ms per frame)
+STREAK_NO_FACE = 6            # ~2.1 seconds
+STREAK_MULTIPLE_FACES = 3     # ~1.0 second
+STREAK_MULTIPLE_PERSONS = 4   # ~1.4 seconds
+STREAK_LOOKING_AWAY = 6       # ~2.1 seconds sustained gaze deviation
+STREAK_PHONE = 2              # ~0.7 seconds
+STREAK_IDENTITY_MISMATCH = 4  # ~1.4 seconds
+STREAK_VOICE = 3              # ~1.0 second
 
 def ensure_models_exist():
     """Ensure ONNX and YOLO weights exist in models directory."""

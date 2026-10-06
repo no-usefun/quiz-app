@@ -7,6 +7,8 @@ from api.routes import (
     face_recognizer,
     audio_detector,
     phone_detector,
+    person_detector,
+    gaze_detector,
     malpractice_detector,
     decode_base64_image
 )
@@ -47,8 +49,10 @@ async def proctoring_websocket_endpoint(websocket: WebSocket, session_id: str):
             audio_samples = msg.get("audio")
 
             faces_count = 0
-            identity_match = True
-            similarity_score = 1.0
+            persons_count = 0
+            gaze_res = {"gaze_direction": "CENTER", "yaw": 0.0, "pitch": 0.0, "is_looking_away": False}
+            identity_match = False  # Strict: Never default to True
+            similarity_score = 0.0  # Strict: Never default to 1.0
             phone_detected = False
 
             # Frame processing
@@ -57,6 +61,13 @@ async def proctoring_websocket_endpoint(websocket: WebSocket, session_id: str):
                 if img is not None:
                     faces_data, raw_faces = face_detector.detect_faces(img)
                     faces_count = len(faces_data)
+
+                    # Person detection (YOLO)
+                    persons_count, _ = person_detector.detect_persons(img)
+
+                    # Gaze / Head Pose estimation
+                    if faces_count > 0 and len(faces_data) > 0:
+                        gaze_res = gaze_detector.estimate_gaze(faces_data[0].get("landmarks", []), img.shape)
 
                     # Phone detection
                     phone_detected, _ = phone_detector.detect_phone(img)
@@ -67,7 +78,10 @@ async def proctoring_websocket_endpoint(websocket: WebSocket, session_id: str):
                         if live_emb is not None:
                             identity_match, similarity_score = face_recognizer.match(session.reference_embedding, live_emb)
                             session_manager.record_verification(session.session_id, identity_match)
-                    elif faces_count != 1:
+                        else:
+                            identity_match = False
+                            similarity_score = 0.0
+                    else:
                         identity_match = False
                         similarity_score = 0.0
 
@@ -80,6 +94,11 @@ async def proctoring_websocket_endpoint(websocket: WebSocket, session_id: str):
             eval_res = await malpractice_detector.evaluate_frame(
                 session=session,
                 faces_count=faces_count,
+                persons_count=persons_count,
+                gaze_direction=gaze_res["gaze_direction"],
+                yaw=gaze_res["yaw"],
+                pitch=gaze_res["pitch"],
+                is_looking_away=gaze_res["is_looking_away"],
                 identity_match=identity_match,
                 similarity_score=similarity_score,
                 phone_detected=phone_detected,
@@ -93,8 +112,13 @@ async def proctoring_websocket_endpoint(websocket: WebSocket, session_id: str):
                 "status": "ACTIVE",
                 "faceDetected": (faces_count > 0),
                 "numFaces": faces_count,
+                "numPersons": persons_count,
                 "identityVerified": identity_match,
                 "similarityScore": similarity_score,
+                "gazeDirection": gaze_res["gaze_direction"],
+                "yaw": gaze_res["yaw"],
+                "pitch": gaze_res["pitch"],
+                "isLookingAway": gaze_res["is_looking_away"],
                 "phoneDetected": phone_detected,
                 "micLevel": audio_res["mic_level"],
                 "voiceActive": audio_res["is_speech"],
