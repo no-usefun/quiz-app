@@ -33,6 +33,7 @@ export default function TeacherDashboard() {
   const [fetchError, setFetchError] = useState<string | null>(null);
   const [copiedCode, setCopiedCode] = useState<string | null>(null);
   const [mounted, setMounted] = useState(false);
+  const [visibleCount, setVisibleCount] = useState(5);
 
   const [quizToEnd, setQuizToEnd] = useState<{
     quizId: number;
@@ -140,6 +141,10 @@ export default function TeacherDashboard() {
 
     fetchQuizzes();
   }, [sessionLoading]);
+
+  useEffect(() => {
+    setVisibleCount(5);
+  }, [tests.length]);
 
   const replaceQuizInState = (updatedQuiz: QuizResponse) => {
     const normalized = normalizeQuiz(updatedQuiz);
@@ -264,6 +269,13 @@ export default function TeacherDashboard() {
   const completedCount = tests.filter(
     (test) => test.displayState === "Completed",
   ).length;
+
+  const visibleTests = tests.slice(0, visibleCount);
+  const hasMoreTests = visibleCount < tests.length;
+
+  const handleLoadMore = () => {
+    setVisibleCount((current) => Math.min(current + 5, tests.length));
+  };
 
   const getBadgeStyle = (displayState: QuizDisplayState) => {
     switch (displayState) {
@@ -416,7 +428,7 @@ export default function TeacherDashboard() {
                 </Link>
               </div>
             ) : (
-              tests.map((test, idx) => {
+              visibleTests.map((test, idx) => {
                 const quizId = test.quizId;
                 const code = test.quizCode;
                 const name = test.title || "Assessment";
@@ -463,9 +475,9 @@ export default function TeacherDashboard() {
                       duration: 0.2,
                       ease: "easeOut",
                     }}
-                    className="flex flex-col rounded-[14px] bg-white border border-[#d1dee8]/70 p-4 sm:p-5 sm:flex-row sm:items-center sm:justify-between gap-4 shadow-sm hover:border-[#165dfb]/40 hover:shadow-md hover:-translate-y-[1px] transition-all duration-200 cursor-pointer"
+                    className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4 rounded-[14px] bg-white border border-[#d1dee8]/70 p-4 sm:p-5 shadow-sm hover:border-[#165dfb]/40 hover:shadow-md hover:-translate-y-[1px] transition-all duration-200 cursor-pointer"
                   >
-                    <div className="min-w-0 space-y-1.5">
+                    <div className="min-w-0 flex-1 space-y-1.5">
                       <div className="flex items-center gap-2">
                         <span
                           className={`flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-[9px] font-bold ${getBadgeStyle(
@@ -479,7 +491,7 @@ export default function TeacherDashboard() {
                           {displayState}
                         </span>
 
-                        <h3 className="font-extrabold text-[#111111] text-sm truncate">
+                        <h3 className="min-w-0 flex-1 font-extrabold text-[#111111] text-sm leading-5 break-words">
                           {name}
                         </h3>
                       </div>
@@ -533,7 +545,7 @@ export default function TeacherDashboard() {
                     </div>
 
                     <div
-                      className="flex flex-wrap items-center gap-2 shrink-0"
+                      className="flex w-full lg:w-auto lg:max-w-[48%] flex-wrap items-center gap-2 shrink-0"
                       onClick={(event) => event.stopPropagation()}
                     >
                       {displayState === "Draft" && (
@@ -644,6 +656,21 @@ export default function TeacherDashboard() {
               })
             )}
           </div>
+
+          {!loading && !fetchError && hasMoreTests && (
+            <div className="flex justify-center pt-1">
+              <button
+                type="button"
+                onClick={handleLoadMore}
+                className="inline-flex items-center justify-center rounded-[10px] border border-[#d1dee8]/80 bg-white px-5 py-2 text-xs font-bold text-[#111111] hover:bg-[#f5f5f4] hover:border-[#b9cbd9] shadow-xs active:scale-[0.98] transition-all cursor-pointer"
+              >
+                Load More
+                <span className="ml-1.5 text-[#78716b]">
+                  ({Math.min(5, tests.length - visibleCount)} more)
+                </span>
+              </button>
+            </div>
+          )}
         </section>
       </main>
 
