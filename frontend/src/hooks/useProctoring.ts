@@ -108,6 +108,7 @@ export function useProctoring(
     typeof document !== "undefined" && !!document.fullscreenElement,
   );
   const eventsRef = useRef<ProctoringEvent[]>(persisted.events);
+  const lastTabOrFullscreenExitRef = useRef(0);
 
   const persist = useCallback(
     (nextFlags: ProctoringFlags, nextEvents: ProctoringEvent[]) => {
@@ -209,9 +210,24 @@ export function useProctoring(
   useEffect(() => {
     if (typeof window === "undefined") return;
 
+    const recordTabOrFullscreenExit = (message: string) => {
+      const now = Date.now();
+
+      // Browsers can emit visibilitychange and fullscreenchange for the same
+      // user action. Treat that action as one unified proctoring violation.
+      if (now - lastTabOrFullscreenExitRef.current < 1000) {
+        return;
+      }
+
+      lastTabOrFullscreenExitRef.current = now;
+      record("tab_switch", message);
+    };
+
     const onVisibilityChange = () => {
       if (document.hidden) {
-        record("tab_switch", "Tab or browser visibility change detected.");
+        recordTabOrFullscreenExit(
+          "Tab or browser visibility change detected.",
+        );
       }
     };
 
@@ -226,8 +242,7 @@ export function useProctoring(
       setIsFullscreen(active);
 
       if (!active) {
-        record(
-          "tab_switch",
+        recordTabOrFullscreenExit(
           "The assessment left fullscreen or browser visibility was exited.",
         );
       }
