@@ -66,7 +66,7 @@ class AuthControllerTest {
                 summary = new UserSummaryResponse(
                                 1L, "Jane", "Smith", "Jane Smith", "jane@example.com",
                                 "TEACHER", "College", "CS", null, null, "LOCAL",
-                                null, true, true);
+                                null, true, true, true);
 
                 authResponse = new AuthResponse("jwt", 3600000L, summary);
         }
