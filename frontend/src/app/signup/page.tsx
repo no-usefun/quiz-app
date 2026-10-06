@@ -102,36 +102,6 @@ function SignupContent() {
     }
   }, [searchParams]);
 
-  if (lanExamMode) {
-    return (
-      <main className="flex min-h-screen items-center justify-center bg-neutral-50 px-4 py-8 font-sans">
-        <div className="w-full max-w-md rounded-2xl border border-neutral-100 bg-white p-8 text-center shadow-[0_18px_55px_-24px_rgba(15,23,42,0.18)]">
-          <div className="mx-auto flex h-11 w-11 items-center justify-center rounded-xl bg-[#e8f0ff] text-[#165dfb]">
-            <Presentation className="h-5 w-5" />
-          </div>
-          <p className="mt-4 text-[10px] font-bold uppercase tracking-[0.18em] text-neutral-400">
-            LAN Exam Mode
-          </p>
-          <h1 className="mt-1.5 text-xl font-bold tracking-tight text-neutral-900">
-            Account creation is disabled
-          </h1>
-          <p className="mt-2 text-sm leading-relaxed text-neutral-500">
-            Use an account that was prepared before the exam. Online signup is
-            not part of the local exam workflow.
-          </p>
-          <button
-            type="button"
-            onClick={() => router.push("/login")}
-            className="mt-5 inline-flex w-full items-center justify-center gap-2 rounded-lg bg-neutral-900 px-4 py-3 text-sm font-bold text-white transition-all hover:bg-black"
-          >
-            Go to Local Login
-            <ArrowRight className="h-4 w-4" />
-          </button>
-        </div>
-      </main>
-    );
-  }
-
   // Password validation
   const passwordRequirements = {
     minLength: password.length >= 8,
@@ -561,6 +531,7 @@ function SignupContent() {
           </div>
         )}
 
+        {!lanExamMode && (
         <button
           type="button"
           onClick={() => {
@@ -583,6 +554,9 @@ function SignupContent() {
           <GoogleIcon />
           Sign up with Google
         </button>
+        )}
+
+
 
         <div className="my-5 flex items-center gap-3">
           <div className="h-px flex-1 bg-neutral-100" />
