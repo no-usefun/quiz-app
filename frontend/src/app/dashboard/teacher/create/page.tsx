@@ -1913,6 +1913,7 @@ function CreateAssessmentContent() {
                     type="text"
                     value={subject}
                     onChange={(e) => setSubject(e.target.value)}
+                    placeholder="e.g. Computer Science"
                     className={inputClass}
                   />
                 </div>
@@ -1922,6 +1923,7 @@ function CreateAssessmentContent() {
                     type="text"
                     value={subjectCode}
                     onChange={(e) => setSubjectCode(e.target.value)}
+                    placeholder="e.g. CS-201"
                     className={inputClass}
                   />
                 </div>
