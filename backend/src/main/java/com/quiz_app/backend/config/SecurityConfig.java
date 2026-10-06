@@ -92,7 +92,8 @@ public class SecurityConfig {
                                                                 "/api/v1/auth/forgot-password",
                                                                 "/api/v1/auth/reset-password",
                                                                 "/",
-                                                                "/api/v1/health")
+                                                                "/api/v1/health",
+                                                                "/favicon.ico")
                                                 .permitAll()
                                                 // Swagger / OpenAPI
                                                 .requestMatchers(

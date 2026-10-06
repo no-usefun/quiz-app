@@ -3,6 +3,8 @@ package com.quiz_app.backend.security;
 import java.io.IOException;
 import java.util.Locale;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.oauth2.client.authentication.OAuth2AuthenticationToken;
 import org.springframework.security.oauth2.core.oidc.user.OidcUser;
@@ -15,6 +17,7 @@ import com.quiz_app.backend.dto.auth.UserSummaryResponse;
 import com.quiz_app.backend.entity.Role;
 import com.quiz_app.backend.entity.User;
 import com.quiz_app.backend.entity.UserIdentity;
+import com.quiz_app.backend.exception.ErrorResponse;
 import com.quiz_app.backend.repository.RoleRepository;
 import com.quiz_app.backend.repository.UserIdentityRepository;
 import com.quiz_app.backend.repository.UserRepository;
@@ -26,6 +29,9 @@ import jakarta.servlet.http.HttpServletResponse;
 @Component
 public class OAuth2AuthenticationSuccessHandler
         implements AuthenticationSuccessHandler {
+
+    private static final Logger logger =
+            LoggerFactory.getLogger(OAuth2AuthenticationSuccessHandler.class);
 
     private final UserIdentityRepository userIdentityRepository;
     private final UserRepository userRepository;
@@ -57,21 +63,29 @@ public class OAuth2AuthenticationSuccessHandler
 
         String email = oidcUser.getAttribute("email");
         String subject = oidcUser.getSubject();
-        String issuer = oidcUser.getIssuer().toString();
+        String issuer = oidcUser.getIssuer() == null
+                ? null
+                : oidcUser.getIssuer().toString();
 
         Boolean emailVerified =
                 oidcUser.getAttribute("email_verified");
 
         if (!Boolean.TRUE.equals(emailVerified)) {
-            response.sendError(
+            writeOAuthError(
+                    request,
+                    response,
                     HttpServletResponse.SC_FORBIDDEN,
+                    "SSO_EMAIL_NOT_VERIFIED",
                     "Google account email is not verified");
             return;
         }
 
         if (email == null || subject == null || issuer == null) {
-            response.sendError(
+            writeOAuthError(
+                    request,
+                    response,
                     HttpServletResponse.SC_BAD_REQUEST,
+                    "SSO_IDENTITY_INVALID",
                     "SSO provider did not return required identity information");
             return;
         }
@@ -83,8 +97,11 @@ public class OAuth2AuthenticationSuccessHandler
                     RoleAwareOAuth2AuthorizationRequestResolver.extractRole(
                             request.getParameter("state"));
         } catch (IllegalArgumentException e) {
-            response.sendError(
+            writeOAuthError(
+                    request,
+                    response,
                     HttpServletResponse.SC_BAD_REQUEST,
+                    "SSO_STATE_INVALID",
                     "Invalid or missing SSO role state");
             return;
         }
@@ -95,54 +112,112 @@ public class OAuth2AuthenticationSuccessHandler
         String normalizedEmail =
                 email.trim().toLowerCase(Locale.ROOT);
 
-        User user = userIdentityRepository
-                .findByIssuerAndSubject(issuer, subject)
-                .map(UserIdentity::getUser)
-                .orElse(null);
+        try {
+            User user = userIdentityRepository
+                    .findByIssuerAndSubject(issuer, subject)
+                    .map(UserIdentity::getUser)
+                    .orElse(null);
 
-        if (user != null) {
-            if (user.getRole() == null
-                    || !requestedRole.equalsIgnoreCase(
-                            user.getRole().getName())) {
-                response.sendError(
-                        HttpServletResponse.SC_CONFLICT,
-                        "The selected role does not match this Google account");
-                return;
+            if (user != null) {
+                if (user.getRole() == null
+                        || !requestedRole.equalsIgnoreCase(
+                                user.getRole().getName())) {
+                    writeOAuthError(
+                            request,
+                            response,
+                            HttpServletResponse.SC_CONFLICT,
+                            "ROLE_MISMATCH",
+                            "The selected role does not match this Google account");
+                    return;
+                }
+            } else {
+                if (userRepository.findByEmail(normalizedEmail).isPresent()) {
+                    writeOAuthError(
+                            request,
+                            response,
+                            HttpServletResponse.SC_CONFLICT,
+                            "SSO_EMAIL_ALREADY_EXISTS",
+                            "An account with this email already exists. "
+                                    + "Sign in with the existing account first; "
+                                    + "Google linking is not automatic.");
+                    return;
+                }
+
+                user = createNewSsoUser(
+                        normalizedEmail,
+                        requestedRole);
+
+                createIdentity(
+                        user,
+                        issuer,
+                        subject,
+                        registrationId);
             }
-        } else {
-            if (userRepository.findByEmail(normalizedEmail).isPresent()) {
-                response.sendError(
-                        HttpServletResponse.SC_CONFLICT,
-                        "An account with this email already exists. "
-                                + "Sign in with the existing account first; "
-                                + "Google linking is not automatic.");
-                return;
+
+            String jwt = jwtUtils.generateToken(user);
+
+            AuthResponse authResponse = new AuthResponse(
+                    jwt,
+                    jwtUtils.getExpirationMs(),
+                    UserSummaryResponse.fromEntity(user));
+
+            response.setStatus(HttpServletResponse.SC_OK);
+            response.setContentType("application/json");
+            response.setCharacterEncoding("UTF-8");
+
+            new ObjectMapper().writeValue(
+                    response.getWriter(),
+                    authResponse);
+
+        } catch (RuntimeException e) {
+            logger.error(
+                    "OAuth2 authentication processing failed for provider {}",
+                    registrationId,
+                    e);
+
+            if (!response.isCommitted()) {
+                writeOAuthError(
+                        request,
+                        response,
+                        HttpServletResponse.SC_INTERNAL_SERVER_ERROR,
+                        "SSO_AUTHENTICATION_FAILED",
+                        "Unable to complete Google sign-in");
             }
+        }
+    }
 
-            user = createNewSsoUser(
-                    normalizedEmail,
-                    requestedRole);
+    private void writeOAuthError(
+            HttpServletRequest request,
+            HttpServletResponse response,
+            int status,
+            String code,
+            String message) throws IOException {
 
-            createIdentity(
-                    user,
-                    issuer,
-                    subject,
-                    registrationId);
+        if (response.isCommitted()) {
+            logger.warn(
+                    "OAuth2 error response could not be written because the response is already committed: {}",
+                    code);
+            return;
         }
 
-        String jwt = jwtUtils.generateToken(user);
+        ErrorResponse errorResponse = new ErrorResponse(
+                status,
+                code,
+                status == HttpServletResponse.SC_CONFLICT
+                        ? "Conflict"
+                        : status >= 500
+                                ? "Internal Server Error"
+                                : "OAuth Authentication Error",
+                message,
+                request.getRequestURI());
 
-        AuthResponse authResponse = new AuthResponse(
-                jwt,
-                jwtUtils.getExpirationMs(),
-                UserSummaryResponse.fromEntity(user));
-
+        response.setStatus(status);
         response.setContentType("application/json");
         response.setCharacterEncoding("UTF-8");
 
         new ObjectMapper().writeValue(
                 response.getWriter(),
-                authResponse);
+                errorResponse);
     }
 
     private void createIdentity(
