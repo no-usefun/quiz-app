@@ -7,5 +7,6 @@ const configuredMode = String(process.env.NEXT_PUBLIC_EXAM_MODE ?? "")
   .trim()
   .toUpperCase();
 
-export const isLanExamMode =
-  configuredMode === "LAN" || configuredMode === "OFFLINE_LAN";
+export function isLanExamMode(): boolean {
+  return configuredMode === "LAN" || configuredMode === "OFFLINE_LAN";
+}
