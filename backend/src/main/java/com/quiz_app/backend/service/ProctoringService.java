@@ -245,12 +245,13 @@ public class ProctoringService {
         int multiPersons = 0;
         int lookingAway = 0;
         int phoneDetections = 0;
-        int identityMismatches = 0;
+        int individualIdentityMismatches = 0;
         int voiceDetections = 0;
         int tabSwitches = 0;
 
         int totalFaceChecks = 0;
         int identityMatches = 0;
+        int summaryIdentityMismatches = 0;
         boolean hasSummary = false;
 
         List<TeacherProctoringReportResponse.ProctoringEventDetail> eventDetails = new ArrayList<>();
@@ -268,7 +269,7 @@ public class ProctoringService {
                         identityMatches = node.get("identityMatches").asInt(0);
                     }
                     if (node.has("identityMismatches")) {
-                        identityMismatches = Math.max(identityMismatches, node.get("identityMismatches").asInt(0));
+                        summaryIdentityMismatches = node.get("identityMismatches").asInt(0);
                     }
                     hasSummary = true;
                 } catch (Exception ignored) {
@@ -282,30 +283,40 @@ public class ProctoringService {
                 case "MULTIPLE_PERSONS" -> multiPersons++;
                 case "LOOKING_AWAY" -> lookingAway++;
                 case "PHONE_DETECTED" -> phoneDetections++;
-                case "IDENTITY_MISMATCH" -> identityMismatches++;
+                case "IDENTITY_MISMATCH" -> individualIdentityMismatches++;
                 case "VOICE_ACTIVITY", "LOUD_VOICE" -> voiceDetections++;
                 case "TAB_SWITCH", "FULLSCREEN_EXIT" -> tabSwitches++;
             }
 
             // Extract severity and confidence
-            String detailsText = ev.getMetadataJson();
-            String severity = type.contains("PHONE") || type.contains("IDENTITY") ? "CRITICAL" : "HIGH";
-            Double confidence = 0.90;
+            String detailsText = null;
+            String severity = null;
+            Double confidence = null;
 
-            if (ev.getMetadataJson() != null && ev.getMetadataJson().startsWith("{")) {
+            if (ev.getMetadataJson() != null && ev.getMetadataJson().trim().startsWith("{")) {
                 try {
                     JsonNode node = objectMapper.readTree(ev.getMetadataJson());
-                    if (node.has("details")) {
+                    if (node.has("details") && !node.get("details").isNull()) {
                         detailsText = node.get("details").asText();
                     }
-                    if (node.has("severity")) {
+                    if (node.has("severity") && !node.get("severity").isNull()) {
                         severity = node.get("severity").asText();
                     }
-                    if (node.has("confidence")) {
+                    if (node.has("confidence") && !node.get("confidence").isNull()) {
                         confidence = node.get("confidence").asDouble();
                     }
                 } catch (Exception ignored) {
                 }
+            }
+
+            if (severity == null || severity.isBlank()) {
+                severity = (type.contains("PHONE") || type.contains("IDENTITY")) ? "CRITICAL" : "HIGH";
+            }
+            if (confidence == null) {
+                confidence = 0.90;
+            }
+            if (detailsText == null || detailsText.isBlank()) {
+                detailsText = formatEventTitle(type);
             }
 
             eventDetails.add(new TeacherProctoringReportResponse.ProctoringEventDetail(
@@ -318,18 +329,18 @@ public class ProctoringService {
             ));
         }
 
-        // Real identity counts: never fabricate numbers with artificial multipliers
-        if (!hasSummary) {
-            totalFaceChecks = identityMismatches;
-            identityMatches = 0;
-        }
+        // Real biometric totals: use summary if present, otherwise 0
+        int finalTotalFaceChecks = hasSummary ? totalFaceChecks : 0;
+        int finalIdentityMatches = hasSummary ? identityMatches : 0;
+        int finalIdentityMismatches = hasSummary ? summaryIdentityMismatches : 0;
 
-        int totalViolations = faceAbsence + multiFaces + multiPersons + lookingAway + phoneDetections + identityMismatches + voiceDetections + tabSwitches;
+        // Total violations count represents actual malpractice violation events only (excluding SESSION_SUMMARY)
+        int totalViolations = faceAbsence + multiFaces + multiPersons + lookingAway + phoneDetections + individualIdentityMismatches + voiceDetections + tabSwitches;
 
-        // Weighted risk score calculation
+        // Weighted risk score calculation based on actual recorded malpractice events
         int riskScore = Math.min(100,
                 (phoneDetections * 35) +
-                (identityMismatches * 30) +
+                (individualIdentityMismatches * 30) +
                 (multiPersons * 25) +
                 (multiFaces * 20) +
                 (lookingAway * 15) +
@@ -354,9 +365,9 @@ public class ProctoringService {
                 totalViolations,
                 riskScore,
                 riskLevel,
-                totalFaceChecks,
-                identityMatches,
-                identityMismatches,
+                finalTotalFaceChecks,
+                finalIdentityMatches,
+                finalIdentityMismatches,
                 faceAbsence,
                 multiFaces,
                 multiPersons,

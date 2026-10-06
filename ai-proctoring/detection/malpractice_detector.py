@@ -230,3 +230,12 @@ class MalpracticeDetector:
                 logger.warning("Spring Boot proctoring summary returned %d: %s", resp.status_code, resp.text)
         except Exception as e:
             logger.error("Failed to post proctoring summary to Spring Boot: %s", e)
+
+    async def close(self):
+        """Closes the underlying HTTP client cleanly."""
+        try:
+            if not self.http_client.is_closed:
+                await self.http_client.aclose()
+        except Exception as e:
+            logger.error("Error closing MalpracticeDetector HTTP client: %s", e)
+

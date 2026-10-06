@@ -189,39 +189,57 @@ class ProctoringServiceTest {
     }
 
     @Test
-    void testGetAttemptProctoringReport_UsesRealVerificationData() {
+    void testGetAttemptProctoringReport_UsesRealVerificationData_NoDoubleCounting() {
         when(quizAttemptRepository.findById(100L)).thenReturn(Optional.of(testAttempt));
 
         QuizAttemptProctoringEvent evSummary = new QuizAttemptProctoringEvent();
         setField(evSummary, "id", 1L);
         evSummary.setEventType("SESSION_SUMMARY");
         evSummary.setMetadataJson("{\"totalFaceChecks\":42,\"identityMatches\":40,\"identityMismatches\":2}");
-        evSummary.setOccurredAt(LocalDateTime.now());
+        evSummary.setOccurredAt(LocalDateTime.now().minusMinutes(1));
 
         QuizAttemptProctoringEvent evPhone = new QuizAttemptProctoringEvent();
         setField(evPhone, "id", 2L);
         evPhone.setEventType("PHONE_DETECTED");
         evPhone.setMetadataJson("{\"details\":\"Phone detected\",\"severity\":\"CRITICAL\",\"confidence\":0.95}");
-        evPhone.setOccurredAt(LocalDateTime.now());
+        evPhone.setOccurredAt(LocalDateTime.now().minusMinutes(5));
 
         QuizAttemptProctoringEvent evGaze = new QuizAttemptProctoringEvent();
         setField(evGaze, "id", 3L);
         evGaze.setEventType("LOOKING_AWAY");
         evGaze.setMetadataJson("{\"details\":\"Looking left\",\"severity\":\"HIGH\",\"confidence\":0.90}");
-        evGaze.setOccurredAt(LocalDateTime.now());
+        evGaze.setOccurredAt(LocalDateTime.now().minusMinutes(4));
 
-        when(proctoringEventRepository.findByAttemptId(100L)).thenReturn(List.of(evSummary, evPhone, evGaze));
+        QuizAttemptProctoringEvent evMismatch1 = new QuizAttemptProctoringEvent();
+        setField(evMismatch1, "id", 4L);
+        evMismatch1.setEventType("IDENTITY_MISMATCH");
+        evMismatch1.setMetadataJson("{\"details\":\"Biometric mismatch\",\"severity\":\"CRITICAL\",\"confidence\":0.92}");
+        evMismatch1.setOccurredAt(LocalDateTime.now().minusMinutes(3));
+
+        QuizAttemptProctoringEvent evMismatch2 = new QuizAttemptProctoringEvent();
+        setField(evMismatch2, "id", 5L);
+        evMismatch2.setEventType("IDENTITY_MISMATCH");
+        evMismatch2.setMetadataJson("{\"details\":\"Biometric mismatch #2\",\"severity\":\"CRITICAL\",\"confidence\":0.94}");
+        evMismatch2.setOccurredAt(LocalDateTime.now().minusMinutes(2));
+
+        when(proctoringEventRepository.findByAttemptId(100L))
+                .thenReturn(List.of(evSummary, evPhone, evGaze, evMismatch1, evMismatch2));
 
         TeacherProctoringReportResponse report = proctoringService.getAttemptProctoringReport(100L, 20L);
 
         assertNotNull(report);
         assertEquals(100L, report.attemptId());
-        assertEquals(42, report.totalFaceChecks()); // Real value from summary
-        assertEquals(40, report.identityMatches()); // Real value from summary
-        assertEquals(2, report.identityMismatches()); // Real value from summary
+        // Biometric summary is authoritative: exactly 42, 40, 2 (NOT double-counted to 4!)
+        assertEquals(42, report.totalFaceChecks());
+        assertEquals(40, report.identityMatches());
+        assertEquals(2, report.identityMismatches());
+        // Discrete violation counters
         assertEquals(1, report.phoneDetectionsCount());
         assertEquals(1, report.lookingAwayCount());
+        // Total violations is the count of actual malpractice events (1 phone + 1 gaze + 2 mismatches = 4)
         assertEquals(4, report.totalViolationsCount());
+        // SESSION_SUMMARY is not added to event timeline
+        assertEquals(4, report.events().size());
         assertEquals("CRITICAL", report.events().get(0).severity());
         assertEquals(0.95, report.events().get(0).confidence());
     }
@@ -239,6 +257,17 @@ class ProctoringServiceTest {
         assertEquals(0, report.identityMismatches());
         assertEquals(0, report.totalViolationsCount());
         assertEquals(0, report.riskScore());
+    }
+
+    @Test
+    void testRecordProctoringEvent_ThrowsAccessDeniedForUnauthorizedUser() {
+        when(quizAttemptRepository.findById(100L)).thenReturn(Optional.of(testAttempt));
+
+        ProctoringEventRequest request = new ProctoringEventRequest("PHONE_DETECTED", "Phone", "CRITICAL", 0.95, null);
+        org.junit.jupiter.api.Assertions.assertThrows(
+                com.quiz_app.backend.exception.AccessDeniedApplicationException.class,
+                () -> proctoringService.recordProctoringEvent(100L, request, 999L) // Wrong user ID
+        );
     }
 
     @Test

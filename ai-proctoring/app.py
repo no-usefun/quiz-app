@@ -1,8 +1,10 @@
+from contextlib import asynccontextmanager
 import uvicorn
 import logging
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from api import router, ws_router
+from api.routes import malpractice_detector
 from config import HOST, PORT, ensure_models_exist
 
 # Configure logging
@@ -15,10 +17,18 @@ logger = logging.getLogger("ai-proctoring")
 # Pre-download & ensure models
 ensure_models_exist()
 
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    logger.info("AI Proctoring Microservice initialized.")
+    yield
+    logger.info("AI Proctoring Microservice shutting down... Closing resources.")
+    await malpractice_detector.close()
+
 app = FastAPI(
     title="Quizly AI Proctoring Service",
     version="2.0.0",
-    description="Microservice for OpenCV YuNet face detection, SFace biometrics, VAD audio, and YOLOv8 device detection."
+    description="Microservice for OpenCV YuNet face detection, SFace biometrics, VAD audio, and YOLOv8 device detection.",
+    lifespan=lifespan
 )
 
 app.add_middleware(
