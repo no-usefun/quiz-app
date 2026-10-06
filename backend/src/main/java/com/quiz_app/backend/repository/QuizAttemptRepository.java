@@ -15,6 +15,8 @@ public interface QuizAttemptRepository
                         String quizCode,
                         Long studentId);
 
+        boolean existsByQuizId(Long quizId);
+
         List<QuizAttempt> findByQuizId(Long quizId);
 
         List<QuizAttempt> findByStudentIdAndStatusInOrderBySubmittedAtDesc(
