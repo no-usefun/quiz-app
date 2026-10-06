@@ -15,6 +15,7 @@ import org.springframework.transaction.annotation.Transactional;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.quiz_app.backend.dto.attempt.SubmitAttemptRequest;
+import com.quiz_app.backend.dto.proctoring.ProctoringAccessVerificationResponse;
 import com.quiz_app.backend.dto.proctoring.ProctoringEventRequest;
 import com.quiz_app.backend.dto.proctoring.ProctoringEventResponse;
 import com.quiz_app.backend.dto.proctoring.ProctoringSummaryRequest;
@@ -58,6 +59,39 @@ public class ProctoringService {
         this.quizRepository = quizRepository;
         this.studentAttemptService = studentAttemptService;
         this.objectMapper = new ObjectMapper();
+    }
+
+    @Transactional(readOnly = true)
+    public ProctoringAccessVerificationResponse verifyAttemptAccess(Long attemptId, Long authenticatedUserId) {
+        if (attemptId == null) {
+            throw new BadRequestException("INVALID_ATTEMPT_ID", "Attempt ID is required");
+        }
+
+        QuizAttempt attempt = quizAttemptRepository.findById(attemptId)
+                .orElseThrow(() -> new ResourceNotFoundException("Quiz attempt not found"));
+
+        if (authenticatedUserId == null) {
+            throw new AccessDeniedApplicationException("UNAUTHENTICATED", "Authentication is required");
+        }
+
+        if (attempt.getStudent() == null || !attempt.getStudent().getId().equals(authenticatedUserId)) {
+            throw new AccessDeniedApplicationException("UNAUTHORIZED_ATTEMPT", "User does not own this attempt");
+        }
+
+        boolean isProgress = attempt.getStatus() == AttemptStatus.IN_PROGRESS;
+        String testCode = (attempt.getQuiz() != null) ? attempt.getQuiz().getQuizCode() : "";
+        String studentIdStr = attempt.getStudent().getId().toString();
+        String studentEmail = attempt.getStudent().getEmail();
+
+        return new ProctoringAccessVerificationResponse(
+                attempt.getId(),
+                studentIdStr,
+                studentEmail,
+                testCode,
+                attempt.getStatus().name(),
+                isProgress,
+                isProgress ? "Access authorized" : "Attempt is not in progress (" + attempt.getStatus().name() + ")"
+        );
     }
 
     @Transactional

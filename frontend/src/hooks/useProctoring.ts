@@ -37,6 +37,7 @@ export function useProctoring({
   const wsRef = useRef<WebSocket | null>(null);
   const frameIntervalRef = useRef<NodeJS.Timeout | null>(null);
   const sessionIdRef = useRef<string | null>(null);
+  const wsTicketRef = useRef<string | null>(null);
   const isCleaningUpRef = useRef(false);
   const cleanupPromiseRef = useRef<Promise<void> | null>(null);
   const isWsAuthenticatedRef = useRef(false);
@@ -131,11 +132,18 @@ export function useProctoring({
 
       // 6. Stop remote AI proctoring session and await summary dispatch with timeout
       const sid = sessionIdRef.current;
+      const ticket = wsTicketRef.current;
       sessionIdRef.current = null;
       if (sid) {
         try {
           await Promise.race([
-            stopProctoringSession(sid),
+            stopProctoringSession({
+              sessionId: sid,
+              ticket: ticket || undefined,
+              authToken,
+              studentId,
+              attemptId,
+            }),
             new Promise((resolve) => setTimeout(resolve, 3000)),
           ]);
         } catch (err) {
@@ -147,7 +155,7 @@ export function useProctoring({
     })();
 
     return cleanupPromiseRef.current;
-  }, []);
+  }, [authToken, studentId, attemptId]);
 
   const handleTelemetryUpdate = useCallback(
     (telemetry: TelemetryResponse) => {
@@ -244,6 +252,7 @@ export function useProctoring({
 
         if (!mounted) return;
         sessionIdRef.current = sessionRes.sessionId;
+        wsTicketRef.current = sessionRes.wsTicket || null;
 
         // 3. Request Camera and Microphone hardware
         const stream = await navigator.mediaDevices.getUserMedia({
@@ -351,6 +360,10 @@ export function useProctoring({
             try {
               const res = await analyzeFrameREST({
                 sessionId: sessionIdRef.current,
+                ticket: wsTicketRef.current || undefined,
+                authToken,
+                studentId,
+                attemptId,
                 frame: frameB64,
                 audio: audioSamples,
               });

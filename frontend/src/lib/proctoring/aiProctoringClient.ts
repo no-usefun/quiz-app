@@ -41,6 +41,10 @@ export interface AnalyzeFramePayload {
   sessionId: string;
   frame?: string; // base64 image
   audio?: number[]; // PCM float samples
+  ticket?: string;
+  authToken?: string;
+  studentId?: string;
+  attemptId?: number;
 }
 
 export interface TelemetryResponse {
@@ -62,6 +66,14 @@ export interface TelemetryResponse {
   malpracticeEvent: string | null;
   eventMessage: string | null;
   autoSubmitted: boolean;
+}
+
+export interface StopSessionParams {
+  sessionId: string;
+  ticket?: string;
+  authToken?: string;
+  studentId?: string;
+  attemptId?: number;
 }
 
 export interface StopSessionResult {
@@ -114,12 +126,19 @@ export async function startProctoringSession(
     );
   }
 
+  const headers: Record<string, string> = {
+    "Content-Type": "application/json",
+    Accept: "application/json",
+  };
+  if (params.authToken) {
+    headers["Authorization"] = params.authToken.startsWith("Bearer ")
+      ? params.authToken
+      : `Bearer ${params.authToken}`;
+  }
+
   const res = await fetch(`${AI_PROCTORING_BASE_URL}/proctor/start`, {
     method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      Accept: "application/json",
-    },
+    headers,
     body: JSON.stringify(params),
   });
 
@@ -142,12 +161,22 @@ export async function startProctoringSession(
 export async function analyzeFrameREST(
   payload: AnalyzeFramePayload
 ): Promise<TelemetryResponse> {
+  const headers: Record<string, string> = {
+    "Content-Type": "application/json",
+    Accept: "application/json",
+  };
+  if (payload.authToken) {
+    headers["Authorization"] = payload.authToken.startsWith("Bearer ")
+      ? payload.authToken
+      : `Bearer ${payload.authToken}`;
+  }
+  if (payload.ticket) {
+    headers["X-Proctor-Ticket"] = payload.ticket;
+  }
+
   const res = await fetch(`${AI_PROCTORING_BASE_URL}/proctor/analyze-frame`, {
     method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      Accept: "application/json",
-    },
+    headers,
     body: JSON.stringify(payload),
   });
 
@@ -162,16 +191,29 @@ export async function analyzeFrameREST(
  * Gracefully stops the AI session and retrieves final counters.
  */
 export async function stopProctoringSession(
-  sessionId: string
+  params: string | StopSessionParams
 ): Promise<StopSessionResult | null> {
   try {
+    const payload: StopSessionParams =
+      typeof params === "string" ? { sessionId: params } : params;
+
+    const headers: Record<string, string> = {
+      "Content-Type": "application/json",
+      Accept: "application/json",
+    };
+    if (payload.authToken) {
+      headers["Authorization"] = payload.authToken.startsWith("Bearer ")
+        ? payload.authToken
+        : `Bearer ${payload.authToken}`;
+    }
+    if (payload.ticket) {
+      headers["X-Proctor-Ticket"] = payload.ticket;
+    }
+
     const res = await fetch(`${AI_PROCTORING_BASE_URL}/proctor/stop`, {
       method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Accept: "application/json",
-      },
-      body: JSON.stringify({ sessionId }),
+      headers,
+      body: JSON.stringify(payload),
       signal: AbortSignal.timeout(3000),
     });
     if (res.ok) {

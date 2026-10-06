@@ -1,6 +1,7 @@
 import time
 import httpx
 import logging
+from typing import Optional, Dict
 from config import (
     STREAK_NO_FACE,
     STREAK_MULTIPLE_FACES,
@@ -176,7 +177,8 @@ class MalpracticeDetector:
             "Content-Type": "application/json"
         }
         if session.auth_token:
-            headers["Authorization"] = f"Bearer {session.auth_token}"
+            clean_tok = session.auth_token.strip()
+            headers["Authorization"] = clean_tok if clean_tok.startswith("Bearer ") else f"Bearer {clean_tok}"
 
         payload = {
             "eventType": event_type,
@@ -204,6 +206,85 @@ class MalpracticeDetector:
 
         return None
 
+    async def verify_backend_attempt_access(
+        self,
+        spring_boot_url: str,
+        attempt_id: int,
+        auth_token: Optional[str]
+    ) -> dict:
+        """
+        Validates attempt access against Spring Boot authoritative endpoint:
+        GET /api/v1/attempts/{attempt_id}/verify-access
+        """
+        if not auth_token or not auth_token.strip():
+            return {
+                "success": False,
+                "status_code": 401,
+                "error": "MISSING_AUTH_TOKEN",
+                "detail": "Authorization token is required to initialize proctoring session."
+            }
+
+        clean_token = auth_token.strip()
+        auth_header = clean_token if clean_token.startswith("Bearer ") else f"Bearer {clean_token}"
+        url = f"{spring_boot_url.rstrip('/')}/api/v1/attempts/{attempt_id}/verify-access"
+
+        try:
+            resp = await self.http_client.get(
+                url,
+                headers={"Authorization": auth_header, "Accept": "application/json"}
+            )
+        except Exception as e:
+            logger.error("Failed to reach Spring Boot for attempt validation (%s): %s", url, e)
+            return {
+                "success": False,
+                "status_code": 503,
+                "error": "BACKEND_UNAVAILABLE",
+                "detail": f"Could not contact authoritative backend for session validation: {e}"
+            }
+
+        if resp.status_code == 401:
+            return {
+                "success": False,
+                "status_code": 401,
+                "error": "INVALID_AUTH_TOKEN",
+                "detail": "Provided authorization token was rejected by authoritative backend."
+            }
+        elif resp.status_code == 403:
+            return {
+                "success": False,
+                "status_code": 403,
+                "error": "UNAUTHORIZED_ATTEMPT",
+                "detail": "Authenticated user does not have permission for this attempt."
+            }
+        elif resp.status_code == 404:
+            return {
+                "success": False,
+                "status_code": 404,
+                "error": "ATTEMPT_NOT_FOUND",
+                "detail": "Attempt not found on authoritative backend."
+            }
+        elif resp.status_code != 200:
+            return {
+                "success": False,
+                "status_code": resp.status_code,
+                "error": "BACKEND_VALIDATION_FAILED",
+                "detail": f"Backend returned status {resp.status_code}: {resp.text}"
+            }
+
+        try:
+            data = resp.json()
+            data["success"] = True
+            data["status_code"] = 200
+            return data
+        except Exception as e:
+            logger.error("Failed to parse Spring Boot validation response: %s", e)
+            return {
+                "success": False,
+                "status_code": 502,
+                "error": "INVALID_BACKEND_RESPONSE",
+                "detail": "Could not parse response from authoritative backend."
+            }
+
     async def dispatch_session_summary(self, session: ProctoringSession):
         """
         Sends the final real verification counts to Spring Boot backend.
@@ -213,7 +294,8 @@ class MalpracticeDetector:
             "Content-Type": "application/json"
         }
         if session.auth_token:
-            headers["Authorization"] = f"Bearer {session.auth_token}"
+            clean_tok = session.auth_token.strip()
+            headers["Authorization"] = clean_tok if clean_tok.startswith("Bearer ") else f"Bearer {clean_tok}"
 
         payload = {
             "totalFaceChecks": session.total_verifications,

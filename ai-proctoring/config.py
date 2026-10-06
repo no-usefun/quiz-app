@@ -13,6 +13,14 @@ os.makedirs(MODELS_DIR, exist_ok=True)
 HOST = os.getenv("HOST", "0.0.0.0")
 PORT = int(os.getenv("PORT", 8000))
 SPRING_BOOT_URL = os.getenv("SPRING_BOOT_URL", "http://localhost:8080")
+PROCTOR_FRONTEND_ORIGINS = [
+    origin.strip()
+    for origin in os.getenv(
+        "PROCTOR_FRONTEND_ORIGINS",
+        "http://localhost:3000,http://localhost:3001,http://127.0.0.1:3000,http://127.0.0.1:3001"
+    ).split(",")
+    if origin.strip()
+]
 
 # Model Paths
 YUNET_MODEL_PATH = os.path.join(MODELS_DIR, "face_detection_yunet_2023mar.onnx")

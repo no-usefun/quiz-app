@@ -2,12 +2,14 @@ package com.quiz_app.backend.controller;
 
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
+import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
+import com.quiz_app.backend.dto.proctoring.ProctoringAccessVerificationResponse;
 import com.quiz_app.backend.dto.proctoring.ProctoringEventRequest;
 import com.quiz_app.backend.dto.proctoring.ProctoringEventResponse;
 import com.quiz_app.backend.dto.proctoring.ProctoringSummaryRequest;
@@ -24,6 +26,20 @@ public class ProctoringController {
 
     public ProctoringController(ProctoringService proctoringService) {
         this.proctoringService = proctoringService;
+    }
+
+    @GetMapping("/{attemptId}/verify-access")
+    public ResponseEntity<ProctoringAccessVerificationResponse> verifyAttemptAccess(
+            @PathVariable Long attemptId,
+            Authentication authentication) {
+
+        Long userId = null;
+        if (authentication != null && authentication.getPrincipal() instanceof CustomUserDetails userDetails) {
+            userId = userDetails.getId();
+        }
+
+        ProctoringAccessVerificationResponse response = proctoringService.verifyAttemptAccess(attemptId, userId);
+        return ResponseEntity.ok(response);
     }
 
     @PostMapping("/{attemptId}/events")

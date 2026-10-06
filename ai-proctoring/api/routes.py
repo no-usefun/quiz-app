@@ -2,7 +2,7 @@ import base64
 import cv2
 import numpy as np
 import logging
-from fastapi import APIRouter, HTTPException, status
+from fastapi import APIRouter, HTTPException, status, Header, Query
 from pydantic import BaseModel
 from typing import Optional, List
 
@@ -47,8 +47,8 @@ def decode_base64_image(base64_str: str) -> Optional[np.ndarray]:
 # Request / Response Schemas
 class StartSessionRequest(BaseModel):
     attemptId: int
-    studentId: str
-    testCode: str
+    studentId: Optional[str] = None
+    testCode: Optional[str] = None
     referenceImage: str
     authToken: Optional[str] = None
     springBootUrl: Optional[str] = SPRING_BOOT_URL
@@ -66,6 +66,10 @@ class AnalyzeFrameRequest(BaseModel):
     sessionId: str
     frame: Optional[str] = None
     audio: Optional[List[float]] = None
+    ticket: Optional[str] = None
+    authToken: Optional[str] = None
+    studentId: Optional[str] = None
+    attemptId: Optional[int] = None
 
 class AnalyzeFrameResponse(BaseModel):
     status: str
@@ -89,6 +93,10 @@ class AnalyzeFrameResponse(BaseModel):
 
 class StopSessionRequest(BaseModel):
     sessionId: str
+    ticket: Optional[str] = None
+    authToken: Optional[str] = None
+    studentId: Optional[str] = None
+    attemptId: Optional[int] = None
 
 class StopSessionResponse(BaseModel):
     status: str
@@ -118,8 +126,65 @@ def health_check():
     }
 
 @router.post("/proctor/start", response_model=StartSessionResponse)
-def start_proctoring_session(req: StartSessionRequest):
-    # Biometric Model Check - Strictly reject fake fallbacks
+async def start_proctoring_session(
+    req: StartSessionRequest,
+    authorization: Optional[str] = Header(None)
+):
+    # Resolve auth token from header or body
+    token = None
+    if authorization and authorization.startswith("Bearer "):
+        token = authorization.split("Bearer ", 1)[1].strip()
+    elif authorization:
+        token = authorization.strip()
+    elif req.authToken:
+        token = req.authToken.strip()
+
+    if not token:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="MISSING_AUTH_TOKEN: Authorization token is required to start a proctoring session."
+        )
+
+    # 1. Authoritative Backend Validation against Spring Boot
+    spring_url = req.springBootUrl or SPRING_BOOT_URL
+    validation_res = await malpractice_detector.verify_backend_attempt_access(
+        spring_boot_url=spring_url,
+        attempt_id=req.attemptId,
+        auth_token=token
+    )
+
+    if not validation_res.get("success"):
+        status_code = validation_res.get("status_code", 400)
+        err_code = validation_res.get("error", "BACKEND_VALIDATION_FAILED")
+        detail_msg = validation_res.get("detail", "Backend validation failed.")
+        raise HTTPException(status_code=status_code, detail=f"{err_code}: {detail_msg}")
+
+    if not validation_res.get("valid") or validation_res.get("status") != "IN_PROGRESS":
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail=f"ATTEMPT_INACTIVE: Attempt is {validation_res.get('status')}, cannot initialize proctoring."
+        )
+
+    auth_student_id = str(validation_res.get("studentId", "")).strip()
+    auth_test_code = str(validation_res.get("testCode", "")).strip()
+
+    # Consistency checks
+    if req.studentId and auth_student_id and str(req.studentId).strip() != auth_student_id:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="STUDENT_ID_MISMATCH: Provided student ID does not match authenticated user record."
+        )
+
+    if req.testCode and auth_test_code and str(req.testCode).strip() != auth_test_code:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="TEST_CODE_MISMATCH: Provided test code does not match attempt record."
+        )
+
+    authoritative_student_id = auth_student_id or str(req.studentId or "")
+    authoritative_test_code = auth_test_code or str(req.testCode or "")
+
+    # 2. Biometric Model Check - Strictly reject fake fallbacks
     if face_recognizer.recognizer is None:
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
@@ -159,12 +224,12 @@ def start_proctoring_session(req: StartSessionRequest):
 
     session = session_manager.create_session(
         attempt_id=req.attemptId,
-        student_id=req.studentId,
-        test_code=req.testCode,
+        student_id=authoritative_student_id,
+        test_code=authoritative_test_code,
         reference_embedding=ref_embedding,
         reference_image_b64=req.referenceImage,
-        spring_boot_url=req.springBootUrl or SPRING_BOOT_URL,
-        auth_token=req.authToken
+        spring_boot_url=spring_url,
+        auth_token=token
     )
 
     return StartSessionResponse(
@@ -178,13 +243,54 @@ def start_proctoring_session(req: StartSessionRequest):
     )
 
 @router.post("/proctor/analyze-frame", response_model=AnalyzeFrameResponse)
-async def analyze_frame(req: AnalyzeFrameRequest):
+async def analyze_frame(
+    req: AnalyzeFrameRequest,
+    authorization: Optional[str] = Header(None),
+    x_proctor_ticket: Optional[str] = Header(None)
+):
+    token = None
+    if authorization and authorization.startswith("Bearer "):
+        token = authorization.split("Bearer ", 1)[1].strip()
+    elif authorization:
+        token = authorization.strip()
+    elif req.authToken:
+        token = req.authToken.strip()
+
+    ticket = req.ticket or x_proctor_ticket
+
+    # Pre-inference Authentication & Authorization Check
+    is_auth, auth_err = session_manager.validate_session_auth(
+        session_id=req.sessionId,
+        ticket=ticket,
+        auth_token=token,
+        student_id=req.studentId,
+        attempt_id=req.attemptId,
+        allow_inactive=False
+    )
+
+    if not is_auth:
+        if auth_err == "SESSION_NOT_FOUND":
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="SESSION_NOT_FOUND: Session not found."
+            )
+        elif auth_err == "SESSION_INACTIVE":
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="SESSION_INACTIVE: Session is inactive or already closed."
+            )
+        elif auth_err in ("STUDENT_MISMATCH", "ATTEMPT_MISMATCH"):
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail=f"FORBIDDEN: {auth_err}"
+            )
+        else:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail=f"UNAUTHORIZED: {auth_err}"
+            )
+
     session = session_manager.get_session(req.sessionId)
-    if not session or not session.is_active:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Session not found or already closed."
-        )
 
     faces_count = 0
     persons_count = 0
@@ -268,14 +374,48 @@ async def analyze_frame(req: AnalyzeFrameRequest):
     )
 
 @router.post("/proctor/stop", response_model=StopSessionResponse)
-async def stop_session(req: StopSessionRequest):
-    session = session_manager.get_session(req.sessionId)
-    if not session:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Session not found."
-        )
+async def stop_session(
+    req: StopSessionRequest,
+    authorization: Optional[str] = Header(None),
+    x_proctor_ticket: Optional[str] = Header(None)
+):
+    token = None
+    if authorization and authorization.startswith("Bearer "):
+        token = authorization.split("Bearer ", 1)[1].strip()
+    elif authorization:
+        token = authorization.strip()
+    elif req.authToken:
+        token = req.authToken.strip()
 
+    ticket = req.ticket or x_proctor_ticket
+
+    is_auth, auth_err = session_manager.validate_session_auth(
+        session_id=req.sessionId,
+        ticket=ticket,
+        auth_token=token,
+        student_id=req.studentId,
+        attempt_id=req.attemptId,
+        allow_inactive=True  # Idempotent stop allowed for authorized owner
+    )
+
+    if not is_auth:
+        if auth_err == "SESSION_NOT_FOUND":
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Session not found."
+            )
+        elif auth_err in ("STUDENT_MISMATCH", "ATTEMPT_MISMATCH"):
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail=f"Forbidden: {auth_err}"
+            )
+        else:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail=f"Unauthorized: {auth_err}"
+            )
+
+    session = session_manager.get_session(req.sessionId)
     already_ended = not session.is_active
     session = session_manager.end_session(req.sessionId)
 
@@ -292,17 +432,55 @@ async def stop_session(req: StopSessionRequest):
     )
 
 @router.get("/proctor/session/{session_id}")
-def get_session_details(session_id: str):
+def get_session_details(
+    session_id: str,
+    authorization: Optional[str] = Header(None),
+    ticket: Optional[str] = Query(None),
+    x_proctor_ticket: Optional[str] = Header(None),
+    student_id: Optional[str] = Query(None),
+    attempt_id: Optional[int] = Query(None)
+):
+    token = None
+    if authorization and authorization.startswith("Bearer "):
+        token = authorization.split("Bearer ", 1)[1].strip()
+    elif authorization:
+        token = authorization.strip()
+
+    auth_ticket = ticket or x_proctor_ticket
+
+    is_auth, auth_err = session_manager.validate_session_auth(
+        session_id=session_id,
+        ticket=auth_ticket,
+        auth_token=token,
+        student_id=student_id,
+        attempt_id=attempt_id,
+        allow_inactive=True
+    )
+
+    if not is_auth:
+        if auth_err == "SESSION_NOT_FOUND":
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Session not found."
+            )
+        elif auth_err in ("STUDENT_MISMATCH", "ATTEMPT_MISMATCH"):
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail=f"Forbidden: {auth_err}"
+            )
+        else:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail=f"Unauthorized: {auth_err}"
+            )
+
     session = session_manager.get_session(session_id)
-    if not session:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Session not found."
-        )
+    # Strictly sanitize: Never return wsTicket, authToken, referenceImage, or embeddings
     return {
         "sessionId": session.session_id,
         "attemptId": session.attempt_id,
         "studentId": session.student_id,
+        "testCode": session.test_code,
         "isActive": session.is_active,
         "totalVerifications": session.total_verifications,
         "identityMatches": session.identity_matches,

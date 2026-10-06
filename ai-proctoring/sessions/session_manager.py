@@ -75,25 +75,31 @@ class SessionManager:
         ticket: Optional[str] = None,
         auth_token: Optional[str] = None,
         student_id: Optional[str] = None,
-        attempt_id: Optional[int] = None
+        attempt_id: Optional[int] = None,
+        allow_inactive: bool = False
     ) -> tuple[bool, str]:
         session = self.get_session(session_id)
         if not session:
             return False, "SESSION_NOT_FOUND"
-        if not session.is_active:
-            return False, "SESSION_INACTIVE"
 
-        if student_id is not None and str(student_id) != str(session.student_id):
+        # Check credentials (ticket or auth_token)
+        ticket_match = bool(ticket and session.ws_ticket and ticket.strip() == session.ws_ticket)
+
+        clean_token = auth_token.replace("Bearer ", "").strip() if auth_token else None
+        clean_session_token = session.auth_token.replace("Bearer ", "").strip() if session.auth_token else None
+        token_match = bool(clean_token and clean_session_token and clean_token == clean_session_token)
+
+        if not ticket_match and not token_match:
+            return False, "INVALID_CREDENTIALS"
+
+        if student_id is not None and str(student_id).strip() != str(session.student_id).strip():
             return False, "STUDENT_MISMATCH"
 
         if attempt_id is not None and int(attempt_id) != int(session.attempt_id):
             return False, "ATTEMPT_MISMATCH"
 
-        ticket_match = (ticket is not None and ticket == session.ws_ticket)
-        token_match = (auth_token is not None and session.auth_token is not None and auth_token == session.auth_token)
-
-        if not ticket_match and not token_match:
-            return False, "INVALID_CREDENTIALS"
+        if not allow_inactive and not session.is_active:
+            return False, "SESSION_INACTIVE"
 
         return True, "AUTHORIZED"
 

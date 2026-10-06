@@ -5,7 +5,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from api import router, ws_router
 from api.routes import malpractice_detector
-from config import HOST, PORT, ensure_models_exist
+from config import HOST, PORT, ensure_models_exist, PROCTOR_FRONTEND_ORIGINS
 
 # Configure logging
 logging.basicConfig(
@@ -33,7 +33,7 @@ app = FastAPI(
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"], # Allow all origins for local dev and frontend ports
+    allow_origins=PROCTOR_FRONTEND_ORIGINS,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],

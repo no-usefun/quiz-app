@@ -281,15 +281,62 @@ class ProctoringServiceTest {
     }
 
     @Test
-    void testGetQuizProctoringOverview() {
-        when(quizRepository.findByQuizCode("CS101")).thenReturn(Optional.of(testQuiz));
-        when(quizAttemptRepository.findByQuizId(1L)).thenReturn(List.of(testAttempt));
-        when(proctoringEventRepository.findByAttemptId(100L)).thenReturn(List.of());
+    void testVerifyAttemptAccess_Success() {
+        when(quizAttemptRepository.findById(100L)).thenReturn(Optional.of(testAttempt));
 
-        TeacherQuizProctoringOverviewResponse overview = proctoringService.getQuizProctoringOverview("CS101", 20L);
+        com.quiz_app.backend.dto.proctoring.ProctoringAccessVerificationResponse response =
+                proctoringService.verifyAttemptAccess(100L, 10L);
 
-        assertNotNull(overview);
-        assertEquals("CS101", overview.quizCode());
-        assertEquals(1, overview.totalAttempts());
+        assertNotNull(response);
+        assertEquals(100L, response.attemptId());
+        assertEquals("10", response.studentId());
+        assertEquals("john@example.com", response.studentEmail());
+        assertEquals("CS101", response.testCode());
+        assertEquals("IN_PROGRESS", response.status());
+        assertTrue(response.valid());
+    }
+
+    @Test
+    void testVerifyAttemptAccess_UnauthorizedStudent() {
+        when(quizAttemptRepository.findById(100L)).thenReturn(Optional.of(testAttempt));
+
+        org.junit.jupiter.api.Assertions.assertThrows(
+                com.quiz_app.backend.exception.AccessDeniedApplicationException.class,
+                () -> proctoringService.verifyAttemptAccess(100L, 999L)
+        );
+    }
+
+    @Test
+    void testVerifyAttemptAccess_UnauthenticatedUser() {
+        when(quizAttemptRepository.findById(100L)).thenReturn(Optional.of(testAttempt));
+
+        org.junit.jupiter.api.Assertions.assertThrows(
+                com.quiz_app.backend.exception.AccessDeniedApplicationException.class,
+                () -> proctoringService.verifyAttemptAccess(100L, null)
+        );
+    }
+
+    @Test
+    void testVerifyAttemptAccess_AttemptNotFound() {
+        when(quizAttemptRepository.findById(999L)).thenReturn(Optional.empty());
+
+        org.junit.jupiter.api.Assertions.assertThrows(
+                com.quiz_app.backend.exception.ResourceNotFoundException.class,
+                () -> proctoringService.verifyAttemptAccess(999L, 10L)
+        );
+    }
+
+    @Test
+    void testVerifyAttemptAccess_AttemptAlreadySubmitted() {
+        testAttempt.setStatus(AttemptStatus.SUBMITTED);
+        when(quizAttemptRepository.findById(100L)).thenReturn(Optional.of(testAttempt));
+
+        com.quiz_app.backend.dto.proctoring.ProctoringAccessVerificationResponse response =
+                proctoringService.verifyAttemptAccess(100L, 10L);
+
+        assertNotNull(response);
+        assertEquals("SUBMITTED", response.status());
+        assertFalse(response.valid());
     }
 }
+
