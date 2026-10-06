@@ -16,7 +16,9 @@ public record UserSummaryResponse(
         String authProvider,
         String profileImage,
         boolean verified,
-        boolean active) {
+        boolean active,
+        boolean profileComplete) {
+
     public static UserSummaryResponse fromEntity(User user) {
         return new UserSummaryResponse(
                 user.getId(),
@@ -32,6 +34,30 @@ public record UserSummaryResponse(
                 user.getAuthProvider(),
                 user.getProfileImage(),
                 user.isVerified(),
-                user.isActive());
+                user.isActive(),
+                isProfileComplete(user));
+    }
+
+    private static boolean isProfileComplete(User user) {
+        if (user.getRole() == null) {
+            return false;
+        }
+
+        if (isBlank(user.getCollege())
+                || isBlank(user.getDepartment())
+                || isBlank(user.getPhone())) {
+            return false;
+        }
+
+        if ("STUDENT".equalsIgnoreCase(user.getRole().getName())
+                && isBlank(user.getRegistrationNo())) {
+            return false;
+        }
+
+        return true;
+    }
+
+    private static boolean isBlank(String value) {
+        return value == null || value.isBlank();
     }
 }
