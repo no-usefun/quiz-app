@@ -263,7 +263,7 @@ public class OAuth2AuthenticationSuccessHandler
                         : null);
         user.setEmail(email);
         user.setPasswordHash(null);
-        user.setGoogleId(null);
+        user.setGoogleId(subject);
         user.setAuthProvider("GOOGLE");
         user.setRole(role);
         user.setProfileImage(
