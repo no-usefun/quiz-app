@@ -1,393 +1,362 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useRef, useState, useCallback } from "react";
+import {
+  AI_PROCTORING_WS_URL,
+  checkAIHealth,
+  startProctoringSession,
+  stopProctoringSession,
+  analyzeFrameREST,
+  TelemetryResponse,
+} from "@/lib/proctoring/aiProctoringClient";
 
-export type ProctoringFlags = {
-  tab_switch: number;
-  fullscreen_exit: number;
-  right_click: number;
-  copy_attempt: number;
-  cut_attempt: number;
-  paste_attempt: number;
-  focus_loss: number;
-  keyboard_attempt: number;
-  refresh_count: number;
-  reconnect_count: number;
-};
-
-export type ProctoringEvent = {
-  type: keyof ProctoringFlags;
-  timestamp: number;
-};
-
-type PersistedProctoringState = {
-  flags: ProctoringFlags;
-  events: ProctoringEvent[];
-};
-
-const initialFlags: ProctoringFlags = {
-  tab_switch: 0,
-  fullscreen_exit: 0,
-  right_click: 0,
-  copy_attempt: 0,
-  cut_attempt: 0,
-  paste_attempt: 0,
-  focus_loss: 0,
-  keyboard_attempt: 0,
-  refresh_count: 0,
-  reconnect_count: 0,
-};
-
-function storageKeyFor(value?: string | null): string | null {
-  if (typeof window === "undefined") return null;
-
-  const clean = String(value || "").trim();
-
-  return clean ? `quizly_proctoring_${clean}` : null;
+interface UseProctoringOptions {
+  attemptId: number;
+  studentId: string;
+  testCode: string;
+  referenceImage: string | null;
+  authToken?: string;
+  springBootUrl?: string;
+  onAutoSubmit?: () => void;
+  enabled?: boolean;
 }
 
-function readPersistedState(storageKey: string | null): PersistedProctoringState {
-  if (typeof window === "undefined" || !storageKey) {
-    return {
-      flags: initialFlags,
-      events: [],
-    };
-  }
+export function useProctoring({
+  attemptId,
+  studentId,
+  testCode,
+  referenceImage,
+  authToken,
+  springBootUrl,
+  onAutoSubmit,
+  enabled = true,
+}: UseProctoringOptions) {
+  const videoRef = useRef<HTMLVideoElement | null>(null);
+  const streamRef = useRef<MediaStream | null>(null);
+  const audioContextRef = useRef<AudioContext | null>(null);
+  const wsRef = useRef<WebSocket | null>(null);
+  const frameIntervalRef = useRef<NodeJS.Timeout | null>(null);
+  const sessionIdRef = useRef<string | null>(null);
+  const isCleaningUpRef = useRef(false);
 
-  try {
-    const raw = localStorage.getItem(storageKey);
+  // Audio PCM buffer
+  const latestAudioSamplesRef = useRef<number[]>([]);
 
-    if (!raw) {
-      return {
-        flags: initialFlags,
-        events: [],
-      };
+  // Telemetry state
+  const [cameraActive, setCameraActive] = useState(false);
+  const [isOnline, setIsOnline] = useState(false);
+  const [faceDetected, setFaceDetected] = useState(true);
+  const [numFaces, setNumFaces] = useState(1);
+  const [identityVerified, setIdentityVerified] = useState(true);
+  const [similarityScore, setSimilarityScore] = useState(1.0);
+  const [phoneDetected, setPhoneDetected] = useState(false);
+  const [micLevel, setMicLevel] = useState(0.0);
+  const [voiceActive, setVoiceActive] = useState(false);
+  const [loudVoice, setLoudVoice] = useState(false);
+  const [warningCount, setWarningCount] = useState(0);
+
+  // Warning modal state
+  const [activeWarningModal, setActiveWarningModal] = useState<{
+    isOpen: boolean;
+    reason: string;
+    count: number;
+    autoSubmitted: boolean;
+  }>({
+    isOpen: false,
+    reason: "",
+    count: 0,
+    autoSubmitted: false,
+  });
+
+  // Thorough Hardware & Resource Cleanup (Point 11)
+  const cleanup = useCallback(() => {
+    if (isCleaningUpRef.current) return;
+    isCleaningUpRef.current = true;
+
+    // 1. Clear frame processing intervals
+    if (frameIntervalRef.current) {
+      clearInterval(frameIntervalRef.current);
+      frameIntervalRef.current = null;
     }
 
-    const parsed = JSON.parse(raw) as Partial<PersistedProctoringState>;
-
-    const flags: ProctoringFlags = {
-      ...initialFlags,
-      ...(parsed.flags || {}),
-    };
-
-    const events = Array.isArray(parsed.events)
-      ? parsed.events
-          .filter(
-            (event): event is ProctoringEvent =>
-              !!event &&
-              typeof event.type === "string" &&
-              Object.prototype.hasOwnProperty.call(initialFlags, event.type) &&
-              Number.isFinite(Number(event.timestamp)),
-          )
-          .slice(-100)
-      : [];
-
-    return { flags, events };
-  } catch {
-    return {
-      flags: initialFlags,
-      events: [],
-    };
-  }
-}
-
-export function useProctoring(
-  storageKeyValue?: string | null,
-  onEvent?: (event: ProctoringEvent) => void | Promise<void>,
-) {
-  const storageKey = storageKeyFor(storageKeyValue);
-  const persisted = useMemo(
-    () => readPersistedState(storageKey),
-    [storageKey],
-  );
-
-  const [flags, setFlags] = useState<ProctoringFlags>(persisted.flags);
-  const [warnings, setWarnings] = useState<string[]>([]);
-  const [isFullscreen, setIsFullscreen] = useState(
-    typeof document !== "undefined" && !!document.fullscreenElement,
-  );
-  const eventsRef = useRef<ProctoringEvent[]>(persisted.events);
-  const lastTabOrFullscreenExitRef = useRef(0);
-
-  const persist = useCallback(
-    (nextFlags: ProctoringFlags, nextEvents: ProctoringEvent[]) => {
-      if (typeof window === "undefined" || !storageKey) return;
-
+    // 2. Stop WebSocket connection
+    if (wsRef.current) {
       try {
-        const value: PersistedProctoringState = {
-          flags: nextFlags,
-          events: nextEvents.slice(-100),
-        };
-
-        localStorage.setItem(storageKey, JSON.stringify(value));
+        wsRef.current.close();
       } catch {
-        // Ignore storage failures; detection must continue in memory.
+        // Ignore
       }
-    },
-    [storageKey],
-  );
+      wsRef.current = null;
+    }
 
-  const record = useCallback(
-    (type: keyof ProctoringFlags, message: string) => {
-      const event: ProctoringEvent = {
-        type,
-        timestamp: Date.now(),
-      };
-
-      const nextEvents = [
-        ...eventsRef.current.slice(-99),
-        event,
-      ];
-
-      eventsRef.current = nextEvents;
-
-      setFlags((previous) => {
-        const nextFlags = {
-          ...previous,
-          [type]: previous[type] + 1,
-        };
-
-        persist(nextFlags, nextEvents);
-        return nextFlags;
+    // 3. Stop all camera & microphone MediaStream tracks
+    if (streamRef.current) {
+      streamRef.current.getTracks().forEach((track) => {
+        try {
+          track.stop();
+        } catch {
+          // Ignore
+        }
       });
-
-      setWarnings((previous) => [...previous.slice(-9), message]);
-
-      try {
-        void onEvent?.(event);
-      } catch {
-        // Proctoring detection must continue if server sync fails.
-      }
-    },
-    [persist, onEvent],
-  );
-  /*
-   * Restore the persisted event history when the attempt-specific key is
-   * available. This keeps activity counts intact after a page reload.
-   */
-  useEffect(() => {
-    eventsRef.current = persisted.events;
-    setFlags(persisted.flags);
-  }, [persisted]);
-
-  useEffect(() => {
-    if (typeof window === "undefined") return;
-
-    const navigation = performance.getEntriesByType(
-      "navigation",
-    )[0] as PerformanceNavigationTiming | undefined;
-
-    if (navigation?.type === "reload") {
-      record("refresh_count", "Assessment page refresh detected.");
+      streamRef.current = null;
     }
 
-    let wasOffline = !navigator.onLine;
+    // 4. Detach video element stream
+    if (videoRef.current) {
+      videoRef.current.srcObject = null;
+    }
 
-    const onOnline = () => {
-      if (wasOffline) {
-        record(
-          "reconnect_count",
-          "Network reconnection detected during the assessment.",
-        );
+    // 5. Close Web Audio Context
+    if (audioContextRef.current && audioContextRef.current.state !== "closed") {
+      try {
+        void audioContextRef.current.close();
+      } catch {
+        // Ignore
       }
-      wasOffline = false;
-    };
+      audioContextRef.current = null;
+    }
 
-    const onOffline = () => {
-      wasOffline = true;
-    };
+    // 6. Stop remote AI proctoring session
+    if (sessionIdRef.current) {
+      void stopProctoringSession(sessionIdRef.current);
+      sessionIdRef.current = null;
+    }
 
-    window.addEventListener("online", onOnline);
-    window.addEventListener("offline", onOffline);
+    setCameraActive(false);
+  }, []);
 
-    return () => {
-      window.removeEventListener("online", onOnline);
-      window.removeEventListener("offline", onOffline);
-    };
-  }, [record]);
+  const handleTelemetryUpdate = useCallback(
+    (telemetry: TelemetryResponse) => {
+      setFaceDetected(telemetry.faceDetected);
+      setNumFaces(telemetry.numFaces);
+      setIdentityVerified(telemetry.identityVerified);
+      setSimilarityScore(telemetry.similarityScore);
+      setPhoneDetected(telemetry.phoneDetected);
+      setMicLevel(telemetry.micLevel);
+      setVoiceActive(telemetry.voiceActive);
+      setLoudVoice(telemetry.loudVoice);
 
+      if (telemetry.warningCount !== undefined) {
+        setWarningCount(telemetry.warningCount);
+      }
+
+      // If a confirmed malpractice event occurred
+      if (telemetry.malpracticeEvent) {
+        setActiveWarningModal({
+          isOpen: true,
+          reason: telemetry.eventMessage || telemetry.malpracticeEvent,
+          count: telemetry.warningCount,
+          autoSubmitted: telemetry.autoSubmitted,
+        });
+
+        if (telemetry.autoSubmitted && onAutoSubmit) {
+          onAutoSubmit();
+        }
+      }
+    },
+    [onAutoSubmit]
+  );
+
+  // Capture single frame from in-DOM video
+  const captureFrameBase64 = useCallback((): string | null => {
+    if (!videoRef.current || !cameraActive) return null;
+    try {
+      const canvas = document.createElement("canvas");
+      canvas.width = videoRef.current.videoWidth || 320;
+      canvas.height = videoRef.current.videoHeight || 240;
+      const ctx = canvas.getContext("2d");
+      if (!ctx) return null;
+
+      ctx.drawImage(videoRef.current, 0, 0, canvas.width, canvas.height);
+      return canvas.toDataURL("image/jpeg", 0.70);
+    } catch {
+      return null;
+    }
+  }, [cameraActive]);
+
+  // Main lifecycle setup
   useEffect(() => {
-    if (typeof window === "undefined") return;
+    if (!enabled || !referenceImage) return;
 
-    const recordTabOrFullscreenExit = (message: string) => {
-      const now = Date.now();
+    let mounted = true;
+    isCleaningUpRef.current = false;
 
-      // Browsers can emit visibilitychange and fullscreenchange for the same
-      // user action. Treat that action as one unified proctoring violation.
-      if (now - lastTabOrFullscreenExitRef.current < 1000) {
+    const initProctoring = async () => {
+      // 1. Health check
+      const health = await checkAIHealth();
+      if (!mounted) return;
+      setIsOnline(health.isOnline);
+
+      if (!health.isOnline) {
+        console.warn("AI Proctoring service is offline. Running in standby mode.");
         return;
       }
 
-      lastTabOrFullscreenExitRef.current = now;
-      record("tab_switch", message);
-    };
+      try {
+        // 2. Start AI session with reference biometric photo
+        const sessionRes = await startProctoringSession({
+          attemptId,
+          studentId,
+          testCode,
+          referenceImage,
+          authToken,
+          springBootUrl,
+        });
 
-    const onVisibilityChange = () => {
-      if (document.hidden) {
-        recordTabOrFullscreenExit(
-          "Tab-switch activity detected.",
-        );
+        if (!mounted) return;
+        sessionIdRef.current = sessionRes.sessionId;
+
+        // 3. Request Camera and Microphone hardware
+        const stream = await navigator.mediaDevices.getUserMedia({
+          video: {
+            width: { ideal: 640 },
+            height: { ideal: 480 },
+            facingMode: "user",
+          },
+          audio: true,
+        });
+
+        if (!mounted) {
+          stream.getTracks().forEach((t) => t.stop());
+          return;
+        }
+
+        streamRef.current = stream;
+        if (videoRef.current) {
+          videoRef.current.srcObject = stream;
+          await videoRef.current.play().catch(() => {});
+        }
+        setCameraActive(true);
+
+        // 4. Setup Audio Context for continuous VAD samples
+        try {
+          const AudioContextClass =
+            window.AudioContext ||
+            (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
+          const audioCtx = new AudioContextClass();
+          audioContextRef.current = audioCtx;
+
+          const source = audioCtx.createMediaStreamSource(stream);
+          const processor = audioCtx.createScriptProcessor(2048, 1, 1);
+
+          processor.onaudioprocess = (e) => {
+            const inputData = e.inputBuffer.getChannelData(0);
+            latestAudioSamplesRef.current = Array.from(inputData);
+          };
+
+          source.connect(processor);
+          processor.connect(audioCtx.destination);
+        } catch (audioErr) {
+          console.warn("Web Audio API initialization failed:", audioErr);
+        }
+
+        // 5. Connect WebSocket streaming (Point 10)
+        try {
+          const wsUrl = `${AI_PROCTORING_WS_URL}/ws/proctor/${sessionRes.sessionId}`;
+          const ws = new WebSocket(wsUrl);
+          wsRef.current = ws;
+
+          ws.onmessage = (event) => {
+            try {
+              const data = JSON.parse(event.data);
+              if (data.type === "telemetry" && mounted) {
+                handleTelemetryUpdate(data);
+              }
+            } catch {
+              // Ignore invalid JSON
+            }
+          };
+
+          ws.onerror = () => {
+            console.warn("AI WebSocket connection error, fallback to REST");
+          };
+        } catch {
+          console.warn("WebSocket init failed, using REST fallback");
+        }
+
+        // 6. Continuous Streaming Loop (every 350ms)
+        frameIntervalRef.current = setInterval(async () => {
+          if (!mounted || isCleaningUpRef.current) return;
+
+          const frameB64 = captureFrameBase64();
+          if (!frameB64) return;
+
+          const audioSamples = latestAudioSamplesRef.current;
+          latestAudioSamplesRef.current = []; // drain
+
+          // If WebSocket is open, send over WS
+          if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
+            wsRef.current.send(
+              JSON.stringify({
+                frame: frameB64,
+                audio: audioSamples,
+              })
+            );
+          } else if (sessionIdRef.current) {
+            // Fallback to REST
+            try {
+              const res = await analyzeFrameREST({
+                sessionId: sessionIdRef.current,
+                frame: frameB64,
+                audio: audioSamples,
+              });
+              if (mounted) {
+                handleTelemetryUpdate(res);
+              }
+            } catch {
+              // Frame dropped
+            }
+          }
+        }, 350);
+      } catch (err) {
+        console.error("Failed to initialize proctoring session:", err);
       }
     };
 
-    const onBlur = () => {
-      if (!document.hidden) {
-        record("focus_loss", "The assessment window lost focus.");
-      }
+    void initProctoring();
+
+    const handleBeforeUnload = () => {
+      cleanup();
     };
-
-    const onFullscreenChange = () => {
-      const active = !!document.fullscreenElement;
-      setIsFullscreen(active);
-
-      if (!active) {
-        recordTabOrFullscreenExit(
-          "Tab-switch activity detected.",
-        );
-      }
-    };
-
-    const onContextMenu = (event: MouseEvent) => {
-      event.preventDefault();
-      record("right_click", "Right-click was blocked during the assessment.");
-    };
-
-    const onCopy = (event: ClipboardEvent) => {
-      event.preventDefault();
-      record("copy_attempt", "Copy action was blocked during the assessment.");
-    };
-
-    const onCut = (event: ClipboardEvent) => {
-      event.preventDefault();
-      record("cut_attempt", "Cut action was blocked during the assessment.");
-    };
-
-    const onPaste = (event: ClipboardEvent) => {
-      event.preventDefault();
-      record("paste_attempt", "Paste action was blocked during the assessment.");
-    };
-
-    const onBeforeInput = (event: InputEvent) => {
-      if (event.inputType === "insertFromPaste") {
-        event.preventDefault();
-        record(
-          "paste_attempt",
-          "Paste input was blocked during the assessment.",
-        );
-      }
-    };
-
-    const onDragStart = (event: DragEvent) => {
-      event.preventDefault();
-    };
-
-    const onKeyDown = (event: KeyboardEvent) => {
-      const key = event.key.toLowerCase();
-      const command = event.ctrlKey || event.metaKey;
-      const blocked =
-        (command && ["c", "x", "v", "a", "p", "s", "u"].includes(key)) ||
-        key === "printscreen";
-
-      if (blocked) {
-        event.preventDefault();
-
-        const flag =
-          key === "c"
-            ? "copy_attempt"
-            : key === "x"
-              ? "cut_attempt"
-              : key === "v"
-                ? "paste_attempt"
-                : "keyboard_attempt";
-
-        record(
-          flag,
-          key === "c"
-            ? "Copy shortcut was blocked during the assessment."
-            : key === "x"
-              ? "Cut shortcut was blocked during the assessment."
-              : key === "v"
-                ? "Paste shortcut was blocked during the assessment."
-                : "A restricted keyboard shortcut was blocked.",
-        );
-      }
-    };
-
-    document.addEventListener("visibilitychange", onVisibilityChange);
-    document.addEventListener("fullscreenchange", onFullscreenChange);
-    document.addEventListener("contextmenu", onContextMenu);
-    document.addEventListener("copy", onCopy);
-    document.addEventListener("cut", onCut);
-    document.addEventListener("paste", onPaste);
-    document.addEventListener("beforeinput", onBeforeInput as EventListener);
-    document.addEventListener("dragstart", onDragStart);
-    document.addEventListener("keydown", onKeyDown);
-    window.addEventListener("blur", onBlur);
-
-    setIsFullscreen(!!document.fullscreenElement);
+    window.addEventListener("beforeunload", handleBeforeUnload);
 
     return () => {
-      document.removeEventListener("visibilitychange", onVisibilityChange);
-      document.removeEventListener("fullscreenchange", onFullscreenChange);
-      document.removeEventListener("contextmenu", onContextMenu);
-      document.removeEventListener("copy", onCopy);
-      document.removeEventListener("cut", onCut);
-      document.removeEventListener("paste", onPaste);
-      document.removeEventListener(
-        "beforeinput",
-        onBeforeInput as EventListener,
-      );
-      document.removeEventListener("dragstart", onDragStart);
-      document.removeEventListener("keydown", onKeyDown);
-      window.removeEventListener("blur", onBlur);
+      mounted = false;
+      window.removeEventListener("beforeunload", handleBeforeUnload);
+      cleanup();
     };
-  }, [record]);
+  }, [
+    enabled,
+    attemptId,
+    studentId,
+    testCode,
+    referenceImage,
+    authToken,
+    springBootUrl,
+    cleanup,
+    captureFrameBase64,
+    handleTelemetryUpdate,
+  ]);
 
-  const violationCount = useMemo(
-    () =>
-      Object.values(flags).reduce(
-        (sum, count) => sum + Number(count || 0),
-        0,
-      ),
-    [flags],
-  );
-
-  const requestFullscreen = useCallback(async () => {
-    if (typeof document === "undefined") return false;
-
-    if (document.fullscreenElement) {
-      setIsFullscreen(true);
-      return true;
-    }
-
-    try {
-      await document.documentElement.requestFullscreen();
-      setIsFullscreen(true);
-      return true;
-    } catch {
-      setIsFullscreen(false);
-      return false;
-    }
-  }, []);
-
-  const exitFullscreen = useCallback(async () => {
-    if (typeof document === "undefined" || !document.fullscreenElement) return;
-
-    try {
-      await document.exitFullscreen();
-    } catch {
-      // Ignore browser fullscreen teardown failures.
-    }
+  const dismissWarningModal = useCallback(() => {
+    setActiveWarningModal((prev) => ({ ...prev, isOpen: false }));
   }, []);
 
   return {
-    warnings,
-    violationCount,
-    flags,
-    events: eventsRef.current,
-    isFullscreen,
-    requestFullscreen,
-    exitFullscreen,
+    videoRef,
+    cameraActive,
+    isOnline,
+    faceDetected,
+    numFaces,
+    identityVerified,
+    similarityScore,
+    phoneDetected,
+    micLevel,
+    voiceActive,
+    loudVoice,
+    warningCount,
+    activeWarningModal,
+    dismissWarningModal,
+    cleanup,
   };
 }

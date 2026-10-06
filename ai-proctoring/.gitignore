@@ -1,0 +1,11 @@
+__pycache__/
+*.py[cod]
+*$py.class
+.pytest_cache/
+.venv/
+venv/
+*.pt
+*.onnx
+models/
+yolov8n.pt
+*.log

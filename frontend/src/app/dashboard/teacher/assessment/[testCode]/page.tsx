@@ -18,8 +18,10 @@ import {
   CheckCircle2,
   Trophy,
   Lock,
+  ShieldAlert,
 } from "lucide-react";
 import { Logo } from "@/components/Logo";
+import { TeacherProctoringReportModal } from "@/components/TeacherProctoringReportModal";
 import { ENDPOINTS } from "@/lib/api/endpoints";
 
 type SortKey = "rank" | "name" | "score" | "timeTaken";
@@ -235,6 +237,7 @@ export default function TeacherAssessmentPage({
   const [confirmCompleteOpen, setConfirmCompleteOpen] = useState(false);
 
   const [leaderboardUnavailable, setLeaderboardUnavailable] = useState(false);
+  const [inspectingAttemptId, setInspectingAttemptId] = useState<number | null>(null);
 
   const getToken = () => {
     const token = localStorage.getItem("dynoquizz_token");
@@ -1177,7 +1180,7 @@ export default function TeacherAssessmentPage({
             </div>
 
             <div className="flex-1 rounded-[14px] border border-[#d1dee8]/70 overflow-hidden bg-paper-white shadow-sm text-left">
-              <div className="grid grid-cols-[2.5rem_1fr_7rem_6rem] items-center gap-3 border-b border-[#d1dee8]/40 bg-paper-white px-5 py-2.5">
+              <div className="grid grid-cols-[2.5rem_1fr_7rem_6rem_5.5rem] items-center gap-3 border-b border-[#d1dee8]/40 bg-paper-white px-5 py-2.5">
                 <Th
                   label="#"
                   col="rank"
@@ -1211,6 +1214,10 @@ export default function TeacherAssessmentPage({
                   onSort={toggleSort}
                   className="justify-center"
                 />
+
+                <span className="text-[9px] font-bold uppercase tracking-wider text-steel-blue-gray text-center">
+                  Proctor
+                </span>
               </div>
 
               {leaderboardUnavailable ? (
@@ -1231,7 +1238,7 @@ export default function TeacherAssessmentPage({
                   {displayList.map((student) => (
                     <li
                       key={student.id}
-                      className="grid grid-cols-[2.5rem_1fr_7rem_6rem] items-center gap-3 px-5 py-2.5 transition-colors hover:bg-frost-surface/40"
+                      className="grid grid-cols-[2.5rem_1fr_7rem_6rem_5.5rem] items-center gap-3 px-5 py-2.5 transition-colors hover:bg-frost-surface/40"
                     >
                       <span className="text-xs font-bold font-mono text-steel-blue-gray">
                         {student.rank}
@@ -1263,6 +1270,16 @@ export default function TeacherAssessmentPage({
                           {student.timeTaken || "00:00"}
                         </span>
                       </div>
+
+                      <div className="flex justify-center">
+                        <button
+                          type="button"
+                          onClick={() => setInspectingAttemptId(Number(student.id))}
+                          className="inline-flex items-center gap-1 rounded-[6px] bg-[#165dfb]/10 hover:bg-[#165dfb]/20 px-2 py-1 text-[10px] font-bold text-[#165dfb] transition-all cursor-pointer border border-[#165dfb]/20 shadow-2xs"
+                        >
+                          <ShieldAlert className="h-3 w-3" /> Audit
+                        </button>
+                      </div>
                     </li>
                   ))}
                 </ul>
@@ -1271,6 +1288,12 @@ export default function TeacherAssessmentPage({
           </section>
         </div>
       </div>
+
+      <TeacherProctoringReportModal
+        isOpen={inspectingAttemptId !== null}
+        attemptId={inspectingAttemptId}
+        onClose={() => setInspectingAttemptId(null)}
+      />
     </main>
   );
 }

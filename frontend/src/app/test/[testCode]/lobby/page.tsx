@@ -18,6 +18,7 @@ import {
   Check,
 } from "lucide-react";
 import { Logo } from "@/components/Logo";
+import { CameraReferenceCapture } from "@/components/CameraReferenceCapture";
 
 import { ApiClientError, api, getAuthToken } from "@/lib/api/client";
 import { ENDPOINTS } from "@/lib/api/endpoints";
@@ -68,6 +69,7 @@ function LobbyInner({ testCode }: { testCode: string }) {
   const [availability, setAvailability] =
     useState<QuizAvailabilityResponse | null>(null);
 
+  const [referencePhoto, setReferencePhoto] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [isStarting, setIsStarting] = useState(false);
   const [startError, setStartError] = useState<string | null>(null);
@@ -150,6 +152,12 @@ function LobbyInner({ testCode }: { testCode: string }) {
 
     if (!token) {
       router.replace(getLoginRedirect(cleanCode));
+      return;
+    }
+
+    const existingPhoto = referencePhoto || (typeof window !== "undefined" ? sessionStorage.getItem("dynoquizz_reference_photo") : null);
+    if (!existingPhoto) {
+      setStartError("Please take your reference biometric photo before starting the assessment.");
       return;
     }
 
@@ -459,6 +467,18 @@ function LobbyInner({ testCode }: { testCode: string }) {
               {startError}
             </div>
           )}
+
+          {/* Biometric Reference Capture */}
+          <CameraReferenceCapture
+            onCapture={(photo) => {
+              setReferencePhoto(photo);
+              if (typeof window !== "undefined") {
+                sessionStorage.setItem("dynoquizz_reference_photo", photo);
+              }
+              setStartError(null);
+            }}
+            disabled={isStarting}
+          />
 
           <div className="rounded-[12px] border border-[#d1dee8]/70 bg-[#f5f5f4]/60 p-5 space-y-3 text-left shadow-xs">
             <div className="flex items-center justify-between border-b border-[#d1dee8]/50 pb-3">

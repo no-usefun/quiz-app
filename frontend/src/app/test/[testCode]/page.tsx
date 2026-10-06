@@ -19,7 +19,9 @@ import {
   ShieldCheck,
 } from "lucide-react";
 
-import { type ProctoringEvent, useProctoring } from "@/hooks/useProctoring";
+import { useProctoring } from "@/hooks/useProctoring";
+import { AIProctoringHUD } from "@/components/AIProctoringHUD";
+import { ProctoringWarningModal } from "@/components/ProctoringWarningModal";
 import { ApiClientError, api, getAuthToken } from "@/lib/api/client";
 import { ENDPOINTS } from "@/lib/api/endpoints";
 import type {
@@ -233,52 +235,37 @@ export default function TestArenaPage({
   const currentQuestionRef = useRef<QuestionResponse | null>(null);
   const expiryHandledRef = useRef(false);
   const submissionInFlightRef = useRef(false);
+  const referencePhoto =
+    typeof window !== "undefined"
+      ? sessionStorage.getItem("dynoquizz_reference_photo")
+      : null;
 
-  const syncProctoringEvent = useCallback(
-    async (event: ProctoringEvent) => {
-      if (!activeAttemptId || !event || isSubmitted) return;
-
-      try {
-        await api.post(
-          ENDPOINTS.student.proctoringEvents(activeAttemptId),
-          {
-            type: event.type,
-            metadata: { source: "browser" },
-          },
-        );
-        if (event.type === "tab_switch") {
-          const state = await api.get<AttemptStateResponse>(
-            ENDPOINTS.student.attemptState(activeAttemptId),
-          );
-
-          if (state.status !== "IN_PROGRESS") {
-            setSubmittedAttemptId(String(state.attemptId));
-            setDeadlineNotice(
-              state.status === "AUTO_SUBMITTED"
-                ? "The server automatically submitted this attempt after the configured proctoring limit was exceeded."
-                : "This assessment attempt is no longer active.",
-            );
-            setIsSubmitted(true);
-          }
-        }
-      } catch (error) {
-        console.warn("[Proctoring] Server event sync failed:", error);
-      }
+  const proctoring = useProctoring({
+    attemptId: Number(activeAttemptId || 0),
+    studentId: "student",
+    testCode: cleanCode,
+    referenceImage: referencePhoto,
+    authToken: getAuthToken() || undefined,
+    onAutoSubmit: () => {
+      setDeadlineNotice(
+        "Assessment automatically submitted due to reaching maximum proctoring violation warnings."
+      );
+      void finishAssessment(answersRef.current, timeTakenRef.current);
     },
-    [activeAttemptId, isSubmitted],
-  );
+    enabled: !isSubmitted && Boolean(activeAttemptId),
+  });
 
-  const {
-    flags,
-    warnings,
-    violationCount,
-    isFullscreen,
-    requestFullscreen,
-    exitFullscreen,
-  } = useProctoring(
-    activeAttemptId ? `attempt_${activeAttemptId}` : `code_${cleanCode}`,
-    syncProctoringEvent,
-  );
+  const isFullscreen = true;
+  const requestFullscreen = async () => {
+    if (typeof document !== "undefined" && !document.fullscreenElement) {
+      await document.documentElement.requestFullscreen().catch(() => {});
+    }
+  };
+  const exitFullscreen = async () => {
+    if (typeof document !== "undefined" && document.fullscreenElement) {
+      await document.exitFullscreen().catch(() => {});
+    }
+  };
 
   useEffect(() => {
     answersRef.current = answers;
@@ -1142,9 +1129,9 @@ export default function TestArenaPage({
             <p className="mt-2 text-xs leading-relaxed text-[#78716b]">
               The assessment must remain in fullscreen mode. Re-enter fullscreen to continue the attempt.
             </p>
-            {violationCount > 0 && (
+            {proctoring.warningCount > 0 && (
               <p className="mt-2 text-[10px] font-bold text-[#8c381c]">
-                Suspicious activity events recorded: {violationCount}
+                Suspicious activity warnings recorded: {proctoring.warningCount}
               </p>
             )}
             <button
@@ -1313,7 +1300,7 @@ export default function TestArenaPage({
                 {currentQuestion?.options.map((option, idx) => {
                   const optionId = Number(option.optionId);
                   const selectedIds =
-                    answersRef.current[Number(currentQuestion.questionId)] ??
+                    answers[Number(currentQuestion.questionId)] ??
                     [];
                   const isSelected = selectedIds.includes(optionId);
 
@@ -1429,44 +1416,21 @@ export default function TestArenaPage({
       </motion.div>
 
       <aside className="hidden w-72 flex-col gap-4 pl-6 lg:flex text-left">
-        <div className="rounded-[14px] border border-[#d1dee8]/70 bg-white p-4 shadow-sm">
-          <div className="flex items-center justify-between gap-3">
-            <h3 className="flex items-center gap-1.5 text-xs font-bold text-[#111111]">
-              <ShieldAlert className="h-3.5 w-3.5 text-[#8c381c]" />
-              Activity Monitor
-            </h3>
-            <span className={`rounded-full px-2 py-0.5 text-[9px] font-bold ${
-              violationCount === 0
-                ? "bg-[#e2ede8] text-[#1d5237]"
-                : "bg-[#fbeee8] text-[#8c381c]"
-            }`}>
-              {violationCount} events
-            </span>
-          </div>
-
-          <div className="mt-3 grid grid-cols-2 gap-2">
-            {[
-              ["Tab switches", flags.tab_switch],
-              ["Copy / cut / paste", flags.copy_attempt + flags.cut_attempt + flags.paste_attempt],
-              ["Focus / keyboard", flags.focus_loss + flags.keyboard_attempt],
-              ["Right clicks", flags.right_click],
-            ].map(([label, value]) => (
-              <div key={String(label)} className="rounded-lg border border-[#d1dee8]/70 bg-[#f8f8f7] p-2">
-                <p className="text-[9px] font-semibold text-[#78716b]">{label}</p>
-                <p className="mt-0.5 text-sm font-black text-[#111111]">{value}</p>
-              </div>
-            ))}
-          </div>
-
-          {warnings.length > 0 && (
-            <div className="mt-3 rounded-lg border border-[#73561a]/20 bg-[#f6efe1] p-2.5">
-              <p className="text-[9px] font-bold uppercase tracking-wider text-[#73561a]">Latest event</p>
-              <p className="mt-1 text-[10px] font-semibold leading-relaxed text-[#73561a]">
-                {warnings[warnings.length - 1]}
-              </p>
-            </div>
-          )}
-        </div>
+        {/* Live AI Proctoring HUD */}
+        <AIProctoringHUD
+          videoRef={proctoring.videoRef}
+          cameraActive={proctoring.cameraActive}
+          faceDetected={proctoring.faceDetected}
+          numFaces={proctoring.numFaces}
+          identityVerified={proctoring.identityVerified}
+          similarityScore={proctoring.similarityScore}
+          phoneDetected={proctoring.phoneDetected}
+          micLevel={proctoring.micLevel}
+          voiceActive={proctoring.voiceActive}
+          loudVoice={proctoring.loudVoice}
+          warningCount={proctoring.warningCount}
+          isOnline={proctoring.isOnline}
+        />
 
         <div className="overflow-hidden rounded-[14px] bg-white border border-[#d1dee8]/70 shadow-sm">
           <div className="p-4 border-b border-[#d1dee8]/50 bg-[#f5f5f4]">
@@ -1517,42 +1481,40 @@ export default function TestArenaPage({
           <ul className="space-y-1.5 text-[10px] font-medium text-[#78716b]">
             <li className="flex items-start gap-1 leading-relaxed">
               <span className="mt-1 h-1 w-1 rounded-full bg-[#165dfb] shrink-0" />
-              Select an option to answer the question. Unanswered questions may
-              be skipped.
+              Keep face centered and visible inside camera frame at all times.
             </li>
 
             <li className="flex items-start gap-1 leading-relaxed">
               <span className="mt-1 h-1 w-1 rounded-full bg-[#165dfb] shrink-0" />
-              The countdown is based on the server&apos;s authoritative attempt
-              deadline.
+              Do not use mobile phones or external reference materials.
             </li>
 
             <li className="flex items-start gap-1 leading-relaxed">
               <span className="mt-1 h-1 w-1 rounded-full bg-[#165dfb] shrink-0" />
-              Backend scoring remains authoritative after submission.
+              Remain quiet. Voice and acoustic levels are continuously analyzed.
             </li>
 
             <li className="flex items-start gap-1 leading-relaxed">
               <span className="mt-1 h-1 w-1 rounded-full bg-[#165dfb] shrink-0" />
-              Browser-observable suspicious activity is reported to the server during the session.
+              3 confirmed malpractice strikes will result in automatic submission.
             </li>
-
-            {violationCount > 0 && (
-              <li className="flex items-start gap-1 leading-relaxed text-[#8c381c]">
-                <span className="mt-1 h-1 w-1 rounded-full bg-[#8c381c] shrink-0" />
-                {violationCount} suspicious activity event{violationCount === 1 ? "" : "s"} detected.
-              </li>
-            )}
-
-            {flags.tab_switch > 0 && (
-              <li className="flex items-start gap-1 leading-relaxed text-[#8c381c]">
-                <span className="mt-1 h-1 w-1 rounded-full bg-[#8c381c] shrink-0" />
-                Tab-switch activity was detected.
-              </li>
-            )}
           </ul>
         </div>
       </aside>
+
+      {/* Proctoring Warning Modal */}
+      <ProctoringWarningModal
+        isOpen={proctoring.activeWarningModal.isOpen}
+        warningCount={proctoring.activeWarningModal.count}
+        reason={proctoring.activeWarningModal.reason}
+        autoSubmitted={proctoring.activeWarningModal.autoSubmitted}
+        onAcknowledge={() => {
+          proctoring.dismissWarningModal();
+          if (proctoring.activeWarningModal.autoSubmitted) {
+            router.push(`/dashboard/student/result/${cleanCode}`);
+          }
+        }}
+      />
     </div>
   );
 }
