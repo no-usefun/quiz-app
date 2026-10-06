@@ -78,6 +78,18 @@ CREATE TABLE quizzes (
     CONSTRAINT chk_quizzes_result_visibility CHECK (result_visibility IN ('NONE', 'LEADERBOARD', 'QUESTION_WISE', 'BOTH'))
 );
 
+CREATE TABLE offline_exams (
+    offline_exam_id BIGSERIAL PRIMARY KEY,
+    quiz_id BIGINT NOT NULL UNIQUE REFERENCES quizzes(quiz_id) ON UPDATE CASCADE ON DELETE CASCADE,
+    status VARCHAR(20) NOT NULL CHECK (status IN ('PREPARING', 'READY', 'RUNNING', 'ENDED')),
+    prepared_at TIMESTAMP,
+    started_at TIMESTAMP,
+    ended_at TIMESTAMP,
+    updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX idx_offline_exams_status ON offline_exams(status);
+
 CREATE TABLE quiz_allowed_students (
     id BIGSERIAL PRIMARY KEY,
     quiz_id BIGINT NOT NULL REFERENCES quizzes(quiz_id) ON UPDATE CASCADE ON DELETE CASCADE,
