@@ -794,7 +794,6 @@ export default function TestArenaPage({
     if (
       expiryHandledRef.current ||
       isSubmitted ||
-      !currentQuestionRef.current ||
       !attemptId
     ) {
       return;
@@ -806,34 +805,49 @@ export default function TestArenaPage({
       "The overall assessment time has ended. The server will finalize the attempt.",
     );
 
-    const question = currentQuestionRef.current;
-    const questionId = Number(question.questionId);
-
-    if (!Number.isFinite(questionId) || questionId <= 0) {
-      return;
-    }
-
-    const latestAnswers: ActiveAnswerState = {
-      ...answersRef.current,
-      [questionId]: answersRef.current[questionId] ?? [],
-    };
+    const latestAnswers = { ...answersRef.current };
+    const latestTimeTaken = { ...timeTakenRef.current };
 
     setAnswers(latestAnswers);
     answersRef.current = latestAnswers;
 
-    persistCurrentState(latestAnswers, timeTakenRef.current);
+    persistCurrentState(latestAnswers, latestTimeTaken);
+
+    const completeAnswers = questions.map((question) => {
+      const questionId = Number(question.questionId);
+
+      return {
+        questionId,
+        selectedOptionIds: (latestAnswers[questionId] ?? []).filter(
+          (optionId) =>
+            Number.isFinite(Number(optionId)) && Number(optionId) > 0,
+        ),
+        responseTimeSeconds: Math.max(
+          0,
+          Math.floor(latestTimeTaken[questionId] ?? 0),
+        ),
+      };
+    });
 
     void (async () => {
       try {
         const result = await api.post<SubmitAttemptResponse>(
-          ENDPOINTS.student.autoSubmitAttempt(attemptId),
+          ENDPOINTS.student.submitAttempt(attemptId),
+          { answers: completeAnswers },
         );
 
         setSubmittedAttemptId(String(result.attemptId));
         setIsSubmitted(true);
-        setSubmissionNotice(
-          "The server automatically submitted the assessment at the authoritative deadline.",
-        );
+
+        if (result.status === "AUTO_SUBMITTED") {
+          setDeadlineNotice(
+            "The server automatically submitted the assessment at the authoritative deadline.",
+          );
+        } else {
+          setSubmissionNotice(
+            "The assessment was submitted at the deadline.",
+          );
+        }
 
         localStorage.removeItem(
           `dynoquizz_pending_submit_${attemptId}`,
