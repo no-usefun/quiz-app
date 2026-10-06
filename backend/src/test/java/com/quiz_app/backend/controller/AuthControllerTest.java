@@ -66,7 +66,7 @@ class AuthControllerTest {
                 summary = new UserSummaryResponse(
                                 1L, "Jane", "Smith", "Jane Smith", "jane@example.com",
                                 "TEACHER", "College", "CS", null, null, "LOCAL",
-                                null, true, true);
+                                null, true, true, false);
 
                 authResponse = new AuthResponse("jwt", 3600000L, summary);
         }
@@ -171,7 +171,7 @@ class AuthControllerTest {
         void updateProfile_shouldDelegate() {
                 when(userDetails.getUsername()).thenReturn("jane@example.com");
                 var request = new com.quiz_app.backend.dto.auth.UpdateProfileRequest(
-                                "Jane", "Smith", null, null, null, null);
+                                "Jane", "Smith", null, null, null, null, null);
                 when(authService.updateProfile("jane@example.com", request)).thenReturn(summary);
 
                 var response = new AuthController(authService, emailVerificationService)
@@ -187,7 +187,7 @@ class AuthControllerTest {
                 assertThrowsBadRequest(() -> new AuthController(authService, emailVerificationService)
                                 .updateProfile(null,
                                                 new com.quiz_app.backend.dto.auth.UpdateProfileRequest(
-                                                                "Jane", null, null, null, null, null)));
+                                                                "Jane", null, null, null, null, null, null)));
         }
 
         @Test

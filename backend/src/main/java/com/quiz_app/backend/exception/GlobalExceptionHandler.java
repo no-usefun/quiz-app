@@ -145,7 +145,7 @@ public class GlobalExceptionHandler {
 
                 logger.error("Unhandled exception: ", ex);
 
-                ErrorResponse response = new ErrorResponse(
+                ErrorResponse errorResponse = new ErrorResponse(
                                 HttpStatus.INTERNAL_SERVER_ERROR.value(),
                                 "INTERNAL_ERROR",
                                 "Internal Server Error",
@@ -154,7 +154,7 @@ public class GlobalExceptionHandler {
 
                 return ResponseEntity
                                 .status(HttpStatus.INTERNAL_SERVER_ERROR)
-                                .body(response);
+                                .body(errorResponse);
         }
 
         @ExceptionHandler(AccessDeniedApplicationException.class)

@@ -144,6 +144,7 @@ public class OAuth2AuthenticationSuccessHandler
                 }
 
                 user = createNewSsoUser(
+                        oidcUser,
                         normalizedEmail,
                         requestedRole);
 
@@ -236,6 +237,7 @@ public class OAuth2AuthenticationSuccessHandler
     }
 
     private User createNewSsoUser(
+            OidcUser oidcUser,
             String email,
             String requestedRole) {
 
@@ -247,14 +249,27 @@ public class OAuth2AuthenticationSuccessHandler
 
         User user = new User();
 
+        String givenName = oidcUser.getAttribute("given_name");
+        String familyName = oidcUser.getAttribute("family_name");
+        String picture = oidcUser.getAttribute("picture");
+
         user.setFirstName(
-                email.substring(0, email.indexOf('@')));
-        user.setLastName(null);
+                givenName != null && !givenName.isBlank()
+                        ? givenName.trim()
+                        : email.substring(0, email.indexOf('@')));
+        user.setLastName(
+                familyName != null && !familyName.isBlank()
+                        ? familyName.trim()
+                        : null);
         user.setEmail(email);
         user.setPasswordHash(null);
         user.setGoogleId(null);
         user.setAuthProvider("GOOGLE");
         user.setRole(role);
+        user.setProfileImage(
+                picture != null && !picture.isBlank()
+                        ? picture.trim()
+                        : null);
         user.setVerified(true);
         user.setActive(true);
         user.setRegistrationNo(null);

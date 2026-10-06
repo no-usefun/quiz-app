@@ -231,6 +231,22 @@ public class AuthService {
                                                         : request.department().trim());
                 }
 
+                if (request.registrationNo() != null) {
+                        String registrationNo = request.registrationNo().isBlank()
+                                        ? null
+                                        : request.registrationNo().trim().toUpperCase(Locale.ROOT);
+
+                        if (registrationNo != null
+                                        && !registrationNo.equals(user.getRegistrationNo())
+                                        && userRepository.existsByRegistrationNo(registrationNo)) {
+                                throw new ConflictException(
+                                                "Registration number " + registrationNo
+                                                                + " is already associated with an account");
+                        }
+
+                        user.setRegistrationNo(registrationNo);
+                }
+
                 if (request.profileImage() != null) {
                         user.setProfileImage(
                                         request.profileImage().isBlank()

@@ -1050,13 +1050,21 @@ public class StudentAttemptService {
 
                         StudentAnswer answer = answerMap.get(question.getId());
 
+                        List<Option> questionOptions =
+                                        optionRepository.findByQuestionIdOrderByOptionOrder(question.getId());
+
                         List<Long> selectedOptionIds = new java.util.ArrayList<>();
 
-                        List<Long> correctOptionIds = optionRepository
-                                        .findByQuestionIdOrderByOptionOrder(question.getId())
-                                        .stream()
+                        List<Long> correctOptionIds = questionOptions.stream()
                                         .filter(Option::isCorrect)
                                         .map(Option::getId)
+                                        .toList();
+
+                        List<String> selectedOptionTexts = new java.util.ArrayList<>();
+
+                        List<String> correctOptionTexts = questionOptions.stream()
+                                        .filter(Option::isCorrect)
+                                        .map(Option::getOptionText)
                                         .toList();
 
                         AnswerStatus answerStatus;
@@ -1081,6 +1089,10 @@ public class StudentAttemptService {
                                 selectedOptionIds = selectedOptions.stream()
                                                 .map(selected -> selected.getOption().getId())
                                                 .toList();
+
+                                selectedOptionTexts = selectedOptions.stream()
+                                                .map(selected -> selected.getOption().getOptionText())
+                                                .toList();
                         }
 
                         result.add(
@@ -1091,6 +1103,8 @@ public class StudentAttemptService {
                                                         question.getDisplayOrder(),
                                                         selectedOptionIds,
                                                         correctOptionIds,
+                                                        selectedOptionTexts,
+                                                        correctOptionTexts,
                                                         answerStatus,
                                                         correct,
                                                         marksAwarded,
