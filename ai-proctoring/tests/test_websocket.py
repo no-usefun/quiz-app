@@ -159,3 +159,36 @@ def test_websocket_inactive_session():
             assert resp.get("error") == "SESSION_INACTIVE"
             websocket.receive_text()
     assert excinfo.value.code == 4003
+
+def test_websocket_cross_session_ticket_reuse():
+    """Attack I: Valid ticket of Session A cannot authenticate Session B WebSocket."""
+    session_a = session_manager.create_session(
+        attempt_id=207,
+        student_id="student-ws-a",
+        test_code="TEST101",
+        reference_embedding=np.zeros((1, 128), dtype=np.float32),
+        auth_token="jwt-a"
+    )
+    session_b = session_manager.create_session(
+        attempt_id=208,
+        student_id="student-ws-b",
+        test_code="TEST101",
+        reference_embedding=np.zeros((1, 128), dtype=np.float32),
+        auth_token="jwt-b"
+    )
+
+    ticket_a = session_a.ws_ticket
+
+    with pytest.raises(WebSocketDisconnect) as excinfo:
+        with client.websocket_connect(f"/ws/proctor/{session_b.session_id}") as websocket:
+            websocket.send_json({
+                "type": "auth",
+                "ticket": ticket_a,
+                "studentId": "student-ws-b",
+                "attemptId": 208
+            })
+            resp = websocket.receive_json()
+            assert resp.get("error") == "UNAUTHORIZED"
+            websocket.receive_text()
+    assert excinfo.value.code == 4001
+
