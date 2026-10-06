@@ -492,6 +492,47 @@ public class TeacherQuizService {
                 quizRepository.save(quiz);
         }
 
+        /**
+         * Deletes a quiz only while it is still a draft and has never been used
+         * by a student. Ownership is checked before any mutation.
+         *
+         * The database foreign keys for quiz-owned data use ON DELETE CASCADE,
+         * so deleting the quiz also removes its draft questions/options and
+         * allowed-student entries.
+         */
+        @Transactional
+        public void deleteDraftQuiz(Long quizId, Long teacherId) {
+
+                if (quizId == null) {
+                        throw new BadRequestException("Quiz ID is required");
+                }
+
+                if (teacherId == null) {
+                        throw new BadRequestException("Teacher authentication is required");
+                }
+
+                Quiz quiz = quizRepository.findById(quizId)
+                                .orElseThrow(() -> new ResourceNotFoundException("Quiz not found"));
+
+                if (quiz.getTeacher() == null
+                                || !quiz.getTeacher().getId().equals(teacherId)) {
+                        throw new AccessDeniedApplicationException(
+                                        "You do not have permission to delete this quiz");
+                }
+
+                if (quiz.getStatus() != QuizStatus.DRAFT) {
+                        throw new BadRequestException(
+                                        "Only a draft quiz can be deleted");
+                }
+
+                if (quizAttemptRepository.existsByQuizId(quizId)) {
+                        throw new BadRequestException(
+                                        "Quiz cannot be deleted because it has already been used by a student");
+                }
+
+                quizRepository.delete(quiz);
+        }
+
         @Transactional
         public void publishQuiz(Long quizId, Long teacherId) {
 
