@@ -49,6 +49,9 @@ function clearStoredSession() {
     localStorage.removeItem(key);
   }
 
+  sessionStorage.removeItem("dynoquizz_google_role");
+  sessionStorage.removeItem("dynoquizz_post_login_redirect");
+
   document.cookie =
     "dynoquizz_token=; expires=Thu, 01 Jan 1970 00:00:00 GMT; path=/; samesite=lax";
 }
@@ -72,6 +75,18 @@ function roleToBackendRole(role: Role): "TEACHER" | "STUDENT" {
 
 function roleDestination(role: "TEACHER" | "STUDENT"): string {
   return role === "TEACHER" ? "/dashboard/teacher" : "/dashboard/student";
+}
+
+function getPostAuthDestination(
+  role: "TEACHER" | "STUDENT",
+  profileComplete: unknown,
+  redirectTarget: string,
+): string {
+  if (profileComplete === false) {
+    return "/settings?profile=complete";
+  }
+
+  return redirectTarget || roleDestination(role);
 }
 
 function LoginContent() {
@@ -123,7 +138,11 @@ function LoginContent() {
 
         localStorage.setItem("dynoquizz_user", JSON.stringify(user));
         localStorage.setItem("dynoquizz_role", backendRole);
-        window.location.href = redirectTarget || roleDestination(backendRole);
+        window.location.href = getPostAuthDestination(
+          backendRole,
+          user?.profileComplete,
+          redirectTarget,
+        );
       } catch {
         // Keep the login screen usable when the backend is temporarily offline.
       }
@@ -242,7 +261,11 @@ function LoginContent() {
         "; samesite=lax";
 
       router.refresh();
-      window.location.href = redirectTarget || roleDestination(backendRole);
+      window.location.href = getPostAuthDestination(
+        backendRole,
+        meData?.profileComplete,
+        redirectTarget,
+      );
     } catch (requestError) {
       setError(requestError instanceof Error ? requestError.message : "Cannot connect to the authentication server.");
     } finally {
