@@ -226,7 +226,7 @@ export function useProctoring(
     const onVisibilityChange = () => {
       if (document.hidden) {
         recordTabOrFullscreenExit(
-          "Tab or browser visibility change detected.",
+          "Tab-switch activity detected.",
         );
       }
     };
@@ -243,7 +243,7 @@ export function useProctoring(
 
       if (!active) {
         recordTabOrFullscreenExit(
-          "The assessment left fullscreen or browser visibility was exited.",
+          "Tab-switch activity detected.",
         );
       }
     };
