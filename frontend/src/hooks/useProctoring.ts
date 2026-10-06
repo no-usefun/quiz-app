@@ -226,7 +226,10 @@ export function useProctoring(
       setIsFullscreen(active);
 
       if (!active) {
-        record("fullscreen_exit", "Fullscreen mode was exited.");
+        record(
+          "tab_switch",
+          "The assessment left fullscreen or browser visibility was exited.",
+        );
       }
     };
 
