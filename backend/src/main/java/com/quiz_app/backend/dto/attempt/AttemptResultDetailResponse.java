@@ -12,6 +12,8 @@ public record AttemptResultDetailResponse(
         Integer displayOrder,
         List<Long> selectedOptionIds,
         List<Long> correctOptionIds,
+        List<String> selectedOptionTexts,
+        List<String> correctOptionTexts,
         AnswerStatus answerStatus,
         boolean correct,
         BigDecimal marksAwarded,

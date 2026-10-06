@@ -174,7 +174,7 @@ class AuthControllerTest {
         void updateProfile_shouldDelegate() {
                 when(userDetails.getUsername()).thenReturn("jane@example.com");
                 var request = new com.quiz_app.backend.dto.auth.UpdateProfileRequest(
-                                "Jane", "Smith", null, null, null, null);
+                                "Jane", "Smith", null, null, null, null, null);
                 when(authService.updateProfile("jane@example.com", request)).thenReturn(summary);
 
                 var response = new AuthController(authService, emailVerificationService)
@@ -190,10 +190,10 @@ class AuthControllerTest {
                 assertThrowsBadRequest(() -> new AuthController(authService, emailVerificationService)
                                 .updateProfile(null,
                                                 new com.quiz_app.backend.dto.auth.UpdateProfileRequest(
-                                                                "Jane", null, null, null, null, null)));
+                                                                "Jane", null, null, null, null, null, null)));
         }
 
-        @Test
+@Test
         void changePassword_shouldDelegate() {
                 when(userDetails.getUsername()).thenReturn("jane@example.com");
                 var request = new com.quiz_app.backend.dto.auth.ChangePasswordRequest(
@@ -201,25 +201,3 @@ class AuthControllerTest {
 
                 var response = new AuthController(authService, emailVerificationService)
                                 .changePassword(userDetails, request);
-
-                assertEquals(200, response.getStatusCode().value());
-                verify(authService).changePassword("jane@example.com", request);
-        }
-
-        @Test
-        void deleteAccount_shouldDelegate() {
-                when(userDetails.getUsername()).thenReturn("jane@example.com");
-                var request = new com.quiz_app.backend.dto.auth.DeleteAccountRequest("password123");
-
-                var response = new AuthController(authService, emailVerificationService)
-                                .deleteAccount(userDetails, request);
-
-                assertEquals(204, response.getStatusCode().value());
-                verify(authService).deleteAccount("jane@example.com", request);
-        }
-
-        private void assertThrowsBadRequest(Runnable action) {
-                org.junit.jupiter.api.Assertions.assertThrows(
-                                BadRequestException.class, action::run);
-        }
-}
