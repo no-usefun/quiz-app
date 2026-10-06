@@ -14,6 +14,7 @@ import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 
 import jakarta.servlet.http.HttpServletRequest;
+import jakarta.servlet.http.HttpServletResponse;
 
 @RestControllerAdvice
 public class GlobalExceptionHandler {
@@ -132,7 +133,15 @@ public class GlobalExceptionHandler {
         @ExceptionHandler(Exception.class)
         public ResponseEntity<ErrorResponse> handleGeneralException(
                         Exception ex,
-                        HttpServletRequest request) {
+                        HttpServletRequest request,
+                        HttpServletResponse response) {
+
+                if (response.isCommitted()) {
+                        logger.warn(
+                                        "Skipping global error response because the HTTP response is already committed: {}",
+                                        request.getRequestURI());
+                        return null;
+                }
 
                 logger.error("Unhandled exception: ", ex);
 
