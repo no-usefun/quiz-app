@@ -68,7 +68,54 @@ export default function TeacherDashboard() {
     try {
       const data = await api.get<QuizResponse[]>(ENDPOINTS.teacher.quizzes);
 
-      setTests(data.map(normalizeQuiz));
+      /*
+       * Once an assessment's configured end time has passed, treat it the
+       * same way as an instructor pressing "End Quiz". This moves the
+       * backend lifecycle to COMPLETED automatically, so result publishing
+       * does not depend on the teacher opening the leaderboard and manually
+       * ending the assessment first.
+       *
+       * The backend remains authoritative: we only request completion for
+       * quizzes that are still PUBLISHED and are already displayed as Ended.
+       */
+      const normalized = data.map(normalizeQuiz);
+
+      const expiredPublishedQuizzes = normalized.filter(
+        (quiz) =>
+          quiz.displayState === "Ended" &&
+          quiz.status === "PUBLISHED",
+      );
+
+      if (expiredPublishedQuizzes.length > 0) {
+        const completionResults = await Promise.allSettled(
+          expiredPublishedQuizzes.map((quiz) =>
+            api.put<QuizResponse>(
+              ENDPOINTS.teacher.completeQuiz(quiz.quizId),
+            ),
+          ),
+        );
+
+        const completedById = new Map<number, QuizResponse>();
+
+        completionResults.forEach((result) => {
+          if (result.status === "fulfilled") {
+            completedById.set(result.value.quizId, result.value);
+          } else {
+            console.error(
+              "Automatic quiz completion failed:",
+              result.reason,
+            );
+          }
+        });
+
+        setTests(
+          normalized.map((quiz) =>
+            normalizeQuiz(completedById.get(quiz.quizId) ?? quiz),
+          ),
+        );
+      } else {
+        setTests(normalized);
+      }
     } catch (error) {
       console.error("Dashboard fetch error:", error);
 
