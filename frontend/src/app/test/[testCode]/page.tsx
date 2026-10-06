@@ -1254,6 +1254,7 @@ className="flex flex-wrap items-center gap-2.5">center gap-3.5">
                   onClick={() => goToQuestion(index)}
                   disabled={
                     isSubmitted ||
+                    isSubmitting ||
                     (test?.allowReview === false && index < currentIndex)
                   }
                   className={`relative flex h-8 min-w-8 items-center justify-center rounded-lg border px-2 text-[10px] font-bold transition-all ${
@@ -1365,6 +1366,7 @@ className="flex flex-wrap items-center gap-2.5">center gap-3.5">
                       onClick={() => handleSelectOption(optionId)}
                       disabled={
                         isSubmitted ||
+                        isSubmitting ||
                         timeLeft <= 0
                       }
                       className={`w-full rounded-[10px] border p-3.5 text-left text-xs font-bold transition-all duration-150 cursor-pointer disabled:cursor-not-allowed disabled:opacity-50 ${
@@ -1402,6 +1404,7 @@ className="flex flex-wrap items-center gap-2.5">center gap-3.5">
                 onClick={() => goToQuestion(currentIndex - 1)}
                 disabled={
                   isSubmitted ||
+                  isSubmitting ||
                   currentIndex === 0 ||
                   test?.allowReview === false
                 }
@@ -1414,7 +1417,9 @@ className="flex flex-wrap items-center gap-2.5">center gap-3.5">
               <button
                 type="button"
                 onClick={toggleReview}
-                disabled={isSubmitted || test?.allowReview === false}
+                disabled={
+                  isSubmitted || isSubmitting || test?.allowReview === false
+                }
                 className={`inline-flex items-center gap-1 rounded-lg border px-3 py-2 text-[10px] font-bold transition-all disabled:opacity-40 ${
                   markedForReview[Number(currentQuestion?.questionId)]
                     ? "border-[#73561a]/30 bg-[#f6efe1] text-[#73561a]"
@@ -1432,6 +1437,7 @@ className="flex flex-wrap items-center gap-2.5">center gap-3.5">
                 onClick={clearCurrentAnswer}
                 disabled={
                   isSubmitted ||
+                  isSubmitting ||
                   (answers[Number(currentQuestion?.questionId)] ?? []).length === 0
                 }
                 className="inline-flex items-center gap-1 rounded-lg border border-[#d1dee8]/80 bg-white px-3 py-2 text-[10px] font-bold text-[#78716b] transition-all hover:bg-[#f5f5f4] disabled:cursor-not-allowed disabled:opacity-40"
