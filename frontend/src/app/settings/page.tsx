@@ -66,6 +66,7 @@ function TextInput({
   icon,
   rightSlot,
   disabled = false,
+  maxLength,
 }: {
   type?: string;
   placeholder?: string;
@@ -74,6 +75,7 @@ function TextInput({
   icon?: React.ReactNode;
   rightSlot?: React.ReactNode;
   disabled?: boolean;
+  maxLength?: number;
 }) {
   return (
     <div className="relative">
@@ -89,6 +91,7 @@ function TextInput({
         value={value}
         onChange={onChange}
         disabled={disabled}
+        maxLength={maxLength}
         className={`w-full rounded-[10px] border border-[#d1dee8]/70 py-2.5 text-xs text-[#111111] outline-none transition-all placeholder:text-[#78716b]/60 focus:border-[#165dfb] focus:ring-4 focus:ring-[#165dfb]/10 focus:bg-white font-medium shadow-xs ${
           disabled
             ? "bg-[#f5f5f4] cursor-not-allowed opacity-75"
@@ -171,6 +174,7 @@ function ProfilePanel({
   const [email, setEmail] = useState("");
   const [institution, setInstitution] = useState("");
   const [program, setProgram] = useState("");
+  const [registrationNo, setRegistrationNo] = useState("");
   const [phone, setPhone] = useState("");
   const [profileImage, setProfileImage] = useState("");
   const [saving, setSaving] = useState(false);
@@ -246,6 +250,7 @@ function ProfilePanel({
     setEmail(user.email || "");
     setInstitution(user.college || user.institution || "");
     setProgram(user.department || user.program || "");
+    setRegistrationNo(user.registrationNo || "");
     setPhone(user.phone || "");
     setProfileImage(user.profileImage || "");
   }, [user]);
@@ -275,12 +280,19 @@ function ProfilePanel({
       const lastName =
         firstSpace === -1 ? "" : trimmedName.slice(firstSpace + 1).trim();
 
+      const isStudent = String(user?.role || "").toUpperCase() === "STUDENT";
+
+      if (isStudent && !registrationNo.trim()) {
+        throw new Error("Registration number is required for student profiles.");
+      }
+
       const requestBody = {
         firstName,
         lastName,
         phone: phone.trim() || null,
         college: institution.trim() || null,
         department: program.trim() || null,
+        registrationNo: registrationNo.trim() || null,
         profileImage: profileImage.trim() || null,
       };
 
@@ -448,6 +460,22 @@ function ProfilePanel({
             onChange={(event) => setPhone(event.target.value)}
           />
         </Field>
+
+        {String(user?.role || "").toUpperCase() === "STUDENT" && (
+          <Field
+            label="Registration / Roll Number"
+            hint="Required for a complete student profile."
+          >
+            <TextInput
+              placeholder="e.g. 22BCE0001"
+              value={registrationNo}
+              onChange={(event) =>
+                setRegistrationNo(event.target.value.toUpperCase())
+              }
+              maxLength={100}
+            />
+          </Field>
+        )}
 
         <Field
           label="Profile Image URL"

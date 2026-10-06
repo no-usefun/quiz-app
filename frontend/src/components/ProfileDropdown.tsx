@@ -30,7 +30,6 @@ export function ProfileDropdown() {
       >
         {initial}{" "}
       </button>
-      ```
       <AnimatePresence>
         {open && (
           <>

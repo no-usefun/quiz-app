@@ -133,6 +133,9 @@ export function proxy(request: NextRequest) {
 
   const isGuestRoute = path === "/login" || path === "/signup";
 
+  const isOAuthCallbackRoute =
+    path === "/oauth/callback" || path.startsWith("/oauth/callback/");
+
   const isDashboardRoute =
     path === "/dashboard" || path.startsWith("/dashboard/");
   const isSettingsRoute = path === "/settings" || path.startsWith("/settings/");
@@ -142,6 +145,14 @@ export function proxy(request: NextRequest) {
     path.startsWith("/join/") ||
     path === "/test" ||
     path.startsWith("/test/");
+
+  /*
+   * The OAuth callback is intentionally public. It receives the backend-issued
+   * session result, establishes the browser session, and redirects immediately.
+   */
+  if (isOAuthCallbackRoute) {
+    return NextResponse.next();
+  }
 
   /*
    * Any route that needs an authenticated browser session.
@@ -211,6 +222,7 @@ export const config = {
   matcher: [
     "/login",
     "/signup",
+    "/oauth/callback",
     "/dashboard/:path*",
     "/settings/:path*",
     "/join",

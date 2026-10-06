@@ -143,8 +143,8 @@ function CreateAssessmentContent() {
   const [instructions, setInstructions] = useState(
     "Read all questions carefully before submitting.",
   );
-  const [subject, setSubject] = useState("Computer Science");
-  const [subjectCode, setSubjectCode] = useState("CS-201");
+  const [subject, setSubject] = useState("");
+  const [subjectCode, setSubjectCode] = useState("");
   const [allowedRollsText, setAllowedRollsText] = useState("");
   const [timeLimit, setTimeLimit] = useState(30);
   const setOverallTimerSeconds = (secs: number) => {
@@ -1913,6 +1913,7 @@ function CreateAssessmentContent() {
                     type="text"
                     value={subject}
                     onChange={(e) => setSubject(e.target.value)}
+                    placeholder="e.g. Computer Science"
                     className={inputClass}
                   />
                 </div>
@@ -1922,6 +1923,7 @@ function CreateAssessmentContent() {
                     type="text"
                     value={subjectCode}
                     onChange={(e) => setSubjectCode(e.target.value)}
+                    placeholder="e.g. CS-201"
                     className={inputClass}
                   />
                 </div>

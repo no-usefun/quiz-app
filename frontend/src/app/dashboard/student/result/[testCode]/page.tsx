@@ -81,12 +81,24 @@ function formatDisplayNumber(value: unknown): string {
 }
 
 function formatOptionTexts(
+  texts: string[] | undefined,
   questionId: number,
   ids: Array<number | string> | undefined,
   optionTextByQuestion: Record<number, Record<number, string>>,
 ) {
+  /*
+   * Backend-provided option text is authoritative for historical results.
+   * The local snapshot is used only as a compatibility fallback when an older
+   * response does not contain the new text arrays.
+   */
+  if (Array.isArray(texts)) {
+    return texts
+      .map((text) => String(text ?? "").trim())
+      .filter(Boolean);
+  }
+
   if (!ids || ids.length === 0) {
-    return ["Not answered"];
+    return [];
   }
 
   return ids.map((rawId) => {
@@ -298,6 +310,16 @@ export default function StudentResultPage({
               correctOptionIds: Array.isArray(item.correctOptionIds)
                 ? item.correctOptionIds.map(Number)
                 : [],
+              selectedOptionTexts: Array.isArray(item.selectedOptionTexts)
+                ? item.selectedOptionTexts
+                    .map((text) => String(text ?? "").trim())
+                    .filter(Boolean)
+                : undefined,
+              correctOptionTexts: Array.isArray(item.correctOptionTexts)
+                ? item.correctOptionTexts
+                    .map((text) => String(text ?? "").trim())
+                    .filter(Boolean)
+                : undefined,
               marksAwarded: formatNumber(item.marksAwarded),
               questionMarks: formatNumber(item.questionMarks),
               responseTimeSeconds:
@@ -335,8 +357,14 @@ export default function StudentResultPage({
         // Results are historical data. Do not request the active student
         // quiz package here: once a quiz ends, that endpoint is intentionally
         // unavailable and would turn a valid result page into a 400.
+        const needsLegacyOptionSnapshot = detailList.some(
+          (detail) =>
+            !Array.isArray(detail.selectedOptionTexts) ||
+            !Array.isArray(detail.correctOptionTexts),
+        );
+
         const nextOptionTextByQuestion =
-          detailList.length > 0
+          detailList.length > 0 && needsLegacyOptionSnapshot
             ? readOptionTextSnapshot(attemptId, normalized.quizId)
             : {};
 
@@ -671,11 +699,26 @@ export default function StudentResultPage({
             <div className="rounded-[14px] bg-white border border-[#d1dee8]/70 overflow-hidden divide-y divide-[#d1dee8]/40 shadow-sm">
               {[...details]
                 .sort((a, b) => a.displayOrder - b.displayOrder)
-                .map((detail, idx) => (
-                  <div
-                    key={`${detail.questionId}-${idx}`}
-                    className="p-4 sm:p-5 space-y-2.5 text-xs"
-                  >
+                .map((detail, idx) => {
+                  const selectedOptionTexts = formatOptionTexts(
+                    detail.selectedOptionTexts,
+                    detail.questionId,
+                    detail.selectedOptionIds,
+                    optionTextByQuestion,
+                  );
+
+                  const correctOptionTexts = formatOptionTexts(
+                    detail.correctOptionTexts,
+                    detail.questionId,
+                    detail.correctOptionIds,
+                    optionTextByQuestion,
+                  );
+
+                  return (
+                    <div
+                      key={`${detail.questionId}-${idx}`}
+                      className="p-4 sm:p-5 space-y-2.5 text-xs"
+                    >
                     <div className="flex items-start justify-between gap-2">
                       <p className="font-bold text-[#111111] leading-snug">
                         {idx + 1}. {detail.questionText || "Question"}
@@ -701,18 +744,20 @@ export default function StudentResultPage({
                         </span>
 
                         <div className="mt-1.5 flex flex-col gap-1.5">
-                          {formatOptionTexts(
-                            detail.questionId,
-                            detail.selectedOptionIds,
-                            optionTextByQuestion,
-                          ).map((optionText, optionIndex) => (
-                            <span
-                              key={`selected-${detail.questionId}-${optionIndex}`}
-                              className="rounded-[8px] border border-[#d1dee8]/70 bg-white px-2.5 py-1.5 font-semibold text-[#111111]"
-                            >
-                              {optionText}
+                          {selectedOptionTexts.length > 0 ? (
+                            selectedOptionTexts.map((optionText, optionIndex) => (
+                              <span
+                                key={`selected-${detail.questionId}-${optionIndex}`}
+                                className="rounded-[8px] border border-[#d1dee8]/70 bg-white px-2.5 py-1.5 font-semibold text-[#111111]"
+                              >
+                                {optionText}
+                              </span>
+                            ))
+                          ) : (
+                            <span className="text-[#78716b] font-medium">
+                              Not answered
                             </span>
-                          ))}
+                          )}
                         </div>
                       </div>
 
@@ -722,18 +767,20 @@ export default function StudentResultPage({
                         </span>
 
                         <div className="mt-1.5 flex flex-col gap-1.5">
-                          {formatOptionTexts(
-                            detail.questionId,
-                            detail.correctOptionIds,
-                            optionTextByQuestion,
-                          ).map((optionText, optionIndex) => (
-                            <span
-                              key={`correct-${detail.questionId}-${optionIndex}`}
-                              className="rounded-[8px] border border-[#1d5237]/20 bg-white px-2.5 py-1.5 font-bold text-[#1d5237]"
-                            >
-                              {optionText}
+                          {correctOptionTexts.length > 0 ? (
+                            correctOptionTexts.map((optionText, optionIndex) => (
+                              <span
+                                key={`correct-${detail.questionId}-${optionIndex}`}
+                                className="rounded-[8px] border border-[#1d5237]/20 bg-white px-2.5 py-1.5 font-bold text-[#1d5237]"
+                              >
+                                {optionText}
+                              </span>
+                            ))
+                          ) : (
+                            <span className="text-[#78716b] font-medium">
+                              No correct option returned.
                             </span>
-                          ))}
+                          )}
                         </div>
                       </div>
                     </div>
@@ -777,7 +824,8 @@ export default function StudentResultPage({
                       </div>
                     )}
                   </div>
-                ))}
+                );
+                })}
             </div>
           </section>
         ) : (
