@@ -34,3 +34,5 @@ build/
 
 ### privacy
 .env
+.env.online
+.env.local-exam
