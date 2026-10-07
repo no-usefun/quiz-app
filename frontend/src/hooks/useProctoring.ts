@@ -3,6 +3,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 export type ProctoringFlags = {
+  // The backend keeps both raw event types for audit compatibility.
+  // The frontend treats tab switching and fullscreen exit as one violation.
   tab_switch: number;
   fullscreen_exit: number;
   right_click: number;
@@ -220,13 +222,16 @@ export function useProctoring(
       }
 
       lastTabOrFullscreenExitRef.current = now;
+      // Use one frontend violation counter/event for both browser signals.
+      // This also prevents visibilitychange + fullscreenchange from being
+      // counted twice for the same user action.
       record("tab_switch", message);
     };
 
     const onVisibilityChange = () => {
       if (document.hidden) {
         recordTabOrFullscreenExit(
-          "Tab-switch activity detected.",
+          "Tab switch / fullscreen exit activity detected.",
         );
       }
     };
