@@ -1483,6 +1483,7 @@ export default function TestArenaPage({
           <div className="mt-3 grid grid-cols-2 gap-2">
             {[
               ["Tab switches", flags.tab_switch],
+              ["Fullscreen exits", flags.fullscreen_exit],
               ["Copy / cut / paste", flags.copy_attempt + flags.cut_attempt + flags.paste_attempt],
               ["Focus / keyboard", flags.focus_loss + flags.keyboard_attempt],
               ["Right clicks", flags.right_click],
@@ -1584,6 +1585,13 @@ export default function TestArenaPage({
               <li className="flex items-start gap-1 leading-relaxed text-[#8c381c]">
                 <span className="mt-1 h-1 w-1 rounded-full bg-[#8c381c] shrink-0" />
                 Tab-switch activity was detected.
+              </li>
+            )}
+
+            {flags.fullscreen_exit > 0 && (
+              <li className="flex items-start gap-1 leading-relaxed text-[#8c381c]">
+                <span className="mt-1 h-1 w-1 rounded-full bg-[#8c381c] shrink-0" />
+                Fullscreen-exit activity was detected.
               </li>
             )}
           </ul>
