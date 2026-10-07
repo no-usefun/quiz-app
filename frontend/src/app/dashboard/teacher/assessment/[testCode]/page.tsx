@@ -21,7 +21,6 @@ import {
 } from "lucide-react";
 import { Logo } from "@/components/Logo";
 import { ENDPOINTS } from "@/lib/api/endpoints";
-import BackendStatus from "@/components/BackendStatus";
 import LanExamPreflight from "@/components/LanExamPreflight";
 import { isLanExamMode } from "@/lib/examMode";
 
@@ -872,6 +871,19 @@ export default function TeacherAssessmentPage({
           </button>
         </header>
 
+        {isLanExamMode() && assessmentData && (
+          <LanExamPreflight
+            quiz={{
+              quizCode: assessmentData.quizCode,
+              status,
+              totalStudents: assessmentData.totalStudents,
+              totalQuestions: assessmentData.totalQuestions,
+              allowedRegistrationNumbers:
+                assessmentData.allowedRegistrationNumbers,
+            }}
+          />
+        )}
+
         <div className="flex flex-1 flex-col gap-5 p-5 md:p-6 bg-paper-white">
           <div className="flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">
             <div className="text-left">
@@ -900,9 +912,7 @@ export default function TeacherAssessmentPage({
               </div>
             </div>
 
-            <div className="flex flex-col items-end gap-2 mt-2 sm:mt-0">
-              <BackendStatus />
-              <div className="flex flex-wrap items-center gap-2">
+            <div className="flex flex-wrap items-center gap-2 mt-2 sm:mt-0">
               <span
                 className={`rounded-full px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider ${
                   status === "COMPLETED"
@@ -955,19 +965,6 @@ export default function TeacherAssessmentPage({
               </button>
             </div>
           </div>
-
-          {isLanExamMode() && assessmentData && (
-            <LanExamPreflight
-              quiz={{
-                quizCode: assessmentData.quizCode,
-                status,
-                totalStudents: assessmentData.totalStudents,
-                totalQuestions: assessmentData.totalQuestions,
-                allowedRegistrationNumbers:
-                  assessmentData.allowedRegistrationNumbers,
-              }}
-            />
-          )}
 
           {lifecycleError && (
             <div className="flex items-center gap-2 rounded-[10px] bg-pastel-pink/30 border border-pastel-pink text-pastel-pink-text px-3.5 py-2 text-xs font-bold shadow-xs">
