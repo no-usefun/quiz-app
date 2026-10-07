@@ -12,7 +12,6 @@ import {
   ArrowRight,
 } from "lucide-react";
 import { ENDPOINTS } from "@/lib/api/endpoints";
-import { isLanExamMode } from "@/lib/examMode";
 
 function GoogleIcon() {
   return (
@@ -56,8 +55,6 @@ function SignupContent() {
   const searchParams = useSearchParams();
 
   const qRole = searchParams?.get("role");
-  const lanExamMode = isLanExamMode();
-
   const activeRole: "teacher" | "student" | null =
     qRole === "teacher" || qRole === "instructor" || qRole === "educator"
       ? "teacher"
