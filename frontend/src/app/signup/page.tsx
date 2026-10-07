@@ -528,7 +528,6 @@ function SignupContent() {
           </div>
         )}
 
-        {!lanExamMode && (
         <button
           type="button"
           onClick={() => {
@@ -551,7 +550,7 @@ function SignupContent() {
           <GoogleIcon />
           Sign up with Google
         </button>
-        )}
+        
 
 
 
