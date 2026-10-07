@@ -21,7 +21,6 @@ import {
 
 import { type ProctoringEvent, useProctoring } from "@/hooks/useProctoring";
 import { ApiClientError, api, getAuthToken } from "@/lib/api/client";
-import BackendStatus from "@/components/BackendStatus";
 import { ENDPOINTS } from "@/lib/api/endpoints";
 import type {
   AttemptStateResponse,
@@ -123,18 +122,16 @@ function persistAttemptDraft(
   attemptId: string | null,
   answers: ActiveAnswerState,
   timeTaken: Record<number, number>,
-): boolean {
-  if (typeof window === "undefined" || !attemptId) return false;
+) {
+  if (typeof window === "undefined" || !attemptId) return;
 
   try {
     localStorage.setItem(
       `dynoquizz_pending_submit_${attemptId}`,
       JSON.stringify({ answers, timeTaken, savedAt: Date.now() }),
     );
-    return true;
   } catch {
     // Best-effort retry storage only.
-    return false;
   }
 }
 
@@ -230,8 +227,6 @@ export default function TestArenaPage({
   const [deadlineNotice, setDeadlineNotice] = useState<string | null>(null);
   const [submissionNotice, setSubmissionNotice] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [answerSaveState, setAnswerSaveState] =
-    useState<"idle" | "saved" | "error">("idle");
 
   const answersRef = useRef<ActiveAnswerState>({});
   const timeTakenRef = useRef<Record<number, number>>({});
@@ -376,8 +371,6 @@ export default function TestArenaPage({
           timeTakenRef.current = pendingTimes;
           setTimeTakenPerQuestion(pendingTimes);
         }
-
-        setAnswerSaveState("saved");
       }
     } catch {
       localStorage.removeItem(`dynoquizz_pending_submit_${activeAttemptId}`);
@@ -581,7 +574,7 @@ export default function TestArenaPage({
   }, [cleanCode, activeAttemptId, router]);
 
   useEffect(() => {
-    if (!currentQuestion || isSubmitted || isSubmitting) {
+    if (!currentQuestion || isSubmitted) {
       return;
     }
 
@@ -608,20 +601,18 @@ export default function TestArenaPage({
   const persistCurrentState = (
     nextAnswers: ActiveAnswerState = answersRef.current,
     nextTimeTaken: Record<number, number> = timeTakenRef.current,
-  ): boolean => {
-    return persistAttemptDraft(activeAttemptId, nextAnswers, nextTimeTaken);
+  ) => {
+    persistAttemptDraft(activeAttemptId, nextAnswers, nextTimeTaken);
   };
 
   const setCurrentAnswers = (next: ActiveAnswerState) => {
     answersRef.current = next;
     setAnswers(next);
-
-    const savedLocally = persistCurrentState(next, timeTakenRef.current);
-    setAnswerSaveState(savedLocally ? "saved" : "error");
+    persistCurrentState(next, timeTakenRef.current);
   };
 
   const handleSelectOption = (optionId: number) => {
-    if (!currentQuestion || isSubmitted || isSubmitting || timeLeft <= 0) {
+    if (!currentQuestion || isSubmitted || timeLeft <= 0) {
       return;
     }
 
@@ -708,7 +699,7 @@ export default function TestArenaPage({
   };
 
   const goToQuestion = (nextIndex: number) => {
-    if (nextIndex < 0 || nextIndex >= questions.length || isSubmitted || isSubmitting) {
+    if (nextIndex < 0 || nextIndex >= questions.length || isSubmitted) {
       return;
     }
 
@@ -943,12 +934,11 @@ export default function TestArenaPage({
     }
 
     const flush = () => {
-      const savedLocally = persistAttemptDraft(
+      persistAttemptDraft(
         activeAttemptId,
         answersRef.current,
         timeTakenRef.current,
       );
-      setAnswerSaveState(savedLocally ? "saved" : "error");
     };
 
     const handleVisibilityChange = () => {
@@ -1188,16 +1178,7 @@ export default function TestArenaPage({
         className="flex h-full w-full flex-1 flex-col bg-white overflow-hidden border-0 shadow-none text-left"
       >
         <header className="flex flex-wrap items-center justify-between bg-white px-6 py-4 gap-3 border-b border-[#d1dee8]/50">
-          <div className="flex flex-wrap items-center gap-2.5">
-            <BackendStatus />
-            <span className="rounded-full border border-[#d1dee8]/70 bg-[#f5f5f4] px-2.5 py-1 text-[10px] font-bold text-[#78716b]">
-              {answerSaveState === "saved"
-                ? "Local draft saved"
-                : answerSaveState === "error"
-                  ? "Local draft save failed"
-                  : "Draft not saved yet"}
-            </span>
-            <div className="flex items-center gap-2">
+          <div className="flex items-center gap-3.5">
             <span className="rounded-full bg-[#f5f5f4] px-3 py-1 text-xs font-bold text-[#165dfb] font-mono border border-[#d1dee8]/70">
               {cleanCode}
             </span>
@@ -1428,7 +1409,7 @@ export default function TestArenaPage({
               <button
                 type="button"
                 onClick={toggleReview}
-                disabled={isSubmitted || isSubmitting || test?.allowReview === false}
+                disabled={isSubmitted || test?.allowReview === false}
                 className={`inline-flex items-center gap-1 rounded-lg border px-3 py-2 text-[10px] font-bold transition-all disabled:opacity-40 ${
                   markedForReview[Number(currentQuestion?.questionId)]
                     ? "border-[#73561a]/30 bg-[#f6efe1] text-[#73561a]"
@@ -1446,7 +1427,6 @@ export default function TestArenaPage({
                 onClick={clearCurrentAnswer}
                 disabled={
                   isSubmitted ||
-                  isSubmitting ||
                   (answers[Number(currentQuestion?.questionId)] ?? []).length === 0
                 }
                 className="inline-flex items-center gap-1 rounded-lg border border-[#d1dee8]/80 bg-white px-3 py-2 text-[10px] font-bold text-[#78716b] transition-all hover:bg-[#f5f5f4] disabled:cursor-not-allowed disabled:opacity-40"
