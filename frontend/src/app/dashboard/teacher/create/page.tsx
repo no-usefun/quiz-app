@@ -2457,7 +2457,7 @@ questionText,optionA,optionB,optionC,optionD,correctAnswer,marks,questionType,ne
                     <div className="grid gap-3 sm:grid-cols-2">
                       <div>
                         <label className="mb-1.5 block text-[11px] font-bold uppercase tracking-wider text-[#57534e]">
-                          Maximum Tab Switches
+                          Max Tab Switch / Fullscreen Violations
                         </label>
                         <input
                           type="number"
@@ -2470,7 +2470,7 @@ questionText,optionA,optionB,optionC,optionD,correctAnswer,marks,questionType,ne
                           className={inputClass}
                         />
                         <p className="mt-1 text-[10px] text-[#78716b]">
-                          Backend should enforce this limit for the attempt.
+                          Tab switches and fullscreen exits count as one unified violation. Default: 3. The backend enforces the limit.
                         </p>
                       </div>
                     </div>
