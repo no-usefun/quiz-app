@@ -21,6 +21,9 @@ import {
 } from "lucide-react";
 import { Logo } from "@/components/Logo";
 import { ENDPOINTS } from "@/lib/api/endpoints";
+import BackendStatus from "@/components/BackendStatus";
+import LanExamPreflight from "@/components/LanExamPreflight";
+import { isLanExamMode } from "@/lib/examMode";
 
 type SortKey = "rank" | "name" | "score" | "timeTaken";
 type SortDir = "asc" | "desc";
@@ -36,6 +39,7 @@ type AssessmentData = {
   totalStudents: number;
   totalQuestions: number;
   totalMarks: number;
+  allowedRegistrationNumbers?: string[] | null;
   overallTimerSeconds: number;
   startTime?: string | null;
   endTime?: string | null;
@@ -320,6 +324,13 @@ export default function TeacherAssessmentPage({
         totalStudents: numericValue(matched.totalStudents),
         totalQuestions: numericValue(matched.totalQuestions),
         totalMarks: numericValue(matched.totalMarks),
+        allowedRegistrationNumbers: Array.isArray(
+          matched.allowedRegistrationNumbers,
+        )
+          ? matched.allowedRegistrationNumbers.map((value: unknown) =>
+              String(value).trim().toUpperCase(),
+            )
+          : undefined,
         overallTimerSeconds: numericValue(matched.overallTimerSeconds),
         startTime: matched.startTime ?? null,
         endTime: matched.endTime ?? null,
@@ -889,7 +900,9 @@ export default function TeacherAssessmentPage({
               </div>
             </div>
 
-            <div className="flex flex-wrap items-center gap-2 mt-2 sm:mt-0">
+            <div className="flex flex-col items-end gap-2 mt-2 sm:mt-0">
+              <BackendStatus />
+              <div className="flex flex-wrap items-center gap-2">
               <span
                 className={`rounded-full px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider ${
                   status === "COMPLETED"
@@ -942,6 +955,19 @@ export default function TeacherAssessmentPage({
               </button>
             </div>
           </div>
+
+          {isLanExamMode() && assessmentData && (
+            <LanExamPreflight
+              quiz={{
+                quizCode: assessmentData.quizCode,
+                status,
+                totalStudents: assessmentData.totalStudents,
+                totalQuestions: assessmentData.totalQuestions,
+                allowedRegistrationNumbers:
+                  assessmentData.allowedRegistrationNumbers,
+              }}
+            />
+          )}
 
           {lifecycleError && (
             <div className="flex items-center gap-2 rounded-[10px] bg-pastel-pink/30 border border-pastel-pink text-pastel-pink-text px-3.5 py-2 text-xs font-bold shadow-xs">
