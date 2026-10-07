@@ -248,7 +248,7 @@ export function useProctoring(
 
       if (!active) {
         recordTabOrFullscreenExit(
-          "Tab-switch activity detected.",
+          "Tab switch / fullscreen exit activity detected.",
         );
       }
     };
