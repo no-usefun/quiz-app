@@ -222,7 +222,7 @@ public class ProctoringService {
                 try {
                     studentAttemptService.submitAttempt(attemptId, new SubmitAttemptRequest(List.of()), attempt.getStudent().getId());
                 } catch (Exception e) {
-                    logger.warn("Auto-submit through service failed, updating status directly: {}", e.getMessage());
+                    logger.debug("Attempt already finalized or auto-submitted: {}", e.getMessage());
                 }
                 message = "Assessment auto-submitted due to reaching 3 proctoring violation warnings.";
             }

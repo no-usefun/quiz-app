@@ -285,11 +285,15 @@ export default function TestArenaPage({
     }
     return true;
   });
+  const mountTimeRef = useRef<number | null>(null);
+  const hasEnteredFullscreenRef = useRef<boolean>(false);
+
   const requestFullscreen = useCallback(async () => {
     if (typeof document !== "undefined" && !document.fullscreenElement) {
       try {
         await document.documentElement.requestFullscreen();
         setIsFullscreen(true);
+        hasEnteredFullscreenRef.current = true;
       } catch (err) {
         console.warn("Could not enter fullscreen:", err);
       }
@@ -366,10 +370,17 @@ export default function TestArenaPage({
       return;
     }
 
+    const INITIAL_GRACE_PERIOD_MS = 8000;
     const VIOLATION_COOLDOWN_MS = 3500;
 
     const reportEvent = async (eventType: string, details: string) => {
       const now = Date.now();
+      if (!mountTimeRef.current) {
+        mountTimeRef.current = now;
+      }
+      if (now - mountTimeRef.current < INITIAL_GRACE_PERIOD_MS) {
+        return; // Grace period during initial page mount and camera/sensor initialization
+      }
       if (now - lastBrowserViolationTimeRef.current < VIOLATION_COOLDOWN_MS) {
         return; // debounced across all browser violation signals to prevent duplicate strikes for a single action
       }
@@ -423,9 +434,12 @@ export default function TestArenaPage({
     const handleFullscreenChange = () => {
       const active = Boolean(document.fullscreenElement);
       setIsFullscreen(active);
-      if (!active) {
+      if (active) {
+        hasEnteredFullscreenRef.current = true;
+      } else {
         // Tab switch handler handles Alt-Tab/minimize; only trigger fullscreen exit if window is still visible
-        if (document.visibilityState === "visible") {
+        // and candidate was previously in fullscreen mode
+        if (hasEnteredFullscreenRef.current && document.visibilityState === "visible") {
           void reportEvent("FULLSCREEN_EXIT", "Candidate exited required fullscreen exam mode");
         }
       }
@@ -439,8 +453,16 @@ export default function TestArenaPage({
       e.preventDefault();
     };
 
+    if (!mountTimeRef.current) {
+      mountTimeRef.current = Date.now();
+    }
+
     // Synchronize initial fullscreen state on mount
-    setIsFullscreen(Boolean(document.fullscreenElement));
+    const initialFs = Boolean(document.fullscreenElement);
+    setIsFullscreen(initialFs);
+    if (initialFs) {
+      hasEnteredFullscreenRef.current = true;
+    }
 
     document.addEventListener("visibilitychange", handleVisibilityChange);
     window.addEventListener("blur", handleBlur);

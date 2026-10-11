@@ -37,20 +37,43 @@ class PersonDetector:
                 classes=[0], # COCO class 0: person
                 verbose=False
             )
-            detections = []
+            raw_detections = []
             for r in results:
                 boxes = r.boxes
                 for box in boxes:
                     cls_id = int(box.cls[0])
                     conf = float(box.conf[0])
                     xyxy = box.xyxy[0].cpu().numpy().tolist()
-                    if cls_id == 0 and conf >= PERSON_CONFIDENCE_THRESHOLD:
-                        detections.append({
-                            "bbox": [int(xyxy[0]), int(xyxy[1]), int(xyxy[2] - xyxy[0]), int(xyxy[3] - xyxy[1])],
+                    w = int(xyxy[2] - xyxy[0])
+                    h = int(xyxy[3] - xyxy[1])
+                    if cls_id == 0 and conf >= PERSON_CONFIDENCE_THRESHOLD and w >= 40 and h >= 40:
+                        raw_detections.append({
+                            "bbox": [int(xyxy[0]), int(xyxy[1]), w, h],
                             "confidence": round(conf, 3)
                         })
 
-            return len(detections), detections
+            # Sort by confidence descending
+            raw_detections.sort(key=lambda d: d["confidence"], reverse=True)
+            filtered_detections = []
+            for det in raw_detections:
+                box = det["bbox"]
+                overlap = False
+                for kept in filtered_detections:
+                    kbox = kept["bbox"]
+                    # Calculate IoU
+                    xA = max(box[0], kbox[0])
+                    yA = max(box[1], kbox[1])
+                    xB = min(box[0] + box[2], kbox[0] + kbox[2])
+                    yB = min(box[1] + box[3], kbox[1] + kbox[3])
+                    inter = max(0, xB - xA) * max(0, yB - yA)
+                    union = (box[2] * box[3]) + (kbox[2] * kbox[3]) - inter
+                    if union > 0 and (inter / union) >= 0.25:
+                        overlap = True
+                        break
+                if not overlap:
+                    filtered_detections.append(det)
+
+            return len(filtered_detections), filtered_detections
         except Exception as e:
             logger.error("Person detection inference error: %s", e)
             return 0, []

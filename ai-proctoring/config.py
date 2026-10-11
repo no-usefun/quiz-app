@@ -39,7 +39,7 @@ FACE_CONFIDENCE_THRESHOLD = 0.50
 FACE_NMS_THRESHOLD = 0.30
 BIOMETRIC_COSINE_SIMILARITY_THRESHOLD = 0.363  # Validated OpenCV SFace threshold
 PHONE_CONFIDENCE_THRESHOLD = 0.30
-PERSON_CONFIDENCE_THRESHOLD = 0.35
+PERSON_CONFIDENCE_THRESHOLD = 0.65
 
 # Head Pose / Gaze Thresholds (in degrees)
 # Calibrated for natural desktop / laptop screen reading (spans +/-15 deg yaw, -15 to +20 deg pitch)
