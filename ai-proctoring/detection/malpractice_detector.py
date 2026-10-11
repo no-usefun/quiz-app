@@ -153,6 +153,9 @@ class MalpracticeDetector:
 
         # If an event is confirmed, dispatch authoritatively to Spring Boot
         auto_submitted = False
+        dispatched_event = None
+        dispatched_message = None
+
         if confirmed_event:
             last_time = session.last_dispatched.get(confirmed_event, 0.0)
             if (now - last_time) >= 4.0:  # Debounce per event type
@@ -170,10 +173,33 @@ class MalpracticeDetector:
                 if dispatch_res:
                     session.warning_count = dispatch_res.get("warningCount", session.warning_count + 1)
                     auto_submitted = dispatch_res.get("autoSubmitted", False)
+                else:
+                    session.warning_count += 1
+                    if session.warning_count >= 3:
+                        auto_submitted = True
+
+                dispatched_event = confirmed_event
+                dispatched_message = event_message
+
+                # Immediately reset the streak that triggered this strike so it does not repeat every frame
+                if confirmed_event == "FACE_NOT_DETECTED":
+                    session.streaks["no_face"] = 0
+                elif confirmed_event == "MULTIPLE_FACES":
+                    session.streaks["multiple_faces"] = 0
+                elif confirmed_event == "MULTIPLE_PERSONS":
+                    session.streaks["multiple_persons"] = 0
+                elif confirmed_event == "LOOKING_AWAY":
+                    session.streaks["looking_away"] = 0
+                elif confirmed_event == "PHONE_DETECTED":
+                    session.streaks["phone"] = 0
+                elif confirmed_event == "IDENTITY_MISMATCH":
+                    session.streaks["identity_mismatch"] = 0
+                elif confirmed_event in ("VOICE_ACTIVITY", "LOUD_VOICE"):
+                    session.streaks["voice"] = 0
 
         return {
-            "confirmed_event": confirmed_event,
-            "event_message": event_message,
+            "confirmed_event": dispatched_event,
+            "event_message": dispatched_message,
             "warning_count": session.warning_count,
             "auto_submitted": auto_submitted,
             "looking_away_streak": session.streaks.get("looking_away", 0)

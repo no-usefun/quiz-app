@@ -157,6 +157,14 @@ export function AIProctoringHUD({
               </div>
             )}
 
+            {/* Face In Frame Confirmation */}
+            {faceDetected && numFaces === 1 && !isLookingAway && !phoneDetected && (
+              <div className="inline-flex items-center gap-1 bg-emerald-600/90 text-white text-[9px] font-bold px-1.5 py-0.5 rounded-[6px] shadow-sm">
+                <UserCheck className="h-2.5 w-2.5" />
+                <span>FACE IN FRAME</span>
+              </div>
+            )}
+
             {/* Loud Voice Alert */}
             {loudVoice && (
               <div className="inline-flex items-center gap-1 bg-rose-600/90 text-white text-[9px] font-bold px-1.5 py-0.5 rounded-[6px] shadow-sm">

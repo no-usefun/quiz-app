@@ -401,15 +401,16 @@ export default function TestArenaPage({
           }
         );
         if (res) {
+          const isAuto = Boolean(res.autoSubmitted) || (typeof res.warningCount === "number" && res.warningCount >= 3);
           if (typeof res.warningCount === "number") {
             proctoringSetWarningCountRef.current(res.warningCount);
             proctoringShowWarningModalRef.current(
               details,
               res.warningCount,
-              Boolean(res.autoSubmitted)
+              isAuto
             );
           }
-          if (res.autoSubmitted) {
+          if (isAuto) {
             void proctoringCleanupRef.current();
             void finishAssessmentRef.current?.(answersRef.current, timeTakenRef.current);
           }
@@ -1701,6 +1702,7 @@ export default function TestArenaPage({
         warningCount={Math.max(proctoring.warningCount, proctoring.activeWarningModal.count)}
         reason={proctoring.activeWarningModal.reason}
         autoSubmitted={proctoring.activeWarningModal.autoSubmitted}
+        faceDetected={proctoring.faceDetected}
         onAcknowledge={() => {
           proctoring.dismissWarningModal();
           if (proctoring.activeWarningModal.autoSubmitted) {

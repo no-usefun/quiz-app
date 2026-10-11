@@ -9,6 +9,7 @@ interface ProctoringWarningModalProps {
   maxWarnings?: number;
   reason: string;
   autoSubmitted?: boolean;
+  faceDetected?: boolean;
   onAcknowledge: () => void;
 }
 
@@ -18,6 +19,7 @@ export function ProctoringWarningModal({
   maxWarnings = 3,
   reason,
   autoSubmitted = false,
+  faceDetected = false,
   onAcknowledge,
 }: ProctoringWarningModalProps) {
   if (!isOpen) return null;
@@ -74,6 +76,12 @@ export function ProctoringWarningModal({
               <p className="font-bold text-amber-700 pt-1">
                 You have {remainingStrikes} warning{remainingStrikes === 1 ? "" : "s"} remaining before auto-submission.
               </p>
+              {faceDetected && (
+                <div className="flex items-center gap-1.5 rounded-[8px] bg-emerald-50 border border-emerald-200 p-2 text-emerald-800 text-[11px] font-semibold">
+                  <CheckCircle2 className="h-4 w-4 text-emerald-600 shrink-0" />
+                  <span>Face recognized in camera frame. Click below to return to your assessment.</span>
+                </div>
+              )}
             </>
           )}
         </div>

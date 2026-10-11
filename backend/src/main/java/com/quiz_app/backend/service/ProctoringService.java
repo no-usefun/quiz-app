@@ -219,11 +219,6 @@ public class ProctoringService {
                 attempt.setStatus(AttemptStatus.AUTO_SUBMITTED);
                 attempt.setSubmittedAt(LocalDateTime.now());
                 quizAttemptRepository.save(attempt);
-                try {
-                    studentAttemptService.submitAttempt(attemptId, new SubmitAttemptRequest(List.of()), attempt.getStudent().getId());
-                } catch (Exception e) {
-                    logger.debug("Attempt already finalized or auto-submitted: {}", e.getMessage());
-                }
                 message = "Assessment auto-submitted due to reaching 3 proctoring violation warnings.";
             }
 

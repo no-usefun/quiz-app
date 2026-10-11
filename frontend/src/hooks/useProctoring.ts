@@ -245,14 +245,15 @@ export function useProctoring({
     // If a confirmed malpractice event occurred
     if (telemetry.malpracticeEvent) {
       const strikeCount = Math.max(warningCountRef.current, telemetry.warningCount ?? 0);
+      const isAuto = Boolean(telemetry.autoSubmitted) || strikeCount >= 3;
       setActiveWarningModal({
         isOpen: true,
         reason: telemetry.eventMessage || telemetry.malpracticeEvent,
         count: strikeCount,
-        autoSubmitted: Boolean(telemetry.autoSubmitted),
+        autoSubmitted: isAuto,
       });
 
-      if (telemetry.autoSubmitted && onAutoSubmitRef.current) {
+      if (isAuto && onAutoSubmitRef.current) {
         onAutoSubmitRef.current();
       }
     }
@@ -565,13 +566,15 @@ export function useProctoring({
   const showWarningModal = useCallback(
     (reason: string, count: number, autoSubmitted: boolean = false) => {
       setWarningCount(count);
+      const strikeCount = Math.max(warningCountRef.current, count);
+      const isAuto = autoSubmitted || strikeCount >= 3;
       setActiveWarningModal({
         isOpen: true,
         reason,
-        count: Math.max(warningCountRef.current, count),
-        autoSubmitted,
+        count: strikeCount,
+        autoSubmitted: isAuto,
       });
-      if (autoSubmitted && onAutoSubmitRef.current) {
+      if (isAuto && onAutoSubmitRef.current) {
         onAutoSubmitRef.current();
       }
     },
