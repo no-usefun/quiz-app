@@ -271,14 +271,65 @@ class ProctoringServiceTest {
     }
 
     @Test
+    void testRecordProctoringEvent_ThrowsAccessDeniedForUnauthenticatedUser() {
+        ProctoringEventRequest request = new ProctoringEventRequest("PHONE_DETECTED", "Phone", "CRITICAL", 0.95, null);
+        org.junit.jupiter.api.Assertions.assertThrows(
+                com.quiz_app.backend.exception.AccessDeniedApplicationException.class,
+                () -> proctoringService.recordProctoringEvent(100L, request, null) // Null user ID
+        );
+    }
+
+    @Test
+    void testRecordProctoringEvent_RejectsSessionSummaryAsMalpracticeEvent() {
+        when(quizAttemptRepository.findById(100L)).thenReturn(Optional.of(testAttempt));
+
+        ProctoringEventRequest request = new ProctoringEventRequest("SESSION_SUMMARY", "Summary", "HIGH", 0.95, null);
+        org.junit.jupiter.api.Assertions.assertThrows(
+                com.quiz_app.backend.exception.BadRequestException.class,
+                () -> proctoringService.recordProctoringEvent(100L, request, 10L)
+        );
+    }
+
+    @Test
+    void testRecordProctoringEvent_RejectsUnrecognizedEventType() {
+        when(quizAttemptRepository.findById(100L)).thenReturn(Optional.of(testAttempt));
+
+        ProctoringEventRequest request = new ProctoringEventRequest("UNKNOWN_INJECTED_EVENT", "Hack", "HIGH", 0.95, null);
+        org.junit.jupiter.api.Assertions.assertThrows(
+                com.quiz_app.backend.exception.BadRequestException.class,
+                () -> proctoringService.recordProctoringEvent(100L, request, 10L)
+        );
+    }
+
+    @Test
     void testRecordProctoringSummary_SavesSummaryEvent() {
         when(quizAttemptRepository.findById(100L)).thenReturn(Optional.of(testAttempt));
-        when(proctoringEventRepository.findByAttemptId(100L)).thenReturn(List.of());
+        when(proctoringEventRepository.findByAttemptIdAndEventType(100L, "SESSION_SUMMARY")).thenReturn(Optional.empty());
 
         ProctoringSummaryRequest request = new ProctoringSummaryRequest(50, 48, 2);
         proctoringService.recordProctoringSummary(100L, request, 10L);
 
         verify(proctoringEventRepository).save(any(QuizAttemptProctoringEvent.class));
+    }
+
+    @Test
+    void testRecordProctoringSummary_ThrowsAccessDeniedForUnauthenticatedUser() {
+        ProctoringSummaryRequest request = new ProctoringSummaryRequest(50, 48, 2);
+        org.junit.jupiter.api.Assertions.assertThrows(
+                com.quiz_app.backend.exception.AccessDeniedApplicationException.class,
+                () -> proctoringService.recordProctoringSummary(100L, request, null)
+        );
+    }
+
+    @Test
+    void testRecordProctoringSummary_ThrowsAccessDeniedForUnauthorizedUser() {
+        when(quizAttemptRepository.findById(100L)).thenReturn(Optional.of(testAttempt));
+
+        ProctoringSummaryRequest request = new ProctoringSummaryRequest(50, 48, 2);
+        org.junit.jupiter.api.Assertions.assertThrows(
+                com.quiz_app.backend.exception.AccessDeniedApplicationException.class,
+                () -> proctoringService.recordProctoringSummary(100L, request, 999L)
+        );
     }
 
     @Test
@@ -291,7 +342,7 @@ class ProctoringServiceTest {
         existingSummary.setEventType("SESSION_SUMMARY");
         existingSummary.setMetadataJson("{\"totalFaceChecks\":10,\"identityMatches\":10,\"identityMismatches\":0}");
 
-        when(proctoringEventRepository.findByAttemptId(100L)).thenReturn(List.of(existingSummary));
+        when(proctoringEventRepository.findByAttemptIdAndEventType(100L, "SESSION_SUMMARY")).thenReturn(Optional.of(existingSummary));
 
         ProctoringSummaryRequest updatedRequest = new ProctoringSummaryRequest(60, 58, 2);
         proctoringService.recordProctoringSummary(100L, updatedRequest, 10L);

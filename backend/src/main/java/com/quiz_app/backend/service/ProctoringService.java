@@ -5,6 +5,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 
 import org.slf4j.Logger;
@@ -40,6 +41,26 @@ public class ProctoringService {
     private static final int MAX_WARNINGS = 3;
     private static final long DEBOUNCE_INTERVAL_MS = 4000L;
 
+    private static final Set<String> ALLOWED_MALPRACTICE_EVENT_TYPES = Set.of(
+            "FACE_NOT_DETECTED",
+            "MULTIPLE_FACES",
+            "MULTIPLE_PERSONS",
+            "LOOKING_AWAY",
+            "PHONE_DETECTED",
+            "IDENTITY_MISMATCH",
+            "VOICE_ACTIVITY",
+            "LOUD_VOICE",
+            "TAB_SWITCH",
+            "FULLSCREEN_EXIT"
+    );
+
+    private static final Set<String> ALLOWED_SEVERITIES = Set.of(
+            "LOW",
+            "MEDIUM",
+            "HIGH",
+            "CRITICAL"
+    );
+
     private final QuizAttemptRepository quizAttemptRepository;
     private final QuizAttemptProctoringEventRepository proctoringEventRepository;
     private final QuizRepository quizRepository;
@@ -48,6 +69,8 @@ public class ProctoringService {
 
     // Debounce cache per (attemptId:eventType)
     private final Map<String, Long> debounceCache = new ConcurrentHashMap<>();
+    // Per-attempt locks to serialize warning increments and summary updates
+    private final ConcurrentHashMap<Long, Object> attemptLocks = new ConcurrentHashMap<>();
 
     public ProctoringService(
             QuizAttemptRepository quizAttemptRepository,
@@ -100,86 +123,109 @@ public class ProctoringService {
             throw new BadRequestException("INVALID_EVENT_REQUEST", "Attempt ID and event type are required");
         }
 
+        if (authenticatedUserId == null) {
+            throw new AccessDeniedApplicationException("UNAUTHENTICATED", "Authentication is required");
+        }
+
         QuizAttempt attempt = quizAttemptRepository.findById(attemptId)
                 .orElseThrow(() -> new ResourceNotFoundException("Quiz attempt not found"));
 
-        if (authenticatedUserId != null && attempt.getStudent() != null && !attempt.getStudent().getId().equals(authenticatedUserId)) {
+        if (attempt.getStudent() == null || !attempt.getStudent().getId().equals(authenticatedUserId)) {
             throw new AccessDeniedApplicationException("UNAUTHORIZED_ATTEMPT", "User does not own this attempt");
         }
 
-        if (attempt.getStatus() != AttemptStatus.IN_PROGRESS) {
-            return new ProctoringEventResponse(
-                    false,
-                    attempt.getWarningsCount() != null ? attempt.getWarningsCount() : 0,
-                    attempt.getStatus() == AttemptStatus.AUTO_SUBMITTED,
-                    "Attempt is already closed: " + attempt.getStatus()
-            );
+        String rawType = request.eventType().trim().toUpperCase(Locale.ROOT);
+        if ("SESSION_SUMMARY".equals(rawType)) {
+            throw new BadRequestException("INVALID_EVENT_TYPE", "SESSION_SUMMARY is a summary record, not a malpractice event");
         }
 
-        String eventType = request.eventType().trim().toUpperCase(Locale.ROOT);
-        String debounceKey = attemptId + ":" + eventType;
-        long now = System.currentTimeMillis();
-
-        Long lastRecorded = debounceCache.get(debounceKey);
-        if (lastRecorded != null && (now - lastRecorded) < DEBOUNCE_INTERVAL_MS) {
-            return new ProctoringEventResponse(
-                    false,
-                    attempt.getWarningsCount() != null ? attempt.getWarningsCount() : 0,
-                    false,
-                    "Debounced duplicate event"
-            );
-        }
-        debounceCache.put(debounceKey, now);
-
-        String severity = request.severity() != null && !request.severity().isBlank()
-                ? request.severity().trim().toUpperCase(Locale.ROOT)
-                : (eventType.contains("PHONE") || eventType.contains("IDENTITY") ? "CRITICAL" : "HIGH");
-        Double confidence = request.confidence() != null ? request.confidence() : 0.90;
-
-        // Structured JSON metadata
-        String metadataJson;
-        try {
-            Map<String, Object> metaMap = Map.of(
-                    "details", request.details() != null ? request.details() : formatEventTitle(eventType),
-                    "severity", severity,
-                    "confidence", confidence
-            );
-            metadataJson = objectMapper.writeValueAsString(metaMap);
-        } catch (Exception e) {
-            metadataJson = request.details();
+        if (!ALLOWED_MALPRACTICE_EVENT_TYPES.contains(rawType)) {
+            throw new BadRequestException("INVALID_EVENT_TYPE", "Unrecognized proctoring event type: " + rawType);
         }
 
-        // Save event to DB
-        QuizAttemptProctoringEvent event = new QuizAttemptProctoringEvent();
-        event.setAttempt(attempt);
-        event.setEventType(eventType);
-        event.setOccurredAt(LocalDateTime.now());
-        event.setMetadataJson(metadataJson);
-        proctoringEventRepository.save(event);
+        String eventType = rawType;
 
-        // Increment warning count
-        int currentWarnings = (attempt.getWarningsCount() != null ? attempt.getWarningsCount() : 0) + 1;
-        attempt.setWarningsCount(currentWarnings);
-        quizAttemptRepository.save(attempt);
-
-        boolean autoSubmitted = false;
-        String message = String.format("Warning %d of %d: %s", currentWarnings, MAX_WARNINGS, formatEventTitle(eventType));
-
-        if (currentWarnings >= MAX_WARNINGS) {
-            autoSubmitted = true;
-            attempt.setTerminationReason("MALPRACTICE_WARNING_LIMIT");
-            attempt.setStatus(AttemptStatus.AUTO_SUBMITTED);
-            attempt.setSubmittedAt(LocalDateTime.now());
-            quizAttemptRepository.save(attempt);
-            try {
-                studentAttemptService.submitAttempt(attemptId, new SubmitAttemptRequest(List.of()), attempt.getStudent().getId());
-            } catch (Exception e) {
-                logger.warn("Auto-submit through service failed, updating status directly: {}", e.getMessage());
+        synchronized (attemptLocks.computeIfAbsent(attemptId, k -> new Object())) {
+            if (attempt.getStatus() != AttemptStatus.IN_PROGRESS) {
+                return new ProctoringEventResponse(
+                        false,
+                        attempt.getWarningsCount() != null ? attempt.getWarningsCount() : 0,
+                        attempt.getStatus() == AttemptStatus.AUTO_SUBMITTED,
+                        "Attempt is already closed: " + attempt.getStatus()
+                );
             }
-            message = "Assessment auto-submitted due to reaching 3 proctoring violation warnings.";
-        }
 
-        return new ProctoringEventResponse(true, currentWarnings, autoSubmitted, message);
+            String debounceKey = attemptId + ":" + eventType;
+            long now = System.currentTimeMillis();
+
+            Long lastRecorded = debounceCache.get(debounceKey);
+            if (lastRecorded != null && (now - lastRecorded) < DEBOUNCE_INTERVAL_MS) {
+                return new ProctoringEventResponse(
+                        false,
+                        attempt.getWarningsCount() != null ? attempt.getWarningsCount() : 0,
+                        false,
+                        "Debounced duplicate event"
+                );
+            }
+            debounceCache.put(debounceKey, now);
+
+            String severity = request.severity() != null && !request.severity().isBlank()
+                    ? request.severity().trim().toUpperCase(Locale.ROOT)
+                    : null;
+            if (severity == null || !ALLOWED_SEVERITIES.contains(severity)) {
+                severity = (eventType.contains("PHONE") || eventType.contains("IDENTITY")) ? "CRITICAL" : "HIGH";
+            }
+
+            Double confidence = request.confidence();
+            if (confidence == null || confidence < 0.0 || confidence > 1.0) {
+                confidence = (confidence == null) ? 0.90 : Math.max(0.0, Math.min(1.0, confidence));
+            }
+
+            // Structured JSON metadata
+            String metadataJson;
+            try {
+                Map<String, Object> metaMap = Map.of(
+                        "details", request.details() != null ? request.details() : formatEventTitle(eventType),
+                        "severity", severity,
+                        "confidence", confidence
+                );
+                metadataJson = objectMapper.writeValueAsString(metaMap);
+            } catch (Exception e) {
+                metadataJson = request.details();
+            }
+
+            // Save event to DB
+            QuizAttemptProctoringEvent event = new QuizAttemptProctoringEvent();
+            event.setAttempt(attempt);
+            event.setEventType(eventType);
+            event.setOccurredAt(LocalDateTime.now());
+            event.setMetadataJson(metadataJson);
+            proctoringEventRepository.save(event);
+
+            // Increment warning count
+            int currentWarnings = (attempt.getWarningsCount() != null ? attempt.getWarningsCount() : 0) + 1;
+            attempt.setWarningsCount(currentWarnings);
+            quizAttemptRepository.save(attempt);
+
+            boolean autoSubmitted = false;
+            String message = String.format("Warning %d of %d: %s", currentWarnings, MAX_WARNINGS, formatEventTitle(eventType));
+
+            if (currentWarnings >= MAX_WARNINGS) {
+                autoSubmitted = true;
+                attempt.setTerminationReason("MALPRACTICE_WARNING_LIMIT");
+                attempt.setStatus(AttemptStatus.AUTO_SUBMITTED);
+                attempt.setSubmittedAt(LocalDateTime.now());
+                quizAttemptRepository.save(attempt);
+                try {
+                    studentAttemptService.submitAttempt(attemptId, new SubmitAttemptRequest(List.of()), attempt.getStudent().getId());
+                } catch (Exception e) {
+                    logger.warn("Auto-submit through service failed, updating status directly: {}", e.getMessage());
+                }
+                message = "Assessment auto-submitted due to reaching 3 proctoring violation warnings.";
+            }
+
+            return new ProctoringEventResponse(true, currentWarnings, autoSubmitted, message);
+        }
     }
 
     @Transactional
@@ -188,38 +234,42 @@ public class ProctoringService {
             throw new BadRequestException("INVALID_SUMMARY_REQUEST", "Attempt ID and summary request are required");
         }
 
+        if (authenticatedUserId == null) {
+            throw new AccessDeniedApplicationException("UNAUTHENTICATED", "Authentication is required");
+        }
+
         QuizAttempt attempt = quizAttemptRepository.findById(attemptId)
                 .orElseThrow(() -> new ResourceNotFoundException("Quiz attempt not found"));
 
-        if (authenticatedUserId != null && attempt.getStudent() != null && !attempt.getStudent().getId().equals(authenticatedUserId)) {
+        if (attempt.getStudent() == null || !attempt.getStudent().getId().equals(authenticatedUserId)) {
             throw new AccessDeniedApplicationException("UNAUTHORIZED_ATTEMPT", "User does not own this attempt");
         }
 
-        try {
-            Map<String, Object> metaMap = Map.of(
-                    "totalFaceChecks", request.totalFaceChecks(),
-                    "identityMatches", request.identityMatches(),
-                    "identityMismatches", request.identityMismatches()
-            );
-            String metadataJson = objectMapper.writeValueAsString(metaMap);
+        synchronized (attemptLocks.computeIfAbsent(attemptId, k -> new Object())) {
+            try {
+                Map<String, Object> metaMap = Map.of(
+                        "totalFaceChecks", request.totalFaceChecks(),
+                        "identityMatches", request.identityMatches(),
+                        "identityMismatches", request.identityMismatches()
+                );
+                String metadataJson = objectMapper.writeValueAsString(metaMap);
 
-            List<QuizAttemptProctoringEvent> existingEvents = proctoringEventRepository.findByAttemptId(attemptId);
-            QuizAttemptProctoringEvent event = existingEvents.stream()
-                    .filter(e -> "SESSION_SUMMARY".equals(e.getEventType()))
-                    .findFirst()
-                    .orElseGet(() -> {
-                        QuizAttemptProctoringEvent ev = new QuizAttemptProctoringEvent();
-                        ev.setAttempt(attempt);
-                        ev.setEventType("SESSION_SUMMARY");
-                        return ev;
-                    });
-            event.setOccurredAt(LocalDateTime.now());
-            event.setMetadataJson(metadataJson);
-            proctoringEventRepository.save(event);
-            logger.info("Recorded real proctoring summary for attempt {}: checks={}, matches={}, mismatches={}",
-                    attemptId, request.totalFaceChecks(), request.identityMatches(), request.identityMismatches());
-        } catch (Exception e) {
-            logger.error("Failed to serialize proctoring summary for attempt {}: {}", attemptId, e.getMessage());
+                QuizAttemptProctoringEvent event = proctoringEventRepository
+                        .findByAttemptIdAndEventType(attemptId, "SESSION_SUMMARY")
+                        .orElseGet(() -> {
+                            QuizAttemptProctoringEvent ev = new QuizAttemptProctoringEvent();
+                            ev.setAttempt(attempt);
+                            ev.setEventType("SESSION_SUMMARY");
+                            return ev;
+                        });
+                event.setOccurredAt(LocalDateTime.now());
+                event.setMetadataJson(metadataJson);
+                proctoringEventRepository.save(event);
+                logger.info("Recorded real proctoring summary for attempt {}: checks={}, matches={}, mismatches={}",
+                        attemptId, request.totalFaceChecks(), request.identityMatches(), request.identityMismatches());
+            } catch (Exception e) {
+                logger.error("Failed to serialize proctoring summary for attempt {}: {}", attemptId, e.getMessage());
+            }
         }
     }
 
@@ -228,8 +278,12 @@ public class ProctoringService {
         QuizAttempt attempt = quizAttemptRepository.findById(attemptId)
                 .orElseThrow(() -> new ResourceNotFoundException("Quiz attempt not found"));
 
+        if (teacherId == null) {
+            throw new AccessDeniedApplicationException("UNAUTHENTICATED", "Teacher authentication is required");
+        }
+
         Quiz quiz = attempt.getQuiz();
-        if (teacherId != null && quiz.getTeacher() != null && !quiz.getTeacher().getId().equals(teacherId)) {
+        if (quiz == null || quiz.getTeacher() == null || !quiz.getTeacher().getId().equals(teacherId)) {
             throw new AccessDeniedApplicationException("UNAUTHORIZED_TEACHER", "Not authorized to view this quiz report");
         }
 
@@ -242,7 +296,11 @@ public class ProctoringService {
         Quiz quiz = quizRepository.findByQuizCode(quizCode)
                 .orElseThrow(() -> new ResourceNotFoundException("Quiz not found"));
 
-        if (teacherId != null && quiz.getTeacher() != null && !quiz.getTeacher().getId().equals(teacherId)) {
+        if (teacherId == null) {
+            throw new AccessDeniedApplicationException("UNAUTHENTICATED", "Teacher authentication is required");
+        }
+
+        if (quiz.getTeacher() == null || !quiz.getTeacher().getId().equals(teacherId)) {
             throw new AccessDeniedApplicationException("UNAUTHORIZED_TEACHER", "Not authorized to view this quiz overview");
         }
 

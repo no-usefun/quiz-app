@@ -16,7 +16,7 @@ from detection import (
     MalpracticeDetector
 )
 from sessions.session_manager import SessionManager
-from config import SPRING_BOOT_URL, is_trusted_backend_url
+from config import SPRING_BOOT_URL
 
 logger = logging.getLogger("ai-proctoring.routes")
 
@@ -146,12 +146,14 @@ async def start_proctoring_session(
         )
 
     # 1. Authoritative Backend Validation against Spring Boot
-    if req.springBootUrl and not is_trusted_backend_url(req.springBootUrl):
+    # Use strictly server-configured SPRING_BOOT_URL for authenticated backend requests.
+    # Reject browser attempts to point to unexpected/alternate URLs.
+    if req.springBootUrl and req.springBootUrl.rstrip("/") != SPRING_BOOT_URL.rstrip("/"):
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="UNTRUSTED_BACKEND_URL: Browser-supplied springBootUrl points to an untrusted host."
+            detail="UNTRUSTED_BACKEND_URL: Browser cannot specify alternate or unexpected backend URL."
         )
-    spring_url = req.springBootUrl.strip() if req.springBootUrl else SPRING_BOOT_URL
+    spring_url = SPRING_BOOT_URL
     validation_res = await malpractice_detector.verify_backend_attempt_access(
         spring_boot_url=spring_url,
         attempt_id=req.attemptId,
@@ -232,8 +234,8 @@ async def start_proctoring_session(
         student_id=authoritative_student_id,
         test_code=authoritative_test_code,
         reference_embedding=ref_embedding,
-        reference_image_b64=req.referenceImage,
-        spring_boot_url=spring_url,
+        reference_image_b64=None,  # Discard immediately: never retain base64 image in RAM
+        spring_boot_url=SPRING_BOOT_URL,
         auth_token=token
     )
 
@@ -422,11 +424,17 @@ async def stop_session(
 
     session = session_manager.get_session(req.sessionId)
     already_ended = not session.is_active
-    session = session_manager.end_session(req.sessionId)
 
-    # Dispatch final real verification metrics to Spring Boot only once
-    if not already_ended:
-        await malpractice_detector.dispatch_session_summary(session)
+    # Dispatch final real verification metrics to Spring Boot only once, before scrubbing secrets
+    if not session.summary_dispatched and not already_ended:
+        session.summary_dispatched = True
+        try:
+            await malpractice_detector.dispatch_session_summary(session)
+        except Exception as e:
+            logger.error("Failed to dispatch session summary for %s: %s", req.sessionId, e)
+
+    # End session and scrub sensitive data (auth_token, reference_embedding, etc.)
+    session = session_manager.end_session(req.sessionId)
 
     return StopSessionResponse(
         status="STOPPED",

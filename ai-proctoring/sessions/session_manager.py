@@ -1,6 +1,7 @@
 import time
 import uuid
 import secrets
+import hashlib
 import numpy as np
 import logging
 from dataclasses import dataclass, field
@@ -19,6 +20,8 @@ class ProctoringSession:
     reference_image_b64: Optional[str] = None
     spring_boot_url: str = "http://localhost:8080"
     auth_token: Optional[str] = None
+    auth_token_hash: Optional[str] = None
+    summary_dispatched: bool = False
     is_active: bool = True
     created_at: float = field(default_factory=time.time)
     last_seen_at: float = field(default_factory=time.time)
@@ -54,6 +57,9 @@ class SessionManager:
     ) -> ProctoringSession:
         session_id = str(uuid.uuid4())
         ws_ticket = secrets.token_urlsafe(32)
+        clean_tok = auth_token.replace("Bearer ", "").strip() if auth_token else None
+        token_hash = hashlib.sha256(clean_tok.encode("utf-8")).hexdigest() if clean_tok else None
+
         session = ProctoringSession(
             session_id=session_id,
             attempt_id=attempt_id,
@@ -61,9 +67,11 @@ class SessionManager:
             test_code=test_code,
             ws_ticket=ws_ticket,
             reference_embedding=reference_embedding,
-            reference_image_b64=reference_image_b64,
+            reference_image_b64=None,  # Discard immediately: never retain raw reference image in memory
             spring_boot_url=spring_boot_url,
-            auth_token=auth_token
+            auth_token=clean_tok,
+            auth_token_hash=token_hash,
+            summary_dispatched=False
         )
         self.sessions[session_id] = session
         logger.info("Created proctoring session %s for attempt %d (student %s)", session_id, attempt_id, student_id)
@@ -82,12 +90,18 @@ class SessionManager:
         if not session:
             return False, "SESSION_NOT_FOUND"
 
-        # Check credentials (ticket or auth_token)
+        # Check credentials (ticket or auth_token / auth_token_hash)
         ticket_match = bool(ticket and session.ws_ticket and ticket.strip() == session.ws_ticket)
 
         clean_token = auth_token.replace("Bearer ", "").strip() if auth_token else None
-        clean_session_token = session.auth_token.replace("Bearer ", "").strip() if session.auth_token else None
-        token_match = bool(clean_token and clean_session_token and clean_token == clean_session_token)
+        token_hash = hashlib.sha256(clean_token.encode("utf-8")).hexdigest() if clean_token else None
+
+        token_match = False
+        if clean_token:
+            if session.auth_token and clean_token == session.auth_token:
+                token_match = True
+            elif session.auth_token_hash and token_hash == session.auth_token_hash:
+                token_match = True
 
         if not ticket_match and not token_match:
             return False, "INVALID_CREDENTIALS"
@@ -115,13 +129,19 @@ class SessionManager:
             else:
                 session.identity_mismatches += 1
 
+    def scrub_sensitive_data(self, session: ProctoringSession):
+        """Discards JWT tokens, reference images, and biometric embeddings from session memory."""
+        session.auth_token = None
+        session.reference_embedding = None
+        session.reference_image_b64 = None
+
     def end_session(self, session_id: str) -> Optional[ProctoringSession]:
         session = self.get_session(session_id)
         if session:
             session.is_active = False
             session.last_seen_at = time.time()
-            logger.info("Ended proctoring session %s. Verifications: %d, Matches: %d, Mismatches: %d, Warnings: %d",
-                        session_id, session.total_verifications, session.identity_matches, session.identity_mismatches, session.warning_count)
+            self.scrub_sensitive_data(session)
+            logger.info("Ended proctoring session %s. Sensitive tokens and biometric embeddings scrubbed.", session_id)
         return session
 
     def cleanup_old_sessions(self, max_age_seconds: int = 14400):
@@ -132,3 +152,4 @@ class SessionManager:
         ]
         for sid in to_delete:
             del self.sessions[sid]
+

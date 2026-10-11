@@ -538,8 +538,8 @@ def test_attack_scenario_ssrf_untrusted_backend_url_rejected():
     """Security Test: Arbitrary/untrusted browser-supplied springBootUrl cannot be used for authenticated calls."""
     fake_b64 = create_synthetic_face_image_b64()
 
-    # Attacker tries to provide malicious server to exfiltrate JWT
-    resp = client.post("/proctor/start", json={
+    # 1. Attacker tries to provide malicious external host
+    resp1 = client.post("/proctor/start", json={
         "attemptId": 999,
         "studentId": "student-attacker",
         "testCode": "CS101",
@@ -547,7 +547,151 @@ def test_attack_scenario_ssrf_untrusted_backend_url_rejected():
         "authToken": "victim-secret-jwt",
         "springBootUrl": "http://malicious-attacker-server.com/steal"
     })
-    assert resp.status_code == 400
-    assert "UNTRUSTED_BACKEND_URL" in resp.json()["detail"]
+    assert resp1.status_code == 400
+    assert "UNTRUSTED_BACKEND_URL" in resp1.json()["detail"]
+
+    # 2. Attacker tries to point to unexpected alternate port on localhost
+    resp2 = client.post("/proctor/start", json={
+        "attemptId": 999,
+        "studentId": "student-attacker",
+        "testCode": "CS101",
+        "referenceImage": fake_b64,
+        "authToken": "victim-secret-jwt",
+        "springBootUrl": "http://localhost:9999/steal"
+    })
+    assert resp2.status_code == 400
+    assert "UNTRUSTED_BACKEND_URL" in resp2.json()["detail"]
+
+    # 3. Attacker tries unexpected path variation
+    resp3 = client.post("/proctor/start", json={
+        "attemptId": 999,
+        "studentId": "student-attacker",
+        "testCode": "CS101",
+        "referenceImage": fake_b64,
+        "authToken": "victim-secret-jwt",
+        "springBootUrl": "http://localhost:8080/unexpected_path"
+    })
+    assert resp3.status_code == 400
+    assert "UNTRUSTED_BACKEND_URL" in resp3.json()["detail"]
+
+def test_reference_image_discarded_immediately_on_start():
+    """Security Test: Raw base64 reference image is never retained in session RAM."""
+    fake_b64 = create_synthetic_face_image_b64()
+    mock_validation = {
+        "success": True,
+        "status_code": 200,
+        "attemptId": 910,
+        "studentId": "student-clean-1",
+        "testCode": "CS101",
+        "status": "IN_PROGRESS",
+        "valid": True
+    }
+
+    with patch.object(malpractice_detector, "verify_backend_attempt_access", new=AsyncMock(return_value=mock_validation)), \
+         patch("api.routes.face_detector.detect_faces", return_value=([{"landmarks": []}], [np.array([50, 50, 100, 100])])), \
+         patch("api.routes.face_recognizer.extract_embedding", return_value=np.ones((1, 128), dtype=np.float32)):
+
+        resp = client.post("/proctor/start", json={
+            "attemptId": 910,
+            "studentId": "student-clean-1",
+            "testCode": "CS101",
+            "referenceImage": fake_b64,
+            "authToken": "jwt-clean-1"
+        })
+        assert resp.status_code == 200
+        sid = resp.json()["sessionId"]
+        sess = session_manager.get_session(sid)
+        assert sess is not None
+        # Reference image base64 MUST BE None (discarded immediately)
+        assert sess.reference_image_b64 is None
+        # Embedding vector is active
+        assert sess.reference_embedding is not None
+
+def test_session_secrets_scrubbed_after_stop():
+    """Security Test: On session stop, raw JWT and biometric embeddings are scrubbed from RAM."""
+    session = session_manager.create_session(
+        attempt_id=911,
+        student_id="student-scrub-1",
+        test_code="CS101",
+        reference_embedding=np.ones((1, 128), dtype=np.float32),
+        auth_token="jwt-scrub-secret"
+    )
+    assert session.auth_token == "jwt-scrub-secret"
+    assert session.reference_embedding is not None
+
+    with patch.object(malpractice_detector, "dispatch_session_summary", new=AsyncMock()) as mock_dispatch:
+        resp = client.post("/proctor/stop", json={
+            "sessionId": session.session_id,
+            "ticket": session.ws_ticket
+        })
+        assert resp.status_code == 200
+        mock_dispatch.assert_called_once()
+
+    # Verify sensitive data was scrubbed from memory
+    assert session.is_active is False
+    assert session.auth_token is None
+    assert session.reference_embedding is None
+    assert session.reference_image_b64 is None
+
+def test_repeated_stop_authorized_via_token_without_retaining_raw_jwt():
+    """Security Test: Repeated stop requests can still authorize with token/ticket, but wrong token is rejected."""
+    session = session_manager.create_session(
+        attempt_id=912,
+        student_id="student-repeat-1",
+        test_code="CS101",
+        reference_embedding=np.ones((1, 128), dtype=np.float32),
+        auth_token="jwt-repeat-valid"
+    )
+
+    with patch.object(malpractice_detector, "dispatch_session_summary", new=AsyncMock()) as mock_dispatch:
+        # First stop
+        resp1 = client.post(
+            "/proctor/stop",
+            json={"sessionId": session.session_id},
+            headers={"Authorization": "Bearer jwt-repeat-valid"}
+        )
+        assert resp1.status_code == 200
+        assert mock_dispatch.call_count == 1
+        assert session.auth_token is None  # Scrubbed!
+
+        # Second stop with valid token: allowed idempotently without re-dispatching summary
+        resp2 = client.post(
+            "/proctor/stop",
+            json={"sessionId": session.session_id},
+            headers={"Authorization": "Bearer jwt-repeat-valid"}
+        )
+        assert resp2.status_code == 200
+        assert mock_dispatch.call_count == 1
+
+        # Second stop with wrong token: rejected
+        resp3 = client.post(
+            "/proctor/stop",
+            json={"sessionId": session.session_id},
+            headers={"Authorization": "Bearer jwt-attacker-wrong"}
+        )
+        assert resp3.status_code == 401
+
+def test_stop_scrubs_secrets_even_if_dispatch_fails():
+    """Security Test: Secrets are scrubbed even if summary dispatch raises an exception."""
+    session = session_manager.create_session(
+        attempt_id=913,
+        student_id="student-fail-dispatch",
+        test_code="CS101",
+        reference_embedding=np.ones((1, 128), dtype=np.float32),
+        auth_token="jwt-fail-dispatch"
+    )
+
+    with patch.object(malpractice_detector, "dispatch_session_summary", side_effect=RuntimeError("Network failure")):
+        resp = client.post("/proctor/stop", json={
+            "sessionId": session.session_id,
+            "ticket": session.ws_ticket
+        })
+        assert resp.status_code == 200
+
+    # Ensure sensitive data is STILL scrubbed
+    assert session.is_active is False
+    assert session.auth_token is None
+    assert session.reference_embedding is None
+
 
 
