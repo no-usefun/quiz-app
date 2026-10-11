@@ -53,7 +53,8 @@ class SessionManager:
         reference_embedding: Optional[np.ndarray] = None,
         reference_image_b64: Optional[str] = None,
         spring_boot_url: str = "http://localhost:8080",
-        auth_token: Optional[str] = None
+        auth_token: Optional[str] = None,
+        initial_warning_count: int = 0
     ) -> ProctoringSession:
         session_id = str(uuid.uuid4())
         ws_ticket = secrets.token_urlsafe(32)
@@ -71,10 +72,11 @@ class SessionManager:
             spring_boot_url=spring_boot_url,
             auth_token=clean_tok,
             auth_token_hash=token_hash,
-            summary_dispatched=False
+            summary_dispatched=False,
+            warning_count=max(0, initial_warning_count)
         )
         self.sessions[session_id] = session
-        logger.info("Created proctoring session %s for attempt %d (student %s)", session_id, attempt_id, student_id)
+        logger.info("Created proctoring session %s for attempt %d (student %s) with initial warnings %d", session_id, attempt_id, student_id, session.warning_count)
         return session
 
     def validate_session_auth(

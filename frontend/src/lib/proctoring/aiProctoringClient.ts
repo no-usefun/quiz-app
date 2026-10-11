@@ -46,6 +46,7 @@ export interface AnalyzeFramePayload {
   authToken?: string;
   studentId?: string;
   attemptId?: number;
+  warningCount?: number;
 }
 
 export interface TelemetryResponse {

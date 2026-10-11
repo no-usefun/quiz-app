@@ -368,6 +368,8 @@ class ProctoringServiceTest {
         assertEquals("CS101", response.testCode());
         assertEquals("IN_PROGRESS", response.status());
         assertTrue(response.valid());
+        assertEquals(0, response.warningCount());
+        assertEquals(3, response.maxWarnings());
     }
 
     @Test

@@ -71,6 +71,7 @@ class AnalyzeFrameRequest(BaseModel):
     authToken: Optional[str] = None
     studentId: Optional[str] = None
     attemptId: Optional[int] = None
+    warningCount: Optional[int] = None
 
 class AnalyzeFrameResponse(BaseModel):
     status: str
@@ -232,6 +233,7 @@ async def start_proctoring_session(
             detail="EMBEDDING_EXTRACTION_FAILED: Failed to extract biometric facial embedding from reference image. Ensure clear lighting and facing camera directly."
         )
 
+    initial_warning_count = int(validation_res.get("warningCount") or 0)
     session = session_manager.create_session(
         attempt_id=req.attemptId,
         student_id=authoritative_student_id,
@@ -239,7 +241,8 @@ async def start_proctoring_session(
         reference_embedding=ref_embedding,
         reference_image_b64=None,  # Discard immediately: never retain base64 image in RAM
         spring_boot_url=SPRING_BOOT_URL,
-        auth_token=token
+        auth_token=token,
+        initial_warning_count=initial_warning_count
     )
 
     return StartSessionResponse(
@@ -301,6 +304,8 @@ async def analyze_frame(
             )
 
     session = session_manager.get_session(req.sessionId)
+    if req.warningCount is not None and req.warningCount > session.warning_count:
+        session.warning_count = req.warningCount
 
     faces_count = 0
     persons_count = 0

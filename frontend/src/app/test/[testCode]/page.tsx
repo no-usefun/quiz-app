@@ -279,17 +279,32 @@ export default function TestArenaPage({
     enabled: !isSubmitted && Boolean(activeAttemptId),
   });
 
-  const isFullscreen = true;
-  const requestFullscreen = async () => {
+  const [isFullscreen, setIsFullscreen] = useState(() => {
+    if (typeof document !== "undefined") {
+      return Boolean(document.fullscreenElement);
+    }
+    return true;
+  });
+  const requestFullscreen = useCallback(async () => {
     if (typeof document !== "undefined" && !document.fullscreenElement) {
-      await document.documentElement.requestFullscreen().catch(() => {});
+      try {
+        await document.documentElement.requestFullscreen();
+        setIsFullscreen(true);
+      } catch (err) {
+        console.warn("Could not enter fullscreen:", err);
+      }
     }
-  };
-  const exitFullscreen = async () => {
+  }, []);
+  const exitFullscreen = useCallback(async () => {
     if (typeof document !== "undefined" && document.fullscreenElement) {
-      await document.exitFullscreen().catch(() => {});
+      try {
+        await document.exitFullscreen();
+        setIsFullscreen(false);
+      } catch (err) {
+        console.warn("Could not exit fullscreen:", err);
+      }
     }
-  };
+  }, []);
 
   useEffect(() => {
     answersRef.current = answers;
@@ -343,7 +358,7 @@ export default function TestArenaPage({
     proctoringShowWarningModalRef.current = proctoring.showWarningModal;
   }, [proctoring.showWarningModal]);
 
-  const lastViolationTimeRef = useRef<{ [eventType: string]: number }>({});
+  const lastBrowserViolationTimeRef = useRef<number>(0);
 
   // Browser-level security and restriction event dispatching
   useEffect(() => {
@@ -355,11 +370,10 @@ export default function TestArenaPage({
 
     const reportEvent = async (eventType: string, details: string) => {
       const now = Date.now();
-      const last = lastViolationTimeRef.current[eventType] || 0;
-      if (now - last < VIOLATION_COOLDOWN_MS) {
-        return; // debounced to prevent duplicate warnings
+      if (now - lastBrowserViolationTimeRef.current < VIOLATION_COOLDOWN_MS) {
+        return; // debounced across all browser violation signals to prevent duplicate strikes for a single action
       }
-      lastViolationTimeRef.current[eventType] = now;
+      lastBrowserViolationTimeRef.current = now;
 
       try {
         const token = getAuthToken();
@@ -407,8 +421,13 @@ export default function TestArenaPage({
     };
 
     const handleFullscreenChange = () => {
-      if (!document.fullscreenElement) {
-        void reportEvent("FULLSCREEN_EXIT", "Candidate exited required fullscreen exam mode");
+      const active = Boolean(document.fullscreenElement);
+      setIsFullscreen(active);
+      if (!active) {
+        // Tab switch handler handles Alt-Tab/minimize; only trigger fullscreen exit if window is still visible
+        if (document.visibilityState === "visible") {
+          void reportEvent("FULLSCREEN_EXIT", "Candidate exited required fullscreen exam mode");
+        }
       }
     };
 
@@ -419,6 +438,9 @@ export default function TestArenaPage({
     const handleCopyPaste = (e: ClipboardEvent) => {
       e.preventDefault();
     };
+
+    // Synchronize initial fullscreen state on mount
+    setIsFullscreen(Boolean(document.fullscreenElement));
 
     document.addEventListener("visibilitychange", handleVisibilityChange);
     window.addEventListener("blur", handleBlur);
@@ -1654,7 +1676,7 @@ export default function TestArenaPage({
       {/* Proctoring Warning Modal */}
       <ProctoringWarningModal
         isOpen={proctoring.activeWarningModal.isOpen}
-        warningCount={proctoring.activeWarningModal.count}
+        warningCount={Math.max(proctoring.warningCount, proctoring.activeWarningModal.count)}
         reason={proctoring.activeWarningModal.reason}
         autoSubmitted={proctoring.activeWarningModal.autoSubmitted}
         onAcknowledge={() => {

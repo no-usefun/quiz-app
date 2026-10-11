@@ -99,7 +99,17 @@ export function useProctoring({
   const [micLevel, setMicLevel] = useState(0.0);
   const [voiceActive, setVoiceActive] = useState(false);
   const [loudVoice, setLoudVoice] = useState(false);
-  const [warningCount, setWarningCount] = useState(0);
+  const [warningCount, setWarningCountState] = useState(0);
+  const warningCountRef = useRef(0);
+
+  const setWarningCount = useCallback((value: number | ((prev: number) => number)) => {
+    setWarningCountState((prev) => {
+      const nextVal = typeof value === "function" ? value(prev) : value;
+      const monotonicVal = Math.max(prev, nextVal);
+      warningCountRef.current = monotonicVal;
+      return monotonicVal;
+    });
+  }, []);
 
   // Warning modal state
   const [activeWarningModal, setActiveWarningModal] = useState<{
@@ -234,18 +244,19 @@ export function useProctoring({
 
     // If a confirmed malpractice event occurred
     if (telemetry.malpracticeEvent) {
+      const strikeCount = Math.max(warningCountRef.current, telemetry.warningCount ?? 0);
       setActiveWarningModal({
         isOpen: true,
         reason: telemetry.eventMessage || telemetry.malpracticeEvent,
-        count: telemetry.warningCount,
-        autoSubmitted: telemetry.autoSubmitted,
+        count: strikeCount,
+        autoSubmitted: Boolean(telemetry.autoSubmitted),
       });
 
       if (telemetry.autoSubmitted && onAutoSubmitRef.current) {
         onAutoSubmitRef.current();
       }
     }
-  }, []);
+  }, [setWarningCount]);
 
   // Capture single frame from in-DOM video without depending on cameraActive state
   const captureFrameBase64 = useCallback((): string | null => {
@@ -498,6 +509,7 @@ export function useProctoring({
               frame: frameB64,
               audio: audioSamples,
               sampleRate: audioSampleRateRef.current,
+              warningCount: warningCountRef.current,
             })
           );
         } else if (sessionIdRef.current && !inFlightRestRef.current) {
@@ -512,6 +524,7 @@ export function useProctoring({
               frame: frameB64,
               audio: audioSamples,
               sampleRate: audioSampleRateRef.current,
+              warningCount: warningCountRef.current,
             });
             if (mounted && !isCleaningUpRef.current) {
               handleTelemetryUpdate(res);
@@ -551,17 +564,18 @@ export function useProctoring({
 
   const showWarningModal = useCallback(
     (reason: string, count: number, autoSubmitted: boolean = false) => {
+      setWarningCount(count);
       setActiveWarningModal({
         isOpen: true,
         reason,
-        count,
+        count: Math.max(warningCountRef.current, count),
         autoSubmitted,
       });
       if (autoSubmitted && onAutoSubmitRef.current) {
         onAutoSubmitRef.current();
       }
     },
-    []
+    [setWarningCount]
   );
 
   const dismissWarningModal = useCallback(() => {

@@ -106,6 +106,7 @@ public class ProctoringService {
         String studentIdStr = attempt.getStudent().getId().toString();
         String studentEmail = attempt.getStudent().getEmail();
 
+        int currentWarnings = (attempt.getWarningsCount() != null) ? attempt.getWarningsCount() : 0;
         return new ProctoringAccessVerificationResponse(
                 attempt.getId(),
                 studentIdStr,
@@ -113,7 +114,9 @@ public class ProctoringService {
                 testCode,
                 attempt.getStatus().name(),
                 isProgress,
-                isProgress ? "Access authorized" : "Attempt is not in progress (" + attempt.getStatus().name() + ")"
+                isProgress ? "Access authorized" : "Attempt is not in progress (" + attempt.getStatus().name() + ")",
+                currentWarnings,
+                MAX_WARNINGS
         );
     }
 

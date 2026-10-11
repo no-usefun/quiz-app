@@ -7,6 +7,8 @@ public record ProctoringAccessVerificationResponse(
     String testCode,
     String status,
     boolean valid,
-    String message
+    String message,
+    Integer warningCount,
+    Integer maxWarnings
 ) {
 }

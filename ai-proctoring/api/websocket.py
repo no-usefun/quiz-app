@@ -103,6 +103,15 @@ async def proctoring_websocket_endpoint(websocket: WebSocket, session_id: str):
                 await websocket.send_json({"type": "pong"})
                 continue
 
+            incoming_warnings = msg.get("warningCount")
+            if incoming_warnings is not None:
+                try:
+                    w_int = int(incoming_warnings)
+                    if w_int > session.warning_count:
+                        session.warning_count = w_int
+                except (ValueError, TypeError):
+                    pass
+
             frame_b64 = msg.get("frame")
             audio_samples = msg.get("audio")
 
