@@ -146,7 +146,7 @@ async def proctoring_websocket_endpoint(websocket: WebSocket, session_id: str):
             # Audio processing
             audio_res = {"mic_level": 0.0, "is_speech": False, "is_loud": False}
             if audio_samples:
-                audio_res = audio_detector.analyze_pcm_samples(audio_samples)
+                audio_res = audio_detector.analyze_pcm_samples(audio_samples, sample_rate=msg.get("sampleRate"))
 
             # Malpractice Evaluation & Authoritative Spring Boot Dispatch
             eval_res = await malpractice_detector.evaluate_frame(

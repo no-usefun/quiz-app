@@ -66,6 +66,7 @@ class AnalyzeFrameRequest(BaseModel):
     sessionId: str
     frame: Optional[str] = None
     audio: Optional[List[float]] = None
+    sampleRate: Optional[int] = None
     ticket: Optional[str] = None
     authToken: Optional[str] = None
     studentId: Optional[str] = None
@@ -176,19 +177,19 @@ async def start_proctoring_session(
     auth_test_code = str(validation_res.get("testCode", "")).strip()
 
     # Consistency checks
-    if req.studentId and auth_student_id and str(req.studentId).strip() != auth_student_id:
+    if req.studentId and req.studentId.strip().lower() != "student" and auth_student_id and str(req.studentId).strip() != auth_student_id:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="STUDENT_ID_MISMATCH: Provided student ID does not match authenticated user record."
         )
 
-    if req.testCode and auth_test_code and str(req.testCode).strip() != auth_test_code:
+    if req.testCode and auth_test_code and str(req.testCode).strip().upper() != auth_test_code.upper():
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="TEST_CODE_MISMATCH: Provided test code does not match attempt record."
         )
 
-    authoritative_student_id = auth_student_id or str(req.studentId or "")
+    authoritative_student_id = auth_student_id or str(req.studentId or "student")
     authoritative_test_code = auth_test_code or str(req.testCode or "")
 
     # 2. Biometric Model Check - Strictly reject fake fallbacks
@@ -340,7 +341,7 @@ async def analyze_frame(
     # 2. Audio Processing
     audio_res = {"mic_level": 0.0, "is_speech": False, "is_loud": False}
     if req.audio:
-        audio_res = audio_detector.analyze_pcm_samples(req.audio)
+        audio_res = audio_detector.analyze_pcm_samples(req.audio, sample_rate=req.sampleRate)
 
     # 3. Malpractice Evaluation & Authoritative Spring Boot Dispatch
     eval_res = await malpractice_detector.evaluate_frame(

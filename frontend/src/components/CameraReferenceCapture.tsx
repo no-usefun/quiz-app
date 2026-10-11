@@ -57,6 +57,11 @@ export function CameraReferenceCapture({
     setCameraError(null);
 
     try {
+      if (!navigator?.mediaDevices?.getUserMedia) {
+        setCameraError("Camera access is not supported in this browser or context.");
+        return;
+      }
+
       const stream = await navigator.mediaDevices.getUserMedia({
         video: {
           width: { ideal: 640 },
@@ -69,14 +74,30 @@ export function CameraReferenceCapture({
       streamRef.current = stream;
       if (videoRef.current) {
         videoRef.current.srcObject = stream;
-        await videoRef.current.play();
+        if (videoRef.current.readyState < 1) {
+          await new Promise<void>((resolve) => {
+            const onLoaded = () => {
+              videoRef.current?.removeEventListener("loadedmetadata", onLoaded);
+              resolve();
+            };
+            videoRef.current?.addEventListener("loadedmetadata", onLoaded);
+            setTimeout(resolve, 1500);
+          });
+        }
+        await videoRef.current.play().catch(() => {});
       }
       setCameraActive(true);
-    } catch (err: unknown) {
+    } catch (err: any) {
       console.error("Camera access failed:", err);
-      setCameraError(
-        "Camera permission was denied or no camera device was found. Please enable camera access."
-      );
+      let msg = "Could not access camera. Please enable camera access.";
+      if (err?.name === "NotAllowedError" || err?.name === "PermissionDeniedError") {
+        msg = "Camera permission was denied. Please allow camera permissions in browser site settings.";
+      } else if (err?.name === "NotFoundError" || err?.name === "DevicesNotFoundError") {
+        msg = "No camera device was found on your computer.";
+      } else if (err?.name === "NotReadableError" || err?.name === "TrackStartError") {
+        msg = "Camera is currently in use by another application. Please close other software and retry.";
+      }
+      setCameraError(msg);
     }
   }, [stopCamera]);
 

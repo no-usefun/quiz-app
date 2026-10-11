@@ -155,7 +155,7 @@ function LobbyInner({ testCode }: { testCode: string }) {
       return;
     }
 
-    const existingPhoto = referencePhoto || (typeof window !== "undefined" ? sessionStorage.getItem("dynoquizz_reference_photo") : null);
+    const existingPhoto = referencePhoto || (typeof window !== "undefined" ? sessionStorage.getItem("dynoquizz_reference_photo") || localStorage.getItem("dynoquizz_reference_photo") : null);
     if (!existingPhoto) {
       setStartError("Please take your reference biometric photo before starting the assessment.");
       return;
@@ -474,6 +474,7 @@ function LobbyInner({ testCode }: { testCode: string }) {
               setReferencePhoto(photo);
               if (typeof window !== "undefined") {
                 sessionStorage.setItem("dynoquizz_reference_photo", photo);
+                localStorage.setItem("dynoquizz_reference_photo", photo);
               }
               setStartError(null);
             }}

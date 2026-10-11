@@ -244,8 +244,20 @@ export default function TestArenaPage({
   const submissionInFlightRef = useRef(false);
   const referencePhoto =
     typeof window !== "undefined"
-      ? sessionStorage.getItem("dynoquizz_reference_photo")
+      ? sessionStorage.getItem("dynoquizz_reference_photo") ||
+        localStorage.getItem("dynoquizz_reference_photo")
       : null;
+
+  const studentUser = typeof window !== "undefined"
+    ? (() => {
+        try {
+          return JSON.parse(localStorage.getItem("dynoquizz_user") || "{}");
+        } catch {
+          return {};
+        }
+      })()
+    : {};
+  const effectiveStudentId = studentUser?.id ? String(studentUser.id) : undefined;
 
   const finishAssessmentRef = useRef<
     ((latestAnswers?: ActiveAnswerState, latestTimeTaken?: Record<number, number>) => Promise<void>) | null
@@ -253,12 +265,12 @@ export default function TestArenaPage({
 
   const proctoring = useProctoring({
     attemptId: Number(activeAttemptId || 0),
-    studentId: "student",
+    studentId: effectiveStudentId,
     testCode: cleanCode,
     referenceImage: referencePhoto,
     authToken: getAuthToken() || undefined,
     onAutoSubmit: () => {
-      proctoring.cleanup();
+      void proctoring.cleanup();
       setDeadlineNotice(
         "Assessment automatically submitted due to reaching maximum proctoring violation warnings."
       );
@@ -316,17 +328,43 @@ export default function TestArenaPage({
     return () => window.removeEventListener("beforeunload", handleBeforeUnload);
   }, [isSubmitted]);
 
+  const proctoringCleanupRef = useRef(proctoring.cleanup);
+  useEffect(() => {
+    proctoringCleanupRef.current = proctoring.cleanup;
+  }, [proctoring.cleanup]);
+
+  const proctoringSetWarningCountRef = useRef(proctoring.setWarningCount);
+  useEffect(() => {
+    proctoringSetWarningCountRef.current = proctoring.setWarningCount;
+  }, [proctoring.setWarningCount]);
+
+  const proctoringShowWarningModalRef = useRef(proctoring.showWarningModal);
+  useEffect(() => {
+    proctoringShowWarningModalRef.current = proctoring.showWarningModal;
+  }, [proctoring.showWarningModal]);
+
+  const lastViolationTimeRef = useRef<{ [eventType: string]: number }>({});
+
   // Browser-level security and restriction event dispatching
   useEffect(() => {
     if (typeof window === "undefined" || isSubmitted || !activeAttemptId) {
       return;
     }
 
+    const VIOLATION_COOLDOWN_MS = 3500;
+
     const reportEvent = async (eventType: string, details: string) => {
+      const now = Date.now();
+      const last = lastViolationTimeRef.current[eventType] || 0;
+      if (now - last < VIOLATION_COOLDOWN_MS) {
+        return; // debounced to prevent duplicate warnings
+      }
+      lastViolationTimeRef.current[eventType] = now;
+
       try {
         const token = getAuthToken();
         const res = await api.post<ProctoringEventResponse>(
-          `/api/v1/attempts/${activeAttemptId}/events`,
+          ENDPOINTS.proctoring.recordEvent(activeAttemptId),
           {
             eventType,
             details,
@@ -337,12 +375,22 @@ export default function TestArenaPage({
             headers: token ? { Authorization: `Bearer ${token}` } : {},
           }
         );
-        if (res?.autoSubmitted) {
-          proctoring.cleanup();
-          void finishAssessmentRef.current?.(answersRef.current, timeTakenRef.current);
+        if (res) {
+          if (typeof res.warningCount === "number") {
+            proctoringSetWarningCountRef.current(res.warningCount);
+            proctoringShowWarningModalRef.current(
+              details,
+              res.warningCount,
+              Boolean(res.autoSubmitted)
+            );
+          }
+          if (res.autoSubmitted) {
+            void proctoringCleanupRef.current();
+            void finishAssessmentRef.current?.(answersRef.current, timeTakenRef.current);
+          }
         }
-      } catch {
-        // Drop network error gracefully
+      } catch (err) {
+        console.warn("Failed to report browser proctoring event:", err);
       }
     };
 
@@ -353,7 +401,9 @@ export default function TestArenaPage({
     };
 
     const handleBlur = () => {
-      void reportEvent("TAB_SWITCH", "Candidate lost browser window focus");
+      if (document.visibilityState === "hidden" || !document.hasFocus()) {
+        void reportEvent("TAB_SWITCH", "Candidate switched away from assessment window");
+      }
     };
 
     const handleFullscreenChange = () => {
@@ -387,7 +437,7 @@ export default function TestArenaPage({
       document.removeEventListener("cut", handleCopyPaste);
       document.removeEventListener("paste", handleCopyPaste);
     };
-  }, [isSubmitted, activeAttemptId, proctoring]);
+  }, [isSubmitted, activeAttemptId]);
 
   useEffect(() => {
     if (isSubmitted) {
@@ -1512,6 +1562,8 @@ export default function TestArenaPage({
         <AIProctoringHUD
           videoRef={proctoring.videoRef}
           cameraActive={proctoring.cameraActive}
+          cameraError={proctoring.cameraError}
+          telemetryReceived={proctoring.telemetryReceived}
           faceDetected={proctoring.faceDetected}
           numFaces={proctoring.numFaces}
           numPersons={proctoring.numPersons}

@@ -7,17 +7,20 @@ import {
   UserX,
   Smartphone,
   Mic,
-  MicOff,
   Volume2,
   Users,
   Eye,
   EyeOff,
   Compass,
+  AlertTriangle,
+  Loader2,
 } from "lucide-react";
 
 interface AIProctoringHUDProps {
   videoRef: RefObject<HTMLVideoElement | null>;
   cameraActive: boolean;
+  cameraError?: string | null;
+  telemetryReceived?: boolean;
   faceDetected: boolean;
   numFaces: number;
   numPersons?: number;
@@ -38,6 +41,8 @@ interface AIProctoringHUDProps {
 export function AIProctoringHUD({
   videoRef,
   cameraActive,
+  cameraError,
+  telemetryReceived = false,
   faceDetected,
   numFaces,
   numPersons = 1,
@@ -86,89 +91,102 @@ export function AIProctoringHUD({
 
       {/* Mirrored Live Video Feed */}
       <div className="relative aspect-4/3 w-full bg-stone-900 rounded-[10px] overflow-hidden border border-[#d1dee8]">
+        {/* Always keep video element mounted so media stream attaches and plays reliably */}
         <video
           ref={videoRef}
+          autoPlay
           playsInline
           muted
-          className={`w-full h-full object-cover scale-x-[-1] ${
-            cameraActive ? "block" : "hidden"
-          }`}
+          className="w-full h-full object-cover scale-x-[-1]"
         />
 
-        {!cameraActive && (
-          <div className="absolute inset-0 flex flex-col items-center justify-center text-stone-500 gap-1">
-            <MicOff className="h-5 w-5" />
-            <span className="text-[10px] font-semibold">Feed Standby</span>
+        {/* Camera Error Overlay */}
+        {cameraError ? (
+          <div className="absolute inset-0 bg-stone-950/95 flex flex-col items-center justify-center p-3 text-center gap-1.5 z-20">
+            <AlertTriangle className="h-5 w-5 text-rose-500" />
+            <span className="text-[10px] font-bold text-rose-400">Camera / Media Error</span>
+            <span className="text-[9px] leading-tight text-stone-300 max-w-[200px]">{cameraError}</span>
           </div>
-        )}
+        ) : !cameraActive ? (
+          <div className="absolute inset-0 bg-stone-900 flex flex-col items-center justify-center text-stone-400 gap-1.5 z-10">
+            <Loader2 className="h-5 w-5 animate-spin text-emerald-400" />
+            <span className="text-[10px] font-semibold">Initializing Camera Feed...</span>
+          </div>
+        ) : null}
 
         {/* Live Overlays / Alert Badges */}
-        <div className="absolute bottom-1.5 left-1.5 right-1.5 flex flex-wrap gap-1 pointer-events-none">
-          {/* Phone Detected Alert */}
-          {phoneDetected && (
-            <div className="inline-flex items-center gap-1 bg-rose-600/90 text-white text-[9px] font-bold px-1.5 py-0.5 rounded-[6px] shadow-sm animate-bounce">
-              <Smartphone className="h-2.5 w-2.5" />
-              <span>PHONE DETECTED</span>
-            </div>
-          )}
+        {cameraActive && telemetryReceived && (
+          <div className="absolute bottom-1.5 left-1.5 right-1.5 flex flex-wrap gap-1 pointer-events-none z-10">
+            {/* Phone Detected Alert */}
+            {phoneDetected && (
+              <div className="inline-flex items-center gap-1 bg-rose-600/90 text-white text-[9px] font-bold px-1.5 py-0.5 rounded-[6px] shadow-sm animate-bounce">
+                <Smartphone className="h-2.5 w-2.5" />
+                <span>PHONE DETECTED</span>
+              </div>
+            )}
 
-          {/* Multiple Persons Alert */}
-          {numPersons > 1 && (
-            <div className="inline-flex items-center gap-1 bg-rose-600/90 text-white text-[9px] font-bold px-1.5 py-0.5 rounded-[6px] shadow-sm animate-pulse">
-              <Users className="h-2.5 w-2.5" />
-              <span>{numPersons} PERSONS</span>
-            </div>
-          )}
+            {/* Multiple Persons Alert */}
+            {numPersons > 1 && (
+              <div className="inline-flex items-center gap-1 bg-rose-600/90 text-white text-[9px] font-bold px-1.5 py-0.5 rounded-[6px] shadow-sm animate-pulse">
+                <Users className="h-2.5 w-2.5" />
+                <span>{numPersons} PERSONS</span>
+              </div>
+            )}
 
-          {/* Multiple Faces Alert */}
-          {numFaces > 1 && numPersons <= 1 && (
-            <div className="inline-flex items-center gap-1 bg-rose-600/90 text-white text-[9px] font-bold px-1.5 py-0.5 rounded-[6px] shadow-sm">
-              <Users className="h-2.5 w-2.5" />
-              <span>{numFaces} FACES</span>
-            </div>
-          )}
+            {/* Multiple Faces Alert */}
+            {numFaces > 1 && numPersons <= 1 && (
+              <div className="inline-flex items-center gap-1 bg-rose-600/90 text-white text-[9px] font-bold px-1.5 py-0.5 rounded-[6px] shadow-sm">
+                <Users className="h-2.5 w-2.5" />
+                <span>{numFaces} FACES</span>
+              </div>
+            )}
 
-          {/* Looking Away Alert */}
-          {isLookingAway && faceDetected && (
-            <div className="inline-flex items-center gap-1 bg-amber-600/90 text-white text-[9px] font-bold px-1.5 py-0.5 rounded-[6px] shadow-sm">
-              <EyeOff className="h-2.5 w-2.5" />
-              <span>LOOKING {gazeDirection}</span>
-            </div>
-          )}
+            {/* Looking Away Alert */}
+            {isLookingAway && faceDetected && (
+              <div className="inline-flex items-center gap-1 bg-amber-600/90 text-white text-[9px] font-bold px-1.5 py-0.5 rounded-[6px] shadow-sm">
+                <EyeOff className="h-2.5 w-2.5" />
+                <span>LOOKING {gazeDirection}</span>
+              </div>
+            )}
 
-          {/* No Face Alert */}
-          {!faceDetected && cameraActive && (
-            <div className="inline-flex items-center gap-1 bg-amber-600/90 text-white text-[9px] font-bold px-1.5 py-0.5 rounded-[6px] shadow-sm">
-              <UserX className="h-2.5 w-2.5" />
-              <span>NO FACE</span>
-            </div>
-          )}
+            {/* No Face Alert */}
+            {!faceDetected && (
+              <div className="inline-flex items-center gap-1 bg-amber-600/90 text-white text-[9px] font-bold px-1.5 py-0.5 rounded-[6px] shadow-sm">
+                <UserX className="h-2.5 w-2.5" />
+                <span>NO FACE</span>
+              </div>
+            )}
 
-          {/* Loud Voice Alert */}
-          {loudVoice && (
-            <div className="inline-flex items-center gap-1 bg-rose-600/90 text-white text-[9px] font-bold px-1.5 py-0.5 rounded-[6px] shadow-sm">
-              <Volume2 className="h-2.5 w-2.5" />
-              <span>LOUD VOICE</span>
-            </div>
-          )}
-        </div>
+            {/* Loud Voice Alert */}
+            {loudVoice && (
+              <div className="inline-flex items-center gap-1 bg-rose-600/90 text-white text-[9px] font-bold px-1.5 py-0.5 rounded-[6px] shadow-sm">
+                <Volume2 className="h-2.5 w-2.5" />
+                <span>LOUD VOICE</span>
+              </div>
+            )}
+          </div>
+        )}
       </div>
 
       {/* Telemetry Status Matrix */}
       <div className="space-y-1.5 text-[10.5px]">
         {/* Face Status */}
-        <div className="flex items-center justify-between px-1 py-0.5 rounded-[6px] bg-[#f5f5f4]">
+        <div className="flex items-center justify-between px-1.5 py-1 rounded-[6px] bg-[#f5f5f4]">
           <span className="text-[#78716b] font-semibold">Face Track</span>
           <span
             className={`font-bold flex items-center gap-1 ${
-              faceDetected && numFaces === 1
+              !telemetryReceived
+                ? "text-stone-400"
+                : faceDetected && numFaces === 1
                 ? "text-emerald-600"
                 : numFaces > 1
                 ? "text-rose-600"
                 : "text-amber-600"
             }`}
           >
-            {faceDetected && numFaces === 1 ? (
+            {!telemetryReceived ? (
+              "Calibrating..."
+            ) : faceDetected && numFaces === 1 ? (
               <>
                 <UserCheck className="h-3 w-3" /> Locked (1)
               </>
@@ -185,18 +203,22 @@ export function AIProctoringHUD({
         </div>
 
         {/* Gaze / Head Pose */}
-        <div className="flex items-center justify-between px-1 py-0.5 rounded-[6px] bg-[#f5f5f4]">
+        <div className="flex items-center justify-between px-1.5 py-1 rounded-[6px] bg-[#f5f5f4]">
           <span className="text-[#78716b] font-semibold flex items-center gap-1">
             <Compass className="h-3 w-3" /> Gaze Pose
           </span>
           <span
             className={`font-bold flex items-center gap-1 ${
-              !isLookingAway
+              !telemetryReceived
+                ? "text-stone-400"
+                : !isLookingAway
                 ? "text-emerald-600"
                 : "text-amber-600"
             }`}
           >
-            {!isLookingAway ? (
+            {!telemetryReceived ? (
+              "Calibrating..."
+            ) : !isLookingAway ? (
               <>
                 <Eye className="h-3 w-3" /> Center ({yaw > 0 ? `+${yaw}` : yaw}°, {pitch > 0 ? `+${pitch}` : pitch}°)
               </>
@@ -209,14 +231,20 @@ export function AIProctoringHUD({
         </div>
 
         {/* Biometric Match */}
-        <div className="flex items-center justify-between px-1 py-0.5 rounded-[6px] bg-[#f5f5f4]">
+        <div className="flex items-center justify-between px-1.5 py-1 rounded-[6px] bg-[#f5f5f4]">
           <span className="text-[#78716b] font-semibold">Biometric ID</span>
           <span
             className={`font-bold ${
-              identityVerified ? "text-emerald-600" : "text-rose-600"
+              !telemetryReceived
+                ? "text-stone-400"
+                : identityVerified
+                ? "text-emerald-600"
+                : "text-rose-600"
             }`}
           >
-            {identityVerified
+            {!telemetryReceived
+              ? "Verifying..."
+              : identityVerified
               ? `Verified (${Math.round(similarityScore * 100)}%)`
               : similarityScore > 0
               ? `Mismatch (${Math.round(similarityScore * 100)}%)`
@@ -225,21 +253,29 @@ export function AIProctoringHUD({
         </div>
 
         {/* Mic & Speech VAD Meter */}
-        <div className="space-y-1 px-1 py-1 rounded-[6px] bg-[#f5f5f4]">
+        <div className="space-y-1 px-1.5 py-1 rounded-[6px] bg-[#f5f5f4]">
           <div className="flex items-center justify-between">
             <span className="text-[#78716b] font-semibold flex items-center gap-1">
               <Mic className="h-3 w-3" /> Audio VAD
             </span>
             <span
               className={`font-bold ${
-                loudVoice
+                !telemetryReceived
+                  ? "text-stone-400"
+                  : loudVoice
                   ? "text-rose-600"
                   : voiceActive
                   ? "text-amber-600"
                   : "text-emerald-600"
               }`}
             >
-              {loudVoice ? "LOUD SPEECH" : voiceActive ? "SPEECH ACTIVE" : "Quiet"}
+              {!telemetryReceived
+                ? "Calibrating..."
+                : loudVoice
+                ? "LOUD SPEECH"
+                : voiceActive
+                ? "SPEECH ACTIVE"
+                : "Quiet"}
             </span>
           </div>
 

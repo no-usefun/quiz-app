@@ -8,7 +8,7 @@ class AudioActivityDetector:
     def __init__(self, sample_rate: int = 16000):
         self.sample_rate = sample_rate
 
-    def analyze_pcm_samples(self, samples: list[float] | np.ndarray) -> dict:
+    def analyze_pcm_samples(self, samples: list[float] | np.ndarray, sample_rate: int | None = None) -> dict:
         """
         Analyzes audio samples to separate:
         - MIC LEVEL: RMS amplitude normalized [0.0, 1.0]
@@ -24,6 +24,7 @@ class AudioActivityDetector:
             }
 
         audio_arr = np.array(samples, dtype=np.float32)
+        audio_arr = np.nan_to_num(audio_arr, nan=0.0, posinf=1.0, neginf=-1.0)
         if len(audio_arr) < 64:
             return {
                 "mic_level": 0.0,
@@ -31,6 +32,8 @@ class AudioActivityDetector:
                 "speech_confidence": 0.0,
                 "is_loud": False
             }
+
+        effective_sr = int(sample_rate) if sample_rate and sample_rate > 0 else self.sample_rate
 
         # 1. Calculate RMS Mic Level
         rms = float(np.sqrt(np.mean(np.square(audio_arr))))
@@ -47,7 +50,7 @@ class AudioActivityDetector:
 
         # 2. Spectral Analysis for Speech Formants (300Hz - 3400Hz)
         fft_vals = np.abs(np.fft.rfft(audio_arr))
-        freqs = np.fft.rfftfreq(len(audio_arr), 1.0 / self.sample_rate)
+        freqs = np.fft.rfftfreq(len(audio_arr), 1.0 / effective_sr)
 
         total_energy = np.sum(fft_vals ** 2) + 1e-10
         speech_band_mask = (freqs >= VAD_SPEECH_FREQ_MIN) & (freqs <= VAD_SPEECH_FREQ_MAX)

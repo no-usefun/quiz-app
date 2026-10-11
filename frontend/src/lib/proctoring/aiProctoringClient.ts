@@ -20,7 +20,7 @@ export interface AIHealthResponse {
 
 export interface StartSessionParams {
   attemptId: number;
-  studentId: string;
+  studentId?: string;
   testCode: string;
   referenceImage: string; // base64 JPEG/PNG
   authToken?: string;
@@ -41,6 +41,7 @@ export interface AnalyzeFramePayload {
   sessionId: string;
   frame?: string; // base64 image
   audio?: number[]; // PCM float samples
+  sampleRate?: number;
   ticket?: string;
   authToken?: string;
   studentId?: string;
