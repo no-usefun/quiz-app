@@ -162,7 +162,9 @@ async def proctoring_websocket_endpoint(websocket: WebSocket, session_id: str):
                 phone_detected=phone_detected,
                 is_speech=audio_res["is_speech"],
                 is_loud=audio_res["is_loud"],
-                mic_level=audio_res["mic_level"]
+                mic_level=audio_res["mic_level"],
+                gaze_valid=gaze_res.get("is_valid", True),
+                gaze_confidence=gaze_res.get("confidence", 1.0)
             )
 
             response_payload = {
@@ -177,6 +179,9 @@ async def proctoring_websocket_endpoint(websocket: WebSocket, session_id: str):
                 "yaw": gaze_res["yaw"],
                 "pitch": gaze_res["pitch"],
                 "isLookingAway": gaze_res["is_looking_away"],
+                "gazeValid": gaze_res.get("is_valid", True),
+                "gazeConfidence": gaze_res.get("confidence", 1.0),
+                "lookingAwayStreak": eval_res.get("looking_away_streak", 0),
                 "phoneDetected": phone_detected,
                 "micLevel": audio_res["mic_level"],
                 "voiceActive": audio_res["is_speech"],

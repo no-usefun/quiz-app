@@ -33,7 +33,9 @@ class MalpracticeDetector:
         phone_detected: bool,
         is_speech: bool,
         is_loud: bool,
-        mic_level: float
+        mic_level: float,
+        gaze_valid: bool = True,
+        gaze_confidence: float = 1.0
     ) -> dict:
         """
         Evaluates detection metrics over temporal sliding windows.
@@ -63,6 +65,8 @@ class MalpracticeDetector:
         # 2. Evaluate Multiple Faces
         if faces_count > 1:
             session.streaks["multiple_faces"] += 1
+            session.streaks["looking_away"] = 0
+            session.streaks["identity_mismatch"] = 0
             if session.streaks["multiple_faces"] >= STREAK_MULTIPLE_FACES:
                 confirmed_event = "MULTIPLE_FACES"
                 event_message = f"Multiple faces ({faces_count}) detected in camera feed"
@@ -82,14 +86,25 @@ class MalpracticeDetector:
         else:
             session.streaks["multiple_persons"] = 0
 
-        # 4. Evaluate Gaze / Looking Away (~2 seconds sustained deviation)
-        if faces_count == 1 and is_looking_away:
+        # 4. Evaluate Gaze / Looking Away (~2.8 seconds sustained validated deviation)
+        # Gating: Requires single face, confirmed looking away, and validated landmark geometry
+        if faces_count == 1 and is_looking_away and gaze_valid:
             session.streaks["looking_away"] += 1
+            logger.debug(
+                "Attempt %d gaze streak %d/%d (dir=%s, yaw=%.1f, pitch=%.1f, conf=%.2f)",
+                session.attempt_id,
+                session.streaks["looking_away"],
+                STREAK_LOOKING_AWAY,
+                gaze_direction,
+                yaw,
+                pitch,
+                gaze_confidence
+            )
             if session.streaks["looking_away"] >= STREAK_LOOKING_AWAY:
                 confirmed_event = "LOOKING_AWAY"
                 event_message = f"Sustained gaze deviation: Looking {gaze_direction} (yaw: {yaw}°, pitch: {pitch}°)"
                 severity = "HIGH"
-                confidence = 0.90
+                confidence = max(0.85, min(0.95, gaze_confidence))
         else:
             session.streaks["looking_away"] = 0
 
@@ -106,7 +121,8 @@ class MalpracticeDetector:
 
         # 6. Evaluate Biometric Identity Mismatch
         if faces_count == 1:
-            # Identity mismatch is evaluated only when face is present and match is False
+            # Identity mismatch is evaluated only when single face is present, embedding was successfully extracted,
+            # and similarity score is strictly positive but below verification threshold
             if not identity_match and similarity_score > 0.0:
                 session.streaks["identity_mismatch"] += 1
                 if session.streaks["identity_mismatch"] >= STREAK_IDENTITY_MISMATCH:
@@ -116,6 +132,8 @@ class MalpracticeDetector:
                     confidence = 0.92
             else:
                 session.streaks["identity_mismatch"] = 0
+        else:
+            session.streaks["identity_mismatch"] = 0
 
         # 7. Evaluate Voice Activity
         if is_loud:
@@ -157,7 +175,8 @@ class MalpracticeDetector:
             "confirmed_event": confirmed_event,
             "event_message": event_message,
             "warning_count": session.warning_count,
-            "auto_submitted": auto_submitted
+            "auto_submitted": auto_submitted,
+            "looking_away_streak": session.streaks.get("looking_away", 0)
         }
 
     async def _dispatch_to_spring_boot(

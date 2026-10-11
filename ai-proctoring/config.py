@@ -42,10 +42,12 @@ PHONE_CONFIDENCE_THRESHOLD = 0.30
 PERSON_CONFIDENCE_THRESHOLD = 0.35
 
 # Head Pose / Gaze Thresholds (in degrees)
-YAW_LEFT_THRESHOLD = -15.0
-YAW_RIGHT_THRESHOLD = 15.0
-PITCH_UP_THRESHOLD = -12.0
-PITCH_DOWN_THRESHOLD = 15.0
+# Calibrated for natural desktop / laptop screen reading (spans +/-15 deg yaw, -15 to +20 deg pitch)
+# Deviations beyond these bounds indicate looking away from the assessment screen
+YAW_LEFT_THRESHOLD = -28.0
+YAW_RIGHT_THRESHOLD = 28.0
+PITCH_UP_THRESHOLD = -25.0
+PITCH_DOWN_THRESHOLD = 30.0
 
 # VAD Audio Thresholds
 VAD_ENERGY_THRESHOLD = 0.025
@@ -57,7 +59,7 @@ LOUD_VOICE_RMS_THRESHOLD = 0.65
 STREAK_NO_FACE = 6            # ~2.1 seconds
 STREAK_MULTIPLE_FACES = 3     # ~1.0 second
 STREAK_MULTIPLE_PERSONS = 4   # ~1.4 seconds
-STREAK_LOOKING_AWAY = 6       # ~2.1 seconds sustained gaze deviation
+STREAK_LOOKING_AWAY = 8       # ~2.8 seconds sustained gaze deviation
 STREAK_PHONE = 2              # ~0.7 seconds
 STREAK_IDENTITY_MISMATCH = 4  # ~1.4 seconds
 STREAK_VOICE = 3              # ~1.0 second

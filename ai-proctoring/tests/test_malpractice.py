@@ -2,6 +2,7 @@ import pytest
 import numpy as np
 from detection.malpractice_detector import MalpracticeDetector
 from sessions.session_manager import SessionManager
+from config import STREAK_LOOKING_AWAY, STREAK_IDENTITY_MISMATCH
 
 @pytest.mark.asyncio
 async def test_streak_face_absence():
@@ -60,14 +61,14 @@ async def test_streak_looking_away():
         test_code="BIO101"
     )
 
-    # 5 frames looking left (threshold is 6 frames ~ 2.1s)
-    for _ in range(5):
+    # (STREAK_LOOKING_AWAY - 1) frames looking left
+    for _ in range(STREAK_LOOKING_AWAY - 1):
         res = await detector.evaluate_frame(
             session=session,
             faces_count=1,
             persons_count=1,
             gaze_direction="LEFT",
-            yaw=-25.0,
+            yaw=-30.0,
             pitch=2.0,
             is_looking_away=True,
             identity_match=True,
@@ -75,17 +76,18 @@ async def test_streak_looking_away():
             phone_detected=False,
             is_speech=False,
             is_loud=False,
-            mic_level=0.0
+            mic_level=0.0,
+            gaze_valid=True
         )
         assert res["confirmed_event"] is None
 
-    # 6th sustained frame looking left triggers LOOKING_AWAY
+    # STREAK_LOOKING_AWAY-th sustained frame looking left triggers LOOKING_AWAY
     res = await detector.evaluate_frame(
         session=session,
         faces_count=1,
         persons_count=1,
         gaze_direction="LEFT",
-        yaw=-25.0,
+        yaw=-30.0,
         pitch=2.0,
         is_looking_away=True,
         identity_match=True,
@@ -93,9 +95,42 @@ async def test_streak_looking_away():
         phone_detected=False,
         is_speech=False,
         is_loud=False,
-        mic_level=0.0
+        mic_level=0.0,
+        gaze_valid=True
     )
     assert res["confirmed_event"] == "LOOKING_AWAY"
+
+@pytest.mark.asyncio
+async def test_looking_away_invalid_gaze_rejected():
+    detector = MalpracticeDetector()
+    manager = SessionManager()
+    session = manager.create_session(
+        attempt_id=2051,
+        student_id="student-2051",
+        test_code="BIO101"
+    )
+
+    # Even across 15 frames with is_looking_away=True, if gaze_valid is False (corrupt landmarks),
+    # the detector must reject and reset streak
+    for _ in range(15):
+        res = await detector.evaluate_frame(
+            session=session,
+            faces_count=1,
+            persons_count=1,
+            gaze_direction="LEFT",
+            yaw=-30.0,
+            pitch=2.0,
+            is_looking_away=True,
+            identity_match=True,
+            similarity_score=0.9,
+            phone_detected=False,
+            is_speech=False,
+            is_loud=False,
+            mic_level=0.0,
+            gaze_valid=False  # Invalid landmark quality
+        )
+        assert res["confirmed_event"] is None
+        assert session.streaks["looking_away"] == 0
 
 @pytest.mark.asyncio
 async def test_streak_multiple_persons():
@@ -189,3 +224,34 @@ async def test_streak_phone_detection():
         mic_level=0.0
     )
     assert res["confirmed_event"] == "PHONE_DETECTED"
+
+@pytest.mark.asyncio
+async def test_identity_mismatch_zero_similarity_ignored():
+    detector = MalpracticeDetector()
+    manager = SessionManager()
+    session = manager.create_session(
+        attempt_id=208,
+        student_id="student-208",
+        test_code="ENG101"
+    )
+
+    # When similarity_score is 0.0 (e.g. unverified, no reference, or feature extraction failed),
+    # identity mismatch streak must never accumulate even if identity_match is False
+    for _ in range(10):
+        res = await detector.evaluate_frame(
+            session=session,
+            faces_count=1,
+            persons_count=1,
+            gaze_direction="CENTER",
+            yaw=0.0,
+            pitch=0.0,
+            is_looking_away=False,
+            identity_match=False,
+            similarity_score=0.0,  # Unverified / zero score
+            phone_detected=False,
+            is_speech=False,
+            is_loud=False,
+            mic_level=0.0
+        )
+        assert res["confirmed_event"] is None
+        assert session.streaks["identity_mismatch"] == 0

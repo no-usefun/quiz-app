@@ -91,6 +91,8 @@ class AnalyzeFrameResponse(BaseModel):
     malpracticeEvent: Optional[str] = None
     eventMessage: Optional[str] = None
     autoSubmitted: bool = False
+    gazeValid: bool = True
+    gazeConfidence: float = 1.0
 
 class StopSessionRequest(BaseModel):
     sessionId: str
@@ -357,7 +359,9 @@ async def analyze_frame(
         phone_detected=phone_detected,
         is_speech=audio_res["is_speech"],
         is_loud=audio_res["is_loud"],
-        mic_level=audio_res["mic_level"]
+        mic_level=audio_res["mic_level"],
+        gaze_valid=gaze_res.get("is_valid", True),
+        gaze_confidence=gaze_res.get("confidence", 1.0)
     )
 
     return AnalyzeFrameResponse(
@@ -378,7 +382,9 @@ async def analyze_frame(
         warningCount=eval_res["warning_count"],
         malpracticeEvent=eval_res["confirmed_event"],
         eventMessage=eval_res["event_message"],
-        autoSubmitted=eval_res["auto_submitted"]
+        autoSubmitted=eval_res["auto_submitted"],
+        gazeValid=gaze_res.get("is_valid", True),
+        gazeConfidence=gaze_res.get("confidence", 1.0)
     )
 
 @router.post("/proctor/stop", response_model=StopSessionResponse)
