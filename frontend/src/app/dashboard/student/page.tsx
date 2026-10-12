@@ -351,14 +351,14 @@ export default function StudentDashboard() {
                   </Link>
                 </li>
               ) : (
-                results.map((result) => {
+                results.map((result, index) => {
                   const score = formatPercentage(result.percentage);
 
                   const dateLabel = formatDate(result.submittedAt);
 
                   if (result.resultsAvailable) {
                     return (
-                      <motion.li key={result.attemptId} initial={reduceMotion ? false : { opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.24, delay: Math.min(results.indexOf(result) * 0.035, 0.28), ease: "easeOut" }}>
+                      <motion.li key={result.attemptId} initial={reduceMotion ? false : { opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.24, delay: Math.min(index * 0.035, 0.28), ease: "easeOut" }}>
                         <div className="relative flex items-center justify-between gap-4 px-5 py-4 transition-colors hover:bg-[#f8fafc] group before:absolute before:inset-y-0 before:left-0 before:w-1 before:rounded-r before:bg-[#165dfb] before:opacity-0 before:transition-opacity hover:before:opacity-100">
                           <Link
                             href={`/dashboard/student/result/${result.attemptId}`}
