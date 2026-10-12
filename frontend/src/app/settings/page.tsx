@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
 import { useTheme } from "next-themes";
 import {
@@ -166,11 +167,13 @@ function ProfilePanel({
   refreshSession,
   user,
   isProfileCompletionMode,
+  onProfileCompleted,
 }: {
   onSave: () => void;
   refreshSession: ReturnType<typeof useSession>["refreshSession"];
   user: any;
   isProfileCompletionMode: boolean;
+  onProfileCompleted: (role: string) => void;
 }) {
   const [fullName, setFullName] = useState("");
   const [email, setEmail] = useState("");
@@ -288,11 +291,11 @@ function ProfilePanel({
         throw new Error("Registration number is required for student profiles.");
       }
 
-      if (isProfileCompletionMode && !institution.trim()) {
+      if (isProfileCompletionMode && isStudent && !institution.trim()) {
         throw new Error("Please enter your college or university.");
       }
 
-      if (isProfileCompletionMode && !program.trim()) {
+      if (isProfileCompletionMode && isStudent && !program.trim()) {
         throw new Error("Please enter your course or department.");
       }
 
@@ -327,8 +330,18 @@ function ProfilePanel({
         );
       }
 
-      await refreshSession();
+      const refreshedUser = await refreshSession();
       onSave();
+
+      if (isProfileCompletionMode) {
+        if (refreshedUser?.profileComplete === true) {
+          onProfileCompleted(String(refreshedUser.role || user?.role || ""));
+        } else {
+          setError(
+            "Your profile was saved, but the server still reports that required details are missing. Please check the fields and try again.",
+          );
+        }
+      }
     } catch (e: any) {
       console.error("Profile update failed:", e);
       setError(e?.message || "Failed to update profile.");
@@ -1145,6 +1158,7 @@ function DangerPanel({ logout }: { logout: () => void }) {
 
 export default function SettingsPage() {
   const { user, logout, refreshSession } = useSession();
+  const router = useRouter();
   const [activeTab, setActiveTab] = useState<TabId>("profile");
   const [saved, setSaved] = useState(false);
   const [isProfileCompletionMode, setIsProfileCompletionMode] = useState(false);
@@ -1160,6 +1174,14 @@ export default function SettingsPage() {
   const handleSave = () => {
     setSaved(true);
     window.setTimeout(() => setSaved(false), 2500);
+  };
+
+  const handleProfileCompleted = (role: string) => {
+    const destination =
+      role.trim().toUpperCase() === "TEACHER"
+        ? "/dashboard/teacher"
+        : "/dashboard/student";
+    router.replace(destination);
   };
 
   const dashboardHref = user
@@ -1282,6 +1304,7 @@ export default function SettingsPage() {
                     refreshSession={refreshSession}
                     user={user}
                     isProfileCompletionMode={isProfileCompletionMode}
+                    onProfileCompleted={handleProfileCompleted}
                   />
                 )}
 
