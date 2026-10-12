@@ -22,6 +22,8 @@ import type { StudentSubmissionResponse } from "@/lib/types";
 
 type Submission = StudentSubmissionResponse;
 
+const INITIAL_RESULTS_COUNT = 5;
+
 function formatDate(value: string | null | undefined): string {
   if (!value) {
     return "Recently";
@@ -96,6 +98,8 @@ export default function StudentDashboard() {
   const [loading, setLoading] = useState(true);
 
   const [fetchError, setFetchError] = useState<string | null>(null);
+
+  const [showAllResults, setShowAllResults] = useState(false);
 
   useEffect(() => {
     if (sessionLoading) return;
@@ -173,6 +177,11 @@ export default function StudentDashboard() {
   const releasedCount = results.filter(
     (result) => result.resultsAvailable,
   ).length;
+
+  const visibleResults = showAllResults
+    ? results
+    : results.slice(0, INITIAL_RESULTS_COUNT);
+  const hasMoreResults = results.length > INITIAL_RESULTS_COUNT;
 
   return (
     <div className="min-h-screen bg-[#f5f5f4] font-sans text-[#111111] flex flex-col">
@@ -351,7 +360,7 @@ export default function StudentDashboard() {
                   </Link>
                 </li>
               ) : (
-                results.map((result, index) => {
+                visibleResults.map((result, index) => {
                   const score = formatPercentage(result.percentage);
 
                   const dateLabel = formatDate(result.submittedAt);
@@ -450,6 +459,22 @@ export default function StudentDashboard() {
               )}
             </ul>
           </div>
+
+          {!loading && !fetchError && hasMoreResults && (
+            <div className="flex justify-center pt-1">
+              <button
+                type="button"
+                onClick={() => setShowAllResults((current) => !current)}
+                aria-expanded={showAllResults}
+                className="inline-flex items-center justify-center gap-2 rounded-[10px] border border-[#d1dee8]/80 bg-white px-5 py-2.5 text-xs font-bold text-[#111111] transition-all hover:border-[#165dfb]/40 hover:bg-[#f8fafc] active:scale-[0.98]"
+              >
+                {showAllResults ? "Show Recent Results" : "View All Results"}
+                <ChevronRight
+                  className={`h-3.5 w-3.5 transition-transform ${showAllResults ? "-rotate-90" : "rotate-90"}`}
+                />
+              </button>
+            </div>
+          )}
         </motion.section>
       </main>
     </div>
