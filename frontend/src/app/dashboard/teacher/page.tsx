@@ -34,6 +34,7 @@ export default function TeacherDashboard() {
   const [hasCachedData, setHasCachedData] = useState(false);
   const [cacheReady, setCacheReady] = useState(false);
   const [hasLoadedQuizData, setHasLoadedQuizData] = useState(false);
+  const [cacheOwnerKey, setCacheOwnerKey] = useState<string | null>(null);
   const [copiedCode, setCopiedCode] = useState<string | null>(null);
   const [mounted, setMounted] = useState(false);
   const [visibleCount, setVisibleCount] = useState(5);
@@ -101,6 +102,7 @@ export default function TeacherDashboard() {
             setTests(parsed.quizzes.map(normalizeQuiz));
             setHasCachedData(true);
             setHasLoadedQuizData(true);
+            setCacheOwnerKey(cacheKey);
             hasUsableCache = true;
           }
         }
@@ -138,6 +140,7 @@ export default function TeacherDashboard() {
       setTests(normalized);
       setHasCachedData(false);
       setHasLoadedQuizData(true);
+      setCacheOwnerKey(cacheKey);
 
       if (cacheKey) {
         try {
@@ -206,11 +209,11 @@ export default function TeacherDashboard() {
     }
 
     fetchQuizzes();
-  }, [sessionLoading]);
+  }, [sessionLoading, user?.id, user?.userId, user?.email]);
 
   useEffect(() => {
     const cacheKey = getQuizCacheKey();
-    if (!cacheReady || !hasLoadedQuizData || !cacheKey) {
+    if (!cacheReady || !hasLoadedQuizData || !cacheKey || cacheOwnerKey !== cacheKey) {
       return;
     }
 
@@ -222,7 +225,7 @@ export default function TeacherDashboard() {
     } catch (cacheError) {
       console.warn("Could not persist teacher quiz cache:", cacheError);
     }
-  }, [tests, cacheReady, hasLoadedQuizData, user?.id, user?.userId, user?.email]);
+  }, [tests, cacheReady, hasLoadedQuizData, cacheOwnerKey, user?.id, user?.userId, user?.email]);
 
   useEffect(() => {
     setVisibleCount(5);
