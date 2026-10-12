@@ -1,6 +1,8 @@
 package com.quiz_app.backend.security;
 
 import java.io.IOException;
+import java.net.URLEncoder;
+import java.nio.charset.StandardCharsets;
 import java.util.Locale;
 
 import org.slf4j.Logger;
@@ -10,6 +12,7 @@ import org.springframework.security.oauth2.client.authentication.OAuth2Authentic
 import org.springframework.security.oauth2.core.oidc.user.OidcUser;
 import org.springframework.security.web.authentication.AuthenticationSuccessHandler;
 import org.springframework.stereotype.Component;
+import org.springframework.beans.factory.annotation.Value;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.quiz_app.backend.dto.auth.AuthResponse;
@@ -31,6 +34,9 @@ public class OAuth2AuthenticationSuccessHandler
                 implements AuthenticationSuccessHandler {
 
         private static final Logger logger = LoggerFactory.getLogger(OAuth2AuthenticationSuccessHandler.class);
+
+        @Value("${app.frontend-url:http://localhost:3000}")
+        private String frontendUrl;
 
         private final UserIdentityRepository userIdentityRepository;
         private final UserRepository userRepository;
@@ -193,6 +199,22 @@ public class OAuth2AuthenticationSuccessHandler
                         logger.warn(
                                         "OAuth2 error response could not be written because the response is already committed: {}",
                                         code);
+                        return;
+                }
+
+                // This error occurs during a top-level browser OAuth redirect, not an API fetch.
+                // Return the browser to the frontend so its callback can render a friendly message.
+                if ("SSO_EMAIL_ALREADY_EXISTS".equals(code)) {
+                        String baseUrl = frontendUrl == null ? "" : frontendUrl.trim().replaceAll("/+$", "");
+                        if (baseUrl.isEmpty()) {
+                                logger.error("Frontend URL is not configured; cannot redirect OAuth error");
+                                response.sendError(status, message);
+                                return;
+                        }
+
+                        String callbackUrl = baseUrl + "/oauth/callback?errorCode="
+                                        + URLEncoder.encode(code, StandardCharsets.UTF_8);
+                        response.sendRedirect(callbackUrl);
                         return;
                 }
 
