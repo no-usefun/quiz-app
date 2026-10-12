@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { motion } from "framer-motion";
+import { motion, useReducedMotion } from "framer-motion";
 import {
   Plus,
   Users,
@@ -27,6 +27,7 @@ type TeacherDashboardQuiz = QuizResponse & {
 export default function TeacherDashboard() {
   const router = useRouter();
   const { user, loading: sessionLoading } = useSession();
+  const reduceMotion = useReducedMotion();
 
   const [tests, setTests] = useState<TeacherDashboardQuiz[]>([]);
   const [loading, setLoading] = useState(true);
@@ -480,7 +481,7 @@ export default function TeacherDashboard() {
       <TopNav role="teacher" />
 
       <main className="flex-1 p-4 md:p-8 space-y-6 max-w-7xl mx-auto w-full">
-        <motion.section initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.32, ease: "easeOut" }} className="border-b border-[#d1dee8]/50 pb-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+        <motion.section initial={reduceMotion ? false : { opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.32, ease: "easeOut" }} className="border-b border-[#d1dee8]/50 pb-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
           <div>
             <span className="text-xs font-bold uppercase tracking-widest text-[#78716b]">
               Educator Control Center
@@ -505,7 +506,7 @@ export default function TeacherDashboard() {
           </Link>
         </motion.section>
 
-        <motion.section initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.32, delay: 0.07, ease: "easeOut" }} className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+        <motion.section initial={reduceMotion ? false : { opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.32, delay: 0.07, ease: "easeOut" }} className="grid grid-cols-2 sm:grid-cols-4 gap-4">
           <div className="rounded-[14px] border border-[#d1dee8]/70 bg-white p-4 sm:p-5 shadow-sm hover:shadow-md transition-all duration-200">
             <span className="text-[10px] font-bold uppercase tracking-wider text-[#78716b]">
               Total Assessments
@@ -547,7 +548,7 @@ export default function TeacherDashboard() {
           </div>
         </motion.section>
 
-        <motion.section initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.32, delay: 0.14, ease: "easeOut" }} className="space-y-4">
+        <motion.section initial={reduceMotion ? false : { opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.32, delay: 0.14, ease: "easeOut" }} className="space-y-4">
           <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
             <div className="flex items-center gap-2">
               <h2 className="text-sm font-extrabold text-[#111111] uppercase tracking-wider">
