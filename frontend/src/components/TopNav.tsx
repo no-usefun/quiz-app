@@ -11,7 +11,6 @@ import {
   Settings,
 } from "lucide-react";
 import { AppWordmark } from "@/components/Logo";
-import BackendStatus from "@/components/BackendStatus";
 
 interface TopNavbarProps {
   role?: string;
@@ -100,7 +99,6 @@ export function TopNavbar({ role: propRole }: TopNavbarProps = {}) {
           </Link>
         </nav>
         <div className="flex items-center space-x-4">
-          <BackendStatus />
           <div className="flex items-center space-x-3 border-l border-[#d1dee8]/70 pl-3">
             <div className="flex h-8 w-8 items-center justify-center rounded-full bg-[#111111] text-xs font-bold text-white shadow-xs ring-2 ring-[#111111]/10">
               {displayName[0]?.toUpperCase() || <User className="h-4 w-4" />}
