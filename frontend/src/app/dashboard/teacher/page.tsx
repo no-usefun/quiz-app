@@ -47,7 +47,9 @@ export default function TeacherDashboard() {
     title: string;
   } | null>(null);
 
-  const [actionLoadingQuizId, setActionLoadingQuizId] = useState<number | null>(null);
+  const [actionLoadingQuizId, setActionLoadingQuizId] = useState<number | null>(
+    null,
+  );
   const [actionError, setActionError] = useState<string | null>(null);
 
   const normalizeQuiz = (quiz: QuizResponse): TeacherDashboardQuiz => ({
@@ -88,9 +90,7 @@ export default function TeacherDashboard() {
       const normalized = data.map(normalizeQuiz);
 
       const expiredPublishedQuizzes = normalized.filter(
-        (quiz) =>
-          quiz.displayState === "Ended" &&
-          quiz.status === "PUBLISHED",
+        (quiz) => quiz.displayState === "Ended" && quiz.status === "PUBLISHED",
       );
 
       // Render the fetched quiz list immediately. Expired quiz completion
@@ -101,9 +101,7 @@ export default function TeacherDashboard() {
       if (expiredPublishedQuizzes.length > 0) {
         void Promise.allSettled(
           expiredPublishedQuizzes.map((quiz) =>
-            api.put<QuizResponse>(
-              ENDPOINTS.teacher.completeQuiz(quiz.quizId),
-            ),
+            api.put<QuizResponse>(ENDPOINTS.teacher.completeQuiz(quiz.quizId)),
           ),
         ).then((completionResults) => {
           const completedById = new Map<number, QuizResponse>();
@@ -112,10 +110,7 @@ export default function TeacherDashboard() {
             if (result.status === "fulfilled") {
               completedById.set(result.value.quizId, result.value);
             } else {
-              console.error(
-                "Automatic quiz completion failed:",
-                result.reason,
-              );
+              console.error("Automatic quiz completion failed:", result.reason);
             }
           });
 
@@ -301,8 +296,7 @@ export default function TeacherDashboard() {
 
         case "COMPLETED":
           return (
-            test.displayState === "Completed" ||
-            test.displayState === "Ended"
+            test.displayState === "Completed" || test.displayState === "Ended"
           );
 
         case "CANCELLED":
@@ -354,9 +348,7 @@ export default function TeacherDashboard() {
   const hasMoreTests = visibleCount < sortedTests.length;
 
   const handleLoadMore = () => {
-    setVisibleCount((current) =>
-      Math.min(current + 5, sortedTests.length),
-    );
+    setVisibleCount((current) => Math.min(current + 5, sortedTests.length));
   };
 
   const handleFilterChange = (
@@ -420,8 +412,8 @@ export default function TeacherDashboard() {
             </h1>
 
             <p className="text-xs text-[#78716b] font-medium mt-0.5">
-              Manage your assessments, invite candidates, and review live results
-              telemetry.
+              Manage your assessments, invite candidates, and review live
+              results telemetry.
             </p>
           </div>
 
@@ -483,7 +475,7 @@ export default function TeacherDashboard() {
                 Assessments Roster (
                 {statusFilter === "ALL"
                   ? tests.length
-                  : `${filteredTests.length} of ${tests.length}`}
+                  : `${sortedTests.length} of ${tests.length}`}
                 )
               </h2>
             </div>
@@ -799,7 +791,8 @@ export default function TeacherDashboard() {
                               <button
                                 type="button"
                                 disabled={
-                                  test.status !== "COMPLETED" || actionLoadingQuizId === quizId
+                                  test.status !== "COMPLETED" ||
+                                  actionLoadingQuizId === quizId
                                 }
                                 onClick={() => {
                                   if (test.status === "COMPLETED") {
