@@ -916,10 +916,7 @@ export default function TeacherDashboard() {
                 onClick={handleLoadMore}
                 className="inline-flex items-center justify-center rounded-[10px] border border-[#d1dee8]/80 bg-white px-5 py-2 text-xs font-bold text-[#111111] hover:bg-[#f5f5f4] hover:border-[#b9cbd9] shadow-xs active:scale-[0.98] transition-all cursor-pointer"
               >
-                Load More
-                <span className="ml-1.5 text-[#78716b]">
-                  ({Math.min(5, sortedTests.length - visibleCount)} more)
-                </span>
+                Show More Assessments
               </button>
             </div>
           )}
