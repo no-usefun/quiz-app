@@ -38,7 +38,6 @@ export default function TeacherDashboard() {
   const [cacheOwnerKey, setCacheOwnerKey] = useState<string | null>(null);
   const [copiedCode, setCopiedCode] = useState<string | null>(null);
   const [mounted, setMounted] = useState(false);
-  const [visibleCount, setVisibleCount] = useState(5);
   const [statusFilter, setStatusFilter] = useState<
     "ALL" | "DRAFT" | "UPCOMING" | "LIVE" | "COMPLETED" | "CANCELLED"
   >("ALL");
@@ -228,10 +227,6 @@ export default function TeacherDashboard() {
       console.warn("Could not persist teacher quiz cache:", cacheError);
     }
   }, [tests, cacheReady, hasLoadedQuizData, cacheOwnerKey, user?.id, user?.userId, user?.email]);
-
-  useEffect(() => {
-    setVisibleCount(5);
-  }, [tests.length]);
 
   const replaceQuizInState = (updatedQuiz: QuizResponse) => {
     const normalized = normalizeQuiz(updatedQuiz);
@@ -424,12 +419,7 @@ export default function TeacherDashboard() {
     return sorted;
   }, [tests, statusFilter, sortOrder]);
 
-  const visibleTests = sortedTests.slice(0, visibleCount);
-  const hasMoreTests = visibleCount < sortedTests.length;
-
-  const handleLoadMore = () => {
-    setVisibleCount((current) => Math.min(current + 5, sortedTests.length));
-  };
+  const visibleTests = sortedTests;
 
   const handleFilterChange = (
     nextFilter:
@@ -441,14 +431,12 @@ export default function TeacherDashboard() {
       | "CANCELLED",
   ) => {
     setStatusFilter(nextFilter);
-    setVisibleCount(5);
   };
 
   const handleSortChange = (
     nextSort: "NEWEST" | "OLDEST" | "TITLE_ASC" | "TITLE_DESC",
   ) => {
     setSortOrder(nextSort);
-    setVisibleCount(5);
   };
 
   const getBadgeStyle = (displayState: QuizDisplayState) => {
@@ -909,20 +897,6 @@ export default function TeacherDashboard() {
             )}
           </div>
 
-          {!loading && !fetchError && hasMoreTests && (
-            <div className="flex justify-center pt-1">
-              <button
-                type="button"
-                onClick={handleLoadMore}
-                className="inline-flex items-center justify-center rounded-[10px] border border-[#d1dee8]/80 bg-white px-5 py-2 text-xs font-bold text-[#111111] hover:bg-[#f5f5f4] hover:border-[#b9cbd9] shadow-xs active:scale-[0.98] transition-all cursor-pointer"
-              >
-                Load More
-                <span className="ml-1.5 text-[#78716b]">
-                  ({Math.min(5, sortedTests.length - visibleCount)} more)
-                </span>
-              </button>
-            </div>
-          )}
         </motion.section>
       </main>
 
