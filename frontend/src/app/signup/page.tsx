@@ -554,8 +554,13 @@ function SignupContent() {
               className="flex w-full items-center justify-center gap-2.5 rounded-lg border border-neutral-200 bg-white px-4 py-3 text-sm font-semibold text-neutral-900 transition-all hover:border-neutral-300 hover:bg-neutral-50 active:scale-[0.99] disabled:cursor-not-allowed disabled:opacity-60"
             >
               <GoogleIcon />
-              Sign up with Google
+              Continue with Google
             </button>
+            <p className="text-center text-xs leading-relaxed text-neutral-500">
+              Google verifies your sign-in. Students will complete their
+              registration number and academic details in Quizly before using
+              exam features.
+            </p>
 
             <div className="my-5 flex items-center gap-3">
               <div className="h-px flex-1 bg-neutral-100" />
