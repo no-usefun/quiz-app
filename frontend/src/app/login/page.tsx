@@ -310,7 +310,11 @@ function LoginContent() {
               </span>
             )}
             <h1 className="mt-1.5 text-2xl font-bold tracking-tight text-neutral-900">Log in as {roleLabel}</h1>
-            <p className="mt-1.5 text-sm leading-relaxed text-neutral-500">Use your account credentials or continue with Google.</p>
+            <p className="mt-1.5 text-sm leading-relaxed text-neutral-500">
+              {lanExamMode
+                ? "Sign in with an account registered on this local exam server."
+                : "Use your account credentials or continue with Google."}
+            </p>
           </div>
 
           {error && (
