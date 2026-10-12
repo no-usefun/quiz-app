@@ -31,6 +31,8 @@ export default function TeacherDashboard() {
   const [tests, setTests] = useState<TeacherDashboardQuiz[]>([]);
   const [loading, setLoading] = useState(true);
   const [fetchError, setFetchError] = useState<string | null>(null);
+  const [hasCachedData, setHasCachedData] = useState(false);
+  const [cacheReady, setCacheReady] = useState(false);
   const [copiedCode, setCopiedCode] = useState<string | null>(null);
   const [mounted, setMounted] = useState(false);
   const [visibleCount, setVisibleCount] = useState(5);
@@ -70,8 +72,43 @@ export default function TeacherDashboard() {
     return fallback;
   };
 
+  const getQuizCacheKey = () => {
+    if (typeof window === "undefined") {
+      return null;
+    }
+
+    const userKey = user?.id ?? user?.userId ?? user?.email;
+    return userKey != null
+      ? `dynoquizz_teacher_quizzes_${String(userKey).toLowerCase()}`
+      : null;
+  };
+
   const fetchQuizzes = async () => {
-    setLoading(true);
+    const cacheKey = getQuizCacheKey();
+    let hasUsableCache = false;
+
+    if (cacheKey) {
+      try {
+        const rawCache = localStorage.getItem(cacheKey);
+        if (rawCache) {
+          const parsed = JSON.parse(rawCache) as {
+            quizzes?: QuizResponse[];
+            savedAt?: number;
+          };
+
+          if (Array.isArray(parsed.quizzes)) {
+            setTests(parsed.quizzes.map(normalizeQuiz));
+            setHasCachedData(true);
+            hasUsableCache = true;
+          }
+        }
+      } catch (cacheError) {
+        console.warn("Could not read cached teacher quizzes:", cacheError);
+      }
+    }
+
+    setCacheReady(true);
+    setLoading(!hasUsableCache);
     setFetchError(null);
 
     try {
@@ -97,6 +134,18 @@ export default function TeacherDashboard() {
       // is a follow-up operation and must not block the dashboard's loading
       // state while the backend processes those updates.
       setTests(normalized);
+      setHasCachedData(false);
+
+      if (cacheKey) {
+        try {
+          localStorage.setItem(
+            cacheKey,
+            JSON.stringify({ quizzes: normalized, savedAt: Date.now() }),
+          );
+        } catch (cacheError) {
+          console.warn("Could not cache teacher quizzes:", cacheError);
+        }
+      }
 
       if (expiredPublishedQuizzes.length > 0) {
         void Promise.allSettled(
@@ -127,11 +176,18 @@ export default function TeacherDashboard() {
     } catch (error) {
       console.error("Dashboard fetch error:", error);
 
-      setFetchError(
-        getErrorMessage(error, "Failed to load assessments from server."),
+      const message = getErrorMessage(
+        error,
+        "Failed to load assessments from server.",
       );
 
-      setTests([]);
+      if (hasUsableCache) {
+        setHasCachedData(true);
+        setFetchError(`Showing saved assessments. Could not refresh: ${message}`);
+      } else {
+        setFetchError(message);
+        setTests([]);
+      }
     } finally {
       setLoading(false);
     }
@@ -148,6 +204,22 @@ export default function TeacherDashboard() {
 
     fetchQuizzes();
   }, [sessionLoading]);
+
+  useEffect(() => {
+    const cacheKey = getQuizCacheKey();
+    if (!cacheReady || !cacheKey) {
+      return;
+    }
+
+    try {
+      localStorage.setItem(
+        cacheKey,
+        JSON.stringify({ quizzes: tests, savedAt: Date.now() }),
+      );
+    } catch (cacheError) {
+      console.warn("Could not persist teacher quiz cache:", cacheError);
+    }
+  }, [tests, cacheReady, user?.id, user?.userId, user?.email]);
 
   useEffect(() => {
     setVisibleCount(5);
@@ -532,12 +604,20 @@ export default function TeacherDashboard() {
             </div>
           </div>
 
+          {hasCachedData && (
+            <div className="rounded-[10px] border border-[#d1dee8] bg-white px-3 py-2 text-xs text-[#78716b]">
+              {fetchError
+                ? fetchError
+                : "Showing saved assessments while the latest data is refreshed."}
+            </div>
+          )}
+
           <div className="grid gap-3.5">
             {loading ? (
               <div className="rounded-[14px] bg-white border border-[#d1dee8]/70 p-10 text-center text-xs text-[#78716b] shadow-sm">
                 Loading assessments roster...
               </div>
-            ) : fetchError ? (
+            ) : fetchError && tests.length === 0 ? (
               <div className="rounded-[14px] bg-[#fbeee8] border border-[#8c381c]/30 p-8 text-center space-y-3 shadow-sm">
                 <p className="font-bold text-[#8c381c] text-sm">{fetchError}</p>
 
