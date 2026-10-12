@@ -711,7 +711,7 @@ function CreateAssessmentContent() {
             }
 
             const firstRow = rows[0].map((value) =>
-              value.trim().toLowerCase().replace(/[\\s_-]/g, ""),
+              value.trim().toLowerCase().replace(/[\s_-]/g, ""),
             );
             const hasHeader =
               firstRow.includes("questiontext") ||
@@ -734,7 +734,7 @@ function CreateAssessmentContent() {
                 if (hasHeader) {
                   for (const name of names) {
                     const columnIndex = normalizedHeaderIndex.get(
-                      name.toLowerCase().replace(/[\\s_-]/g, ""),
+                      name.toLowerCase().replace(/[\s_-]/g, ""),
                     );
                     if (columnIndex !== undefined) return parts[columnIndex] ?? "";
                   }
@@ -926,7 +926,7 @@ function CreateAssessmentContent() {
       '"Which number is prime?","4","6","7","8","9","","C","1","MCQ","0","60","EASY","Seven is prime.","","","","","","",""',
       '"Java is a programming language.","True","False","","","","","A","1","TRUE_FALSE","0","45","EASY","","","","","","","",""',
       "",
-    ].join("\\n");
+    ].join("\n");
 
     const blob = new Blob([csv], {
       type: "text/csv;charset=utf-8;",
