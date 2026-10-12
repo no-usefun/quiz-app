@@ -188,8 +188,9 @@ export default function TeacherDashboard() {
       );
 
       if (hasUsableCache) {
+        // Keep the last successful list visible without exposing cache details
+        // or a background-refresh error in the teacher-facing dashboard.
         setHasCachedData(true);
-        setFetchError(`Showing saved assessments. Could not refresh: ${message}`);
       } else {
         setFetchError(message);
         setTests([]);
@@ -609,14 +610,6 @@ export default function TeacherDashboard() {
               </label>
             </div>
           </div>
-
-          {hasCachedData && (
-            <div className="rounded-[10px] border border-[#d1dee8] bg-white px-3 py-2 text-xs text-[#78716b]">
-              {fetchError
-                ? fetchError
-                : "Showing saved assessments while the latest data is refreshed."}
-            </div>
-          )}
 
           <div className="grid gap-3.5">
             {loading ? (
