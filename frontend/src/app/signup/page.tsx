@@ -12,6 +12,7 @@ import {
   ArrowRight,
 } from "lucide-react";
 import { ENDPOINTS } from "@/lib/api/endpoints";
+import { isLanExamMode } from "@/lib/examMode";
 
 function GoogleIcon() {
   return (
@@ -61,6 +62,7 @@ function SignupContent() {
       : qRole === "student" || qRole === "candidate"
         ? "student"
         : null;
+  const lanExamMode = isLanExamMode();
 
   // Form Fields
   const [firstName, setFirstName] = useState("");
@@ -499,9 +501,11 @@ function SignupContent() {
           </h1>
 
           <p className="text-sm text-neutral-500 mt-1.5 leading-relaxed">
-            {activeRole === "teacher"
-              ? "Create your instructor account to manage assessments."
-              : "Create your student account to take assessments."}
+            {lanExamMode
+              ? "Create an account on the local exam server using email and password."
+              : activeRole === "teacher"
+                ? "Create your instructor account to manage assessments."
+                : "Create your student account to take assessments."}
           </p>
         </div>
 
@@ -528,39 +532,40 @@ function SignupContent() {
           </div>
         )}
 
-        <button
-          type="button"
-          onClick={() => {
-            const backendRole = activeRole === "teacher" ? "TEACHER" : "STUDENT";
-            sessionStorage.setItem("dynoquizz_google_role", backendRole);
+        {!lanExamMode && (
+          <>
+            <button
+              type="button"
+              onClick={() => {
+                const backendRole = activeRole === "teacher" ? "TEACHER" : "STUDENT";
+                sessionStorage.setItem("dynoquizz_google_role", backendRole);
 
-            const redirect = searchParams.get("redirect") || "";
-            if (redirect) {
-              sessionStorage.setItem("dynoquizz_post_login_redirect", redirect);
-            }
+                const redirect = searchParams.get("redirect") || "";
+                if (redirect) {
+                  sessionStorage.setItem("dynoquizz_post_login_redirect", redirect);
+                }
 
-            window.location.href =
-              ENDPOINTS.auth.googleLogin +
-              "?role=" +
-              encodeURIComponent(backendRole);
-          }}
-          disabled={loading}
-          className="flex w-full items-center justify-center gap-2.5 rounded-lg border border-neutral-200 bg-white px-4 py-3 text-sm font-semibold text-neutral-900 transition-all hover:border-neutral-300 hover:bg-neutral-50 active:scale-[0.99] disabled:cursor-not-allowed disabled:opacity-60"
-        >
-          <GoogleIcon />
-          Sign up with Google
-        </button>
-        
+                window.location.href =
+                  ENDPOINTS.auth.googleLogin +
+                  "?role=" +
+                  encodeURIComponent(backendRole);
+              }}
+              disabled={loading}
+              className="flex w-full items-center justify-center gap-2.5 rounded-lg border border-neutral-200 bg-white px-4 py-3 text-sm font-semibold text-neutral-900 transition-all hover:border-neutral-300 hover:bg-neutral-50 active:scale-[0.99] disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              <GoogleIcon />
+              Sign up with Google
+            </button>
 
-
-
-        <div className="my-5 flex items-center gap-3">
-          <div className="h-px flex-1 bg-neutral-100" />
-          <span className="text-[10px] font-bold uppercase tracking-wider text-neutral-400">
-            or continue with email
-          </span>
-          <div className="h-px flex-1 bg-neutral-100" />
-        </div>
+            <div className="my-5 flex items-center gap-3">
+              <div className="h-px flex-1 bg-neutral-100" />
+              <span className="text-[10px] font-bold uppercase tracking-wider text-neutral-400">
+                or continue with email
+              </span>
+              <div className="h-px flex-1 bg-neutral-100" />
+            </div>
+          </>
+        )}
 
         <form onSubmit={handleSignupSubmit} className="space-y-4">
           <div className="grid grid-cols-2 gap-3">
