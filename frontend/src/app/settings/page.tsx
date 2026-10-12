@@ -165,10 +165,12 @@ function ProfilePanel({
   onSave,
   refreshSession,
   user,
+  isProfileCompletionMode,
 }: {
   onSave: () => void;
   refreshSession: ReturnType<typeof useSession>["refreshSession"];
   user: any;
+  isProfileCompletionMode: boolean;
 }) {
   const [fullName, setFullName] = useState("");
   const [email, setEmail] = useState("");
@@ -286,13 +288,23 @@ function ProfilePanel({
         throw new Error("Registration number is required for student profiles.");
       }
 
+      if (isProfileCompletionMode && !institution.trim()) {
+        throw new Error("Please enter your college or university.");
+      }
+
+      if (isProfileCompletionMode && !program.trim()) {
+        throw new Error("Please enter your course or department.");
+      }
+
       const requestBody = {
         firstName,
         lastName,
         phone: phone.trim() || null,
         college: institution.trim() || null,
         department: program.trim() || null,
-        registrationNo: registrationNo.trim() || null,
+        registrationNo: registrationNo.trim()
+          ? registrationNo.trim().toUpperCase()
+          : null,
         profileImage: profileImage.trim() || null,
       };
 
@@ -331,6 +343,21 @@ function ProfilePanel({
 
   return (
     <div className="space-y-5">
+      {isProfileCompletionMode && (
+        <div
+          role="status"
+          className="rounded-[10px] border border-[#165dfb]/20 bg-[#165dfb]/5 p-4"
+        >
+          <h2 className="text-sm font-bold text-[#111111]">
+            Complete your Quizly profile
+          </h2>
+          <p className="mt-1 text-xs leading-relaxed text-[#78716b]">
+            Google has confirmed your sign-in, but we still need your academic
+            details before you can use student exam features. Complete the
+            required fields below and save your profile.
+          </p>
+        </div>
+      )}
       {user?.authProvider &&
         String(user.authProvider).toUpperCase() !== "LOCAL" &&
         !setPasswordDone && (
@@ -436,17 +463,25 @@ function ProfilePanel({
           />
         </Field>
 
-        <Field label="Institution / University">
+        <Field
+          label="Institution / University"
+          hint={isProfileCompletionMode ? "Required to complete your profile." : undefined}
+        >
           <TextInput
             placeholder="University"
+            required={isProfileCompletionMode}
             value={institution}
             onChange={(event) => setInstitution(event.target.value)}
           />
         </Field>
 
-        <Field label="Course / Department">
+        <Field
+          label="Course / Department"
+          hint={isProfileCompletionMode ? "Required to complete your profile." : undefined}
+        >
           <TextInput
             placeholder="Department"
+            required={isProfileCompletionMode}
             value={program}
             onChange={(event) => setProgram(event.target.value)}
           />
@@ -1112,6 +1147,15 @@ export default function SettingsPage() {
   const { user, logout, refreshSession } = useSession();
   const [activeTab, setActiveTab] = useState<TabId>("profile");
   const [saved, setSaved] = useState(false);
+  const [isProfileCompletionMode, setIsProfileCompletionMode] = useState(false);
+
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      setIsProfileCompletionMode(
+        new URLSearchParams(window.location.search).get("profile") === "complete",
+      );
+    }
+  }, []);
 
   const handleSave = () => {
     setSaved(true);
@@ -1237,6 +1281,7 @@ export default function SettingsPage() {
                     onSave={handleSave}
                     refreshSession={refreshSession}
                     user={user}
+                    isProfileCompletionMode={isProfileCompletionMode}
                   />
                 )}
 
