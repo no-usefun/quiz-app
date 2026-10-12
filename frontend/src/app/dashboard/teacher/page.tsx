@@ -33,6 +33,7 @@ export default function TeacherDashboard() {
   const [fetchError, setFetchError] = useState<string | null>(null);
   const [hasCachedData, setHasCachedData] = useState(false);
   const [cacheReady, setCacheReady] = useState(false);
+  const [hasLoadedQuizData, setHasLoadedQuizData] = useState(false);
   const [copiedCode, setCopiedCode] = useState<string | null>(null);
   const [mounted, setMounted] = useState(false);
   const [visibleCount, setVisibleCount] = useState(5);
@@ -99,6 +100,7 @@ export default function TeacherDashboard() {
           if (Array.isArray(parsed.quizzes)) {
             setTests(parsed.quizzes.map(normalizeQuiz));
             setHasCachedData(true);
+            setHasLoadedQuizData(true);
             hasUsableCache = true;
           }
         }
@@ -135,6 +137,7 @@ export default function TeacherDashboard() {
       // state while the backend processes those updates.
       setTests(normalized);
       setHasCachedData(false);
+      setHasLoadedQuizData(true);
 
       if (cacheKey) {
         try {
@@ -207,7 +210,7 @@ export default function TeacherDashboard() {
 
   useEffect(() => {
     const cacheKey = getQuizCacheKey();
-    if (!cacheReady || !cacheKey) {
+    if (!cacheReady || !hasLoadedQuizData || !cacheKey) {
       return;
     }
 
@@ -219,7 +222,7 @@ export default function TeacherDashboard() {
     } catch (cacheError) {
       console.warn("Could not persist teacher quiz cache:", cacheError);
     }
-  }, [tests, cacheReady, user?.id, user?.userId, user?.email]);
+  }, [tests, cacheReady, hasLoadedQuizData, user?.id, user?.userId, user?.email]);
 
   useEffect(() => {
     setVisibleCount(5);
