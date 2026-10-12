@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { motion } from "framer-motion";
@@ -93,35 +93,41 @@ export default function TeacherDashboard() {
           quiz.status === "PUBLISHED",
       );
 
+      // Render the fetched quiz list immediately. Expired quiz completion
+      // is a follow-up operation and must not block the dashboard's loading
+      // state while the backend processes those updates.
+      setTests(normalized);
+
       if (expiredPublishedQuizzes.length > 0) {
-        const completionResults = await Promise.allSettled(
+        void Promise.allSettled(
           expiredPublishedQuizzes.map((quiz) =>
             api.put<QuizResponse>(
               ENDPOINTS.teacher.completeQuiz(quiz.quizId),
             ),
           ),
-        );
+        ).then((completionResults) => {
+          const completedById = new Map<number, QuizResponse>();
 
-        const completedById = new Map<number, QuizResponse>();
+          completionResults.forEach((result) => {
+            if (result.status === "fulfilled") {
+              completedById.set(result.value.quizId, result.value);
+            } else {
+              console.error(
+                "Automatic quiz completion failed:",
+                result.reason,
+              );
+            }
+          });
 
-        completionResults.forEach((result) => {
-          if (result.status === "fulfilled") {
-            completedById.set(result.value.quizId, result.value);
-          } else {
-            console.error(
-              "Automatic quiz completion failed:",
-              result.reason,
+          if (completedById.size > 0) {
+            setTests((current) =>
+              current.map((quiz) => {
+                const completed = completedById.get(quiz.quizId);
+                return completed ? normalizeQuiz(completed) : quiz;
+              }),
             );
           }
         });
-
-        setTests(
-          normalized.map((quiz) =>
-            normalizeQuiz(completedById.get(quiz.quizId) ?? quiz),
-          ),
-        );
-      } else {
-        setTests(normalized);
       }
     } catch (error) {
       console.error("Dashboard fetch error:", error);
@@ -266,74 +272,83 @@ export default function TeacherDashboard() {
     user?.fullName?.split(" ")[0] ||
     "Instructor";
 
-  const liveCount = tests.filter((test) => test.displayState === "Live").length;
+  const liveCount = useMemo(
+    () => tests.filter((test) => test.displayState === "Live").length,
+    [tests],
+  );
 
-  const draftCount = tests.filter(
-    (test) => test.displayState === "Draft",
-  ).length;
+  const draftCount = useMemo(
+    () => tests.filter((test) => test.displayState === "Draft").length,
+    [tests],
+  );
 
-  const completedCount = tests.filter(
-    (test) => test.displayState === "Completed",
-  ).length;
+  const completedCount = useMemo(
+    () => tests.filter((test) => test.displayState === "Completed").length,
+    [tests],
+  );
 
-  const filteredTests = tests.filter((test) => {
-    switch (statusFilter) {
-      case "DRAFT":
-        return test.displayState === "Draft";
+  const sortedTests = useMemo(() => {
+    const filtered = tests.filter((test) => {
+      switch (statusFilter) {
+        case "DRAFT":
+          return test.displayState === "Draft";
 
-      case "UPCOMING":
-        return test.displayState === "Scheduled";
+        case "UPCOMING":
+          return test.displayState === "Scheduled";
 
-      case "LIVE":
-        return test.displayState === "Live";
+        case "LIVE":
+          return test.displayState === "Live";
 
-      case "COMPLETED":
-        return (
-          test.displayState === "Completed" ||
-          test.displayState === "Ended"
+        case "COMPLETED":
+          return (
+            test.displayState === "Completed" ||
+            test.displayState === "Ended"
+          );
+
+        case "CANCELLED":
+          return test.displayState === "Cancelled";
+
+        case "ALL":
+        default:
+          return true;
+      }
+    });
+
+    const sorted = [...filtered];
+
+    switch (sortOrder) {
+      case "OLDEST":
+        sorted.reverse();
+        break;
+
+      case "TITLE_ASC":
+        sorted.sort((a, b) =>
+          String(a.title || "Assessment").localeCompare(
+            String(b.title || "Assessment"),
+            undefined,
+            { sensitivity: "base" },
+          ),
         );
+        break;
 
-      case "CANCELLED":
-        return test.displayState === "Cancelled";
+      case "TITLE_DESC":
+        sorted.sort((a, b) =>
+          String(b.title || "Assessment").localeCompare(
+            String(a.title || "Assessment"),
+            undefined,
+            { sensitivity: "base" },
+          ),
+        );
+        break;
 
-      case "ALL":
+      case "NEWEST":
       default:
-        return true;
+        // The backend response is already newest-first. Preserve that order.
+        break;
     }
-  });
 
-  const sortedTests = [...filteredTests];
-
-  switch (sortOrder) {
-    case "OLDEST":
-      sortedTests.reverse();
-      break;
-
-    case "TITLE_ASC":
-      sortedTests.sort((a, b) =>
-        String(a.title || "Assessment").localeCompare(
-          String(b.title || "Assessment"),
-          undefined,
-          { sensitivity: "base" },
-        ),
-      );
-      break;
-
-    case "TITLE_DESC":
-      sortedTests.sort((a, b) =>
-        String(b.title || "Assessment").localeCompare(
-          String(a.title || "Assessment"),
-          undefined,
-          { sensitivity: "base" },
-        ),
-      );
-      break;
-
-    case "NEWEST":
-    default:
-      // The backend response is already newest-first. Preserve that order.
-      break;
-  }
+    return sorted;
+  }, [tests, statusFilter, sortOrder]);
 
   const visibleTests = sortedTests.slice(0, visibleCount);
   const hasMoreTests = visibleCount < sortedTests.length;
