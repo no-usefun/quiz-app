@@ -279,11 +279,15 @@ function OAuthCallbackContent() {
 
         persistOAuthSession(token, normalizedUser, expiresInParam);
 
+        // Profile completion takes priority over any saved destination.
+        // A new Google student account may not yet have its academic details.
         const destination =
-          savedRedirect ||
-          (backendRole === "TEACHER"
-            ? "/dashboard/teacher"
-            : "/dashboard/student");
+          normalizedUser.profileComplete === false
+            ? "/settings?profile=complete"
+            : savedRedirect ||
+              (backendRole === "TEACHER"
+                ? "/dashboard/teacher"
+                : "/dashboard/student");
 
         cleanOAuthStorage();
 
