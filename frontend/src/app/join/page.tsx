@@ -323,9 +323,6 @@ export default function JoinPage() {
         }}
       />
 
-      <span className="absolute left-1/2 top-6 z-10 -translate-x-1/2 rounded-full bg-white/90 px-4 py-1.5 text-sm font-bold tracking-tight text-midnight-navy shadow-xs ring-1 ring-black/5 backdrop-blur">
-        Quizly
-      </span>
 
       <motion.div
         initial={mounted ? { opacity: 0, y: 8 } : false}
