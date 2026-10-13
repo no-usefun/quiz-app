@@ -316,3 +316,32 @@ html.dark ::selection {
     transition-duration: 0.01ms !important;
   }
 }
+
+
+/* Semantic utility classes used by legacy dashboard screens need separate
+   surface/background mappings from their text-color counterparts. */
+html.dark [class~="bg-midnight-navy"],
+html.dark [class~="bg-slate-navy"],
+html.dark [class~="bg-carbon"],
+html.dark [class~="bg-ink"] {
+  background-color: #293446 !important;
+}
+html.dark [class~="bg-paper-white"] {
+  background-color: #1b2432 !important;
+}
+html.dark [class~="bg-signal-green"],
+html.dark [class~="bg-blue-600"],
+html.dark [class~="bg-blue-700"],
+html.dark [class~="bg-link-blue"] {
+  background-color: #165dfb !important;
+}
+html.dark [class*="text-[#165dfb]"] {
+  color: #8eaeff !important;
+}
+html.dark [class*="border-[#165dfb]"] {
+  border-color: #6689d6 !important;
+}
+html.dark [class~="bg-slate-50"],
+html.dark [class~="bg-slate-100"] {
+  background-color: #202938 !important;
+}
