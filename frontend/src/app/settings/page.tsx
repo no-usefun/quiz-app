@@ -715,7 +715,7 @@ function PreferencesPanel({
               [
                 "browserPush",
                 "Browser Push Notifications",
-                "Real-time browser alerts for exam start and result publication.",
+                "This preference can be saved, but browser push delivery is not wired up yet.",
               ],
             ].map(([key, label, description]) => {
               const preferenceKey = key as keyof typeof preferences;
@@ -737,6 +737,9 @@ function PreferencesPanel({
         <h3 className="mb-2.5 text-[10px] font-bold uppercase tracking-wider text-[#78716b] text-left">
           Appearance
         </h3>
+        <p className="mb-3 text-[11px] leading-relaxed text-[#78716b]">
+          Theme changes apply immediately and are remembered on this device. System follows your device appearance.
+        </p>
 
         <div className="grid grid-cols-3 gap-3">
           {(
@@ -782,11 +785,12 @@ function PreferencesPanel({
       <div className="flex justify-end pt-2">
         <button
           type="button"
-          onClick={onSave}
-          className="flex items-center gap-1.5 rounded-[10px] bg-[#165dfb] px-4 py-2 text-xs font-bold text-white hover:bg-[#165dfb]/90 active:scale-[0.98] transition-all cursor-pointer border-0 shadow-xs"
+          onClick={savePreferences}
+          disabled={loadingPreferences || savingPreferences}
+          className="flex items-center gap-1.5 rounded-[10px] bg-[#165dfb] px-4 py-2 text-xs font-bold text-white hover:bg-[#165dfb]/90 active:scale-[0.98] transition-all cursor-pointer border-0 shadow-xs disabled:cursor-not-allowed disabled:opacity-50"
         >
           <Save className="h-3.5 w-3.5" />
-          Save Preferences
+          {savingPreferences ? "Saving..." : "Save Notification Preferences"}
         </button>
       </div>
     </div>
@@ -1194,8 +1198,8 @@ export default function SettingsPage() {
     : "/";
 
   return (
-    <div className="min-h-screen bg-[#f5f5f4] font-sans text-[#111111] flex overflow-hidden">
-      <aside className="w-64 bg-[#f5f5f4] border-r border-[#d1dee8]/70 flex flex-col shrink-0">
+    <div className="min-h-screen bg-[#f5f5f4] font-sans text-[#111111] flex flex-col md:flex-row overflow-x-hidden">
+      <aside className="w-full md:w-64 bg-[#f5f5f4] border-b md:border-b-0 md:border-r border-[#d1dee8]/70 flex flex-col shrink-0">
         <div className="p-6 border-b border-[#d1dee8]/50">
           <Logo />
         </div>
@@ -1247,7 +1251,7 @@ export default function SettingsPage() {
         </div>
       </aside>
 
-      <main className="flex-1 overflow-y-auto p-6 md:p-8 space-y-6 text-left">
+      <main className="min-w-0 flex-1 overflow-y-auto p-4 sm:p-6 md:p-8 space-y-6 text-left">
         <section className="border-b border-[#d1dee8]/50 pb-4 flex items-center justify-between">
           <div>
             <span className="text-xs font-bold uppercase tracking-widest text-[#78716b]">
@@ -1262,7 +1266,7 @@ export default function SettingsPage() {
           </div>
 
           {saved && (
-            <span className="flex items-center gap-1.5 rounded-full bg-[#e2ede8] px-3 py-1 text-xs font-bold text-[#1d5237] border border-[#1d5237]/20 shadow-xs animate-bounce">
+            <span role="status" aria-live="polite" className="flex items-center gap-1.5 rounded-full bg-[#e2ede8] px-3 py-1 text-xs font-bold text-[#1d5237] border border-[#1d5237]/20 shadow-xs">
               <CheckCircle2 className="h-3.5 w-3.5 text-[#1d5237]" />
               Saved!
             </span>
