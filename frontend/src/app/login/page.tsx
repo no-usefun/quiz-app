@@ -303,7 +303,7 @@ function LoginContent() {
     <main className="min-h-[calc(100vh-4rem)] bg-neutral-50 px-4 py-8 font-sans text-[#111827] sm:px-8">
       <div className="mx-auto flex min-h-[calc(100vh-4rem)] max-w-md items-center">
         <div className="w-full rounded-2xl border border-neutral-100 bg-white p-7 shadow-[0_18px_55px_-24px_rgba(15,23,42,0.25)] sm:p-8">
-          <button type="button" onClick={() => router.push("/login" + (redirectTarget ? "?redirect=" + encodeURIComponent(redirectTarget) : "")) className="mb-6 inline-flex items-center gap-1.5 border-0 bg-transparent p-0 text-xs font-semibold text-neutral-400 transition-colors hover:text-neutral-800">
+          <button type="button" onClick={() => router.push("/login" + (redirectTarget ? "?redirect=" + encodeURIComponent(redirectTarget) : ""))} className="mb-6 inline-flex items-center gap-1.5 border-0 bg-transparent p-0 text-xs font-semibold text-neutral-400 transition-colors hover:text-neutral-800">
             <ArrowLeft className="h-3.5 w-3.5" />
             Back to roles
           </button>
