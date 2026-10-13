@@ -1,14 +1,8 @@
 import Link from "next/link";
-import { ArrowRight, Home, KeyRound, LayoutDashboard } from "lucide-react";
+import { ArrowRight, Home, KeyRound } from "lucide-react";
 import { AppWordmark } from "@/components/Logo";
 
-export function PublicNavbar({
-  redirectTarget,
-  showStudentDashboard = false,
-}: {
-  redirectTarget?: string;
-  showStudentDashboard?: boolean;
-} = {}) {
+export function PublicNavbar({ redirectTarget }: { redirectTarget?: string } = {}) {
   const authSuffix = redirectTarget ? "?redirect=" + encodeURIComponent(redirectTarget) : "";
   const examHref = redirectTarget?.startsWith("/join") ? redirectTarget : "/join";
   return (
@@ -27,17 +21,6 @@ export function PublicNavbar({
             <KeyRound className="h-4 w-4" />
             <span className="hidden sm:inline">Join exam</span>
           </Link>
-          {showStudentDashboard && (
-            <Link
-              href="/dashboard/student"
-              aria-label="Student Dashboard"
-              title="Student Dashboard"
-              className="inline-flex items-center gap-1.5 rounded-lg px-2 py-2 text-xs font-semibold text-[#165dfb] transition-colors hover:bg-[#eef4ff] sm:px-3"
-            >
-              <LayoutDashboard className="h-4 w-4" />
-              <span className="hidden sm:inline">Dashboard</span>
-            </Link>
-          )}
           <Link href={"/login" + authSuffix} className="rounded-lg px-2 py-2 text-xs font-semibold text-[#111111] transition-colors hover:bg-[#f5f5f4] sm:px-3">
             Log in
           </Link>
