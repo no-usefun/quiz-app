@@ -369,7 +369,7 @@ function SignupContent() {
   if (!activeRole) {
     return (
       <>
-      <PublicNavbar />
+      <PublicNavbar redirectTarget={searchParams?.get("redirect") || undefined} />
       <main className="relative min-h-[calc(100vh-4rem)] w-full grid grid-cols-1 md:grid-cols-2 font-sans">
 
         <section className="group relative flex flex-col items-center justify-center p-8 sm:p-16 bg-[#F9FAFB] text-center transition-colors duration-300 hover:bg-white">
@@ -401,7 +401,7 @@ function SignupContent() {
               type="button"
               onClick={() => {
                 setError("");
-                router.push("/signup?role=student");
+                router.push("/signup?role=student" + (searchParams.get("redirect") ? "&redirect=" + encodeURIComponent(searchParams.get("redirect") || "") : ""));
               }}
               className="group/btn inline-flex w-full items-center justify-center gap-2 rounded-lg bg-[#111827] text-white py-3 px-5 text-sm font-medium shadow-sm ring-offset-2 transition-all hover:bg-black hover:shadow-md active:scale-[0.99] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#111827] cursor-pointer border-0"
             >
@@ -440,7 +440,7 @@ function SignupContent() {
               type="button"
               onClick={() => {
                 setError("");
-                router.push("/signup?role=teacher");
+                router.push("/signup?role=teacher" + (searchParams.get("redirect") ? "&redirect=" + encodeURIComponent(searchParams.get("redirect") || "") : ""));
               }}
               className="group/btn inline-flex w-full items-center justify-center gap-2 rounded-lg bg-white text-[#0F172A] py-3 px-5 text-sm font-medium shadow-sm ring-offset-2 ring-offset-[#0F172A] transition-all hover:bg-neutral-100 hover:shadow-md active:scale-[0.99] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white cursor-pointer border-0"
             >
@@ -456,7 +456,7 @@ function SignupContent() {
 
   return (
     <>
-    <PublicNavbar />
+    <PublicNavbar redirectTarget={searchParams?.get("redirect") || undefined} />
     <main className="relative min-h-[calc(100vh-4rem)] flex flex-col items-center justify-center p-6 sm:p-12 bg-neutral-50 text-[#111827] font-sans">
       <div
         aria-hidden
@@ -474,7 +474,7 @@ function SignupContent() {
               type="button"
               onClick={() => {
                 setError("");
-                router.push("/signup");
+                router.push("/signup" + (searchParams.get("redirect") ? "?redirect=" + encodeURIComponent(searchParams.get("redirect") || "") : ""));
               }}
               className="group text-xs font-medium text-neutral-400 hover:text-neutral-700 transition-colors cursor-pointer bg-transparent border-0 p-0 inline-flex items-center gap-1.5"
             >
