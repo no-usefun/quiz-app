@@ -19,7 +19,6 @@ import {
 import { ApiClientError, api, getAuthToken } from "@/lib/api/client";
 import { ENDPOINTS } from "@/lib/api/endpoints";
 import type { QuizAvailabilityResponse } from "@/lib/types";
-import { PublicNavbar } from "@/components/PublicNavbar";
 
 function JoinForm() {
   const router = useRouter();
@@ -312,7 +311,6 @@ export default function JoinPage() {
 
   return (
     <>
-    <PublicNavbar showStudentDashboard />
     <main className="relative flex min-h-[calc(100vh-4rem)] items-center justify-center bg-frost-surface text-midnight-navy p-4 font-sans selection:bg-frost-surface selection:text-signal-green overflow-hidden">
       <div
         aria-hidden
