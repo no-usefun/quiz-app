@@ -19,6 +19,7 @@ import {
 import { ApiClientError, api, getAuthToken } from "@/lib/api/client";
 import { ENDPOINTS } from "@/lib/api/endpoints";
 import type { QuizAvailabilityResponse } from "@/lib/types";
+import { PublicNavbar } from "@/components/PublicNavbar";
 
 function JoinForm() {
   const router = useRouter();
@@ -39,11 +40,7 @@ function JoinForm() {
       const token = getAuthToken();
 
       if (!token) {
-        router.push(
-          `/login?role=student&redirect=/join${
-            queryCode ? `?code=${encodeURIComponent(queryCode)}` : ""
-          }`,
-        );
+        router.push("/login?role=student&redirect=" + encodeURIComponent("/join" + (queryCode ? "?code=" + encodeURIComponent(queryCode) : "")));
         return;
       }
 
@@ -86,11 +83,7 @@ function JoinForm() {
     const token = getAuthToken();
 
     if (!token) {
-      router.push(
-        `/login?role=student&redirect=/join${
-          cleanCode ? `?code=${encodeURIComponent(cleanCode)}` : ""
-        }`,
-      );
+      router.push("/login?role=student&redirect=" + encodeURIComponent("/join" + (cleanCode ? "?code=" + encodeURIComponent(cleanCode) : "")));
       return;
     }
 
@@ -181,11 +174,7 @@ function JoinForm() {
 
       if (err instanceof ApiClientError) {
         if (err.status === 401) {
-          router.push(
-            `/login?role=student&redirect=/join?code=${encodeURIComponent(
-              cleanCode,
-            )}`,
-          );
+          router.push("/login?role=student&redirect=" + encodeURIComponent("/join?code=" + encodeURIComponent(cleanCode)));
           return;
         }
 
@@ -322,7 +311,9 @@ export default function JoinPage() {
   }, []);
 
   return (
-    <main className="relative flex min-h-screen items-center justify-center bg-frost-surface text-midnight-navy p-4 font-sans selection:bg-frost-surface selection:text-signal-green overflow-hidden">
+    <>
+    <PublicNavbar />
+    <main className="relative flex min-h-[calc(100vh-4rem)] items-center justify-center bg-frost-surface text-midnight-navy p-4 font-sans selection:bg-frost-surface selection:text-signal-green overflow-hidden">
       <div
         aria-hidden
         className="pointer-events-none absolute inset-0"
