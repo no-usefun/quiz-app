@@ -67,6 +67,7 @@ function TextInput({
   icon,
   rightSlot,
   disabled = false,
+  required = false,
   maxLength,
 }: {
   type?: string;
@@ -76,6 +77,7 @@ function TextInput({
   icon?: React.ReactNode;
   rightSlot?: React.ReactNode;
   disabled?: boolean;
+  required?: boolean;
   maxLength?: number;
 }) {
   return (
@@ -92,6 +94,7 @@ function TextInput({
         value={value}
         onChange={onChange}
         disabled={disabled}
+        required={required}
         maxLength={maxLength}
         className={`w-full rounded-[10px] border border-[#d1dee8]/70 py-2.5 text-xs text-[#111111] outline-none transition-all placeholder:text-[#78716b]/60 focus:border-[#165dfb] focus:ring-4 focus:ring-[#165dfb]/10 focus:bg-white font-medium shadow-xs ${
           disabled
