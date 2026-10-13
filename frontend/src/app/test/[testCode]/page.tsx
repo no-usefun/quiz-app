@@ -227,6 +227,7 @@ export default function TestArenaPage({
   const [deadlineNotice, setDeadlineNotice] = useState<string | null>(null);
   const [submissionNotice, setSubmissionNotice] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [submissionStarted, setSubmissionStarted] = useState(false);
   const [deadlineReached, setDeadlineReached] = useState(false);
 
   const answersRef = useRef<ActiveAnswerState>({});
@@ -738,6 +739,7 @@ export default function TestArenaPage({
     }
 
     submissionInFlightRef.current = true;
+    setSubmissionStarted(true);
     setIsSubmitting(true);
     setSubmissionNotice(null);
 
@@ -1010,7 +1012,7 @@ export default function TestArenaPage({
     );
   }
 
-  if (isSubmitted || deadlineReached) {
+  if (isSubmitted || deadlineReached || submissionStarted) {
     return (
       <main className="flex min-h-screen items-center justify-center bg-[#f5f5f4] text-[#111111] p-4 font-sans">
         <motion.div
@@ -1022,7 +1024,18 @@ export default function TestArenaPage({
           <div className="mx-auto flex h-10 w-10 items-center justify-center rounded-[10px] bg-[#e2ede8] border border-[#d1dee8]/70 text-[#1d5237]">
             <CheckCircle2 className="h-6 w-6 text-[#1d5237]" />
           </div>
-          <h1 className="text-xl font-bold text-[#111111]">Exam Submitted</h1>
+          <h1 className="text-xl font-bold text-[#111111]">
+            {isSubmitted
+              ? "Exam Submitted"
+              : submissionNotice
+                ? "Submission Needs Attention"
+                : "Submitting Assessment"}
+          </h1>
+          {!isSubmitted && !submissionNotice && (
+            <p className="text-xs text-[#78716b] leading-relaxed font-medium">
+              Your submission is being processed. You can return to the dashboard while it completes.
+            </p>
+          )}
           {submissionNotice && !isSubmitted && (
             <>
               <p className="text-xs text-[#8c381c] leading-relaxed font-medium">
@@ -1045,15 +1058,13 @@ export default function TestArenaPage({
               </button>
             </>
           )}
-          {isSubmitted && (
-            <Link
-              href="/dashboard/student"
-              className="flex w-full items-center justify-center gap-1.5 rounded-[10px] bg-[#165dfb] py-2.5 text-xs font-bold text-white hover:bg-[#165dfb]/90 transition-all"
-            >
-              Return to Dashboard
-              <ChevronRight className="h-4 w-4" />
-            </Link>
-          )}
+          <Link
+            href="/dashboard/student"
+            className="flex w-full items-center justify-center gap-1.5 rounded-[10px] bg-[#165dfb] py-2.5 text-xs font-bold text-white hover:bg-[#165dfb]/90 transition-all"
+          >
+            Return to Dashboard
+            <ChevronRight className="h-4 w-4" />
+          </Link>
         </motion.div>
       </main>
     );
