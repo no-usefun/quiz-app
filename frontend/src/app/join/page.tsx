@@ -312,7 +312,7 @@ export default function JoinPage() {
 
   return (
     <>
-    <PublicNavbar />
+    <PublicNavbar showStudentDashboard />
     <main className="relative flex min-h-[calc(100vh-4rem)] items-center justify-center bg-frost-surface text-midnight-navy p-4 font-sans selection:bg-frost-surface selection:text-signal-green overflow-hidden">
       <div
         aria-hidden
