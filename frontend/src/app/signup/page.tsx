@@ -79,6 +79,7 @@ function SignupContent() {
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [googleLoading, setGoogleLoading] = useState(false);
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
 
@@ -541,6 +542,8 @@ function SignupContent() {
               type="button"
               onClick={() => {
                 const backendRole = activeRole === "teacher" ? "TEACHER" : "STUDENT";
+                setGoogleLoading(true);
+                setError("");
                 sessionStorage.setItem("dynoquizz_google_role", backendRole);
 
                 const redirect = searchParams.get("redirect") || "";
@@ -553,11 +556,12 @@ function SignupContent() {
                   "?role=" +
                   encodeURIComponent(backendRole);
               }}
-              disabled={loading}
+              disabled={loading || googleLoading}
+              aria-busy={googleLoading}
               className="flex w-full items-center justify-center gap-2.5 rounded-lg border border-neutral-200 bg-white px-4 py-3 text-sm font-semibold text-neutral-900 transition-all hover:border-neutral-300 hover:bg-neutral-50 active:scale-[0.99] disabled:cursor-not-allowed disabled:opacity-60"
             >
               <GoogleIcon />
-              Continue with Google
+              {googleLoading ? "Connecting to Google..." : "Continue with Google"}
             </button>
             <p className="text-center text-xs leading-relaxed text-neutral-500">
               Google verifies your sign-in. Students will complete their
@@ -587,6 +591,7 @@ function SignupContent() {
                 value={firstName}
                 onChange={(e) => setFirstName(e.target.value)}
                 placeholder="Jane"
+                autoComplete="given-name"
                 required
                 autoFocus
                 className={fieldClass}
@@ -603,6 +608,7 @@ function SignupContent() {
                 value={lastName}
                 onChange={(e) => setLastName(e.target.value)}
                 placeholder="Doe"
+                autoComplete="family-name"
                 required
                 className={fieldClass}
               />
@@ -619,6 +625,10 @@ function SignupContent() {
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               placeholder="name@example.com"
+              autoComplete="email"
+              inputMode="email"
+              autoCapitalize="none"
+              spellCheck={false}
               required
               className={fieldClass}
             />
@@ -635,6 +645,7 @@ function SignupContent() {
                 value={registrationNo}
                 onChange={(e) => setRegistrationNo(e.target.value)}
                 placeholder="e.g. 21BCE1024"
+                autoComplete="off"
                 required
                 maxLength={30}
                 className={fieldClass}
@@ -693,6 +704,7 @@ function SignupContent() {
               value={phone}
               onChange={(e) => setPhone(e.target.value)}
               placeholder="9876543210"
+              autoComplete="tel"
               inputMode="tel"
               maxLength={15}
               className={fieldClass}
@@ -716,6 +728,7 @@ function SignupContent() {
                   }
                 }}
                 placeholder="••••••••"
+                autoComplete="new-password"
                 required
                 aria-describedby="password-requirements"
                 className={`${fieldClass} pr-10`}
@@ -793,6 +806,7 @@ function SignupContent() {
                   }
                 }}
                 placeholder="••••••••"
+                autoComplete="new-password"
                 required
                 className={`${fieldClass} pr-10`}
               />
