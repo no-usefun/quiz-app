@@ -381,5 +381,6 @@ export default function JoinPage() {
         </Suspense>
       </motion.div>
     </main>
+    </>
   );
 }
