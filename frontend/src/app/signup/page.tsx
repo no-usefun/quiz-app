@@ -12,6 +12,7 @@ import {
   ArrowRight,
 } from "lucide-react";
 import { ENDPOINTS } from "@/lib/api/endpoints";
+import { PublicNavbar } from "@/components/PublicNavbar";
 import { isLanExamMode } from "@/lib/examMode";
 
 function GoogleIcon() {
@@ -367,10 +368,9 @@ function SignupContent() {
 
   if (!activeRole) {
     return (
-      <main className="relative min-h-screen w-full grid grid-cols-1 md:grid-cols-2 font-sans">
-        <span className="absolute left-1/2 top-6 z-20 -translate-x-1/2 rounded-full bg-white/90 px-4 py-1.5 text-sm font-bold tracking-tight text-[#111827] shadow-sm ring-1 ring-black/5 backdrop-blur">
-          Quizly
-        </span>
+      <>
+      <PublicNavbar />
+      <main className="relative min-h-[calc(100vh-4rem)] w-full grid grid-cols-1 md:grid-cols-2 font-sans">
 
         <section className="group relative flex flex-col items-center justify-center p-8 sm:p-16 bg-[#F9FAFB] text-center transition-colors duration-300 hover:bg-white">
           <div
@@ -450,11 +450,14 @@ function SignupContent() {
           </div>
         </section>
       </main>
+      </>
     );
   }
 
   return (
-    <main className="relative min-h-screen flex flex-col items-center justify-center p-6 sm:p-12 bg-neutral-50 text-[#111827] font-sans">
+    <>
+    <PublicNavbar />
+    <main className="relative min-h-[calc(100vh-4rem)] flex flex-col items-center justify-center p-6 sm:p-12 bg-neutral-50 text-[#111827] font-sans">
       <div
         aria-hidden
         className="pointer-events-none absolute inset-0"
@@ -849,7 +852,7 @@ function SignupContent() {
           <p className="text-center text-sm text-neutral-500 pt-4">
             Already have an account?{" "}
             <Link
-              href={`/login?role=${activeRole}`}
+              href={"/login?role=" + activeRole + (searchParams.get("redirect") ? "&redirect=" + encodeURIComponent(searchParams.get("redirect") || "") : "")}
               className="font-semibold text-neutral-900 underline-offset-4 hover:underline"
             >
               Log in
@@ -858,6 +861,7 @@ function SignupContent() {
         </div>
       </div>
     </main>
+    </>
   );
 }
 
