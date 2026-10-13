@@ -1562,7 +1562,7 @@ export default function TestArenaPage({
               <span className="mt-1 h-1 w-1 rounded-full bg-[#165dfb] shrink-0" />
               Submit before the timer expires.
             </li>
-          </ul>     </ul>
+          </ul>
         </div>
       </aside>
     </div>
