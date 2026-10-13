@@ -226,6 +226,8 @@ export default function TestArenaPage({
   const [sessionExpired, setSessionExpired] = useState(false);
   const [deadlineNotice, setDeadlineNotice] = useState<string | null>(null);
   const [submissionNotice, setSubmissionNotice] = useState<string | null>(null);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [deadlineReached, setDeadlineReached] = useState(false);
 
   const answersRef = useRef<ActiveAnswerState>({});
   const timeTakenRef = useRef<Record<number, number>>({});
@@ -320,8 +322,11 @@ export default function TestArenaPage({
   useEffect(() => {
     if (isSubmitted) {
       void exitFullscreen();
+      if (deadlineReached) {
+        window.close();
+      }
     }
-  }, [isSubmitted, exitFullscreen]);
+  }, [isSubmitted, exitFullscreen, deadlineReached]);
 
   useEffect(() => {
     setMounted(true);
@@ -382,6 +387,11 @@ export default function TestArenaPage({
 
         const packageData = await api.get<QuizPackageResponse>(
           ENDPOINTS.student.quizPackageByCode(cleanCode),
+          {
+            retry: 2,
+            retryDelayMs: 300,
+            cache: "no-store",
+          },
         );
 
         if (
@@ -420,6 +430,7 @@ export default function TestArenaPage({
           try {
             const serverState = await api.get<AttemptStateResponse>(
               ENDPOINTS.student.attemptState(activeAttemptId),
+              { retry: 2, retryDelayMs: 300, cache: "no-store" },
             );
 
             if (!cancelled && serverState) {
@@ -714,6 +725,7 @@ export default function TestArenaPage({
     if (
       submissionInFlightRef.current ||
       isSubmitted ||
+      isSubmitting ||
       !test ||
       !attemptId
     ) {
@@ -726,7 +738,7 @@ export default function TestArenaPage({
     }
 
     submissionInFlightRef.current = true;
-    setIsSubmitted(true);
+    setIsSubmitting(true);
     setSubmissionNotice(null);
 
     persistCurrentState(latestAnswers, latestTimeTaken);
@@ -767,6 +779,7 @@ export default function TestArenaPage({
       }
 
       setSubmittedAttemptId(returnedAttemptId);
+      setIsSubmitted(true);
 
       localStorage.setItem(
         `dynoquizz_submittedAttemptId_${cleanCode}`,
@@ -796,11 +809,13 @@ export default function TestArenaPage({
       }
     } catch (error) {
       console.error("[Assessment Submission] Failed:", error);
+      setIsSubmitted(false);
 
       if (error instanceof ApiClientError && error.status === 409) {
         try {
           const state = await api.get<AttemptStateResponse>(
             ENDPOINTS.student.attemptState(attemptId),
+            { retry: 2, retryDelayMs: 300, cache: "no-store" },
           );
 
           setSubmittedAttemptId(String(state.attemptId));
@@ -839,6 +854,7 @@ export default function TestArenaPage({
       }
     } finally {
       submissionInFlightRef.current = false;
+      setIsSubmitting(false);
     }
   };
 
@@ -854,15 +870,13 @@ export default function TestArenaPage({
 
     expiryHandledRef.current = true;
     setTimeLeft(0);
+    setDeadlineReached(true);
+    setDeadlineNotice(null);
 
     // Reuse the same single-flight submission path as manual submission.
     // It marks the UI submitted immediately, then sends the complete answer
     // sheet to the backend. The backend remains authoritative and will return
     // AUTO_SUBMITTED because the deadline has been reached.
-    setDeadlineNotice(
-      "Time is up. Submitting your assessment automatically...",
-    );
-
     void finishAssessment(
       { ...answersRef.current },
       { ...timeTakenRef.current },
@@ -996,46 +1010,42 @@ export default function TestArenaPage({
     );
   }
 
-  if (isSubmitted) {
+  if (isSubmitted || deadlineReached) {
     return (
       <main className="flex min-h-screen items-center justify-center bg-[#f5f5f4] text-[#111111] p-4 font-sans">
         <motion.div
           initial={mounted ? { opacity: 0, y: 8 } : false}
           animate={mounted ? { opacity: 1, y: 0 } : false}
-          transition={{ duration: 0.25, ease: "easeOut" }}
+          transition={{ duration: 0.2, ease: "easeOut" }}
           className="w-full max-w-md rounded-[14px] bg-white p-6 md:p-8 text-center border border-[#d1dee8]/70 shadow-xl space-y-4"
         >
-          <div className="mx-auto flex h-10 w-10 items-center justify-center rounded-[10px] bg-[#e2ede8] border border-[#d1dee8]/70 text-[#1d5237] shadow-xs">
+          <div className="mx-auto flex h-10 w-10 items-center justify-center rounded-[10px] bg-[#e2ede8] border border-[#d1dee8]/70 text-[#1d5237]">
             <CheckCircle2 className="h-6 w-6 text-[#1d5237]" />
           </div>
-
-          <div>
-            <span className="text-[10px] font-bold uppercase tracking-wider text-[#78716b]">
-              Response Recorded
-            </span>
-
-            <h1 className="mt-0.5 text-xl font-bold text-[#111111]">
-              Assessment Submitted
-            </h1>
-
-            <p className="mt-1 text-xs text-[#78716b] leading-relaxed font-medium">
-              Your responses have been transmitted to the server for evaluation.
-            </p>
-          </div>
-
-          {deadlineNotice && (
-            <div className="rounded-[10px] border border-[#73561a]/20 bg-[#f6efe1] p-3 text-xs text-[#73561a] text-left font-medium">
-              {deadlineNotice}
-            </div>
+          <h1 className="text-xl font-bold text-[#111111]">Exam Submitted</h1>
+          {submissionNotice && !isSubmitted && (
+            <>
+              <p className="text-xs text-[#8c381c] leading-relaxed font-medium">
+                Submission could not be confirmed.
+              </p>
+              <button
+                type="button"
+                onClick={() => {
+                  setSubmissionNotice(null);
+                  expiryHandledRef.current = false;
+                  void finishAssessment(
+                    { ...answersRef.current },
+                    { ...timeTakenRef.current },
+                  );
+                }}
+                disabled={isSubmitting}
+                className="w-full rounded-[10px] bg-[#165dfb] py-2.5 text-xs font-bold text-white disabled:opacity-50"
+              >
+                Retry Submission
+              </button>
+            </>
           )}
-
-          {submissionNotice && (
-            <div className="rounded-[10px] border border-[#d1dee8]/70 bg-[#f5f5f4] p-3 text-xs text-[#111111] text-left font-medium">
-              {submissionNotice}
-            </div>
-          )}
-
-          <div className="pt-4">
+          {isSubmitted && (
             <Link
               href="/dashboard/student"
               className="flex w-full items-center justify-center gap-1.5 rounded-[10px] bg-[#165dfb] py-2.5 text-xs font-bold text-white hover:bg-[#165dfb]/90 transition-all"
@@ -1043,7 +1053,7 @@ export default function TestArenaPage({
               Return to Dashboard
               <ChevronRight className="h-4 w-4" />
             </Link>
-          </div>
+          )}
         </motion.div>
       </main>
     );
@@ -1254,6 +1264,30 @@ export default function TestArenaPage({
           </div>
         </div>
 
+        {submissionNotice && !isSubmitted && (
+          <div className="border-b border-[#8c381c]/20 bg-[#fff8f5] px-4 py-3 md:px-6">
+            <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+              <div className="flex items-start gap-2 text-xs font-semibold text-[#8c381c]">
+                <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
+                <span>{submissionNotice}</span>
+              </div>
+              <button
+                type="button"
+                onClick={() =>
+                  void finishAssessment(
+                    { ...answersRef.current },
+                    { ...timeTakenRef.current },
+                  )
+                }
+                disabled={isSubmitting}
+                className="inline-flex shrink-0 items-center justify-center rounded-[10px] bg-[#8c381c] px-3 py-2 text-[10px] font-bold text-white hover:bg-[#6e2b14] disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                {isSubmitting ? "Submitting..." : "Retry Submission"}
+              </button>
+            </div>
+          </div>
+        )}
+
         {deadlineNotice && !isSubmitted && (
           <div className="border-b border-[#73561a]/20 bg-[#f6efe1] px-4 py-3 md:px-6">
             <div className="flex items-start gap-2 text-xs font-semibold text-[#73561a]">
@@ -1409,12 +1443,12 @@ export default function TestArenaPage({
                   void finishAssessment(answersRef.current, timeTakenRef.current);
                 }
               }}
-              disabled={isSubmitted}
+              disabled={isSubmitted || isSubmitting}
               className="inline-flex items-center gap-1 rounded-lg bg-[#165dfb] px-4 py-2.5 text-xs font-bold text-white shadow-xs transition-all hover:bg-[#0f4fd8] active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-40"
             >
               {currentIndex === questions.length - 1 ? (
                 <>
-                  Submit Assessment
+                  {isSubmitting ? "Submitting..." : "Submit Assessment"}
                   <ChevronRight className="h-3.5 w-3.5" />
                 </>
               ) : (
@@ -1447,6 +1481,7 @@ export default function TestArenaPage({
           <div className="mt-3 grid grid-cols-2 gap-2">
             {[
               ["Tab switches", flags.tab_switch],
+              ["Fullscreen exits", flags.fullscreen_exit],
               ["Copy / cut / paste", flags.copy_attempt + flags.cut_attempt + flags.paste_attempt],
               ["Focus / keyboard", flags.focus_loss + flags.keyboard_attempt],
               ["Right clicks", flags.right_click],
@@ -1517,39 +1552,16 @@ export default function TestArenaPage({
           <ul className="space-y-1.5 text-[10px] font-medium text-[#78716b]">
             <li className="flex items-start gap-1 leading-relaxed">
               <span className="mt-1 h-1 w-1 rounded-full bg-[#165dfb] shrink-0" />
-              Select an option to answer the question. Unanswered questions may
-              be skipped.
+              Select an option to answer each question.
             </li>
-
             <li className="flex items-start gap-1 leading-relaxed">
               <span className="mt-1 h-1 w-1 rounded-full bg-[#165dfb] shrink-0" />
-              The countdown is based on the server&apos;s authoritative attempt
-              deadline.
+              Mark questions for review if needed.
             </li>
-
             <li className="flex items-start gap-1 leading-relaxed">
               <span className="mt-1 h-1 w-1 rounded-full bg-[#165dfb] shrink-0" />
-              Backend scoring remains authoritative after submission.
+              Submit before the timer expires.
             </li>
-
-            <li className="flex items-start gap-1 leading-relaxed">
-              <span className="mt-1 h-1 w-1 rounded-full bg-[#165dfb] shrink-0" />
-              Browser-observable suspicious activity is reported to the server during the session.
-            </li>
-
-            {violationCount > 0 && (
-              <li className="flex items-start gap-1 leading-relaxed text-[#8c381c]">
-                <span className="mt-1 h-1 w-1 rounded-full bg-[#8c381c] shrink-0" />
-                {violationCount} suspicious activity event{violationCount === 1 ? "" : "s"} detected.
-              </li>
-            )}
-
-            {flags.tab_switch > 0 && (
-              <li className="flex items-start gap-1 leading-relaxed text-[#8c381c]">
-                <span className="mt-1 h-1 w-1 rounded-full bg-[#8c381c] shrink-0" />
-                Tab-switch activity was detected.
-              </li>
-            )}
           </ul>
         </div>
       </aside>

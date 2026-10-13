@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
 import { useTheme } from "next-themes";
 import {
@@ -66,6 +67,7 @@ function TextInput({
   icon,
   rightSlot,
   disabled = false,
+  required = false,
   maxLength,
 }: {
   type?: string;
@@ -75,6 +77,7 @@ function TextInput({
   icon?: React.ReactNode;
   rightSlot?: React.ReactNode;
   disabled?: boolean;
+  required?: boolean;
   maxLength?: number;
 }) {
   return (
@@ -91,6 +94,7 @@ function TextInput({
         value={value}
         onChange={onChange}
         disabled={disabled}
+        required={required}
         maxLength={maxLength}
         className={`w-full rounded-[10px] border border-[#d1dee8]/70 py-2.5 text-xs text-[#111111] outline-none transition-all placeholder:text-[#78716b]/60 focus:border-[#165dfb] focus:ring-4 focus:ring-[#165dfb]/10 focus:bg-white font-medium shadow-xs ${
           disabled
@@ -165,10 +169,14 @@ function ProfilePanel({
   onSave,
   refreshSession,
   user,
+  isProfileCompletionMode,
+  onProfileCompleted,
 }: {
   onSave: () => void;
   refreshSession: ReturnType<typeof useSession>["refreshSession"];
   user: any;
+  isProfileCompletionMode: boolean;
+  onProfileCompleted: (role: string) => void;
 }) {
   const [fullName, setFullName] = useState("");
   const [email, setEmail] = useState("");
@@ -286,13 +294,23 @@ function ProfilePanel({
         throw new Error("Registration number is required for student profiles.");
       }
 
+      if (isProfileCompletionMode && isStudent && !institution.trim()) {
+        throw new Error("Please enter your college or university.");
+      }
+
+      if (isProfileCompletionMode && isStudent && !program.trim()) {
+        throw new Error("Please enter your course or department.");
+      }
+
       const requestBody = {
         firstName,
         lastName,
         phone: phone.trim() || null,
         college: institution.trim() || null,
         department: program.trim() || null,
-        registrationNo: registrationNo.trim() || null,
+        registrationNo: registrationNo.trim()
+          ? registrationNo.trim().toUpperCase()
+          : null,
         profileImage: profileImage.trim() || null,
       };
 
@@ -315,8 +333,18 @@ function ProfilePanel({
         );
       }
 
-      await refreshSession();
+      const refreshedUser = await refreshSession();
       onSave();
+
+      if (isProfileCompletionMode) {
+        if (refreshedUser?.profileComplete === true) {
+          onProfileCompleted(String(refreshedUser.role || user?.role || ""));
+        } else {
+          setError(
+            "Your profile was saved, but the server still reports that required details are missing. Please check the fields and try again.",
+          );
+        }
+      }
     } catch (e: any) {
       console.error("Profile update failed:", e);
       setError(e?.message || "Failed to update profile.");
@@ -331,6 +359,21 @@ function ProfilePanel({
 
   return (
     <div className="space-y-5">
+      {isProfileCompletionMode && (
+        <div
+          role="status"
+          className="rounded-[10px] border border-[#165dfb]/20 bg-[#165dfb]/5 p-4"
+        >
+          <h2 className="text-sm font-bold text-[#111111]">
+            Complete your Quizly profile
+          </h2>
+          <p className="mt-1 text-xs leading-relaxed text-[#78716b]">
+            Google has confirmed your sign-in, but we still need your academic
+            details before you can use student exam features. Complete the
+            required fields below and save your profile.
+          </p>
+        </div>
+      )}
       {user?.authProvider &&
         String(user.authProvider).toUpperCase() !== "LOCAL" &&
         !setPasswordDone && (
@@ -436,17 +479,25 @@ function ProfilePanel({
           />
         </Field>
 
-        <Field label="Institution / University">
+        <Field
+          label="Institution / University"
+          hint={isProfileCompletionMode ? "Required to complete your profile." : undefined}
+        >
           <TextInput
             placeholder="University"
+            required={isProfileCompletionMode}
             value={institution}
             onChange={(event) => setInstitution(event.target.value)}
           />
         </Field>
 
-        <Field label="Course / Department">
+        <Field
+          label="Course / Department"
+          hint={isProfileCompletionMode ? "Required to complete your profile." : undefined}
+        >
           <TextInput
             placeholder="Department"
+            required={isProfileCompletionMode}
             value={program}
             onChange={(event) => setProgram(event.target.value)}
           />
@@ -1110,12 +1161,30 @@ function DangerPanel({ logout }: { logout: () => void }) {
 
 export default function SettingsPage() {
   const { user, logout, refreshSession } = useSession();
+  const router = useRouter();
   const [activeTab, setActiveTab] = useState<TabId>("profile");
   const [saved, setSaved] = useState(false);
+  const [isProfileCompletionMode, setIsProfileCompletionMode] = useState(false);
+
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      setIsProfileCompletionMode(
+        new URLSearchParams(window.location.search).get("profile") === "complete",
+      );
+    }
+  }, []);
 
   const handleSave = () => {
     setSaved(true);
     window.setTimeout(() => setSaved(false), 2500);
+  };
+
+  const handleProfileCompleted = (role: string) => {
+    const destination =
+      role.trim().toUpperCase() === "TEACHER"
+        ? "/dashboard/teacher"
+        : "/dashboard/student";
+    router.replace(destination);
   };
 
   const dashboardHref = user
@@ -1237,6 +1306,8 @@ export default function SettingsPage() {
                     onSave={handleSave}
                     refreshSession={refreshSession}
                     user={user}
+                    isProfileCompletionMode={isProfileCompletionMode}
+                    onProfileCompleted={handleProfileCompleted}
                   />
                 )}
 

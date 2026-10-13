@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { motion, useReducedMotion } from "framer-motion";
 import Link from "next/link";
 import {
   ClipboardList,
@@ -20,6 +21,8 @@ import { ENDPOINTS } from "@/lib/api/endpoints";
 import type { StudentSubmissionResponse } from "@/lib/types";
 
 type Submission = StudentSubmissionResponse;
+
+const INITIAL_RESULTS_COUNT = 5;
 
 function formatDate(value: string | null | undefined): string {
   if (!value) {
@@ -88,6 +91,7 @@ function normalizeSubmission(
 
 export default function StudentDashboard() {
   const { user, loading: sessionLoading } = useSession();
+  const reduceMotion = useReducedMotion();
 
   const [results, setResults] = useState<Submission[]>([]);
 
@@ -95,68 +99,77 @@ export default function StudentDashboard() {
 
   const [fetchError, setFetchError] = useState<string | null>(null);
 
-  useEffect(() => {
-    if (sessionLoading) {
-      return;
-    }
+  const [showAllResults, setShowAllResults] = useState(false);
 
+  useEffect(() => {
+    if (sessionLoading) return;
     let cancelled = false;
 
     const fetchResults = async () => {
-      setLoading(true);
+      const userKey = user?.id ?? user?.userId ?? user?.email;
+      const cacheKey = userKey != null
+        ? `dynoquizz_student_submissions_${String(userKey).toLowerCase()}`
+        : null;
+      let hasUsableCache = false;
+
+      if (cacheKey) {
+        try {
+          const rawCache = localStorage.getItem(cacheKey);
+          if (rawCache) {
+            const parsed = JSON.parse(rawCache) as { submissions?: StudentSubmissionResponse[] };
+            if (Array.isArray(parsed.submissions)) {
+              setResults(parsed.submissions.map(normalizeSubmission).filter((item): item is Submission => item !== null));
+              hasUsableCache = true;
+            }
+          }
+        } catch (cacheError) {
+          console.warn("Could not read cached student submissions:", cacheError);
+        }
+      }
+
+      setLoading(!hasUsableCache);
       setFetchError(null);
 
       try {
-        const data = await api.get<StudentSubmissionResponse[]>(
-          ENDPOINTS.student.submissions,
-        );
-
-        if (cancelled) {
-          return;
-        }
-
+        const data = await api.get<StudentSubmissionResponse[]>(ENDPOINTS.student.submissions);
+        if (cancelled) return;
         const backendList = Array.isArray(data) ? data : [];
-
-        const normalizedResults = backendList
-          .map(normalizeSubmission)
-          .filter((item): item is Submission => item !== null);
-
+        const normalizedResults = backendList.map(normalizeSubmission).filter((item): item is Submission => item !== null);
         setResults(normalizedResults);
         setFetchError(null);
-      } catch (error) {
-        if (cancelled) {
-          return;
-        }
 
+        if (cacheKey) {
+          try {
+            localStorage.setItem(cacheKey, JSON.stringify({ submissions: normalizedResults, savedAt: Date.now() }));
+          } catch (cacheError) {
+            console.warn("Could not cache student submissions:", cacheError);
+          }
+        }
+      } catch (error) {
+        if (cancelled) return;
         if (error instanceof ApiClientError && error.status === 401) {
           setResults([]);
-          setFetchError(
-            "Your student session has expired. Please log in again.",
-          );
+          setFetchError("Your student session has expired. Please log in again.");
           return;
         }
-
+        if (hasUsableCache) {
+          console.error("Student submissions refresh failed:", error);
+          return;
+        }
         setResults([]);
         setFetchError(
           error instanceof ApiClientError && error.status === 0
             ? "Quizly backend is unreachable. Start the Spring Boot server and verify NEXT_PUBLIC_API_URL."
-            : error instanceof Error
-              ? error.message
-              : "A network error occurred while loading your submission history.",
+            : error instanceof Error ? error.message : "A network error occurred while loading your submission history.",
         );
       } finally {
-        if (!cancelled) {
-          setLoading(false);
-        }
+        if (!cancelled) setLoading(false);
       }
     };
 
     void fetchResults();
-
-    return () => {
-      cancelled = true;
-    };
-  }, [sessionLoading]);
+    return () => { cancelled = true; };
+  }, [sessionLoading, user?.id, user?.userId, user?.email]);
 
   const displayName =
     user?.fullName || user?.firstName || user?.name || "Student User";
@@ -165,12 +178,17 @@ export default function StudentDashboard() {
     (result) => result.resultsAvailable,
   ).length;
 
+  const visibleResults = showAllResults
+    ? results
+    : results.slice(0, INITIAL_RESULTS_COUNT);
+  const hasMoreResults = results.length > INITIAL_RESULTS_COUNT;
+
   return (
     <div className="min-h-screen bg-[#f5f5f4] font-sans text-[#111111] flex flex-col">
       <TopNav role="student" />
 
       <main className="flex-1 p-4 md:p-8 space-y-6 text-left max-w-7xl mx-auto w-full">
-        <section className="border-b border-[#d1dee8]/60 pb-5 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+        <motion.section initial={reduceMotion ? false : { opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.32, ease: "easeOut" }} className="border-b border-[#d1dee8]/60 pb-5 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
           <div>
             <span className="text-[10px] font-bold uppercase tracking-widest text-[#78716b]">
               Student Assessment Portal
@@ -193,9 +211,9 @@ export default function StudentDashboard() {
             <PlayCircle className="h-4 w-4 text-white" />
             Join Assessment
           </Link>
-        </section>
+        </motion.section>
 
-        <section className="relative overflow-hidden rounded-[14px] border border-[#d1dee8]/70 bg-white p-6 md:p-8 shadow-sm">
+        <motion.section initial={reduceMotion ? false : { opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.32, delay: 0.06, ease: "easeOut" }} className="relative overflow-hidden rounded-[14px] border border-[#d1dee8]/70 bg-white p-6 md:p-8 shadow-sm">
           <div
             aria-hidden
             className="pointer-events-none absolute inset-y-0 right-0 w-1/2"
@@ -239,9 +257,9 @@ export default function StudentDashboard() {
               <ClipboardList className="h-6 w-6 text-[#165dfb]" />
             </div>
           </div>
-        </section>
+        </motion.section>
 
-        <section className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+        <motion.section initial={reduceMotion ? false : { opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.32, delay: 0.12, ease: "easeOut" }} className="grid grid-cols-1 gap-4 sm:grid-cols-2">
           <div className="group rounded-[14px] border border-[#d1dee8]/70 bg-white p-5 flex items-center gap-3.5 shadow-sm transition-all hover:border-[#b9cbd9] hover:shadow-md hover:-translate-y-[1px] duration-200">
             <div className="rounded-[10px] p-2.5 bg-[#eef4ff] text-[#165dfb] ring-1 ring-[#165dfb]/10 shadow-xs">
               <ClipboardList className="h-4 w-4 text-[#165dfb]" />
@@ -281,9 +299,9 @@ export default function StudentDashboard() {
               </p>
             </div>
           </div>
-        </section>
+        </motion.section>
 
-        <section className="space-y-3">
+        <motion.section initial={reduceMotion ? false : { opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.32, delay: 0.18, ease: "easeOut" }} className="space-y-3">
           <h2 className="flex items-center gap-2 text-xs font-bold text-[#111111] uppercase tracking-wider">
             <span className="h-3.5 w-1 rounded-full bg-[#165dfb]" />
             Recent Assessments
@@ -342,14 +360,14 @@ export default function StudentDashboard() {
                   </Link>
                 </li>
               ) : (
-                results.map((result) => {
+                visibleResults.map((result, index) => {
                   const score = formatPercentage(result.percentage);
 
                   const dateLabel = formatDate(result.submittedAt);
 
                   if (result.resultsAvailable) {
                     return (
-                      <li key={result.attemptId}>
+                      <motion.li key={result.attemptId} initial={reduceMotion ? false : { opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.24, delay: Math.min(index * 0.035, 0.28), ease: "easeOut" }}>
                         <div className="relative flex items-center justify-between gap-4 px-5 py-4 transition-colors hover:bg-[#f8fafc] group before:absolute before:inset-y-0 before:left-0 before:w-1 before:rounded-r before:bg-[#165dfb] before:opacity-0 before:transition-opacity hover:before:opacity-100">
                           <Link
                             href={`/dashboard/student/result/${result.attemptId}`}
@@ -397,12 +415,12 @@ export default function StudentDashboard() {
                             <ChevronRight className="h-3.5 w-3.5 text-[#c9c5c2] transition-all group-hover:translate-x-0.5 group-hover:text-[#165dfb]" />
                           </div>
                         </div>
-                      </li>
+                      </motion.li>
                     );
                   }
 
                   return (
-                    <li key={result.attemptId}>
+                    <motion.li key={result.attemptId} initial={reduceMotion ? false : { opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.24, delay: Math.min(results.indexOf(result) * 0.035, 0.28), ease: "easeOut" }}>
                       <div className="flex items-center justify-between gap-4 px-5 py-4 cursor-not-allowed bg-[#fbfbfa]">
                         <div className="flex min-w-0 flex-col gap-1">
                           <div className="flex items-center gap-1.5">
@@ -435,13 +453,29 @@ export default function StudentDashboard() {
                           </span>
                         </div>
                       </div>
-                    </li>
+                    </motion.li>
                   );
                 })
               )}
             </ul>
           </div>
-        </section>
+
+          {!loading && !fetchError && hasMoreResults && (
+            <div className="flex justify-center pt-1">
+              <button
+                type="button"
+                onClick={() => setShowAllResults((current) => !current)}
+                aria-expanded={showAllResults}
+                className="inline-flex items-center justify-center gap-2 rounded-[10px] border border-[#d1dee8]/80 bg-white px-5 py-2.5 text-xs font-bold text-[#111111] transition-all hover:border-[#165dfb]/40 hover:bg-[#f8fafc] active:scale-[0.98]"
+              >
+                {showAllResults ? "Show Recent Results" : "View All Results"}
+                <ChevronRight
+                  className={`h-3.5 w-3.5 transition-transform ${showAllResults ? "-rotate-90" : "rotate-90"}`}
+                />
+              </button>
+            </div>
+          )}
+        </motion.section>
       </main>
     </div>
   );

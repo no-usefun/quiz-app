@@ -1,9 +1,9 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { motion } from "framer-motion";
+import { motion, useReducedMotion } from "framer-motion";
 import {
   Plus,
   Users,
@@ -27,19 +27,24 @@ type TeacherDashboardQuiz = QuizResponse & {
 export default function TeacherDashboard() {
   const router = useRouter();
   const { user, loading: sessionLoading } = useSession();
+  const reduceMotion = useReducedMotion();
 
   const [tests, setTests] = useState<TeacherDashboardQuiz[]>([]);
   const [loading, setLoading] = useState(true);
   const [fetchError, setFetchError] = useState<string | null>(null);
+  const [hasCachedData, setHasCachedData] = useState(false);
+  const [cacheReady, setCacheReady] = useState(false);
+  const [hasLoadedQuizData, setHasLoadedQuizData] = useState(false);
+  const [cacheOwnerKey, setCacheOwnerKey] = useState<string | null>(null);
   const [copiedCode, setCopiedCode] = useState<string | null>(null);
   const [mounted, setMounted] = useState(false);
-  const [visibleCount, setVisibleCount] = useState(5);
   const [statusFilter, setStatusFilter] = useState<
     "ALL" | "DRAFT" | "UPCOMING" | "LIVE" | "COMPLETED" | "CANCELLED"
   >("ALL");
   const [sortOrder, setSortOrder] = useState<
     "NEWEST" | "OLDEST" | "TITLE_ASC" | "TITLE_DESC"
   >("NEWEST");
+  const [visibleCount, setVisibleCount] = useState(5);
 
   const [quizToEnd, setQuizToEnd] = useState<{
     quizId: number;
@@ -47,7 +52,9 @@ export default function TeacherDashboard() {
     title: string;
   } | null>(null);
 
-  const [actionLoadingQuizId, setActionLoadingQuizId] = useState<number | null>(null);
+  const [actionLoadingQuizId, setActionLoadingQuizId] = useState<number | null>(
+    null,
+  );
   const [actionError, setActionError] = useState<string | null>(null);
 
   const normalizeQuiz = (quiz: QuizResponse): TeacherDashboardQuiz => ({
@@ -68,8 +75,45 @@ export default function TeacherDashboard() {
     return fallback;
   };
 
+  const getQuizCacheKey = () => {
+    if (typeof window === "undefined") {
+      return null;
+    }
+
+    const userKey = user?.id ?? user?.userId ?? user?.email;
+    return userKey != null
+      ? `dynoquizz_teacher_quizzes_${String(userKey).toLowerCase()}`
+      : null;
+  };
+
   const fetchQuizzes = async () => {
-    setLoading(true);
+    const cacheKey = getQuizCacheKey();
+    let hasUsableCache = false;
+
+    if (cacheKey) {
+      try {
+        const rawCache = localStorage.getItem(cacheKey);
+        if (rawCache) {
+          const parsed = JSON.parse(rawCache) as {
+            quizzes?: QuizResponse[];
+            savedAt?: number;
+          };
+
+          if (Array.isArray(parsed.quizzes)) {
+            setTests(parsed.quizzes.map(normalizeQuiz));
+            setHasCachedData(true);
+            setHasLoadedQuizData(true);
+            setCacheOwnerKey(cacheKey);
+            hasUsableCache = true;
+          }
+        }
+      } catch (cacheError) {
+        console.warn("Could not read cached teacher quizzes:", cacheError);
+      }
+    }
+
+    setCacheReady(true);
+    setLoading(!hasUsableCache);
     setFetchError(null);
 
     try {
@@ -88,49 +132,70 @@ export default function TeacherDashboard() {
       const normalized = data.map(normalizeQuiz);
 
       const expiredPublishedQuizzes = normalized.filter(
-        (quiz) =>
-          quiz.displayState === "Ended" &&
-          quiz.status === "PUBLISHED",
+        (quiz) => quiz.displayState === "Ended" && quiz.status === "PUBLISHED",
       );
 
+      // Render the fetched quiz list immediately. Expired quiz completion
+      // is a follow-up operation and must not block the dashboard's loading
+      // state while the backend processes those updates.
+      setTests(normalized);
+      setHasCachedData(false);
+      setHasLoadedQuizData(true);
+      setCacheOwnerKey(cacheKey);
+
+      if (cacheKey) {
+        try {
+          localStorage.setItem(
+            cacheKey,
+            JSON.stringify({ quizzes: normalized, savedAt: Date.now() }),
+          );
+        } catch (cacheError) {
+          console.warn("Could not cache teacher quizzes:", cacheError);
+        }
+      }
+
       if (expiredPublishedQuizzes.length > 0) {
-        const completionResults = await Promise.allSettled(
+        void Promise.allSettled(
           expiredPublishedQuizzes.map((quiz) =>
-            api.put<QuizResponse>(
-              ENDPOINTS.teacher.completeQuiz(quiz.quizId),
-            ),
+            api.put<QuizResponse>(ENDPOINTS.teacher.completeQuiz(quiz.quizId)),
           ),
-        );
+        ).then((completionResults) => {
+          const completedById = new Map<number, QuizResponse>();
 
-        const completedById = new Map<number, QuizResponse>();
+          completionResults.forEach((result) => {
+            if (result.status === "fulfilled") {
+              completedById.set(result.value.quizId, result.value);
+            } else {
+              console.error("Automatic quiz completion failed:", result.reason);
+            }
+          });
 
-        completionResults.forEach((result) => {
-          if (result.status === "fulfilled") {
-            completedById.set(result.value.quizId, result.value);
-          } else {
-            console.error(
-              "Automatic quiz completion failed:",
-              result.reason,
+          if (completedById.size > 0) {
+            setTests((current) =>
+              current.map((quiz) => {
+                const completed = completedById.get(quiz.quizId);
+                return completed ? normalizeQuiz(completed) : quiz;
+              }),
             );
           }
         });
-
-        setTests(
-          normalized.map((quiz) =>
-            normalizeQuiz(completedById.get(quiz.quizId) ?? quiz),
-          ),
-        );
-      } else {
-        setTests(normalized);
       }
     } catch (error) {
       console.error("Dashboard fetch error:", error);
 
-      setFetchError(
-        getErrorMessage(error, "Failed to load assessments from server."),
+      const message = getErrorMessage(
+        error,
+        "Failed to load assessments from server.",
       );
 
-      setTests([]);
+      if (hasUsableCache) {
+        // Keep the last successful list visible without exposing cache details
+        // or a background-refresh error in the teacher-facing dashboard.
+        setHasCachedData(true);
+      } else {
+        setFetchError(message);
+        setTests([]);
+      }
     } finally {
       setLoading(false);
     }
@@ -146,11 +211,23 @@ export default function TeacherDashboard() {
     }
 
     fetchQuizzes();
-  }, [sessionLoading]);
+  }, [sessionLoading, user?.id, user?.userId, user?.email]);
 
   useEffect(() => {
-    setVisibleCount(5);
-  }, [tests.length]);
+    const cacheKey = getQuizCacheKey();
+    if (!cacheReady || !hasLoadedQuizData || !cacheKey || cacheOwnerKey !== cacheKey) {
+      return;
+    }
+
+    try {
+      localStorage.setItem(
+        cacheKey,
+        JSON.stringify({ quizzes: tests, savedAt: Date.now() }),
+      );
+    } catch (cacheError) {
+      console.warn("Could not persist teacher quiz cache:", cacheError);
+    }
+  }, [tests, cacheReady, hasLoadedQuizData, cacheOwnerKey, user?.id, user?.userId, user?.email]);
 
   const replaceQuizInState = (updatedQuiz: QuizResponse) => {
     const normalized = normalizeQuiz(updatedQuiz);
@@ -266,82 +343,92 @@ export default function TeacherDashboard() {
     user?.fullName?.split(" ")[0] ||
     "Instructor";
 
-  const liveCount = tests.filter((test) => test.displayState === "Live").length;
+  const liveCount = useMemo(
+    () => tests.filter((test) => test.displayState === "Live").length,
+    [tests],
+  );
 
-  const draftCount = tests.filter(
-    (test) => test.displayState === "Draft",
-  ).length;
+  const draftCount = useMemo(
+    () => tests.filter((test) => test.displayState === "Draft").length,
+    [tests],
+  );
 
-  const completedCount = tests.filter(
-    (test) => test.displayState === "Completed",
-  ).length;
+  const completedCount = useMemo(
+    () => tests.filter((test) => test.displayState === "Completed").length,
+    [tests],
+  );
 
-  const filteredTests = tests.filter((test) => {
-    switch (statusFilter) {
-      case "DRAFT":
-        return test.displayState === "Draft";
+  const sortedTests = useMemo(() => {
+    const filtered = tests.filter((test) => {
+      switch (statusFilter) {
+        case "DRAFT":
+          return test.displayState === "Draft";
 
-      case "UPCOMING":
-        return test.displayState === "Scheduled";
+        case "UPCOMING":
+          return test.displayState === "Scheduled";
 
-      case "LIVE":
-        return test.displayState === "Live";
+        case "LIVE":
+          return test.displayState === "Live";
 
-      case "COMPLETED":
-        return (
-          test.displayState === "Completed" ||
-          test.displayState === "Ended"
+        case "COMPLETED":
+          return (
+            test.displayState === "Completed" || test.displayState === "Ended"
+          );
+
+        case "CANCELLED":
+          return test.displayState === "Cancelled";
+
+        case "ALL":
+        default:
+          return true;
+      }
+    });
+
+    const sorted = [...filtered];
+
+    switch (sortOrder) {
+      case "OLDEST":
+        sorted.reverse();
+        break;
+
+      case "TITLE_ASC":
+        sorted.sort((a, b) =>
+          String(a.title || "Assessment").localeCompare(
+            String(b.title || "Assessment"),
+            undefined,
+            { sensitivity: "base" },
+          ),
         );
+        break;
 
-      case "CANCELLED":
-        return test.displayState === "Cancelled";
+      case "TITLE_DESC":
+        sorted.sort((a, b) =>
+          String(b.title || "Assessment").localeCompare(
+            String(a.title || "Assessment"),
+            undefined,
+            { sensitivity: "base" },
+          ),
+        );
+        break;
 
-      case "ALL":
+      case "NEWEST":
       default:
-        return true;
+        // The backend response is already newest-first. Preserve that order.
+        break;
     }
-  });
 
-  const sortedTests = [...filteredTests];
-
-  switch (sortOrder) {
-    case "OLDEST":
-      sortedTests.reverse();
-      break;
-
-    case "TITLE_ASC":
-      sortedTests.sort((a, b) =>
-        String(a.title || "Assessment").localeCompare(
-          String(b.title || "Assessment"),
-          undefined,
-          { sensitivity: "base" },
-        ),
-      );
-      break;
-
-    case "TITLE_DESC":
-      sortedTests.sort((a, b) =>
-        String(b.title || "Assessment").localeCompare(
-          String(a.title || "Assessment"),
-          undefined,
-          { sensitivity: "base" },
-        ),
-      );
-      break;
-
-    case "NEWEST":
-    default:
-      // The backend response is already newest-first. Preserve that order.
-      break;
-  }
+    return sorted;
+  }, [tests, statusFilter, sortOrder]);
 
   const visibleTests = sortedTests.slice(0, visibleCount);
   const hasMoreTests = visibleCount < sortedTests.length;
 
+  useEffect(() => {
+    setVisibleCount(5);
+  }, [tests.length]);
+
   const handleLoadMore = () => {
-    setVisibleCount((current) =>
-      Math.min(current + 5, sortedTests.length),
-    );
+    setVisibleCount((current) => Math.min(current + 5, sortedTests.length));
   };
 
   const handleFilterChange = (
@@ -394,7 +481,7 @@ export default function TeacherDashboard() {
       <TopNav role="teacher" />
 
       <main className="flex-1 p-4 md:p-8 space-y-6 max-w-7xl mx-auto w-full">
-        <section className="border-b border-[#d1dee8]/50 pb-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+        <motion.section initial={reduceMotion ? false : { opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.32, ease: "easeOut" }} className="border-b border-[#d1dee8]/50 pb-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
           <div>
             <span className="text-xs font-bold uppercase tracking-widest text-[#78716b]">
               Educator Control Center
@@ -405,8 +492,8 @@ export default function TeacherDashboard() {
             </h1>
 
             <p className="text-xs text-[#78716b] font-medium mt-0.5">
-              Manage your assessments, invite candidates, and review live results
-              telemetry.
+              Manage your assessments, invite candidates, and review live
+              results telemetry.
             </p>
           </div>
 
@@ -417,9 +504,9 @@ export default function TeacherDashboard() {
             <Plus className="h-4 w-4 text-white" />
             Create Assessment
           </Link>
-        </section>
+        </motion.section>
 
-        <section className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+        <motion.section initial={reduceMotion ? false : { opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.32, delay: 0.07, ease: "easeOut" }} className="grid grid-cols-2 sm:grid-cols-4 gap-4">
           <div className="rounded-[14px] border border-[#d1dee8]/70 bg-white p-4 sm:p-5 shadow-sm hover:shadow-md transition-all duration-200">
             <span className="text-[10px] font-bold uppercase tracking-wider text-[#78716b]">
               Total Assessments
@@ -459,16 +546,16 @@ export default function TeacherDashboard() {
               {loading ? "..." : completedCount}
             </p>
           </div>
-        </section>
+        </motion.section>
 
-        <section className="space-y-4">
+        <motion.section initial={reduceMotion ? false : { opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.32, delay: 0.14, ease: "easeOut" }} className="space-y-4">
           <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
             <div className="flex items-center gap-2">
               <h2 className="text-sm font-extrabold text-[#111111] uppercase tracking-wider">
                 Assessments Roster (
                 {statusFilter === "ALL"
                   ? tests.length
-                  : `${filteredTests.length} of ${tests.length}`}
+                  : `${sortedTests.length} of ${tests.length}`}
                 )
               </h2>
             </div>
@@ -530,7 +617,7 @@ export default function TeacherDashboard() {
               <div className="rounded-[14px] bg-white border border-[#d1dee8]/70 p-10 text-center text-xs text-[#78716b] shadow-sm">
                 Loading assessments roster...
               </div>
-            ) : fetchError ? (
+            ) : fetchError && tests.length === 0 ? (
               <div className="rounded-[14px] bg-[#fbeee8] border border-[#8c381c]/30 p-8 text-center space-y-3 shadow-sm">
                 <p className="font-bold text-[#8c381c] text-sm">{fetchError}</p>
 
@@ -784,7 +871,8 @@ export default function TeacherDashboard() {
                               <button
                                 type="button"
                                 disabled={
-                                  test.status !== "COMPLETED" || actionLoadingQuizId === quizId
+                                  test.status !== "COMPLETED" ||
+                                  actionLoadingQuizId === quizId
                                 }
                                 onClick={() => {
                                   if (test.status === "COMPLETED") {
@@ -828,14 +916,11 @@ export default function TeacherDashboard() {
                 onClick={handleLoadMore}
                 className="inline-flex items-center justify-center rounded-[10px] border border-[#d1dee8]/80 bg-white px-5 py-2 text-xs font-bold text-[#111111] hover:bg-[#f5f5f4] hover:border-[#b9cbd9] shadow-xs active:scale-[0.98] transition-all cursor-pointer"
               >
-                Load More
-                <span className="ml-1.5 text-[#78716b]">
-                  ({Math.min(5, sortedTests.length - visibleCount)} more)
-                </span>
+                Show More Assessments
               </button>
             </div>
           )}
-        </section>
+        </motion.section>
       </main>
 
       {quizToEnd && (

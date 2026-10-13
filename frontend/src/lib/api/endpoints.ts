@@ -10,6 +10,9 @@ export const API_BASE = (
 ).replace(/\/+$/, "");
 
 export const ENDPOINTS = {
+  system: {
+    health: `${API_BASE}/api/v1/health`,
+  },
   auth: {
     login: `${API_BASE}/api/v1/auth/login`,
     signup: (role: "STUDENT" | "TEACHER") =>
@@ -23,6 +26,7 @@ export const ENDPOINTS = {
     forgotPassword: `${API_BASE}/api/v1/auth/forgot-password`,
     resetPassword: `${API_BASE}/api/v1/auth/reset-password`,
     googleLogin: `${API_BASE}/oauth2/authorization/google`,
+    googleExchange: `${API_BASE}/api/v1/auth/oauth2/exchange`,
   },
 
   // Compatibility aliases for profile/account endpoints.

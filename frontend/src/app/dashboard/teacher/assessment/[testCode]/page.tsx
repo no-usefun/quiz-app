@@ -21,6 +21,8 @@ import {
 } from "lucide-react";
 import { Logo } from "@/components/Logo";
 import { ENDPOINTS } from "@/lib/api/endpoints";
+import LanExamPreflight from "@/components/LanExamPreflight";
+import { isLanExamMode } from "@/lib/examMode";
 
 type SortKey = "rank" | "name" | "score" | "timeTaken";
 type SortDir = "asc" | "desc";
@@ -36,6 +38,7 @@ type AssessmentData = {
   totalStudents: number;
   totalQuestions: number;
   totalMarks: number;
+  allowedRegistrationNumbers?: string[] | null;
   overallTimerSeconds: number;
   startTime?: string | null;
   endTime?: string | null;
@@ -320,6 +323,13 @@ export default function TeacherAssessmentPage({
         totalStudents: numericValue(matched.totalStudents),
         totalQuestions: numericValue(matched.totalQuestions),
         totalMarks: numericValue(matched.totalMarks),
+        allowedRegistrationNumbers: Array.isArray(
+          matched.allowedRegistrationNumbers,
+        )
+          ? matched.allowedRegistrationNumbers.map((value: unknown) =>
+              String(value).trim().toUpperCase(),
+            )
+          : undefined,
         overallTimerSeconds: numericValue(matched.overallTimerSeconds),
         startTime: matched.startTime ?? null,
         endTime: matched.endTime ?? null,
@@ -860,6 +870,19 @@ export default function TeacherAssessmentPage({
             )}
           </button>
         </header>
+
+        {isLanExamMode() && assessmentData && (
+          <LanExamPreflight
+            quiz={{
+              quizCode: assessmentData.quizCode,
+              status,
+              totalStudents: assessmentData.totalStudents,
+              totalQuestions: assessmentData.totalQuestions,
+              allowedRegistrationNumbers:
+                assessmentData.allowedRegistrationNumbers,
+            }}
+          />
+        )}
 
         <div className="flex flex-1 flex-col gap-5 p-5 md:p-6 bg-paper-white">
           <div className="flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">

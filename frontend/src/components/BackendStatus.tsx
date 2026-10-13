@@ -1,9 +1,11 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { API_BASE } from "@/lib/api/endpoints";
+import { api } from "@/lib/api/client";
+import { ENDPOINTS } from "@/lib/api/endpoints";
+import { isLanExamMode } from "@/lib/examMode";
 
-type HealthState = "checking" | "online" | "offline";
+type HealthState = "checking" | "ready" | "offline";
 
 interface HealthResponse {
   status?: string;
@@ -17,25 +19,19 @@ export default function BackendStatus() {
     const startedAt = performance.now();
 
     try {
-      setStatus((current) => (current === "offline" ? "checking" : current));
+      setStatus("checking");
 
-      const response = await fetch(`${API_BASE}/api/v1/health`, {
-        method: "GET",
+      const data = await api.get<HealthResponse>(ENDPOINTS.system.health, {
+        skipAuth: true,
+        retry: 1,
+        retryDelayMs: 250,
         cache: "no-store",
       });
 
       const elapsed = Math.round(performance.now() - startedAt);
 
-      if (!response.ok) {
-        setStatus("offline");
-        setLatency(null);
-        return;
-      }
-
-      const data: HealthResponse = await response.json();
-
       if (data.status === "UP") {
-        setStatus("online");
+        setStatus("ready");
         setLatency(elapsed);
       } else {
         setStatus("offline");
@@ -50,7 +46,7 @@ export default function BackendStatus() {
   useEffect(() => {
     checkHealth();
 
-    const interval = window.setInterval(checkHealth, 60_000);
+    const interval = window.setInterval(checkHealth, isLanExamMode() ? 10_000 : 60_000);
 
     const handleVisibilityChange = () => {
       if (document.visibilityState === "visible") {
@@ -70,16 +66,16 @@ export default function BackendStatus() {
     return (
       <div className="flex items-center gap-2 text-xs text-gray-500">
         <span className="h-2 w-2 rounded-full bg-gray-400" />
-        Backend: Checking...
+        CONNECTING
       </div>
     );
   }
 
-  if (status === "online") {
+  if (status === "ready") {
     return (
       <div className="flex items-center gap-2 text-xs text-green-600">
         <span className="h-2 w-2 rounded-full bg-green-500" />
-        Backend: Online
+        {isLanExamMode() ? "LOCAL / READY" : "Backend: Ready"}
         {latency !== null && (
           <span className="text-gray-500">({latency}ms)</span>
         )}
@@ -95,7 +91,7 @@ export default function BackendStatus() {
       title="Click to check again"
     >
       <span className="h-2 w-2 rounded-full bg-red-500" />
-      Backend: Offline
+      BACKEND UNAVAILABLE
     </button>
   );
 }
