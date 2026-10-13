@@ -263,7 +263,7 @@ function LoginContent() {
   if (!activeRole) {
     return (
       <>
-      <PublicNavbar />
+      <PublicNavbar redirectTarget={redirectTarget} />
       <main className="min-h-[calc(100vh-4rem)] w-full grid grid-cols-1 md:grid-cols-2 font-sans">
         <section className="flex flex-col items-center justify-center bg-[#F9FAFB] p-8 text-center sm:p-16">
           <div className="w-full max-w-xs space-y-5">
@@ -271,7 +271,7 @@ function LoginContent() {
               <h1 className="text-3xl font-bold tracking-tight text-[#111827]">Student</h1>
               <p className="mt-1 text-sm text-[#6B7280]">Take quizzes with an access code</p>
             </div>
-            <button type="button" onClick={() => router.push("/login?role=student")} className="inline-flex w-full items-center justify-center gap-2 rounded-lg bg-[#111827] px-5 py-3 text-sm font-medium text-white shadow-sm transition-all hover:bg-black active:scale-[0.99]">
+            <button type="button" onClick={() => router.push("/login?role=student" + (redirectTarget ? "&redirect=" + encodeURIComponent(redirectTarget) : ""))} className="inline-flex w-full items-center justify-center gap-2 rounded-lg bg-[#111827] px-5 py-3 text-sm font-medium text-white shadow-sm transition-all hover:bg-black active:scale-[0.99]">
               Continue as Student
               <ArrowRight className="h-4 w-4" />
             </button>
@@ -284,7 +284,7 @@ function LoginContent() {
               <h1 className="text-3xl font-bold tracking-tight text-white">Instructor</h1>
               <p className="mt-1 text-sm text-[#94A3B8]">Create and manage quizzes</p>
             </div>
-            <button type="button" onClick={() => router.push("/login?role=teacher")} className="inline-flex w-full items-center justify-center gap-2 rounded-lg bg-white px-5 py-3 text-sm font-medium text-[#0F172A] shadow-sm transition-all hover:bg-neutral-100 active:scale-[0.99]">
+            <button type="button" onClick={() => router.push("/login?role=teacher" + (redirectTarget ? "&redirect=" + encodeURIComponent(redirectTarget) : ""))} className="inline-flex w-full items-center justify-center gap-2 rounded-lg bg-white px-5 py-3 text-sm font-medium text-[#0F172A] shadow-sm transition-all hover:bg-neutral-100 active:scale-[0.99]">
               Continue as Instructor
               <ArrowRight className="h-4 w-4" />
             </button>
@@ -299,11 +299,11 @@ function LoginContent() {
 
   return (
     <>
-    <PublicNavbar />
+    <PublicNavbar redirectTarget={redirectTarget} />
     <main className="min-h-[calc(100vh-4rem)] bg-neutral-50 px-4 py-8 font-sans text-[#111827] sm:px-8">
       <div className="mx-auto flex min-h-[calc(100vh-4rem)] max-w-md items-center">
         <div className="w-full rounded-2xl border border-neutral-100 bg-white p-7 shadow-[0_18px_55px_-24px_rgba(15,23,42,0.25)] sm:p-8">
-          <button type="button" onClick={() => router.push("/login")} className="mb-6 inline-flex items-center gap-1.5 border-0 bg-transparent p-0 text-xs font-semibold text-neutral-400 transition-colors hover:text-neutral-800">
+          <button type="button" onClick={() => router.push("/login" + (redirectTarget ? "?redirect=" + encodeURIComponent(redirectTarget) : "")) className="mb-6 inline-flex items-center gap-1.5 border-0 bg-transparent p-0 text-xs font-semibold text-neutral-400 transition-colors hover:text-neutral-800">
             <ArrowLeft className="h-3.5 w-3.5" />
             Back to roles
           </button>
