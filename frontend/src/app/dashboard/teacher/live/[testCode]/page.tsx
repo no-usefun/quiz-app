@@ -11,7 +11,6 @@ import {
   Activity,
   AlertTriangle,
   TrendingUp,
-  StopCircle,
   RefreshCw,
 } from "lucide-react";
 import { Logo } from "@/components/Logo";
@@ -44,7 +43,7 @@ type StudentRow = {
   id: number | string;
   name: string;
   avatar: string;
-  answered: number;
+  answered: number | null;
   total: number;
   score: number;
   timeTaken: string;
@@ -109,7 +108,8 @@ function mapLeaderboardEntry(
         .map((part) => part[0])
         .join("")
         .toUpperCase() || "ST",
-    answered: total,
+    // The leaderboard API only returns submitted-result data, not per-question progress.
+    answered: null,
     total,
     score: percentage,
     timeTaken: formatTimeTaken(entry.totalTimeTaken),
@@ -126,8 +126,7 @@ export default function LiveLeaderboard({
   const [quiz, setQuiz] = useState<QuizSummary | null>(null);
   const [students, setStudents] = useState<StudentRow[]>([]);
   const [lastSync, setLastSync] = useState("--:--:--");
-  const [refreshElapsed, setRefreshElapsed] = useState(0);
-  const [autoRefresh, setAutoRefresh] = useState(false);
+  const [refreshKey, setRefreshKey] = useState(0);
   const [mounted, setMounted] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -282,7 +281,6 @@ export default function LiveLeaderboard({
       } finally {
         if (!cancelled) {
           setLoading(false);
-          setLastSync(nowTime());
         }
       }
     };
@@ -292,7 +290,7 @@ export default function LiveLeaderboard({
     return () => {
       cancelled = true;
     };
-  }, [testCode]);
+  }, [testCode, refreshKey]);
 
   // Live-attempt telemetry is deferred by the backend contract.
   // This route shows the latest persisted leaderboard snapshot only.
@@ -316,10 +314,6 @@ export default function LiveLeaderboard({
       : 0;
 
   const examDurationMins = Math.floor((quiz?.overallTimerSeconds ?? 0) / 60);
-
-  const refreshElapsedLabel = `${String(
-    Math.floor(refreshElapsed / 60),
-  ).padStart(2, "0")}:${String(refreshElapsed % 60).padStart(2, "0")}`;
 
   if (loading) {
     return (
@@ -366,36 +360,17 @@ export default function LiveLeaderboard({
         </div>
 
         <div className="flex items-center gap-2.5">
-          {autoRefresh && (
-            <span className="flex items-center gap-1.5 rounded-full bg-pastel-mint px-3 py-1 text-xs font-bold text-pastel-mint-text shadow-xs">
-              <span className="relative flex h-2 w-2">
-                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-pastel-mint-text opacity-75" />
-                <span className="relative inline-flex h-2 w-2 rounded-full bg-pastel-mint-text" />
-              </span>
-              MANUAL SNAPSHOT
-            </span>
-          )}
-
+          <span className="flex items-center gap-1.5 rounded-full bg-pastel-yellow px-3 py-1 text-xs font-bold text-pastel-yellow-text shadow-xs">
+            PERSISTED SNAPSHOT
+          </span>
           <button
             type="button"
-            onClick={() => setAutoRefresh((value) => !value)}
-            className={`flex items-center gap-2 rounded-[10px] px-3.5 py-1.5 text-xs font-bold transition-all duration-200 border cursor-pointer shadow-xs active:scale-[0.98] ${
-              autoRefresh
-                ? "bg-pastel-pink border-transparent text-pastel-pink-text hover:bg-pastel-pink/90"
-                : "bg-pastel-mint border-transparent text-pastel-mint-text hover:bg-pastel-mint/90"
-            }`}
+            onClick={() => setRefreshKey((value) => value + 1)}
+            disabled={loading}
+            className="flex items-center gap-2 rounded-[10px] bg-pastel-mint px-3.5 py-1.5 text-xs font-bold text-pastel-mint-text transition-all duration-200 border border-transparent cursor-pointer shadow-xs active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-60"
           >
-            {autoRefresh ? (
-              <>
-                <StopCircle className="h-3.5 w-3.5" />
-                Live monitoring deferred
-              </>
-            ) : (
-              <>
-                <RefreshCw className="h-3.5 w-3.5" />
-                Refresh from the assessment page
-              </>
-            )}
+            <RefreshCw className="h-3.5 w-3.5" />
+            Refresh Snapshot
           </button>
         </div>
       </header>
@@ -425,9 +400,9 @@ export default function LiveLeaderboard({
             <span className="text-mist-blue/30">·</span>
             <span className="flex items-center gap-1">
               <Clock className="h-3.5 w-3.5 text-signal-green" />
-              Refresh:
+              Mode:
               <strong className="text-midnight-navy font-bold">
-                {refreshElapsedLabel}
+                Persisted results
               </strong>
             </span>
           </div>
@@ -518,15 +493,28 @@ export default function LiveLeaderboard({
                   </div>
 
                   <div className="flex flex-col items-center gap-0.5">
-                    <div className="h-1.5 w-full rounded-full bg-frost-surface border border-mist-blue/20 overflow-hidden">
-                      <div
-                        className="h-full bg-signal-green transition-all duration-500"
-                        style={{ width: "100%" }}
-                      />
-                    </div>
-                    <span className="text-[10px] text-steel-blue-gray font-medium">
-                      {student.answered}/{student.total || 0} Q
-                    </span>
+                    {student.answered == null ? (
+                      <span
+                        className="text-[10px] text-steel-blue-gray font-medium"
+                        title="Per-question progress is not returned by the leaderboard endpoint."
+                      >
+                        Unavailable
+                      </span>
+                    ) : (
+                      <>
+                        <div className="h-1.5 w-full rounded-full bg-frost-surface border border-mist-blue/20 overflow-hidden">
+                          <div
+                            className="h-full bg-signal-green transition-all duration-500"
+                            style={{
+                              width: `${student.total > 0 ? Math.min(100, Math.round((student.answered / student.total) * 100)) : 0}%`,
+                            }}
+                          />
+                        </div>
+                        <span className="text-[10px] text-steel-blue-gray font-medium">
+                          {student.answered}/{student.total || 0} Q
+                        </span>
+                      </>
+                    )}
                   </div>
 
                   <div className="flex items-center justify-center">
