@@ -1740,6 +1740,39 @@ function CreateAssessmentContent() {
         returnedQuizCode = createData.quizCode ?? createData.testCode ?? "";
       }
 
+      /*
+       * CreateQuizRequest does not expose maxTabSwitch. New drafts therefore
+       * start with the backend default (3) unless this setting is persisted
+       * through the settings endpoint before the edit page reloads from the
+       * authoritative teacher-detail response.
+       *
+       * Existing drafts already send maxTabSwitch through buildUpdatePayload.
+       */
+      if (!isEditing && returnedQuizId) {
+        const maxTabSwitchRes = await fetch(
+          ENDPOINTS.teacher.settings(returnedQuizId),
+          {
+            method: "PUT",
+            headers: {
+              "Content-Type": "application/json",
+              ...(token ? { Authorization: `Bearer ${token}` } : {}),
+            },
+            body: JSON.stringify({
+              maxTabSwitch: Math.max(0, Number(maxTabSwitch) || 0),
+            }),
+          },
+        );
+
+        if (!maxTabSwitchRes.ok) {
+          const errorData = await maxTabSwitchRes.json().catch(() => ({}));
+          throw new Error(
+            errorData?.message ||
+              errorData?.error ||
+              `Draft was created, but the max tab-switch limit could not be saved (HTTP ${maxTabSwitchRes.status}).`,
+          );
+        }
+      }
+
       // Persist full state bundle (metadata + questions with isCorrect)
       if (returnedQuizId) {
         saveFullDraftBundle(returnedQuizId, returnedQuizCode);
