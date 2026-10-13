@@ -57,6 +57,7 @@ export default function ShareAssessmentPage({
   const [error, setError] = useState<string | null>(null);
   const [copiedLink, setCopiedLink] = useState(false);
   const [copiedCode, setCopiedCode] = useState(false);
+  const [copyError, setCopyError] = useState<string | null>(null);
   const [resolvedCode, setResolvedCode] = useState(testCode);
 
   useEffect(() => {
@@ -180,18 +181,48 @@ export default function ShareAssessmentPage({
       : `/join?code=${encodeURIComponent(resolvedCode)}`;
 
   const copyToClipboard = async (text: string, type: "link" | "code") => {
-    try {
-      await navigator.clipboard.writeText(text);
+    setCopyError(null);
+    let copied = false;
 
-      if (type === "link") {
-        setCopiedLink(true);
-        setTimeout(() => setCopiedLink(false), 2000);
-      } else {
-        setCopiedCode(true);
-        setTimeout(() => setCopiedCode(false), 2000);
+    try {
+      if (navigator.clipboard?.writeText) {
+        await navigator.clipboard.writeText(text);
+        copied = true;
       }
-    } catch (err) {
-      console.error("Clipboard copy failed:", err);
+    } catch {
+      // Try the compatibility fallback below (for browsers that block Clipboard API).
+    }
+
+    if (!copied) {
+      const fallback = document.createElement("textarea");
+      fallback.value = text;
+      fallback.setAttribute("readonly", "");
+      fallback.style.position = "fixed";
+      fallback.style.opacity = "0";
+      fallback.style.pointerEvents = "none";
+      document.body.appendChild(fallback);
+      fallback.select();
+
+      try {
+        copied = document.execCommand("copy");
+      } catch {
+        copied = false;
+      } finally {
+        fallback.remove();
+      }
+    }
+
+    if (!copied) {
+      setCopyError("Copy was blocked by this browser. Select the text and copy it manually.");
+      return;
+    }
+
+    if (type === "link") {
+      setCopiedLink(true);
+      window.setTimeout(() => setCopiedLink(false), 2000);
+    } else {
+      setCopiedCode(true);
+      window.setTimeout(() => setCopiedCode(false), 2000);
     }
   };
 
@@ -263,6 +294,15 @@ export default function ShareAssessmentPage({
             </div>
           </div>
         </header>
+
+        {copyError && (
+          <p
+            role="alert"
+            className="rounded-[10px] border border-[#8c381c]/30 bg-[#fbeee8] px-3 py-2 text-xs font-semibold text-[#8c381c]"
+          >
+            {copyError}
+          </p>
+        )}
 
         <div className="rounded-[14px] border border-[#d1dee8]/70 bg-white p-6 md:p-8 space-y-6 shadow-sm">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-[#d1dee8]/30 pb-6">
