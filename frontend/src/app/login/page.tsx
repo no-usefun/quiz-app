@@ -8,6 +8,7 @@ import { ApiClientError, api } from "@/lib/api/client";
 import { ENDPOINTS } from "@/lib/api/endpoints";
 import { isLanExamMode } from "@/lib/examMode";
 import { APP_NAME } from "@/lib/constants";
+import { PublicNavbar } from "@/components/PublicNavbar";
 import type { AuthResponse } from "@/lib/types";
 
 function GoogleIcon() {
@@ -261,7 +262,9 @@ function LoginContent() {
 
   if (!activeRole) {
     return (
-      <main className="min-h-screen w-full grid grid-cols-1 md:grid-cols-2 font-sans">
+      <>
+      <PublicNavbar />
+      <main className="min-h-[calc(100vh-4rem)] w-full grid grid-cols-1 md:grid-cols-2 font-sans">
         <section className="flex flex-col items-center justify-center bg-[#F9FAFB] p-8 text-center sm:p-16">
           <div className="w-full max-w-xs space-y-5">
             <div>
@@ -288,13 +291,16 @@ function LoginContent() {
           </div>
         </section>
       </main>
+      </>
     );
   }
 
   const roleLabel = activeRole === "teacher" ? "Instructor" : "Student";
 
   return (
-    <main className="min-h-screen bg-neutral-50 px-4 py-8 font-sans text-[#111827] sm:px-8">
+    <>
+    <PublicNavbar />
+    <main className="min-h-[calc(100vh-4rem)] bg-neutral-50 px-4 py-8 font-sans text-[#111827] sm:px-8">
       <div className="mx-auto flex min-h-[calc(100vh-4rem)] max-w-md items-center">
         <div className="w-full rounded-2xl border border-neutral-100 bg-white p-7 shadow-[0_18px_55px_-24px_rgba(15,23,42,0.25)] sm:p-8">
           <button type="button" onClick={() => router.push("/login")} className="mb-6 inline-flex items-center gap-1.5 border-0 bg-transparent p-0 text-xs font-semibold text-neutral-400 transition-colors hover:text-neutral-800">
@@ -368,13 +374,14 @@ function LoginContent() {
 
           <p className="mt-5 text-center text-sm text-neutral-500">
             Don&apos;t have an account?{" "}
-            <Link href={`/signup?role=${activeRole}`} className="font-bold text-neutral-900 hover:underline">
+            <Link href={`/signup?role=${activeRole}${redirectTarget ? `&redirect=${encodeURIComponent(redirectTarget)}` : ""}`} className="font-bold text-neutral-900 hover:underline">
               Sign up
             </Link>
           </p>
         </div>
       </div>
     </main>
+    </>
   );
 }
 
