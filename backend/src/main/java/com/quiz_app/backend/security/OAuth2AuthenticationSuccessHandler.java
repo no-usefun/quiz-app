@@ -1,6 +1,9 @@
 package com.quiz_app.backend.security;
 
 import java.io.IOException;
+import java.net.URI;
+import java.net.URLEncoder;
+import java.nio.charset.StandardCharsets;
 import java.util.Locale;
 
 import org.slf4j.Logger;
@@ -10,6 +13,8 @@ import org.springframework.security.oauth2.client.authentication.OAuth2Authentic
 import org.springframework.security.oauth2.core.oidc.user.OidcUser;
 import org.springframework.security.web.authentication.AuthenticationSuccessHandler;
 import org.springframework.stereotype.Component;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.context.annotation.Profile;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.quiz_app.backend.dto.auth.AuthResponse;
@@ -27,6 +32,7 @@ import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 
 @Component
+@Profile("online")
 public class OAuth2AuthenticationSuccessHandler
                 implements AuthenticationSuccessHandler {
 
@@ -36,16 +42,19 @@ public class OAuth2AuthenticationSuccessHandler
         private final UserRepository userRepository;
         private final RoleRepository roleRepository;
         private final JwtUtils jwtUtils;
+        private final String frontendUrl;
 
         public OAuth2AuthenticationSuccessHandler(
                         UserIdentityRepository userIdentityRepository,
                         UserRepository userRepository,
                         JwtUtils jwtUtils,
-                        RoleRepository roleRepository) {
+                        RoleRepository roleRepository,
+                        @Value("${app.frontend-url:}") String frontendUrl) {
                 this.userIdentityRepository = userIdentityRepository;
                 this.userRepository = userRepository;
                 this.jwtUtils = jwtUtils;
                 this.roleRepository = roleRepository;
+                this.frontendUrl = frontendUrl;
         }
 
         @Override
@@ -126,14 +135,7 @@ public class OAuth2AuthenticationSuccessHandler
                                 }
                         } else {
                                 if (userRepository.findByEmail(normalizedEmail).isPresent()) {
-                                        writeOAuthError(
-                                                        request,
-                                                        response,
-                                                        HttpServletResponse.SC_CONFLICT,
-                                                        "SSO_EMAIL_ALREADY_EXISTS",
-                                                        "An account with this email already exists. "
-                                                                        + "Sign in with the existing account first; "
-                                                                        + "Google linking is not automatic.");
+                                        redirectDuplicateEmailError(request, response);
                                         return;
                                 }
 
@@ -179,6 +181,75 @@ public class OAuth2AuthenticationSuccessHandler
                                                 "SSO_AUTHENTICATION_FAILED",
                                                 "Unable to complete Google sign-in");
                         }
+                }
+        }
+
+        private void redirectDuplicateEmailError(
+                        HttpServletRequest request,
+                        HttpServletResponse response) throws IOException {
+
+                String callbackUrl = buildFrontendOAuthErrorUrl();
+                if (callbackUrl == null) {
+                        logger.warn(
+                                        "Frontend OAuth redirect is not configured with a valid origin; returning controlled duplicate-email conflict");
+                        writeOAuthError(
+                                        request,
+                                        response,
+                                        HttpServletResponse.SC_CONFLICT,
+                                        "SSO_EMAIL_ALREADY_EXISTS",
+                                        "An account with this email already exists. "
+                                                        + "Sign in with the existing account first; "
+                                                        + "Google linking is not automatic.");
+                        return;
+                }
+
+                if (response.isCommitted()) {
+                        logger.warn("OAuth2 duplicate-email redirect could not be sent because the response is already committed");
+                        return;
+                }
+
+                String encodedCode = URLEncoder.encode(
+                                "SSO_EMAIL_ALREADY_EXISTS",
+                                StandardCharsets.UTF_8);
+                response.setStatus(HttpServletResponse.SC_FOUND);
+                response.setHeader("Location", callbackUrl + "?errorCode=" + encodedCode);
+        }
+
+        /**
+         * Uses only the configured frontend origin; never derives a redirect host
+         * from request parameters or headers. Rejects paths, credentials, queries,
+         * fragments, and non-HTTP(S) schemes.
+         */
+        private String buildFrontendOAuthErrorUrl() {
+                if (frontendUrl == null || frontendUrl.isBlank()) {
+                        return null;
+                }
+
+                try {
+                        URI origin = URI.create(frontendUrl.trim());
+                        String scheme = origin.getScheme();
+                        if (scheme == null
+                                        || !(scheme.equalsIgnoreCase("https")
+                                                        || scheme.equalsIgnoreCase("http"))
+                                        || origin.getHost() == null
+                                        || origin.getRawUserInfo() != null
+                                        || origin.getRawQuery() != null
+                                        || origin.getRawFragment() != null
+                                        || (origin.getRawPath() != null
+                                                        && !origin.getRawPath().isEmpty()
+                                                        && !origin.getRawPath().equals("/"))) {
+                                return null;
+                        }
+
+                        String normalizedOrigin = origin.toString();
+                        while (normalizedOrigin.endsWith("/")) {
+                                normalizedOrigin = normalizedOrigin.substring(
+                                                0, normalizedOrigin.length() - 1);
+                        }
+                        return normalizedOrigin + "/oauth/callback";
+                } catch (IllegalArgumentException e) {
+                        logger.warn("Configured frontend URL is invalid; OAuth error redirect is disabled");
+                        return null;
                 }
         }
 
