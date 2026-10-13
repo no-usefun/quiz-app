@@ -273,10 +273,10 @@ function LoginContent() {
               <h1 className="text-3xl font-bold tracking-tight text-[#111827]">Student</h1>
               <p className="mt-1 text-sm text-[#6B7280]">Take quizzes with an access code</p>
             </div>
-            <button type="button" onClick={() => router.push("/login?role=student" + (redirectTarget ? "&redirect=" + encodeURIComponent(redirectTarget) : ""))} className="inline-flex w-full items-center justify-center gap-2 rounded-lg bg-[#111827] px-5 py-3 text-sm font-medium text-white shadow-sm transition-all hover:bg-black active:scale-[0.99]">
+            <Link href={"/login?role=student" + (redirectTarget ? "&redirect=" + encodeURIComponent(redirectTarget) : "")} className="inline-flex w-full items-center justify-center gap-2 rounded-lg bg-[#111827] px-5 py-3 text-sm font-medium text-white shadow-sm transition-all hover:bg-black active:scale-[0.99] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#165dfb] focus-visible:ring-offset-2">
               Continue as Student
               <ArrowRight className="h-4 w-4" />
-            </button>
+            </Link>
           </div>
         </section>
 
@@ -286,10 +286,10 @@ function LoginContent() {
               <h1 className="text-3xl font-bold tracking-tight text-white">Instructor</h1>
               <p className="mt-1 text-sm text-[#94A3B8]">Create and manage quizzes</p>
             </div>
-            <button type="button" onClick={() => router.push("/login?role=teacher" + (redirectTarget ? "&redirect=" + encodeURIComponent(redirectTarget) : ""))} className="inline-flex w-full items-center justify-center gap-2 rounded-lg bg-white px-5 py-3 text-sm font-medium text-[#0F172A] shadow-sm transition-all hover:bg-neutral-100 active:scale-[0.99]">
+            <Link href={"/login?role=teacher" + (redirectTarget ? "&redirect=" + encodeURIComponent(redirectTarget) : "")} className="inline-flex w-full items-center justify-center gap-2 rounded-lg bg-white px-5 py-3 text-sm font-medium text-[#0F172A] shadow-sm transition-all hover:bg-neutral-100 active:scale-[0.99] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white focus-visible:ring-offset-2 focus-visible:ring-offset-[#0F172A]">
               Continue as Instructor
               <ArrowRight className="h-4 w-4" />
-            </button>
+            </Link>
           </div>
         </section>
       </main>
