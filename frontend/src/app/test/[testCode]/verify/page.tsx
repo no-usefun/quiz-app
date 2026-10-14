@@ -286,7 +286,7 @@ export default function IdentityVerificationPage({
         transition={{ duration: 0.25, ease: "easeOut" }}
         className="w-full max-w-md rounded-[16px] bg-paper-white p-6 md:p-8 text-center border border-mist-blue/70 shadow-xl relative overflow-hidden text-left"
       >
-        <div className="mb-5 flex items-center justify-between border-b border-mist-blue/30 pb-3">
+        <div className="mb-5 flex flex-wrap items-center justify-between gap-2 border-b border-mist-blue/30 pb-3">
           <div className="flex items-center gap-2">
             <div className="flex h-8 w-8 items-center justify-center rounded-[8px] bg-signal-green text-white shadow-xs">
               {error ? (
