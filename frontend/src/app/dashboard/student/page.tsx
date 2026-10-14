@@ -365,6 +365,8 @@ export default function StudentDashboard() {
                   const dateLabel = formatDate(result.submittedAt);
 
                   if (result.resultsAvailable) {
+                    const resultHref = `/dashboard/student/result/${result.attemptId}`;
+
                     return (
                       <motion.li
                         key={result.attemptId}
@@ -376,17 +378,17 @@ export default function StudentDashboard() {
                           ease: "easeOut",
                         }}
                       >
-                        <Link
-                          href={`/dashboard/student/result/${result.attemptId}`}
-                          aria-label={`View result for ${result.quizTitle}`}
-                          className="group relative flex items-center justify-between gap-4 px-5 py-4 transition-colors hover:bg-[#f8fafc] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[#165dfb] before:absolute before:inset-y-0 before:left-0 before:w-1 before:rounded-r before:bg-[#165dfb] before:opacity-0 before:transition-opacity hover:before:opacity-100"
-                        >
-                          <div className="relative z-10 flex min-w-0 flex-col gap-1">
-                            <span className="truncate text-xs font-bold text-[#111111] group-hover:text-[#165dfb] transition-colors">
+                        <div className="group relative flex items-center justify-between gap-4 px-5 py-4 transition-colors hover:bg-[#f8fafc] before:absolute before:inset-y-0 before:left-0 before:w-1 before:rounded-r before:bg-[#165dfb] before:opacity-0 before:transition-opacity hover:before:opacity-100">
+                          <Link
+                            href={resultHref}
+                            aria-label={`View result for ${result.quizTitle}`}
+                            className="relative z-10 flex min-w-0 flex-1 flex-col gap-1 rounded-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#165dfb]"
+                          >
+                            <span className="truncate text-xs font-bold text-[#111111] transition-colors group-hover:text-[#165dfb]">
                               {result.quizTitle}
                             </span>
 
-                            <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[10px] text-[#78716b] font-medium">
+                            <span className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[10px] font-medium text-[#78716b]">
                               <span className="flex items-center gap-1">
                                 <CalendarDays className="h-3 w-3 text-[#a8a29d]" />
                                 {dateLabel}
@@ -396,10 +398,15 @@ export default function StudentDashboard() {
                                 <Clock className="h-3 w-3 text-[#a8a29d]" />
                                 {formatDuration(result.totalTimeTaken)}
                               </span>
-                            </div>
-                          </div>
+                            </span>
+                          </Link>
 
-                          <div className="relative z-10 flex shrink-0 items-center gap-2">
+                          <Link
+                            href={resultHref}
+                            aria-label={`Open result for ${result.quizTitle}`}
+                            title="Open result"
+                            className="relative z-10 inline-flex min-h-11 shrink-0 items-center gap-2 rounded-[10px] px-1.5 transition-colors hover:bg-[#eef4ff] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#165dfb] sm:min-h-9"
+                          >
                             {score != null ? (
                               <span className="rounded-full bg-[#e2ede8] px-2.5 py-1 text-[10px] font-bold text-[#1d5237] tabular-nums shadow-xs">
                                 {score}%
@@ -412,10 +419,10 @@ export default function StudentDashboard() {
 
                             <ChevronRight
                               aria-hidden="true"
-                              className="h-4 w-4 text-[#c9c5c2] transition-all group-hover:translate-x-0.5 group-hover:text-[#165dfb]"
+                              className="h-4 w-4 text-[#78716b] transition-transform group-hover:translate-x-0.5 group-hover:text-[#165dfb]"
                             />
-                          </div>
-                        </Link>
+                          </Link>
+                        </div>
                       </motion.li>
                     );
                   }
