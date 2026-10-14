@@ -14,7 +14,6 @@ import {
   RefreshCw,
 } from "lucide-react";
 import { Logo } from "@/components/Logo";
-import { AppearanceToggle } from "@/components/AppearanceToggle";
 import { ENDPOINTS } from "@/lib/api/endpoints";
 
 type QuizSummary = {
@@ -361,7 +360,6 @@ export default function LiveLeaderboard({
         </div>
 
         <div className="flex items-center gap-2">
-          <AppearanceToggle compact />
           <span className="hidden sm:flex items-center gap-1.5 rounded-full bg-pastel-yellow px-3 py-1 text-xs font-bold text-pastel-yellow-text shadow-xs">
             PERSISTED SNAPSHOT
           </span>
