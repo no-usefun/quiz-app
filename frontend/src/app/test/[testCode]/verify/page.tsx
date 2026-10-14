@@ -13,7 +13,6 @@ import {
   Loader2,
 } from "lucide-react";
 import { ENDPOINTS } from "@/lib/api/endpoints";
-import { AppearanceToggle } from "@/components/AppearanceToggle";
 
 type AvailabilityStatus =
   | "NOT_FOUND"
@@ -302,7 +301,6 @@ export default function IdentityVerificationPage({
           </div>
 
           <div className="flex items-center gap-2">
-            <AppearanceToggle compact />
             <span className="text-[10px] font-bold text-steel-blue-gray bg-frost-surface px-2.5 py-1 rounded-full border border-mist-blue/30 font-mono shadow-xs">
               {sessionCode.toUpperCase()}
             </span>
