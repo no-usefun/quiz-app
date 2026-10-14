@@ -757,7 +757,7 @@ export default function TeacherDashboard() {
                 ))}
               </div>
 
-              <div className="flex items-center gap-1.5 rounded-[10px] border border-[#d1dee8]/80 bg-white p-1.5 text-[10px] font-bold text-[#78716b] shadow-xs">
+              <div className="flex h-8 items-center gap-1 rounded-[10px] border border-[#d1dee8]/80 bg-white px-2 text-[10px] font-bold text-[#78716b] shadow-xs">
                 <label htmlFor="assessment-sort-field" className="pl-1 whitespace-nowrap">
                   Sort
                 </label>
@@ -768,7 +768,7 @@ export default function TeacherDashboard() {
                     handleSortChange(event.target.value as TeacherDashboardSortField)
                   }
                   aria-label="Sort assessments by"
-                  className="min-w-[122px] cursor-pointer border-0 bg-transparent px-1.5 py-1 text-[10px] font-bold text-[#111111] outline-none"
+                  className="min-w-[122px] cursor-pointer border-0 bg-transparent px-1 py-0 text-[10px] font-bold text-[#111111] outline-none"
                 >
                   <option value="CREATED">Created date</option>
                   <option value="TITLE">Assessment title</option>
@@ -792,12 +792,12 @@ export default function TeacherDashboard() {
                       ? "Ascending — click for descending"
                       : "Descending — click for ascending"
                   }
-                  className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-[8px] text-[#165dfb] transition-colors hover:bg-[#eef4ff] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#165dfb]"
+                  className="inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-[7px] text-[#165dfb] transition-colors hover:bg-[#eef4ff] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#165dfb]"
                 >
                   {sortDirection === "ASC" ? (
-                    <ArrowUp aria-hidden="true" className="h-4 w-4" />
+                    <ArrowUp aria-hidden="true" className="h-3.5 w-3.5" />
                   ) : (
-                    <ArrowDown aria-hidden="true" className="h-4 w-4" />
+                    <ArrowDown aria-hidden="true" className="h-3.5 w-3.5" />
                   )}
                 </button>
               </div>
