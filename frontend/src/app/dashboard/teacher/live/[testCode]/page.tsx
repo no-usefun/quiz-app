@@ -14,6 +14,7 @@ import {
   RefreshCw,
 } from "lucide-react";
 import { Logo } from "@/components/Logo";
+import { AppearanceToggle } from "@/components/AppearanceToggle";
 import { ENDPOINTS } from "@/lib/api/endpoints";
 
 type QuizSummary = {
@@ -346,7 +347,7 @@ export default function LiveLeaderboard({
 
   return (
     <div className="min-h-screen bg-frost-surface font-sans text-midnight-navy selection:bg-frost-surface selection:text-signal-green">
-      <header className="sticky top-0 z-20 flex items-center justify-between bg-paper-white border-b border-mist-blue/60 px-6 py-3.5 shadow-none">
+      <header className="sticky top-0 z-20 flex flex-wrap items-center justify-between gap-2 bg-paper-white border-b border-mist-blue/60 px-3 py-3.5 shadow-none sm:px-6">
         <div className="flex items-center gap-3">
           <Link
             href="/dashboard/teacher"
@@ -359,8 +360,9 @@ export default function LiveLeaderboard({
           <Logo />
         </div>
 
-        <div className="flex items-center gap-2.5">
-          <span className="flex items-center gap-1.5 rounded-full bg-pastel-yellow px-3 py-1 text-xs font-bold text-pastel-yellow-text shadow-xs">
+        <div className="flex items-center gap-2">
+          <AppearanceToggle compact />
+          <span className="hidden sm:flex items-center gap-1.5 rounded-full bg-pastel-yellow px-3 py-1 text-xs font-bold text-pastel-yellow-text shadow-xs">
             PERSISTED SNAPSHOT
           </span>
           <button
@@ -370,7 +372,7 @@ export default function LiveLeaderboard({
             className="flex items-center gap-2 rounded-[10px] bg-pastel-mint px-3.5 py-1.5 text-xs font-bold text-pastel-mint-text transition-all duration-200 border border-transparent cursor-pointer shadow-xs active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-60"
           >
             <RefreshCw className="h-3.5 w-3.5" />
-            Refresh Snapshot
+            <span className="hidden sm:inline">Refresh Snapshot</span>
           </button>
         </div>
       </header>
