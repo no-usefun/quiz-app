@@ -20,6 +20,7 @@ import {
   Lock,
 } from "lucide-react";
 import { Logo } from "@/components/Logo";
+import { AppearanceToggle } from "@/components/AppearanceToggle";
 import { ENDPOINTS } from "@/lib/api/endpoints";
 import LanExamPreflight from "@/components/LanExamPreflight";
 import { isLanExamMode } from "@/lib/examMode";
@@ -834,7 +835,7 @@ export default function TeacherAssessmentPage({
   return (
     <main className="min-h-screen bg-frost-surface text-midnight-navy p-4 md:p-6 lg:p-8 font-sans selection:bg-frost-surface selection:text-signal-green">
       <div className="mx-auto flex min-h-[90vh] max-w-[1400px] flex-col rounded-cards bg-paper-white shadow-xl border border-mist-blue overflow-hidden text-left">
-        <header className="flex w-full items-center justify-between border-b border-mist-blue/30 px-6 py-4 bg-paper-white">
+        <header className="flex w-full flex-wrap items-center justify-between gap-3 border-b border-mist-blue/30 px-4 py-4 bg-paper-white sm:px-6">
           <div className="flex items-center gap-3">
             <Link
               href="/dashboard/teacher"
@@ -847,6 +848,8 @@ export default function TeacherAssessmentPage({
             <Logo />
           </div>
 
+          <div className="flex flex-wrap items-center justify-end gap-2 sm:gap-3">
+            <AppearanceToggle compact />
           <button
             type="button"
             onClick={handleExport}
@@ -869,6 +872,7 @@ export default function TeacherAssessmentPage({
               </>
             )}
           </button>
+          </div>
         </header>
 
         {isLanExamMode() && assessmentData && (
