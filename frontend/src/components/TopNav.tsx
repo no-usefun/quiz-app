@@ -8,7 +8,6 @@ import {
   User,
   LayoutDashboard,
   PlusCircle,
-  Settings,
 } from "lucide-react";
 import { AppWordmark } from "@/components/Logo";
 
@@ -86,23 +85,19 @@ export function TopNavbar({ role: propRole }: TopNavbarProps = {}) {
             </Link>
           )}
 
-          <Link
-            href="/settings"
-            className={`flex items-center space-x-1.5 rounded-[10px] px-3 py-2 text-xs font-bold transition-all duration-150 active:scale-[0.98] ${
-              pathname === "/settings"
-                ? "bg-[#e8f0ff] text-[#165dfb] shadow-xs"
-                : "text-[#78716b] hover:bg-[#f5f5f4] hover:text-[#111111]"
-            }`}
-          >
-            <Settings className="h-4 w-4" />
-            <span>Settings</span>
-          </Link>
         </nav>
         <div className="flex items-center space-x-4">
           <div className="flex items-center space-x-3 border-l border-[#d1dee8]/70 pl-3">
-            <div className="flex h-8 w-8 items-center justify-center rounded-full bg-[#111111] text-xs font-bold text-white shadow-xs ring-2 ring-[#111111]/10">
-              {displayName[0]?.toUpperCase() || <User className="h-4 w-4" />}
-            </div>
+            <Link
+              href="/settings"
+              aria-label={`Open profile settings for ${displayName}`}
+              title="Profile settings"
+              className="flex h-10 w-10 items-center justify-center rounded-full p-1 transition-transform hover:scale-[1.03] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#165dfb] focus-visible:ring-offset-2 active:scale-95"
+            >
+              <span className="flex h-8 w-8 items-center justify-center rounded-full bg-[#111111] text-xs font-bold text-white shadow-xs ring-2 ring-[#111111]/10">
+                {displayName[0]?.toUpperCase() || <User className="h-4 w-4" />}
+              </span>
+            </Link>
 
             <div className="hidden text-left sm:block">
               <p className="text-xs font-bold text-[#111111]">{displayName}</p>
