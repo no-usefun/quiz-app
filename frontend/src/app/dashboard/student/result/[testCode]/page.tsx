@@ -20,6 +20,7 @@ import {
 } from "lucide-react";
 
 import { Logo } from "@/components/Logo";
+import { AppearanceToggle } from "@/components/AppearanceToggle";
 
 import { ApiClientError, api } from "@/lib/api/client";
 
@@ -555,7 +556,7 @@ export default function StudentResultPage({
 
   return (
     <div className="min-h-screen bg-[#f5f5f4] font-sans text-[#111111] selection:bg-[#e6e3e2] selection:text-[#165dfb]">
-      <nav className="sticky top-0 z-20 flex items-center justify-between bg-white border-b border-[#d1dee8]/70 px-6 py-4">
+      <nav className="sticky top-0 z-20 flex flex-wrap items-center justify-between gap-3 bg-white border-b border-[#d1dee8]/70 px-4 py-3 sm:px-6 sm:py-4">
         <div className="flex items-center gap-3">
           <Link
             href="/dashboard/student"
@@ -570,9 +571,12 @@ export default function StudentResultPage({
           <Logo />
         </div>
 
-        <span className="rounded-full bg-[#f5f5f4] border border-[#d1dee8]/80 px-3 py-1 font-mono text-xs font-bold text-[#111111] shadow-xs">
-          Attempt #{result.attemptId}
-        </span>
+        <div className="flex items-center gap-2">
+          <AppearanceToggle compact />
+          <span className="rounded-full bg-[#f5f5f4] border border-[#d1dee8]/80 px-3 py-1 font-mono text-xs font-bold text-[#111111] shadow-xs">
+            Attempt #{result.attemptId}
+          </span>
+        </div>
       </nav>
 
       <main className="mx-auto max-w-3xl space-y-5 px-4 py-6 text-left">
