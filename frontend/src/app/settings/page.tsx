@@ -24,6 +24,7 @@ import {
 import { useSession } from "@/hooks/useSession";
 import { Logo } from "@/components/Logo";
 import { AppearanceToggle } from "@/components/AppearanceToggle";
+import { AppleSwitch } from "@/components/AppleSwitch";
 import { ENDPOINTS } from "@/lib/api/endpoints";
 
 const TABS = [
@@ -144,21 +145,12 @@ function Toggle({
         )}
       </div>
 
-      <button
-        type="button"
-        role="switch"
-        aria-checked={active}
-        onClick={() => (onToggle ? onToggle() : setOn((value) => !value))}
-        className={`relative mt-0.5 inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-150 focus:outline-none ${
-          active ? "bg-[#165dfb]" : "bg-[#d1dee8]"
-        }`}
-      >
-        <span
-          className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform duration-150 ${
-            active ? "translate-x-4" : "translate-x-0"
-          }`}
-        />
-      </button>
+      <AppleSwitch
+        checked={active}
+        onChange={(next) => (onToggle ? onToggle() : setOn(next))}
+        ariaLabel={label}
+        className="mt-0.5"
+      />
     </div>
   );
 }
