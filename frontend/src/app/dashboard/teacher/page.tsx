@@ -439,8 +439,8 @@ export default function TeacherDashboard() {
         test.totalStudents,
         test.overallTimerSeconds,
         `${durationMinutes} min`,
+        `${durationMinutes} mins`,
         `${durationMinutes} minutes`,
-        test.resultsPublished ? "results published published" : "results unpublished not published",
         dateSearchText(test.startTime),
         dateSearchText(test.endTime),
       ]
