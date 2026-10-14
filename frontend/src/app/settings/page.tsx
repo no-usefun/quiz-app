@@ -4,7 +4,6 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
-import { useTheme } from "next-themes";
 import {
   User,
   Bell,
@@ -19,13 +18,12 @@ import {
   CheckCircle2,
   AlertTriangle,
   ChevronRight,
-  Moon,
-  Sun,
   LayoutDashboard,
   Settings as SettingsIcon,
 } from "lucide-react";
 import { useSession } from "@/hooks/useSession";
 import { Logo } from "@/components/Logo";
+import { AppearanceToggle } from "@/components/AppearanceToggle";
 import { ENDPOINTS } from "@/lib/api/endpoints";
 
 const TABS = [
@@ -563,7 +561,6 @@ function PreferencesPanel({
   onSave: () => void;
   user: any;
 }) {
-  const { theme, setTheme } = useTheme();
   const [preferences, setPreferences] = useState({
     assessmentResults: true,
     upcomingAssessments: true,
@@ -738,43 +735,9 @@ function PreferencesPanel({
           Appearance
         </h3>
         <p className="mb-3 text-[11px] leading-relaxed text-[#78716b]">
-          Light is the default. Choose Dark when you prefer a darker interface; your choice is remembered on this device.
+          Light is the default. Switch to Dark whenever you prefer a darker interface; the choice applies across your teacher and student pages.
         </p>
-
-        <div className="grid grid-cols-2 gap-3">
-          {(
-            [
-              {
-                id: "light",
-                label: "Light",
-                icon: <Sun className="h-4 w-4" />,
-              },
-              {
-                id: "dark",
-                label: "Dark",
-                icon: <Moon className="h-4 w-4" />,
-              },
-            ] as const
-          ).map((item) => {
-            const isActive = theme === item.id;
-
-            return (
-              <button
-                key={item.id}
-                type="button"
-                onClick={() => setTheme(item.id)}
-                className={`flex flex-col items-center gap-1.5 rounded-[10px] border py-3 text-xs font-bold transition-all duration-150 cursor-pointer shadow-xs active:scale-[0.98] ${
-                  isActive
-                    ? "border-[#165dfb] bg-[#165dfb]/5 text-[#165dfb] ring-2 ring-[#165dfb]/20"
-                    : "border-[#d1dee8]/70 bg-white text-[#78716b] hover:border-[#165dfb]/40 hover:text-[#111111]"
-                }`}
-              >
-                {item.icon}
-                {item.label}
-              </button>
-            );
-          })}
-        </div>
+        <AppearanceToggle />
       </div>
 
       <div className="flex justify-end pt-2">
