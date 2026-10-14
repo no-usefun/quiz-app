@@ -5,12 +5,11 @@ import { usePathname } from "next/navigation";
 import { useSession } from "@/hooks/useSession";
 import {
   LogOut,
-  User,
   LayoutDashboard,
   PlusCircle,
 } from "lucide-react";
 import { AppWordmark } from "@/components/Logo";
-import { AppearanceToggle } from "@/components/AppearanceToggle";
+import { ProfileDropdown } from "@/components/ProfileDropdown";
 
 interface TopNavbarProps {
   role?: string;
@@ -88,18 +87,8 @@ export function TopNavbar({ role: propRole }: TopNavbarProps = {}) {
 
         </nav>
         <div className="flex items-center gap-2 sm:gap-4">
-          <AppearanceToggle compact />
           <div className="flex items-center gap-2 border-l border-[#d1dee8]/70 pl-2 sm:gap-3 sm:pl-3">
-            <Link
-              href="/settings"
-              aria-label={`Open profile settings for ${displayName}`}
-              title="Profile settings"
-              className="flex h-10 w-10 items-center justify-center rounded-full p-1 transition-transform hover:scale-[1.03] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#165dfb] focus-visible:ring-offset-2 active:scale-95"
-            >
-              <span className="flex h-8 w-8 items-center justify-center rounded-full bg-[#111111] text-xs font-bold text-white shadow-xs ring-2 ring-[#111111]/10">
-                {displayName[0]?.toUpperCase() || <User className="h-4 w-4" />}
-              </span>
-            </Link>
+            <ProfileDropdown dashboardHref={isTeacher ? "/dashboard/teacher" : "/dashboard/student"} />
 
             <div className="hidden text-left sm:block">
               <p className="text-xs font-bold text-[#111111]">{displayName}</p>
