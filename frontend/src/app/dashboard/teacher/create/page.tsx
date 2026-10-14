@@ -21,7 +21,6 @@ import {
   GripVertical,
 } from "lucide-react";
 import { useSession } from "@/hooks/useSession";
-import { AppearanceToggle } from "@/components/AppearanceToggle";
 import { ENDPOINTS } from "@/lib/api/endpoints";
 
 
@@ -1869,7 +1868,6 @@ function CreateAssessmentContent() {
             </div>
           </div>
           <div className="flex flex-wrap items-center justify-end gap-2 sm:gap-3">
-            <AppearanceToggle compact />
             <span className="hidden rounded-full border border-[#d1dee8]/80 bg-white px-3 py-1 text-[10px] font-bold text-[#78716b] shadow-xs sm:inline-flex">
               {parsedQuestions.length}{" "}
               {parsedQuestions.length === 1 ? "question" : "questions"}
