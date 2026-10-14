@@ -396,3 +396,93 @@ html.dark [class*="hover:bg-[#f8fafc]"]:hover {
 .dark :where(a, button, input, textarea, select, [role="button"], [role="switch"]):focus-visible {
   outline-color: #8eaeff;
 }
+
+
+
+/* Scoped dark-mode compatibility for the landing page's inline palette. */
+html.dark .public-landing {
+  background-color: #111827 !important;
+  color: #f3f4f6 !important;
+}
+
+html.dark .public-landing [style*="color: #111111"],
+html.dark .public-landing [style*="color:#111111"],
+html.dark .public-landing [style*="color: rgb(17, 17, 17)"],
+html.dark .public-landing [style*="color:rgb(17, 17, 17)"] {
+  color: #f3f4f6 !important;
+}
+
+html.dark .public-landing [style*="color: #78716b"],
+html.dark .public-landing [style*="color:#78716b"],
+html.dark .public-landing [style*="color: rgb(120, 113, 107)"],
+html.dark .public-landing [style*="color:rgb(120, 113, 107)"] {
+  color: #a7b0c0 !important;
+}
+
+html.dark .public-landing [style*="color: #1d6b42"],
+html.dark .public-landing [style*="color:#1d6b42"] { color: #86d9a5 !important; }
+
+html.dark .public-landing [style*="color: #9c3535"],
+html.dark .public-landing [style*="color:#9c3535"] { color: #fca5a5 !important; }
+
+html.dark .public-landing [style*="color: #7c5cbf"],
+html.dark .public-landing [style*="color:#7c5cbf"] { color: #c4b5fd !important; }
+
+html.dark .public-landing [style*="color: #b05430"],
+html.dark .public-landing [style*="color:#b05430"] { color: #fdba74 !important; }
+
+html.dark .public-landing [style*="color: #8a6a10"],
+html.dark .public-landing [style*="color:#8a6a10"] { color: #fcd34d !important; }
+
+html.dark .public-landing [style*="background: white"],
+html.dark .public-landing [style*="background:white"],
+html.dark .public-landing [style*="background: #ffffff"],
+html.dark .public-landing [style*="background:#ffffff"],
+html.dark .public-landing [style*="background: rgb(255, 255, 255)"],
+html.dark .public-landing [style*="background:rgb(255, 255, 255)"] {
+  background-color: #1b2432 !important;
+}
+
+html.dark .public-landing [style*="background: #f5f5f4"],
+html.dark .public-landing [style*="background:#f5f5f4"],
+html.dark .public-landing [style*="background: rgb(245, 245, 244)"],
+html.dark .public-landing [style*="background:rgb(245, 245, 244)"] { background-color: #111827 !important; }
+
+html.dark .public-landing [style*="background: #e6e3e2"],
+html.dark .public-landing [style*="background:#e6e3e2"],
+html.dark .public-landing [style*="background: rgb(230, 227, 226)"],
+html.dark .public-landing [style*="background:rgb(230, 227, 226)"] { background-color: #202938 !important; }
+
+html.dark .public-landing [style*="background: #e8f0ff"],
+html.dark .public-landing [style*="background:#e8f0ff"] { background-color: #202f49 !important; }
+
+html.dark .public-landing [style*="background: #eee9ff"],
+html.dark .public-landing [style*="background:#eee9ff"] { background-color: #302949 !important; }
+
+html.dark .public-landing [style*="background: #e7f7ef"],
+html.dark .public-landing [style*="background:#e7f7ef"] { background-color: #1c3a31 !important; }
+
+html.dark .public-landing [style*="background: #fff0e8"],
+html.dark .public-landing [style*="background:#fff0e8"] { background-color: #3d2925 !important; }
+
+html.dark .public-landing [style*="background: #fff8d9"],
+html.dark .public-landing [style*="background:#fff8d9"] { background-color: #3c3521 !important; }
+
+html.dark .public-landing [style*="background: #fdebec"],
+html.dark .public-landing [style*="background:#fdebec"] { background-color: #3a252b !important; }
+
+html.dark .public-landing [style*="background: rgba(245,245,244,0.88)"],
+html.dark .public-landing [style*="background: rgba(245, 245, 244, 0.88)"] { background-color: rgba(17, 24, 39, 0.92) !important; }
+
+html.dark .public-landing [style*="background: rgba(230,227,226,0.5)"],
+html.dark .public-landing [style*="background: rgba(230, 227, 226, 0.5)"] { background-color: rgba(48, 60, 79, 0.5) !important; }
+
+html.dark .public-landing [style*="border-color: #d1dee8"],
+html.dark .public-landing [style*="border-color:#d1dee8"],
+html.dark .public-landing [style*="border-color: rgb(209, 222, 232)"] { border-color: #303c4f !important; }
+
+html.dark .public-landing [style*="border-color: #c5d8f7"],
+html.dark .public-landing [style*="border-color:#c5d8f7"] { border-color: #334a76 !important; }
+
+html.dark .public-landing [style*="border-color: #f5c6c6"],
+html.dark .public-landing [style*="border-color:#f5c6c6"] { border-color: #5a3640 !important; }
