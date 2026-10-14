@@ -21,6 +21,7 @@ import {
   GripVertical,
 } from "lucide-react";
 import { useSession } from "@/hooks/useSession";
+import { AppleSwitch } from "@/components/AppleSwitch";
 import { ENDPOINTS } from "@/lib/api/endpoints";
 
 
@@ -2465,18 +2466,11 @@ questionText,optionA,optionB,optionC,optionD,optionE,optionF,correctAnswer,marks
                         <span className="block text-xs font-bold text-[#111111]">
                           {item.label}
                         </span>
-                        <button
-                          type="button"
-                          onClick={() => item.setter(!item.val)}
-                          role="switch"
-                          aria-checked={item.val}
-                          aria-label={item.label}
-                          className={`relative inline-flex h-5 w-9 shrink-0 cursor-pointer items-center rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus-visible:ring-4 focus-visible:ring-[#165dfb]/20 ${item.val ? "bg-[#165dfb]" : "bg-[#d1dee8]"}`}
-                        >
-                          <span
-                            className={`pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${item.val ? "translate-x-4" : "translate-x-0"}`}
-                          />
-                        </button>
+                        <AppleSwitch
+                          checked={item.val}
+                          onChange={() => item.setter(!item.val)}
+                          ariaLabel={item.label}
+                        />
                       </div>
                     ))}
                   </div>
