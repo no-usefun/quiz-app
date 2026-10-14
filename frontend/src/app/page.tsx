@@ -776,7 +776,7 @@ export default function Home() {
 
   return (
     <main
-      className="min-h-screen font-sans overflow-x-hidden"
+      className="public-landing min-h-screen font-sans overflow-x-hidden"
       style={{ background: C.paper, color: C.ink }}
     >
       {/* ─── Sticky Navigation ─────────────────────────────────────────── */}
