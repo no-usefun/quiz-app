@@ -21,6 +21,7 @@ import {
   GripVertical,
 } from "lucide-react";
 import { useSession } from "@/hooks/useSession";
+import { AppearanceToggle } from "@/components/AppearanceToggle";
 import { ENDPOINTS } from "@/lib/api/endpoints";
 
 
@@ -1850,7 +1851,7 @@ function CreateAssessmentContent() {
   return (
     <div className="min-h-screen bg-[#f5f5f4] font-sans text-[#111111] p-4 md:p-6 lg:p-8 text-left">
       <div className="mx-auto max-w-4xl space-y-6">
-        <header className="sticky top-0 z-20 -mx-4 flex items-center justify-between gap-4 border-b border-[#d1dee8]/60 bg-[#f5f5f4]/85 px-4 py-4 backdrop-blur-md md:-mx-6 md:px-6">
+        <header className="sticky top-0 z-20 -mx-4 flex flex-wrap items-center justify-between gap-3 border-b border-[#d1dee8]/60 bg-[#f5f5f4]/85 px-4 py-4 backdrop-blur-md md:-mx-6 md:px-6">
           <div className="flex items-center gap-3">
             <Link
               href="/dashboard/teacher"
@@ -1867,7 +1868,8 @@ function CreateAssessmentContent() {
               </h1>
             </div>
           </div>
-          <div className="flex items-center gap-3">
+          <div className="flex flex-wrap items-center justify-end gap-2 sm:gap-3">
+            <AppearanceToggle compact />
             <span className="hidden rounded-full border border-[#d1dee8]/80 bg-white px-3 py-1 text-[10px] font-bold text-[#78716b] shadow-xs sm:inline-flex">
               {parsedQuestions.length}{" "}
               {parsedQuestions.length === 1 ? "question" : "questions"}
