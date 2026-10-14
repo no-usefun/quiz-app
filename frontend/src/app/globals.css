@@ -345,3 +345,34 @@ html.dark [class~="bg-slate-50"],
 html.dark [class~="bg-slate-100"] {
   background-color: #202938 !important;
 }
+
+
+/* Extra light-surface mappings for views that predate semantic theme tokens.
+   These keep Dark mode dark on student dashboards, scorecards and forms. */
+html.dark [class*="bg-[#eef4ff]"],
+html.dark [class*="bg-[#e8f0ff]"],
+html.dark [class*="bg-[#f0f6ff]"] {
+  background-color: #202f4a !important;
+}
+html.dark [class*="bg-[#f8fafc]"],
+html.dark [class*="bg-[#fbfbfa]"],
+html.dark [class*="bg-[#fbfbfb]"],
+html.dark [class*="bg-[#fafaf9]"],
+html.dark [class*="bg-[#fdfdfc]"] {
+  background-color: #202938 !important;
+}
+html.dark [class*="bg-[#e7e5e4]"],
+html.dark [class*="bg-[#f5f5f5]"],
+html.dark [class*="bg-[#f3f4f6]"] {
+  background-color: #30394a !important;
+}
+html.dark [class*="text-[#a8a29d]"],
+html.dark [class*="text-[#c9c5c2]"] {
+  color: #8e9bb0 !important;
+}
+html.dark [class*="border-[#b9cbd9]"] {
+  border-color: #465670 !important;
+}
+html.dark [class*="hover:bg-[#f8fafc]"]:hover {
+  background-color: #263246 !important;
+}
