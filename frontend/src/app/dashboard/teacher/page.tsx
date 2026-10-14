@@ -757,7 +757,7 @@ export default function TeacherDashboard() {
                 ))}
               </div>
 
-              <div className="flex h-8 items-center gap-1 rounded-[10px] border border-[#d1dee8]/80 bg-white px-2 text-[10px] font-bold text-[#78716b] shadow-xs">
+              <div className="flex h-8 w-full items-center justify-between gap-1 rounded-[10px] border border-[#d1dee8]/80 bg-white px-2 text-[10px] font-bold text-[#78716b] shadow-xs sm:w-auto sm:justify-start">
                 <label htmlFor="assessment-sort-field" className="pl-1 whitespace-nowrap">
                   Sort
                 </label>
@@ -768,7 +768,7 @@ export default function TeacherDashboard() {
                     handleSortChange(event.target.value as TeacherDashboardSortField)
                   }
                   aria-label="Sort assessments by"
-                  className="min-w-[122px] cursor-pointer border-0 bg-transparent px-1 py-0 text-[10px] font-bold text-[#111111] outline-none"
+                  className="min-w-0 flex-1 cursor-pointer border-0 bg-transparent px-1 py-0 text-[10px] font-bold text-[#111111] outline-none sm:min-w-[122px] sm:flex-none"
                 >
                   <option value="CREATED">Created date</option>
                   <option value="TITLE">Assessment title</option>
