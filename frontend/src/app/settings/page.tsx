@@ -20,7 +20,7 @@ import {
   AlertTriangle,
   ChevronRight,
   Moon,
-  Monitor,
+  Sun,
   LayoutDashboard,
   Settings as SettingsIcon,
 } from "lucide-react";
@@ -738,21 +738,16 @@ function PreferencesPanel({
           Appearance
         </h3>
         <p className="mb-3 text-[11px] leading-relaxed text-[#78716b]">
-          Theme changes apply immediately and are remembered on this device. System follows your device appearance.
+          Light is the default. Choose Dark when you prefer a darker interface; your choice is remembered on this device.
         </p>
 
-        <div className="grid grid-cols-3 gap-3">
+        <div className="grid grid-cols-2 gap-3">
           {(
             [
               {
-                id: "system",
-                label: "System",
-                icon: <Monitor className="h-4 w-4" />,
-              },
-              {
                 id: "light",
                 label: "Light",
-                icon: <Eye className="h-4 w-4" />,
+                icon: <Sun className="h-4 w-4" />,
               },
               {
                 id: "dark",
