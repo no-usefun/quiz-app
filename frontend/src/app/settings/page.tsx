@@ -735,9 +735,19 @@ function PreferencesPanel({
           Appearance
         </h3>
         <p className="mb-3 text-[11px] leading-relaxed text-[#78716b]">
-          Light is the default. Switch to Dark whenever you prefer a darker interface; the choice applies across your teacher and student pages.
+          Choose the appearance you prefer. Your selection applies across Quizly.
         </p>
-        <AppearanceToggle />
+        <div className="flex items-center justify-between gap-4 rounded-[12px] border border-[#d1dee8]/70 bg-white/70 px-4 py-3 dark:border-[#3a4659] dark:bg-[#1b2432]">
+          <div className="min-w-0">
+            <p className="text-xs font-semibold text-[#111111] dark:text-[#f3f4f6]">
+              Dark Mode
+            </p>
+            <p className="mt-0.5 text-[11px] text-[#78716b] dark:text-[#a7b0c0]">
+              Off uses Light Mode; on uses Dark Mode.
+            </p>
+          </div>
+          <AppearanceToggle />
+        </div>
       </div>
 
       <div className="flex justify-end pt-2">
