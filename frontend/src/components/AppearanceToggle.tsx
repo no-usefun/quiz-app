@@ -30,11 +30,11 @@ export function AppearanceToggle({
   const activeTheme = mounted && theme === "dark" ? "dark" : "light";
 
   const baseButton =
-    "inline-flex h-8 min-w-8 items-center justify-center gap-1.5 rounded-full px-2.5 text-[11px] font-semibold transition-all duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#165dfb] focus-visible:ring-offset-1 sm:min-w-0 sm:px-3";
+    "inline-flex h-9 min-w-9 items-center justify-center gap-1.5 rounded-full px-2.5 text-[11px] font-semibold transition-all duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#165dfb] focus-visible:ring-offset-1 sm:min-w-0 sm:px-3";
   const activeButton =
-    "bg-white text-[#111111] shadow-sm ring-1 ring-black/5 dark:bg-[#394356] dark:text-[#f3f4f6] dark:ring-white/10";
+    "bg-[#ffffff] text-[#111111] shadow-sm ring-1 ring-black/5 dark:bg-[#394356] dark:text-[#f3f4f6] dark:ring-white/10";
   const idleButton =
-    "bg-transparent text-[#78716b] hover:bg-white/65 hover:text-[#111111] dark:text-[#a7b0c0] dark:hover:bg-white/5 dark:hover:text-white";
+    "bg-transparent text-[#78716b] hover:bg-[#ffffff]/65 hover:text-[#111111] dark:text-[#a7b0c0] dark:hover:bg-[#ffffff]/5 dark:hover:text-white";
 
   return (
     <div
