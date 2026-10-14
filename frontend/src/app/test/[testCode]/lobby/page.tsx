@@ -18,7 +18,6 @@ import {
   Check,
 } from "lucide-react";
 import { Logo } from "@/components/Logo";
-import { AppearanceToggle } from "@/components/AppearanceToggle";
 
 import { ApiClientError, api, getAuthToken } from "@/lib/api/client";
 import { ENDPOINTS } from "@/lib/api/endpoints";
@@ -541,7 +540,6 @@ export default function AssessmentLobbyPage({
           <Logo />
 
           <div className="flex items-center gap-2">
-            <AppearanceToggle compact />
             <Link
               href="/dashboard/student"
               className="rounded-[10px] border border-[#d1dee8]/80 bg-[#f5f5f4] px-3.5 py-2 text-xs font-bold text-[#78716b] hover:bg-[#e6e3e2] hover:border-[#b9cbd9] hover:text-[#111111] shadow-xs active:scale-95 transition-all"
