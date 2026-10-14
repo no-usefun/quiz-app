@@ -43,11 +43,11 @@ textarea {
   --pastel-pink: #fbeee8; --pastel-pink-text: #8c381c;
   --pastel-lavender: #ece9f3; --pastel-lavender-text: #4c3d73;
 
-  /* Enforce exactly 8.8px border radius for all components */
-  --radius-cards: 8.8px;
-  --radius-inputs: 8.8px;
-  --radius-buttons: 8.8px;
-  --radius-pills: 8.8px;
+  /* Option A: consistent, softly rounded cards and controls */
+  --radius-cards: 14px;
+  --radius-inputs: 10px;
+  --radius-buttons: 10px;
+  --radius-pills: 9999px;
 }
 
 .dark {
@@ -144,8 +144,14 @@ textarea {
 
 /* App background default */
 html {
+  color-scheme: light;
   background-color: var(--color-paper-stone);
   color: var(--color-ink-black);
+  transition: background-color 180ms ease, color 180ms ease;
+}
+
+body {
+  transition: background-color 180ms ease, color 180ms ease;
 }
 
 /* Clean custom scrollbar */
@@ -229,7 +235,10 @@ html.dark [class*="bg-[#f5f5f4]"] {
 html.dark [class*="bg-[#e6e3e2]"] {
   background-color: var(--color-chalk) !important;
 }
-html.dark [class*="bg-white/"] {
+html.dark [class~="bg-white/90"],
+html.dark [class~="bg-white/95"],
+html.dark [class~="bg-white/80"],
+html.dark [class~="bg-white/60"] {
   background-color: color-mix(in srgb, #1b2432 92%, transparent) !important;
 }
 html.dark [class~="bg-white"],
@@ -375,4 +384,15 @@ html.dark [class*="border-[#b9cbd9]"] {
 }
 html.dark [class*="hover:bg-[#f8fafc]"]:hover {
   background-color: #263246 !important;
+}
+
+
+/* Consistent keyboard focus treatment across both appearance modes. */
+:where(a, button, input, textarea, select, [role="button"], [role="switch"]):focus-visible {
+  outline: 2px solid #165dfb;
+  outline-offset: 2px;
+}
+
+.dark :where(a, button, input, textarea, select, [role="button"], [role="switch"]):focus-visible {
+  outline-color: #8eaeff;
 }
