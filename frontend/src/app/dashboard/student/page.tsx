@@ -11,7 +11,6 @@ import {
   ChevronRight,
   Lock,
   CheckCircle2,
-  Trophy,
 } from "lucide-react";
 
 import { TopNav } from "@/components/TopNav";
@@ -367,13 +366,21 @@ export default function StudentDashboard() {
 
                   if (result.resultsAvailable) {
                     return (
-                      <motion.li key={result.attemptId} initial={reduceMotion ? false : { opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.24, delay: Math.min(index * 0.035, 0.28), ease: "easeOut" }}>
-                        <div className="relative flex items-center justify-between gap-4 px-5 py-4 transition-colors hover:bg-[#f8fafc] group before:absolute before:inset-y-0 before:left-0 before:w-1 before:rounded-r before:bg-[#165dfb] before:opacity-0 before:transition-opacity hover:before:opacity-100">
-                          <Link
-                            href={`/dashboard/student/result/${result.attemptId}`}
-                            aria-label={`View result for ${result.quizTitle}`}
-                            className="absolute inset-0 rounded-none"
-                          />
+                      <motion.li
+                        key={result.attemptId}
+                        initial={reduceMotion ? false : { opacity: 0, y: 6 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        transition={{
+                          duration: 0.24,
+                          delay: Math.min(index * 0.035, 0.28),
+                          ease: "easeOut",
+                        }}
+                      >
+                        <Link
+                          href={`/dashboard/student/result/${result.attemptId}`}
+                          aria-label={`View result for ${result.quizTitle}`}
+                          className="group relative flex items-center justify-between gap-4 px-5 py-4 transition-colors hover:bg-[#f8fafc] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[#165dfb] before:absolute before:inset-y-0 before:left-0 before:w-1 before:rounded-r before:bg-[#165dfb] before:opacity-0 before:transition-opacity hover:before:opacity-100"
+                        >
                           <div className="relative z-10 flex min-w-0 flex-col gap-1">
                             <span className="truncate text-xs font-bold text-[#111111] group-hover:text-[#165dfb] transition-colors">
                               {result.quizTitle}
@@ -403,18 +410,12 @@ export default function StudentDashboard() {
                               </span>
                             )}
 
-                            <Link
-                              href={"/dashboard/student/leaderboard/" + result.quizId}
-                              onClick={(event) => event.stopPropagation()}
-                              aria-label={"View leaderboard for " + result.quizTitle}
-                              className="inline-flex h-7 w-7 items-center justify-center rounded-full border border-[#d1dee8]/80 bg-white text-[#78716b] transition-all hover:border-[#165dfb] hover:text-[#165dfb]"
-                            >
-                              <Trophy className="h-3.5 w-3.5" />
-                            </Link>
-
-                            <ChevronRight className="h-3.5 w-3.5 text-[#c9c5c2] transition-all group-hover:translate-x-0.5 group-hover:text-[#165dfb]" />
+                            <ChevronRight
+                              aria-hidden="true"
+                              className="h-4 w-4 text-[#c9c5c2] transition-all group-hover:translate-x-0.5 group-hover:text-[#165dfb]"
+                            />
                           </div>
-                        </div>
+                        </Link>
                       </motion.li>
                     );
                   }
