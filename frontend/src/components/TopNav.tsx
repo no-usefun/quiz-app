@@ -10,6 +10,7 @@ import {
   PlusCircle,
 } from "lucide-react";
 import { AppWordmark } from "@/components/Logo";
+import { AppearanceToggle } from "@/components/AppearanceToggle";
 
 interface TopNavbarProps {
   role?: string;
@@ -86,8 +87,9 @@ export function TopNavbar({ role: propRole }: TopNavbarProps = {}) {
           )}
 
         </nav>
-        <div className="flex items-center space-x-4">
-          <div className="flex items-center space-x-3 border-l border-[#d1dee8]/70 pl-3">
+        <div className="flex items-center gap-2 sm:gap-4">
+          <AppearanceToggle compact />
+          <div className="flex items-center gap-2 border-l border-[#d1dee8]/70 pl-2 sm:gap-3 sm:pl-3">
             <Link
               href="/settings"
               aria-label={`Open profile settings for ${displayName}`}
@@ -112,10 +114,10 @@ export function TopNavbar({ role: propRole }: TopNavbarProps = {}) {
             type="button"
             onClick={() => logout()}
             title="Sign out"
-            className="flex cursor-pointer items-center gap-1.5 rounded-[10px] border border-[#8c381c]/25 bg-white px-3 py-1.5 text-xs font-bold text-[#8c381c] shadow-xs transition-all duration-150 hover:bg-[#fbeee8] hover:shadow-sm active:scale-[0.98]"
+            className="flex min-h-10 cursor-pointer items-center gap-1.5 rounded-[10px] border border-[#8c381c]/25 bg-white px-2.5 py-2 text-xs font-bold text-[#8c381c] shadow-xs transition-all duration-150 hover:bg-[#fbeee8] hover:shadow-sm active:scale-[0.98] sm:px-3"
           >
             <LogOut className="h-3.5 w-3.5" />
-            <span>Sign Out</span>
+            <span className="hidden sm:inline">Sign Out</span>
           </button>
         </div>
       </div>
