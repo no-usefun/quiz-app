@@ -14,6 +14,8 @@ import {
   Settings,
   Search,
   X,
+  ArrowUp,
+  ArrowDown,
 } from "lucide-react";
 import { TopNav } from "@/components/TopNav";
 import { useSession } from "@/hooks/useSession";
@@ -26,21 +28,25 @@ type TeacherDashboardQuiz = QuizResponse & {
   displayState: QuizDisplayState;
 };
 
-type TeacherDashboardSortOrder =
-  | "NEWEST"
-  | "OLDEST"
-  | "TITLE_ASC"
-  | "TITLE_DESC"
-  | "SUBJECT_ASC"
-  | "CODE_ASC"
-  | "START_SOONEST"
-  | "START_LATEST"
-  | "QUESTIONS_DESC"
-  | "QUESTIONS_ASC"
-  | "DURATION_DESC"
-  | "DURATION_ASC"
-  | "STUDENTS_DESC"
-  | "STUDENTS_ASC";
+type TeacherDashboardStatusFilter =
+  | "ALL"
+  | "DRAFT"
+  | "UPCOMING"
+  | "LIVE"
+  | "COMPLETED"
+  | "CANCELLED";
+
+type TeacherDashboardSortField =
+  | "CREATED"
+  | "TITLE"
+  | "SUBJECT"
+  | "CODE"
+  | "START"
+  | "QUESTIONS"
+  | "DURATION"
+  | "STUDENTS";
+
+type TeacherDashboardSortDirection = "ASC" | "DESC";
 
 export default function TeacherDashboard() {
   const router = useRouter();
@@ -56,12 +62,13 @@ export default function TeacherDashboard() {
   const [cacheOwnerKey, setCacheOwnerKey] = useState<string | null>(null);
   const [copiedCode, setCopiedCode] = useState<string | null>(null);
   const [mounted, setMounted] = useState(false);
-  const [statusFilter, setStatusFilter] = useState<
-    "ALL" | "DRAFT" | "UPCOMING" | "LIVE" | "COMPLETED" | "CANCELLED"
-  >("ALL");
+  const [statusFilter, setStatusFilter] =
+    useState<TeacherDashboardStatusFilter>("ALL");
   const [searchQuery, setSearchQuery] = useState("");
-  const [sortOrder, setSortOrder] =
-    useState<TeacherDashboardSortOrder>("NEWEST");
+  const [sortField, setSortField] =
+    useState<TeacherDashboardSortField>("CREATED");
+  const [sortDirection, setSortDirection] =
+    useState<TeacherDashboardSortDirection>("DESC");
   const [visibleCount, setVisibleCount] = useState(5);
 
   const [quizToEnd, setQuizToEnd] = useState<{
@@ -376,6 +383,21 @@ export default function TeacherDashboard() {
     [tests],
   );
 
+  const statusCounts = useMemo(
+    () => ({
+      ALL: tests.length,
+      DRAFT: tests.filter((test) => test.displayState === "Draft").length,
+      UPCOMING: tests.filter((test) => test.displayState === "Scheduled").length,
+      LIVE: tests.filter((test) => test.displayState === "Live").length,
+      COMPLETED: tests.filter(
+        (test) =>
+          test.displayState === "Completed" || test.displayState === "Ended",
+      ).length,
+      CANCELLED: tests.filter((test) => test.displayState === "Cancelled").length,
+    }),
+    [tests],
+  );
+
   const sortedTests = useMemo(() => {
     const queryTerms = searchQuery
       .trim()
@@ -488,55 +510,49 @@ export default function TeacherDashboard() {
       return direction * (leftTime - rightTime);
     };
 
-    switch (sortOrder) {
-      case "OLDEST":
-        // Preserve the existing backend newest-first ordering in reverse.
-        sorted.reverse();
+    const direction = sortDirection === "ASC" ? 1 : -1;
+
+    switch (sortField) {
+      case "TITLE":
+        sorted.sort((a, b) => compareText(a.title, b.title, direction));
         break;
-      case "TITLE_ASC":
-        sorted.sort((a, b) => compareText(a.title, b.title));
+      case "SUBJECT":
+        sorted.sort((a, b) =>
+          compareText(a.subject || a.subjectCode, b.subject || b.subjectCode, direction),
+        );
         break;
-      case "TITLE_DESC":
-        sorted.sort((a, b) => compareText(a.title, b.title, -1));
+      case "CODE":
+        sorted.sort((a, b) => compareText(a.quizCode, b.quizCode, direction));
         break;
-      case "SUBJECT_ASC":
-        sorted.sort((a, b) => compareText(a.subject || a.subjectCode, b.subject || b.subjectCode));
+      case "START":
+        sorted.sort((a, b) =>
+          compareStartTime(a.startTime, b.startTime, direction),
+        );
         break;
-      case "CODE_ASC":
-        sorted.sort((a, b) => compareText(a.quizCode, b.quizCode));
+      case "QUESTIONS":
+        sorted.sort((a, b) =>
+          compareNumber(a.totalQuestions, b.totalQuestions, direction),
+        );
         break;
-      case "START_SOONEST":
-        sorted.sort((a, b) => compareStartTime(a.startTime, b.startTime));
+      case "DURATION":
+        sorted.sort((a, b) =>
+          compareNumber(a.overallTimerSeconds, b.overallTimerSeconds, direction),
+        );
         break;
-      case "START_LATEST":
-        sorted.sort((a, b) => compareStartTime(a.startTime, b.startTime, -1));
+      case "STUDENTS":
+        sorted.sort((a, b) =>
+          compareNumber(a.totalStudents, b.totalStudents, direction),
+        );
         break;
-      case "QUESTIONS_DESC":
-        sorted.sort((a, b) => compareNumber(a.totalQuestions, b.totalQuestions, -1));
-        break;
-      case "QUESTIONS_ASC":
-        sorted.sort((a, b) => compareNumber(a.totalQuestions, b.totalQuestions));
-        break;
-      case "DURATION_DESC":
-        sorted.sort((a, b) => compareNumber(a.overallTimerSeconds, b.overallTimerSeconds, -1));
-        break;
-      case "DURATION_ASC":
-        sorted.sort((a, b) => compareNumber(a.overallTimerSeconds, b.overallTimerSeconds));
-        break;
-      case "STUDENTS_DESC":
-        sorted.sort((a, b) => compareNumber(a.totalStudents, b.totalStudents, -1));
-        break;
-      case "STUDENTS_ASC":
-        sorted.sort((a, b) => compareNumber(a.totalStudents, b.totalStudents));
-        break;
-      case "NEWEST":
+      case "CREATED":
       default:
-        // The backend response is already newest-first. Preserve that order.
+        // API order is newest-first, so reverse only for ascending/oldest-first.
+        if (sortDirection === "ASC") sorted.reverse();
         break;
     }
 
     return sorted;
-  }, [tests, statusFilter, searchQuery, sortOrder]);
+  }, [tests, statusFilter, searchQuery, sortField, sortDirection]);
 
   const visibleTests = sortedTests.slice(0, visibleCount);
   const hasMoreTests = visibleCount < sortedTests.length;
@@ -567,15 +583,31 @@ export default function TeacherDashboard() {
     setVisibleCount(5);
   };
 
-  const handleSortChange = (nextSort: TeacherDashboardSortOrder) => {
-    setSortOrder(nextSort);
+  const handleSortChange = (nextField: TeacherDashboardSortField) => {
+    setSortField(nextField);
+
+    // Start each field in the direction people usually expect for that data.
+    setSortDirection(
+      nextField === "CREATED" ||
+        nextField === "QUESTIONS" ||
+        nextField === "DURATION" ||
+        nextField === "STUDENTS"
+        ? "DESC"
+        : "ASC",
+    );
+    setVisibleCount(5);
+  };
+
+  const handleSortDirectionToggle = () => {
+    setSortDirection((current) => (current === "ASC" ? "DESC" : "ASC"));
     setVisibleCount(5);
   };
 
   const handleClearRosterFilters = () => {
     setStatusFilter("ALL");
     setSearchQuery("");
-    setSortOrder("NEWEST");
+    setSortField("CREATED");
+    setSortDirection("DESC");
     setVisibleCount(5);
   };
 
@@ -692,68 +724,83 @@ export default function TeacherDashboard() {
               <div className="flex flex-wrap gap-1.5">
                 {(
                   [
-                    ["ALL", "All"],
-                    ["DRAFT", "Draft"],
-                    ["UPCOMING", "Upcoming"],
-                    ["LIVE", "Live"],
-                    ["COMPLETED", "Completed"],
-                    ["CANCELLED", "Cancelled"],
+                    { value: "ALL", label: "All", count: statusCounts.ALL },
+                    { value: "DRAFT", label: "Draft", count: statusCounts.DRAFT },
+                    { value: "UPCOMING", label: "Upcoming", count: statusCounts.UPCOMING },
+                    { value: "LIVE", label: "Live", count: statusCounts.LIVE },
+                    { value: "COMPLETED", label: "Completed", count: statusCounts.COMPLETED },
+                    { value: "CANCELLED", label: "Cancelled", count: statusCounts.CANCELLED },
                   ] as const
-                ).map(([value, label]) => (
+                ).map(({ value, label, count }) => (
                   <button
                     key={value}
                     type="button"
                     onClick={() => handleFilterChange(value)}
+                    aria-pressed={statusFilter === value}
                     className={
-                      "rounded-full border px-3 py-1.5 text-[10px] font-bold transition-all " +
+                      "inline-flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-[10px] font-bold transition-all " +
                       (statusFilter === value
                         ? "border-[#165dfb] bg-[#165dfb] text-white shadow-xs"
                         : "border-[#d1dee8]/80 bg-white text-[#78716b] hover:border-[#165dfb]/40 hover:text-[#111111]")
                     }
                   >
-                    {label}
+                    <span>{label}</span>
+                    <span
+                      className={
+                        "tabular-nums " +
+                        (statusFilter === value ? "text-white/80" : "text-[#a8a29e]")
+                      }
+                    >
+                      {count}
+                    </span>
                   </button>
                 ))}
               </div>
 
-              <label className="flex items-center gap-2 rounded-[10px] border border-[#d1dee8]/80 bg-white px-3 py-1.5 text-[10px] font-bold text-[#78716b] shadow-xs">
-                <span className="whitespace-nowrap">Sort</span>
+              <div className="flex h-8 items-center gap-1 rounded-[10px] border border-[#d1dee8]/80 bg-white px-2 text-[10px] font-bold text-[#78716b] shadow-xs">
+                <label htmlFor="assessment-sort-field" className="pl-1 whitespace-nowrap">
+                  Sort
+                </label>
                 <select
-                  value={sortOrder}
+                  id="assessment-sort-field"
+                  value={sortField}
                   onChange={(event) =>
-                    handleSortChange(event.target.value as TeacherDashboardSortOrder)
+                    handleSortChange(event.target.value as TeacherDashboardSortField)
                   }
-                  aria-label="Sort assessments"
-                  className="min-w-[138px] cursor-pointer border-0 bg-transparent text-[10px] font-bold text-[#111111] outline-none"
+                  aria-label="Sort assessments by"
+                  className="min-w-[122px] cursor-pointer border-0 bg-transparent px-1 py-0 text-[10px] font-bold text-[#111111] outline-none"
                 >
-                  <optgroup label="Recently added">
-                    <option value="NEWEST">Newest first</option>
-                    <option value="OLDEST">Oldest first</option>
-                  </optgroup>
-                  <optgroup label="Assessment name">
-                    <option value="TITLE_ASC">Title A → Z</option>
-                    <option value="TITLE_DESC">Title Z → A</option>
-                    <option value="SUBJECT_ASC">Subject A → Z</option>
-                    <option value="CODE_ASC">Test code A → Z</option>
-                  </optgroup>
-                  <optgroup label="Schedule">
-                    <option value="START_SOONEST">Start date: soonest</option>
-                    <option value="START_LATEST">Start date: latest</option>
-                  </optgroup>
-                  <optgroup label="Questions">
-                    <option value="QUESTIONS_DESC">Most questions</option>
-                    <option value="QUESTIONS_ASC">Fewest questions</option>
-                  </optgroup>
-                  <optgroup label="Duration">
-                    <option value="DURATION_DESC">Longest duration</option>
-                    <option value="DURATION_ASC">Shortest duration</option>
-                  </optgroup>
-                  <optgroup label="Students">
-                    <option value="STUDENTS_DESC">Most students</option>
-                    <option value="STUDENTS_ASC">Fewest students</option>
-                  </optgroup>
+                  <option value="CREATED">Created date</option>
+                  <option value="TITLE">Assessment title</option>
+                  <option value="SUBJECT">Subject</option>
+                  <option value="CODE">Test code</option>
+                  <option value="START">Start date</option>
+                  <option value="QUESTIONS">Questions</option>
+                  <option value="DURATION">Duration</option>
+                  <option value="STUDENTS">Students</option>
                 </select>
-              </label>
+                <button
+                  type="button"
+                  onClick={handleSortDirectionToggle}
+                  aria-label={
+                    sortDirection === "ASC"
+                      ? "Currently ascending. Switch to descending order"
+                      : "Currently descending. Switch to ascending order"
+                  }
+                  title={
+                    sortDirection === "ASC"
+                      ? "Ascending — click for descending"
+                      : "Descending — click for ascending"
+                  }
+                  className="inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-[7px] text-[#165dfb] transition-colors hover:bg-[#eef4ff] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#165dfb]"
+                >
+                  {sortDirection === "ASC" ? (
+                    <ArrowUp aria-hidden="true" className="h-3.5 w-3.5" />
+                  ) : (
+                    <ArrowDown aria-hidden="true" className="h-3.5 w-3.5" />
+                  )}
+                </button>
+              </div>
             </div>
           </div>
 
