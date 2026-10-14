@@ -12,6 +12,8 @@ import {
   FileQuestion,
   BookOpen,
   Settings,
+  Search,
+  X,
 } from "lucide-react";
 import { TopNav } from "@/components/TopNav";
 import { useSession } from "@/hooks/useSession";
@@ -23,6 +25,22 @@ import { QuizResponse, TeacherQuizDetailResponse } from "@/lib/types";
 type TeacherDashboardQuiz = QuizResponse & {
   displayState: QuizDisplayState;
 };
+
+type TeacherDashboardSortOrder =
+  | "NEWEST"
+  | "OLDEST"
+  | "TITLE_ASC"
+  | "TITLE_DESC"
+  | "SUBJECT_ASC"
+  | "CODE_ASC"
+  | "START_SOONEST"
+  | "START_LATEST"
+  | "QUESTIONS_DESC"
+  | "QUESTIONS_ASC"
+  | "DURATION_DESC"
+  | "DURATION_ASC"
+  | "STUDENTS_DESC"
+  | "STUDENTS_ASC";
 
 export default function TeacherDashboard() {
   const router = useRouter();
@@ -41,9 +59,9 @@ export default function TeacherDashboard() {
   const [statusFilter, setStatusFilter] = useState<
     "ALL" | "DRAFT" | "UPCOMING" | "LIVE" | "COMPLETED" | "CANCELLED"
   >("ALL");
-  const [sortOrder, setSortOrder] = useState<
-    "NEWEST" | "OLDEST" | "TITLE_ASC" | "TITLE_DESC"
-  >("NEWEST");
+  const [searchQuery, setSearchQuery] = useState("");
+  const [sortOrder, setSortOrder] =
+    useState<TeacherDashboardSortOrder>("NEWEST");
   const [visibleCount, setVisibleCount] = useState(5);
 
   const [quizToEnd, setQuizToEnd] = useState<{
@@ -359,58 +377,158 @@ export default function TeacherDashboard() {
   );
 
   const sortedTests = useMemo(() => {
+    const queryTerms = searchQuery
+      .trim()
+      .toLocaleLowerCase()
+      .split(/\s+/)
+      .filter(Boolean);
+
+    const dateSearchText = (value?: string | null) => {
+      if (!value) return "";
+      const parsed = new Date(value);
+      return Number.isNaN(parsed.getTime())
+        ? value
+        : `${value} ${parsed.toLocaleDateString()} ${parsed.toLocaleString()}`;
+    };
+
     const filtered = tests.filter((test) => {
+      let matchesStatus: boolean;
+
       switch (statusFilter) {
         case "DRAFT":
-          return test.displayState === "Draft";
-
+          matchesStatus = test.displayState === "Draft";
+          break;
         case "UPCOMING":
-          return test.displayState === "Scheduled";
-
+          matchesStatus = test.displayState === "Scheduled";
+          break;
         case "LIVE":
-          return test.displayState === "Live";
-
+          matchesStatus = test.displayState === "Live";
+          break;
         case "COMPLETED":
-          return (
-            test.displayState === "Completed" || test.displayState === "Ended"
-          );
-
+          matchesStatus =
+            test.displayState === "Completed" || test.displayState === "Ended";
+          break;
         case "CANCELLED":
-          return test.displayState === "Cancelled";
-
+          matchesStatus = test.displayState === "Cancelled";
+          break;
         case "ALL":
         default:
-          return true;
+          matchesStatus = true;
+          break;
       }
+
+      if (!matchesStatus) return false;
+      if (queryTerms.length === 0) return true;
+
+      const durationSeconds = Number(test.overallTimerSeconds || 0);
+      const durationMinutes = Math.ceil(durationSeconds / 60);
+      const searchableText = [
+        test.title,
+        test.description,
+        test.instructions,
+        test.subject,
+        test.subjectCode,
+        test.quizCode,
+        test.quizId,
+        test.teacherId,
+        test.status,
+        test.examState,
+        test.displayState,
+        test.totalQuestions,
+        test.totalMarks,
+        test.totalStudents,
+        test.overallTimerSeconds,
+        `${durationMinutes} min`,
+        `${durationMinutes} minutes`,
+        test.resultsPublished ? "results published published" : "results unpublished not published",
+        dateSearchText(test.startTime),
+        dateSearchText(test.endTime),
+      ]
+        .map((value) => String(value ?? ""))
+        .join(" ")
+        .toLocaleLowerCase();
+
+      // Every term must match somewhere across an assessment's searchable fields.
+      return queryTerms.every((term) => searchableText.includes(term));
     });
 
     const sorted = [...filtered];
+    const compareText = (
+      left: unknown,
+      right: unknown,
+      direction: 1 | -1 = 1,
+    ) =>
+      direction *
+      String(left ?? "").localeCompare(String(right ?? ""), undefined, {
+        sensitivity: "base",
+        numeric: true,
+      });
+
+    const compareNumber = (
+      left: unknown,
+      right: unknown,
+      direction: 1 | -1 = 1,
+    ) =>
+      direction * (Number(left || 0) - Number(right || 0));
+
+    const compareStartTime = (
+      left?: string | null,
+      right?: string | null,
+      direction: 1 | -1 = 1,
+    ) => {
+      const leftTime = left ? Date.parse(left) : Number.NaN;
+      const rightTime = right ? Date.parse(right) : Number.NaN;
+      const leftValid = Number.isFinite(leftTime);
+      const rightValid = Number.isFinite(rightTime);
+
+      // Assessments without a valid start time stay at the bottom in either order.
+      if (!leftValid && !rightValid) return 0;
+      if (!leftValid) return 1;
+      if (!rightValid) return -1;
+      return direction * (leftTime - rightTime);
+    };
 
     switch (sortOrder) {
       case "OLDEST":
+        // Preserve the existing backend newest-first ordering in reverse.
         sorted.reverse();
         break;
-
       case "TITLE_ASC":
-        sorted.sort((a, b) =>
-          String(a.title || "Assessment").localeCompare(
-            String(b.title || "Assessment"),
-            undefined,
-            { sensitivity: "base" },
-          ),
-        );
+        sorted.sort((a, b) => compareText(a.title, b.title));
         break;
-
       case "TITLE_DESC":
-        sorted.sort((a, b) =>
-          String(b.title || "Assessment").localeCompare(
-            String(a.title || "Assessment"),
-            undefined,
-            { sensitivity: "base" },
-          ),
-        );
+        sorted.sort((a, b) => compareText(a.title, b.title, -1));
         break;
-
+      case "SUBJECT_ASC":
+        sorted.sort((a, b) => compareText(a.subject || a.subjectCode, b.subject || b.subjectCode));
+        break;
+      case "CODE_ASC":
+        sorted.sort((a, b) => compareText(a.quizCode, b.quizCode));
+        break;
+      case "START_SOONEST":
+        sorted.sort((a, b) => compareStartTime(a.startTime, b.startTime));
+        break;
+      case "START_LATEST":
+        sorted.sort((a, b) => compareStartTime(a.startTime, b.startTime, -1));
+        break;
+      case "QUESTIONS_DESC":
+        sorted.sort((a, b) => compareNumber(a.totalQuestions, b.totalQuestions, -1));
+        break;
+      case "QUESTIONS_ASC":
+        sorted.sort((a, b) => compareNumber(a.totalQuestions, b.totalQuestions));
+        break;
+      case "DURATION_DESC":
+        sorted.sort((a, b) => compareNumber(a.overallTimerSeconds, b.overallTimerSeconds, -1));
+        break;
+      case "DURATION_ASC":
+        sorted.sort((a, b) => compareNumber(a.overallTimerSeconds, b.overallTimerSeconds));
+        break;
+      case "STUDENTS_DESC":
+        sorted.sort((a, b) => compareNumber(a.totalStudents, b.totalStudents, -1));
+        break;
+      case "STUDENTS_ASC":
+        sorted.sort((a, b) => compareNumber(a.totalStudents, b.totalStudents));
+        break;
       case "NEWEST":
       default:
         // The backend response is already newest-first. Preserve that order.
@@ -418,7 +536,7 @@ export default function TeacherDashboard() {
     }
 
     return sorted;
-  }, [tests, statusFilter, sortOrder]);
+  }, [tests, statusFilter, searchQuery, sortOrder]);
 
   const visibleTests = sortedTests.slice(0, visibleCount);
   const hasMoreTests = visibleCount < sortedTests.length;
@@ -444,10 +562,20 @@ export default function TeacherDashboard() {
     setVisibleCount(5);
   };
 
-  const handleSortChange = (
-    nextSort: "NEWEST" | "OLDEST" | "TITLE_ASC" | "TITLE_DESC",
-  ) => {
+  const handleSearchChange = (nextQuery: string) => {
+    setSearchQuery(nextQuery);
+    setVisibleCount(5);
+  };
+
+  const handleSortChange = (nextSort: TeacherDashboardSortOrder) => {
     setSortOrder(nextSort);
+    setVisibleCount(5);
+  };
+
+  const handleClearRosterFilters = () => {
+    setStatusFilter("ALL");
+    setSearchQuery("");
+    setSortOrder("NEWEST");
     setVisibleCount(5);
   };
 
@@ -553,7 +681,7 @@ export default function TeacherDashboard() {
             <div className="flex items-center gap-2">
               <h2 className="text-sm font-extrabold text-[#111111] uppercase tracking-wider">
                 Assessments Roster (
-                {statusFilter === "ALL"
+                {statusFilter === "ALL" && !searchQuery.trim()
                   ? tests.length
                   : `${sortedTests.length} of ${tests.length}`}
                 )
@@ -593,23 +721,76 @@ export default function TeacherDashboard() {
                 <select
                   value={sortOrder}
                   onChange={(event) =>
-                    handleSortChange(
-                      event.target.value as
-                        | "NEWEST"
-                        | "OLDEST"
-                        | "TITLE_ASC"
-                        | "TITLE_DESC",
-                    )
+                    handleSortChange(event.target.value as TeacherDashboardSortOrder)
                   }
+                  aria-label="Sort assessments"
                   className="min-w-[138px] cursor-pointer border-0 bg-transparent text-[10px] font-bold text-[#111111] outline-none"
                 >
-                  <option value="NEWEST">Newest first</option>
-                  <option value="OLDEST">Oldest first</option>
-                  <option value="TITLE_ASC">Title A → Z</option>
-                  <option value="TITLE_DESC">Title Z → A</option>
+                  <optgroup label="Recently added">
+                    <option value="NEWEST">Newest first</option>
+                    <option value="OLDEST">Oldest first</option>
+                  </optgroup>
+                  <optgroup label="Assessment name">
+                    <option value="TITLE_ASC">Title A → Z</option>
+                    <option value="TITLE_DESC">Title Z → A</option>
+                    <option value="SUBJECT_ASC">Subject A → Z</option>
+                    <option value="CODE_ASC">Test code A → Z</option>
+                  </optgroup>
+                  <optgroup label="Schedule">
+                    <option value="START_SOONEST">Start date: soonest</option>
+                    <option value="START_LATEST">Start date: latest</option>
+                  </optgroup>
+                  <optgroup label="Questions">
+                    <option value="QUESTIONS_DESC">Most questions</option>
+                    <option value="QUESTIONS_ASC">Fewest questions</option>
+                  </optgroup>
+                  <optgroup label="Duration">
+                    <option value="DURATION_DESC">Longest duration</option>
+                    <option value="DURATION_ASC">Shortest duration</option>
+                  </optgroup>
+                  <optgroup label="Students">
+                    <option value="STUDENTS_DESC">Most students</option>
+                    <option value="STUDENTS_ASC">Fewest students</option>
+                  </optgroup>
                 </select>
               </label>
             </div>
+          </div>
+
+          <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+            <label className="relative block w-full sm:max-w-md">
+              <span className="sr-only">Search assessments</span>
+              <Search
+                aria-hidden="true"
+                className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[#78716b]"
+              />
+              <input
+                type="text"
+                id="assessment-search"
+                role="searchbox"
+                autoComplete="off"
+                value={searchQuery}
+                onChange={(event) => handleSearchChange(event.target.value)}
+                placeholder="Search title, subject, test code, ID..."
+                aria-label="Search assessments by title, subject, code, or ID"
+                className="w-full rounded-[10px] border border-[#d1dee8]/80 bg-white py-2.5 pl-9 pr-10 text-xs font-medium text-[#111111] shadow-xs outline-none transition focus:border-[#165dfb]/60 focus:ring-2 focus:ring-[#165dfb]/10 placeholder:text-[#a8a29e]"
+              />
+              {searchQuery && (
+                <button
+                  type="button"
+                  aria-label="Clear assessment search"
+                  onClick={() => handleSearchChange("")}
+                  className="absolute right-2 top-1/2 flex h-7 w-7 -translate-y-1/2 items-center justify-center rounded-full text-[#78716b] transition hover:bg-[#f5f5f4] hover:text-[#111111] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#165dfb]"
+                >
+                  <X aria-hidden="true" className="h-3.5 w-3.5" />
+                </button>
+              )}
+            </label>
+            <p className="text-[10px] font-medium text-[#78716b]" aria-live="polite">
+              {searchQuery.trim()
+                ? `Found ${sortedTests.length} matching assessment${sortedTests.length === 1 ? "" : "s"}`
+                : `Showing ${Math.min(visibleCount, sortedTests.length)} of ${sortedTests.length} assessments`}
+            </p>
           </div>
 
           <div className="grid gap-3.5">
@@ -666,16 +847,16 @@ export default function TeacherDashboard() {
                   </p>
 
                   <p className="text-xs text-[#78716b] mt-0.5 font-medium max-w-sm mx-auto">
-                    Try a different status filter or sort option.
+                    Try a different search, status filter, or sort option.
                   </p>
                 </div>
 
                 <button
                   type="button"
-                  onClick={() => handleFilterChange("ALL")}
+                  onClick={handleClearRosterFilters}
                   className="inline-flex items-center gap-1.5 rounded-[10px] border border-[#d1dee8]/80 bg-white px-4 py-2 text-xs font-bold text-[#111111] hover:bg-[#f5f5f4] hover:border-[#b9cbd9] shadow-xs active:scale-[0.98] transition-all cursor-pointer"
                 >
-                  Clear Filter
+                  Clear Search & Filters
                 </button>
               </div>
             ) : (
