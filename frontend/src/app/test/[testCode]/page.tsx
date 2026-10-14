@@ -20,7 +20,6 @@ import {
 } from "lucide-react";
 
 import { type ProctoringEvent, useProctoring } from "@/hooks/useProctoring";
-import { AppearanceToggle } from "@/components/AppearanceToggle";
 import { ApiClientError, api, getAuthToken } from "@/lib/api/client";
 import { ENDPOINTS } from "@/lib/api/endpoints";
 import type {
@@ -1220,7 +1219,6 @@ export default function TestArenaPage({
                 Time Remaining: {formatRemainingTime(timeLeft)}
               </div>
             </div>
-            <AppearanceToggle compact />
           </div>
         </header>
 
