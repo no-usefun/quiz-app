@@ -20,7 +20,6 @@ import {
 } from "lucide-react";
 
 import { Logo } from "@/components/Logo";
-import { AppearanceToggle } from "@/components/AppearanceToggle";
 
 import { ApiClientError, api } from "@/lib/api/client";
 
@@ -572,7 +571,6 @@ export default function StudentResultPage({
         </div>
 
         <div className="flex items-center gap-2">
-          <AppearanceToggle compact />
           <span className="rounded-full bg-[#f5f5f4] border border-[#d1dee8]/80 px-3 py-1 font-mono text-xs font-bold text-[#111111] shadow-xs">
             Attempt #{result.attemptId}
           </span>
