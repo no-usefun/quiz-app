@@ -20,7 +20,6 @@ import {
   Lock,
 } from "lucide-react";
 import { Logo } from "@/components/Logo";
-import { AppearanceToggle } from "@/components/AppearanceToggle";
 import { ENDPOINTS } from "@/lib/api/endpoints";
 import LanExamPreflight from "@/components/LanExamPreflight";
 import { isLanExamMode } from "@/lib/examMode";
@@ -849,7 +848,6 @@ export default function TeacherAssessmentPage({
           </div>
 
           <div className="flex flex-wrap items-center justify-end gap-2 sm:gap-3">
-            <AppearanceToggle compact />
           <button
             type="button"
             onClick={handleExport}
