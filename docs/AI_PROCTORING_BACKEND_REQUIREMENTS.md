@@ -129,7 +129,19 @@ Requirements:
 - Do not overwrite the canonical event history or reduce a persisted warning count when a late summary arrives.
 - Return a success response only after the summary is persisted (or clearly document asynchronous persistence).
 
-### 3.4 Teacher reports
+### 3.4 Leaderboard response must expose attempt ID
+
+The teacher assessment page may list a student ID/rank in the leaderboard row, but the AI audit report endpoint is keyed by **attempt ID**. These identifiers are not interchangeable.
+
+Requirements:
+
+- Add a numeric `attemptId` field to each eligible leaderboard entry, sourced from that student's actual `QuizAttempt` record.
+- Keep `studentId` as a distinct field. Do not relabel `studentId`, `rank`, or an array index as `attemptId`.
+- The frontend shows the **AI Audit** action only when a valid `attemptId` is present.
+- The report endpoint must confirm that the requested attempt belongs to the specified quiz and that the authenticated teacher is authorized to view it.
+- If a row represents no attempt (or the backend cannot resolve one), omit `attemptId`; the frontend must not guess.
+
+### 3.5 Teacher reports
 
 The V2 branch includes a teacher report UI referencing:
 
