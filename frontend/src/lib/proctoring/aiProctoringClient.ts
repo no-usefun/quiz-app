@@ -1,10 +1,12 @@
 // AI Proctoring Microservice HTTP & WebSocket Client
 
-export const AI_PROCTORING_BASE_URL =
-  process.env.NEXT_PUBLIC_AI_PROCTORING_URL || "http://localhost:8000";
+export const AI_PROCTORING_BASE_URL = (
+  process.env.NEXT_PUBLIC_AI_PROCTORING_URL || "http://localhost:8000"
+).replace(/\\/+$/, "");
 
-export const AI_PROCTORING_WS_URL =
-  process.env.NEXT_PUBLIC_AI_PROCTORING_WS_URL || "ws://localhost:8000";
+export const AI_PROCTORING_WS_URL = (
+  process.env.NEXT_PUBLIC_AI_PROCTORING_WS_URL || "ws://localhost:8000"
+).replace(/\\/+$/, "");
 
 export interface AIHealthResponse {
   status: string;
@@ -100,7 +102,11 @@ export async function checkAIHealth(): Promise<{ isOnline: boolean; biometricRea
     if (res.ok) {
       const data = (await res.json()) as AIHealthResponse;
       const isOnline = data.status === "UP" || data.status === "DEGRADED";
-      const biometricReady = data.biometricAvailable === true && data.models?.sface === true;
+      // A usable AI session needs both face detection and the SFace identity model.
+      const biometricReady =
+        data.biometricAvailable === true &&
+        data.models?.yunet === true &&
+        data.models?.sface === true;
       return { isOnline, biometricReady, details: data };
     }
   } catch {
