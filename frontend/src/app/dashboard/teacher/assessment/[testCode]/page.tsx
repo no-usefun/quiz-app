@@ -18,8 +18,10 @@ import {
   CheckCircle2,
   Trophy,
   Lock,
+  ShieldAlert,
 } from "lucide-react";
 import { Logo } from "@/components/Logo";
+import { TeacherProctoringReportModal } from "@/components/TeacherProctoringReportModal";
 import { ENDPOINTS } from "@/lib/api/endpoints";
 import LanExamPreflight from "@/components/LanExamPreflight";
 import { isLanExamMode } from "@/lib/examMode";
@@ -58,6 +60,8 @@ type StudentRecord = {
   percentage: number;
   timeTaken: string;
   timeTakenSeconds: number;
+  // Populated only when the backend leaderboard contract returns a real attempt ID.
+  attemptId?: number;
 };
 
 function numericValue(value: unknown, fallback = 0): number {
@@ -238,6 +242,7 @@ export default function TeacherAssessmentPage({
   const [confirmCompleteOpen, setConfirmCompleteOpen] = useState(false);
 
   const [leaderboardUnavailable, setLeaderboardUnavailable] = useState(false);
+  const [inspectingAttemptId, setInspectingAttemptId] = useState<number | null>(null);
 
   const getToken = () => {
     const token = localStorage.getItem("dynoquizz_token");
@@ -394,8 +399,15 @@ export default function TeacherAssessmentPage({
           .join("")
           .toUpperCase() || "ST";
 
+      const rawAttemptId = Number(entry.attemptId);
+      const attemptId =
+        Number.isSafeInteger(rawAttemptId) && rawAttemptId > 0
+          ? rawAttemptId
+          : undefined;
+
       return {
         id: entry.studentId ?? entry.rank ?? index + 1,
+        attemptId,
         name,
         avatar,
         score: percentage,
@@ -1256,7 +1268,7 @@ export default function TeacherAssessmentPage({
                   {displayList.map((student) => (
                     <li
                       key={student.id}
-                      className="grid grid-cols-[2.5rem_1fr_7rem_6rem] items-center gap-3 px-5 py-2.5 transition-colors hover:bg-frost-surface/40"
+                      className="grid grid-cols-[2.5rem_1fr_7rem_6rem_auto] items-center gap-3 px-5 py-2.5 transition-colors hover:bg-frost-surface/40"
                     >
                       <span className="text-xs font-bold font-mono text-steel-blue-gray">
                         {student.rank}
@@ -1288,6 +1300,24 @@ export default function TeacherAssessmentPage({
                           {student.timeTaken || "00:00"}
                         </span>
                       </div>
+
+                      {student.attemptId ? (
+                        <button
+                          type="button"
+                          onClick={() => setInspectingAttemptId(student.attemptId!)}
+                          className="inline-flex items-center gap-1 rounded-[6px] border border-[#165dfb]/20 bg-[#165dfb]/10 px-2 py-1 text-[10px] font-bold text-[#165dfb] transition-colors hover:bg-[#165dfb]/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#165dfb]"
+                        >
+                          <ShieldAlert aria-hidden="true" className="h-3 w-3" />
+                          AI Audit
+                        </button>
+                      ) : (
+                        <span
+                          className="text-[9px] text-steel-blue-gray"
+                          title="The backend leaderboard response must include attemptId to open an audit report."
+                        >
+                          —
+                        </span>
+                      )}
                     </li>
                   ))}
                 </ul>
@@ -1296,6 +1326,11 @@ export default function TeacherAssessmentPage({
           </section>
         </div>
       </div>
+      <TeacherProctoringReportModal
+        isOpen={inspectingAttemptId !== null}
+        attemptId={inspectingAttemptId}
+        onClose={() => setInspectingAttemptId(null)}
+      />
     </main>
   );
 }
