@@ -1310,14 +1310,7 @@ export default function TeacherAssessmentPage({
                           <ShieldAlert aria-hidden="true" className="h-3 w-3" />
                           AI Audit
                         </button>
-                      ) : (
-                        <span
-                          className="text-[9px] text-steel-blue-gray"
-                          title="The backend leaderboard response must include attemptId to open an audit report."
-                        >
-                          —
-                        </span>
-                      )}
+                      ) : null}
                     </li>
                   ))}
                 </ul>
