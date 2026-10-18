@@ -17,6 +17,7 @@ import {
   UserCheck,
 } from "lucide-react";
 import { api, getAuthToken } from "@/lib/api/client";
+import { ENDPOINTS } from "@/lib/api/endpoints";
 
 interface ProctoringEventDetail {
   id: number;
@@ -83,7 +84,7 @@ export function TeacherProctoringReportModal({
       try {
         const token = getAuthToken();
         const data = await api.get<ProctoringReportData>(
-          `/api/v1/teacher/proctoring/attempts/${attemptId}`,
+          ENDPOINTS.proctoring.teacherAttemptReport(attemptId),
           {
             headers: token ? { Authorization: `Bearer ${token}` } : {},
           }
