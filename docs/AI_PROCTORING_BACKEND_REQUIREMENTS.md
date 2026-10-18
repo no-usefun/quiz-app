@@ -155,7 +155,7 @@ Requirements:
 - Use stable DTO schemas and return empty collections rather than null for list fields.
 - Prevent student access to other candidates' reports.
 
-### 3.5 AI service routes (Python FastAPI)
+### 3.6 AI service routes (Python FastAPI)
 
 The existing V2 client expects the following service routes:
 
