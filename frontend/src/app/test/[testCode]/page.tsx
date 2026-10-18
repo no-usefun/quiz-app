@@ -1103,6 +1103,9 @@ export default function TestArenaPage({
       localStorage.removeItem(`dynoquizz_attemptId_${cleanCode}`);
       localStorage.removeItem("dynoquizz_attemptId");
       localStorage.removeItem(`dynoquizz_pending_submit_${attemptId}`);
+      // The reference image is needed only for this attempt/session.
+      sessionStorage.removeItem("dynoquizz_reference_photo");
+      localStorage.removeItem("dynoquizz_reference_photo");
 
       if (result.status === "AUTO_SUBMITTED") {
         setDeadlineNotice(
@@ -1170,6 +1173,9 @@ export default function TestArenaPage({
       setIsSubmitting(false);
     }
   };
+
+  // Keep the latest submission callback available to asynchronous AI warning handlers.
+  finishAssessmentRef.current = finishAssessment;
 
   const handleOverallTimerExpired = () => {
     if (
