@@ -18,6 +18,8 @@ import {
   Check,
 } from "lucide-react";
 import { Logo } from "@/components/Logo";
+import { CameraReferenceCapture } from "@/components/CameraReferenceCapture";
+import { checkAIHealth } from "@/lib/proctoring/aiProctoringClient";
 
 import { ApiClientError, api, getAuthToken } from "@/lib/api/client";
 import { ENDPOINTS } from "@/lib/api/endpoints";
@@ -67,6 +69,7 @@ function LobbyInner({ testCode }: { testCode: string }) {
 
   const [availability, setAvailability] =
     useState<QuizAvailabilityResponse | null>(null);
+  const [referencePhoto, setReferencePhoto] = useState<string | null>(null);
 
   const [loading, setLoading] = useState(true);
   const [isStarting, setIsStarting] = useState(false);
@@ -158,10 +161,34 @@ function LobbyInner({ testCode }: { testCode: string }) {
       return;
     }
 
+    const existingPhoto =
+      referencePhoto ||
+      (typeof window !== "undefined"
+        ? sessionStorage.getItem("dynoquizz_reference_photo")
+        : null);
+    if (!existingPhoto) {
+      setStartError("Capture your reference photo before starting AI-proctored assessments.");
+      return;
+    }
+
     setIsStarting(true);
     setStartError(null);
 
     try {
+      // Fail before creating/resuming an attempt if the AI service or its
+      // biometric model is not ready. The exam arena performs a second check.
+      const aiHealth = await checkAIHealth();
+      if (!aiHealth.isOnline) {
+        throw new Error(
+          "AI proctoring is currently unavailable. Please retry in a moment or contact your instructor.",
+        );
+      }
+      if (!aiHealth.biometricReady) {
+        throw new Error(
+          "The biometric verification model is not ready. Please retry shortly.",
+        );
+      }
+
       // Fullscreen is required before the server creates the attempt.
       // Starting an attempt outside fullscreen would bypass the exam UI
       // protection, so a denied fullscreen request stops the flow here.
@@ -465,6 +492,18 @@ function LobbyInner({ testCode }: { testCode: string }) {
             </div>
           )}
 
+          {/* AI reference photo is scoped to this browser session. */}
+          <CameraReferenceCapture
+            onCapture={(photo) => {
+              setReferencePhoto(photo);
+              sessionStorage.setItem("dynoquizz_reference_photo", photo);
+              // Remove any stale persistent copy created by an older build.
+              localStorage.removeItem("dynoquizz_reference_photo");
+              setStartError(null);
+            }}
+            disabled={isStarting}
+          />
+
           <div className="rounded-[12px] border border-[#d1dee8]/70 bg-[#f5f5f4]/60 p-5 space-y-3 text-left shadow-xs">
             <div className="flex items-center justify-between border-b border-[#d1dee8]/50 pb-3">
               <span className="text-xs font-bold text-[#111111] uppercase tracking-wider flex items-center gap-1.5">
@@ -491,6 +530,10 @@ function LobbyInner({ testCode }: { testCode: string }) {
                 </li>
                 <li>
                   The exam package is loaded only after the attempt is ready.
+                </li>
+                <li>
+                  AI proctoring requires a reference photo and camera/microphone
+                  access during the assessment.
                 </li>
                 <li>
                   Fullscreen is requested before entering the assessment. Leaving
