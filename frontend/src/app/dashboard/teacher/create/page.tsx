@@ -3,6 +3,7 @@
 import { useState, useEffect, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
+import Image from "next/image";
 import { motion, AnimatePresence } from "framer-motion";
 import Papa from "papaparse";
 import {
@@ -1323,7 +1324,7 @@ function CreateAssessmentContent() {
   // If create fails: show error, do not navigate, do not publish.
   // If create succeeds but publish fails: show inline error with Retry button
   //   that only re-attempts the publish call (no duplicate quiz created).
-  const handleSave = async (e: React.FormEvent) => {
+  const handleSave = async (e: React.SyntheticEvent) => {
     e.preventDefault();
     const formErr = validateForm();
     if (formErr) return setValidationError(formErr);
@@ -1781,9 +1782,11 @@ function CreateAssessmentContent() {
 
       // Draft created or updated — redirect to dashboard where it will show a Draft badge
       router.push("/dashboard/teacher");
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error("Failed to save draft:", err);
-      setValidationError(`Failed to save draft: ${err.message}`);
+      const message =
+        err instanceof Error ? err.message : "An unexpected error occurred";
+      setValidationError(`Failed to save draft: ${message}`);
     } finally {
       setSavingDraft(false);
     }
@@ -1816,9 +1819,10 @@ function CreateAssessmentContent() {
       }
 
       router.push(`/dashboard/teacher/share/${publishRetryData.quizCode}`);
-    } catch (err: any) {
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : "";
       setValidationError(
-        `Quiz was created but could not be published. Retry${err.message ? ` (${err.message})` : ""}`,
+        `Quiz was created but could not be published. Retry${message ? ` (${message})` : ""}`,
       );
     } finally {
       setRetryingPublish(false);
@@ -2160,9 +2164,12 @@ function CreateAssessmentContent() {
                           className="w-full rounded-[10px] border border-[#d1dee8]/80 bg-white px-3.5 py-2.5 text-xs text-[#111111] outline-none transition-all placeholder:text-[#a8a29d] hover:border-[#b9cbd9] focus:border-[#165dfb] focus:ring-4 focus:ring-[#165dfb]/10"
                         />
                         {q.imageUrl && (
-                          <img
+                          <Image
                             src={q.imageUrl}
                             alt={`Question ${idx + 1}`}
+                            width={640}
+                            height={360}
+                            unoptimized
                             className="max-h-48 max-w-full rounded-[10px] border border-[#d1dee8]/70 object-contain bg-[#fbfbfa] p-1"
                             onError={(e) => {
                               e.currentTarget.style.display = "none";
@@ -2534,7 +2541,7 @@ questionText,optionA,optionB,optionC,optionD,optionE,optionF,correctAnswer,marks
           </button>
           <button
             type="button"
-            onClick={(e) => handleSave(e as any)}
+            onClick={handleSave}
             disabled={submitting || savingDraft}
             className="inline-flex items-center gap-2 rounded-[10px] bg-[#165dfb] px-5 py-2.5 text-xs font-bold text-white shadow-sm shadow-[#165dfb]/25 transition-all hover:bg-[#0f4fd8] hover:shadow-md active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-40"
           >
