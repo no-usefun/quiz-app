@@ -311,18 +311,12 @@ function LoginContent() {
           </button>
 
           <div className="mb-6">
-            <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-neutral-400">{APP_NAME} Authentication</p>
             {lanExamMode && (
               <span className="mt-2 inline-flex rounded-full bg-[#e8f0ff] px-2.5 py-1 text-[9px] font-bold uppercase tracking-wider text-[#165dfb]">
                 LAN Exam Mode · Local Authentication
               </span>
             )}
             <h1 className="mt-1.5 text-2xl font-bold tracking-tight text-neutral-900">Log in as {roleLabel}</h1>
-            <p className="mt-1.5 text-sm leading-relaxed text-neutral-500">
-              {lanExamMode
-                ? "Sign in with an account registered on this local exam server."
-                : "Use your account credentials or continue with Google."}
-            </p>
           </div>
 
           {error && (
@@ -338,7 +332,7 @@ function LoginContent() {
 
           <div className="my-5 flex items-center gap-3">
             <div className="h-px flex-1 bg-neutral-100" />
-            <span className="text-[10px] font-bold uppercase tracking-wider text-neutral-400">or continue with email</span>
+            <span className="text-[10px] font-bold uppercase tracking-wider text-neutral-400">or</span>
             <div className="h-px flex-1 bg-neutral-100" />
           </div>
 
