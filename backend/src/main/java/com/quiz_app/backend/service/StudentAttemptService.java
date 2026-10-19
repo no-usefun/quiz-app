@@ -304,6 +304,36 @@ public class StudentAttemptService {
                 }
         }
 
+        /**
+         * Finalizes an active attempt after a server-side proctoring policy violation.
+         * Unlike deadline-based autoSubmitAttempt, this path does not require the timer to expire.
+         */
+        @Transactional
+        public SubmitAttemptResponse autoSubmitForProctoring(
+                        Long attemptId, Long studentId, String terminationReason) {
+                if (attemptId == null || studentId == null) {
+                        throw new BadRequestException(
+                                        "ATTEMPT_ID_REQUIRED",
+                                        "Attempt ID and authenticated student are required");
+                }
+
+                QuizAttempt attempt = getOwnedAttempt(attemptId, studentId);
+                if (attempt.getStatus() != AttemptStatus.IN_PROGRESS) {
+                        throw new ConflictException(
+                                        "ATTEMPT_NOT_ACTIVE",
+                                        "Only an active attempt can be terminated by proctoring");
+                }
+
+                if (terminationReason == null || terminationReason.isBlank()) {
+                        throw new BadRequestException(
+                                        "TERMINATION_REASON_REQUIRED",
+                                        "A proctoring termination reason is required");
+                }
+
+                attempt.setTerminationReason(terminationReason);
+                return finalizeAttempt(attempt, AttemptStatus.AUTO_SUBMITTED);
+        }
+
         @Transactional
         public SubmitAttemptResponse autoSubmitAttempt(
                         Long attemptId, Long studentId) {

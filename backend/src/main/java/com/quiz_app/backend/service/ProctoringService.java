@@ -1,0 +1,486 @@
+package com.quiz_app.backend.service;
+
+import java.time.LocalDateTime;
+import java.time.ZoneId;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Locale;
+import java.util.Map;
+import java.util.Set;
+
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.quiz_app.backend.dto.attempt.SubmitAttemptRequest;
+import com.quiz_app.backend.dto.proctoring.ProctoringAccessVerificationResponse;
+import com.quiz_app.backend.dto.proctoring.ProctoringEventRequest;
+import com.quiz_app.backend.dto.proctoring.ProctoringEventResponse;
+import com.quiz_app.backend.dto.proctoring.ProctoringSummaryRequest;
+import com.quiz_app.backend.dto.proctoring.TeacherProctoringReportResponse;
+import com.quiz_app.backend.dto.proctoring.TeacherQuizProctoringOverviewResponse;
+import com.quiz_app.backend.entity.AttemptStatus;
+import com.quiz_app.backend.entity.Quiz;
+import com.quiz_app.backend.entity.QuizAttempt;
+import com.quiz_app.backend.entity.QuizAttemptProctoringEvent;
+import com.quiz_app.backend.entity.User;
+import com.quiz_app.backend.exception.AccessDeniedApplicationException;
+import com.quiz_app.backend.exception.BadRequestException;
+import com.quiz_app.backend.exception.ResourceNotFoundException;
+import com.quiz_app.backend.repository.QuizAttemptProctoringEventRepository;
+import com.quiz_app.backend.repository.QuizAttemptRepository;
+import com.quiz_app.backend.repository.QuizRepository;
+
+@Service
+public class ProctoringService {
+
+    private static final ZoneId QUIZ_TIMEZONE = ZoneId.of("Asia/Kolkata");
+
+    @org.springframework.beans.factory.annotation.Value("${proctoring.max-warnings:3}")
+    private int maxWarnings = 3;
+
+    private static final Set<String> ALLOWED_MALPRACTICE_EVENT_TYPES = Set.of(
+            "FACE_NOT_DETECTED",
+            "MULTIPLE_FACES",
+            "MULTIPLE_PERSONS",
+            "LOOKING_AWAY",
+            "PHONE_DETECTED",
+            "IDENTITY_MISMATCH",
+            "VOICE_ACTIVITY",
+            "LOUD_VOICE",
+            "TAB_SWITCH",
+            "FULLSCREEN_EXIT"
+    );
+
+    private static final Set<String> ALLOWED_SEVERITIES = Set.of(
+            "LOW",
+            "MEDIUM",
+            "HIGH",
+            "CRITICAL"
+    );
+
+    private final QuizAttemptRepository quizAttemptRepository;
+    private final QuizAttemptProctoringEventRepository proctoringEventRepository;
+    private final QuizRepository quizRepository;
+    private final StudentAttemptService studentAttemptService;
+    private final ObjectMapper objectMapper;
+
+
+    public ProctoringService(
+            QuizAttemptRepository quizAttemptRepository,
+            QuizAttemptProctoringEventRepository proctoringEventRepository,
+            QuizRepository quizRepository,
+            StudentAttemptService studentAttemptService) {
+        this.quizAttemptRepository = quizAttemptRepository;
+        this.proctoringEventRepository = proctoringEventRepository;
+        this.quizRepository = quizRepository;
+        this.studentAttemptService = studentAttemptService;
+        this.objectMapper = new ObjectMapper();
+    }
+
+    @Transactional(readOnly = true)
+    public ProctoringAccessVerificationResponse verifyAttemptAccess(Long attemptId, Long authenticatedUserId) {
+        if (attemptId == null) {
+            throw new BadRequestException("INVALID_ATTEMPT_ID", "Attempt ID is required");
+        }
+
+        QuizAttempt attempt = quizAttemptRepository.findById(attemptId)
+                .orElseThrow(() -> new ResourceNotFoundException("Quiz attempt not found"));
+
+        if (authenticatedUserId == null) {
+            throw new AccessDeniedApplicationException("UNAUTHENTICATED", "Authentication is required");
+        }
+
+        if (attempt.getStudent() == null || !attempt.getStudent().getId().equals(authenticatedUserId)) {
+            throw new AccessDeniedApplicationException("UNAUTHORIZED_ATTEMPT", "User does not own this attempt");
+        }
+
+        boolean isProgress = attempt.getStatus() == AttemptStatus.IN_PROGRESS;
+        String testCode = (attempt.getQuiz() != null) ? attempt.getQuiz().getQuizCode() : "";
+        String studentIdStr = attempt.getStudent().getId().toString();
+        String studentEmail = attempt.getStudent().getEmail();
+
+        int currentWarnings = (attempt.getWarningsCount() != null) ? attempt.getWarningsCount() : 0;
+        return new ProctoringAccessVerificationResponse(
+                attempt.getId(),
+                studentIdStr,
+                studentEmail,
+                testCode,
+                attempt.getStatus().name(),
+                isProgress,
+                isProgress ? "Access authorized" : "Attempt is not in progress (" + attempt.getStatus().name() + ")",
+                currentWarnings,
+                maxWarnings
+        );
+    }
+
+    @Transactional
+    public ProctoringEventResponse recordProctoringEvent(Long attemptId, ProctoringEventRequest request, Long authenticatedUserId) {
+        if (attemptId == null || request == null || request.eventType() == null) {
+            throw new BadRequestException("INVALID_EVENT_REQUEST", "Attempt ID and event type are required");
+        }
+
+        if (authenticatedUserId == null) {
+            throw new AccessDeniedApplicationException("UNAUTHENTICATED", "Authentication is required");
+        }
+
+        QuizAttempt attempt = quizAttemptRepository.findByIdForUpdate(attemptId)
+                .orElseThrow(() -> new ResourceNotFoundException("Quiz attempt not found"));
+
+        if (attempt.getStudent() == null || !attempt.getStudent().getId().equals(authenticatedUserId)) {
+            throw new AccessDeniedApplicationException("UNAUTHORIZED_ATTEMPT", "User does not own this attempt");
+        }
+
+        String rawType = request.eventType().trim().toUpperCase(Locale.ROOT);
+        if ("SESSION_SUMMARY".equals(rawType)) {
+            throw new BadRequestException("INVALID_EVENT_TYPE", "SESSION_SUMMARY is a summary record, not a malpractice event");
+        }
+
+        if (!ALLOWED_MALPRACTICE_EVENT_TYPES.contains(rawType)) {
+            throw new BadRequestException("INVALID_EVENT_TYPE", "Unrecognized proctoring event type: " + rawType);
+        }
+
+        String eventType = rawType;
+        String clientEventId = request.eventId() == null || request.eventId().isBlank()
+                ? null : request.eventId().trim();
+
+        {
+            if (attempt.getStatus() != AttemptStatus.IN_PROGRESS) {
+                return new ProctoringEventResponse(
+                        false,
+                        attempt.getWarningsCount() != null ? attempt.getWarningsCount() : 0,
+                        attempt.getStatus() == AttemptStatus.AUTO_SUBMITTED,
+                        "Attempt is already closed: " + attempt.getStatus()
+                );
+            }
+
+            if (clientEventId != null
+                    && proctoringEventRepository.findByAttemptIdAndClientEventId(attemptId, clientEventId).isPresent()) {
+                return new ProctoringEventResponse(
+                        false,
+                        attempt.getWarningsCount() != null ? attempt.getWarningsCount() : 0,
+                        attempt.getStatus() == AttemptStatus.AUTO_SUBMITTED,
+                        "Duplicate event ignored"
+                );
+            }
+
+            String severity = request.severity() != null && !request.severity().isBlank()
+                    ? request.severity().trim().toUpperCase(Locale.ROOT)
+                    : null;
+            if (severity == null || !ALLOWED_SEVERITIES.contains(severity)) {
+                severity = (eventType.contains("PHONE") || eventType.contains("IDENTITY")) ? "CRITICAL" : "HIGH";
+            }
+
+            Double confidence = request.confidence();
+            if (confidence == null || confidence < 0.0 || confidence > 1.0) {
+                confidence = (confidence == null) ? 0.90 : Math.max(0.0, Math.min(1.0, confidence));
+            }
+
+            // Structured JSON metadata
+            String metadataJson;
+            try {
+                Map<String, Object> metaMap = Map.of(
+                        "details", request.details() != null ? request.details() : formatEventTitle(eventType),
+                        "severity", severity,
+                        "confidence", confidence
+                );
+                metadataJson = objectMapper.writeValueAsString(metaMap);
+            } catch (Exception e) {
+                metadataJson = request.details();
+            }
+
+            // Save event to DB
+            QuizAttemptProctoringEvent event = new QuizAttemptProctoringEvent();
+            event.setAttempt(attempt);
+            event.setEventType(eventType);
+            event.setClientEventId(clientEventId);
+            event.setOccurredAt(LocalDateTime.now(QUIZ_TIMEZONE));
+            event.setMetadataJson(metadataJson);
+            proctoringEventRepository.save(event);
+
+            // Increment warning count
+            int currentWarnings = (attempt.getWarningsCount() != null ? attempt.getWarningsCount() : 0) + 1;
+            attempt.setWarningsCount(currentWarnings);
+            quizAttemptRepository.save(attempt);
+
+            boolean autoSubmitted = false;
+            String message = String.format("Warning %d of %d: %s", currentWarnings, maxWarnings, formatEventTitle(eventType));
+
+            if (currentWarnings >= maxWarnings) {
+                autoSubmitted = true;
+                studentAttemptService.autoSubmitForProctoring(
+                        attemptId, authenticatedUserId, "MALPRACTICE_WARNING_LIMIT");
+                message = "Assessment auto-submitted due to reaching " + maxWarnings + " proctoring violation warnings.";
+            }
+
+            return new ProctoringEventResponse(true, currentWarnings, autoSubmitted, message);
+        }
+    }
+
+    @Transactional
+    public void recordProctoringSummary(Long attemptId, ProctoringSummaryRequest request, Long authenticatedUserId) {
+        if (attemptId == null || request == null) {
+            throw new BadRequestException("INVALID_SUMMARY_REQUEST", "Attempt ID and summary request are required");
+        }
+
+        if (authenticatedUserId == null) {
+            throw new AccessDeniedApplicationException("UNAUTHENTICATED", "Authentication is required");
+        }
+
+        QuizAttempt attempt = quizAttemptRepository.findByIdForUpdate(attemptId)
+                .orElseThrow(() -> new ResourceNotFoundException("Quiz attempt not found"));
+
+        if (attempt.getStudent() == null || !attempt.getStudent().getId().equals(authenticatedUserId)) {
+            throw new AccessDeniedApplicationException("UNAUTHORIZED_ATTEMPT", "User does not own this attempt");
+        }
+
+        {
+            try {
+                Map<String, Object> metaMap = Map.of(
+                        "totalFaceChecks", request.totalFaceChecks(),
+                        "identityMatches", request.identityMatches(),
+                        "identityMismatches", request.identityMismatches()
+                );
+                String metadataJson = objectMapper.writeValueAsString(metaMap);
+
+                QuizAttemptProctoringEvent event = proctoringEventRepository
+                        .findByAttemptIdAndEventType(attemptId, "SESSION_SUMMARY")
+                        .orElseGet(() -> {
+                            QuizAttemptProctoringEvent ev = new QuizAttemptProctoringEvent();
+                            ev.setAttempt(attempt);
+                            ev.setEventType("SESSION_SUMMARY");
+                            return ev;
+                        });
+                event.setOccurredAt(LocalDateTime.now(QUIZ_TIMEZONE));
+                event.setMetadataJson(metadataJson);
+                proctoringEventRepository.save(event);
+            } catch (Exception e) {
+                throw new IllegalStateException("Failed to persist proctoring summary for attempt " + attemptId, e);
+            }
+        }
+    }
+
+    @Transactional(readOnly = true)
+    public TeacherProctoringReportResponse getAttemptProctoringReport(Long attemptId, Long teacherId) {
+        QuizAttempt attempt = quizAttemptRepository.findById(attemptId)
+                .orElseThrow(() -> new ResourceNotFoundException("Quiz attempt not found"));
+
+        if (teacherId == null) {
+            throw new AccessDeniedApplicationException("UNAUTHENTICATED", "Teacher authentication is required");
+        }
+
+        Quiz quiz = attempt.getQuiz();
+        if (quiz == null || quiz.getTeacher() == null || !quiz.getTeacher().getId().equals(teacherId)) {
+            throw new AccessDeniedApplicationException("UNAUTHORIZED_TEACHER", "Not authorized to view this quiz report");
+        }
+
+        List<QuizAttemptProctoringEvent> events = proctoringEventRepository.findByAttemptId(attemptId);
+        return buildReportResponse(attempt, events);
+    }
+
+    @Transactional(readOnly = true)
+    public TeacherQuizProctoringOverviewResponse getQuizProctoringOverview(String quizCode, Long teacherId) {
+        Quiz quiz = quizRepository.findByQuizCode(quizCode)
+                .orElseThrow(() -> new ResourceNotFoundException("Quiz not found"));
+
+        if (teacherId == null) {
+            throw new AccessDeniedApplicationException("UNAUTHENTICATED", "Teacher authentication is required");
+        }
+
+        if (quiz.getTeacher() == null || !quiz.getTeacher().getId().equals(teacherId)) {
+            throw new AccessDeniedApplicationException("UNAUTHORIZED_TEACHER", "Not authorized to view this quiz overview");
+        }
+
+        List<QuizAttempt> attempts = quizAttemptRepository.findByQuizId(quiz.getId());
+        List<TeacherProctoringReportResponse> reports = new ArrayList<>();
+
+        int flagged = 0;
+        int autoSubmitted = 0;
+        double totalRisk = 0;
+
+        for (QuizAttempt att : attempts) {
+            List<QuizAttemptProctoringEvent> events = proctoringEventRepository.findByAttemptId(att.getId());
+            TeacherProctoringReportResponse rep = buildReportResponse(att, events);
+            reports.add(rep);
+
+            if (rep.warningCount() > 0 || rep.riskScore() >= 30) {
+                flagged++;
+            }
+            if (att.getStatus() == AttemptStatus.AUTO_SUBMITTED) {
+                autoSubmitted++;
+            }
+            totalRisk += rep.riskScore();
+        }
+
+        double avgRisk = attempts.isEmpty() ? 0.0 : Math.round((totalRisk / attempts.size()) * 10.0) / 10.0;
+
+        return new TeacherQuizProctoringOverviewResponse(
+                quiz.getQuizCode(),
+                quiz.getTitle(),
+                attempts.size(),
+                flagged,
+                autoSubmitted,
+                avgRisk,
+                reports
+        );
+    }
+
+    private TeacherProctoringReportResponse buildReportResponse(QuizAttempt attempt, List<QuizAttemptProctoringEvent> events) {
+        int faceAbsence = 0;
+        int multiFaces = 0;
+        int multiPersons = 0;
+        int lookingAway = 0;
+        int phoneDetections = 0;
+        int individualIdentityMismatches = 0;
+        int voiceDetections = 0;
+        int tabSwitches = 0;
+
+        int totalFaceChecks = 0;
+        int identityMatches = 0;
+        int summaryIdentityMismatches = 0;
+        boolean hasSummary = false;
+
+        List<TeacherProctoringReportResponse.ProctoringEventDetail> eventDetails = new ArrayList<>();
+
+        for (QuizAttemptProctoringEvent ev : events) {
+            String type = ev.getEventType() != null ? ev.getEventType().toUpperCase(Locale.ROOT) : "UNKNOWN";
+
+            if ("SESSION_SUMMARY".equals(type)) {
+                try {
+                    JsonNode node = objectMapper.readTree(ev.getMetadataJson());
+                    if (node.has("totalFaceChecks")) {
+                        totalFaceChecks = node.get("totalFaceChecks").asInt(0);
+                    }
+                    if (node.has("identityMatches")) {
+                        identityMatches = node.get("identityMatches").asInt(0);
+                    }
+                    if (node.has("identityMismatches")) {
+                        summaryIdentityMismatches = node.get("identityMismatches").asInt(0);
+                    }
+                    hasSummary = true;
+                } catch (Exception ignored) {
+                }
+                continue;
+            }
+
+            switch (type) {
+                case "FACE_NOT_DETECTED" -> faceAbsence++;
+                case "MULTIPLE_FACES" -> multiFaces++;
+                case "MULTIPLE_PERSONS" -> multiPersons++;
+                case "LOOKING_AWAY" -> lookingAway++;
+                case "PHONE_DETECTED" -> phoneDetections++;
+                case "IDENTITY_MISMATCH" -> individualIdentityMismatches++;
+                case "VOICE_ACTIVITY", "LOUD_VOICE" -> voiceDetections++;
+                case "TAB_SWITCH", "FULLSCREEN_EXIT" -> tabSwitches++;
+            }
+
+            // Extract severity and confidence
+            String detailsText = null;
+            String severity = null;
+            Double confidence = null;
+
+            if (ev.getMetadataJson() != null && ev.getMetadataJson().trim().startsWith("{")) {
+                try {
+                    JsonNode node = objectMapper.readTree(ev.getMetadataJson());
+                    if (node.has("details") && !node.get("details").isNull()) {
+                        detailsText = node.get("details").asText();
+                    }
+                    if (node.has("severity") && !node.get("severity").isNull()) {
+                        severity = node.get("severity").asText();
+                    }
+                    if (node.has("confidence") && !node.get("confidence").isNull()) {
+                        confidence = node.get("confidence").asDouble();
+                    }
+                } catch (Exception ignored) {
+                }
+            }
+
+            if (severity == null || severity.isBlank()) {
+                severity = (type.contains("PHONE") || type.contains("IDENTITY")) ? "CRITICAL" : "HIGH";
+            }
+            if (confidence == null) {
+                confidence = 0.90;
+            }
+            if (detailsText == null || detailsText.isBlank()) {
+                detailsText = formatEventTitle(type);
+            }
+
+            eventDetails.add(new TeacherProctoringReportResponse.ProctoringEventDetail(
+                    ev.getId(),
+                    type,
+                    detailsText,
+                    severity,
+                    confidence,
+                    ev.getOccurredAt()
+            ));
+        }
+
+        // Real biometric totals: use summary if present, otherwise 0
+        int finalTotalFaceChecks = hasSummary ? totalFaceChecks : 0;
+        int finalIdentityMatches = hasSummary ? identityMatches : 0;
+        int finalIdentityMismatches = hasSummary ? summaryIdentityMismatches : 0;
+
+        // Total violations count represents actual malpractice violation events only (excluding SESSION_SUMMARY)
+        int totalViolations = faceAbsence + multiFaces + multiPersons + lookingAway + phoneDetections + individualIdentityMismatches + voiceDetections + tabSwitches;
+
+        // Weighted risk score calculation based on actual recorded malpractice events
+        int riskScore = Math.min(100,
+                (phoneDetections * 35) +
+                (individualIdentityMismatches * 30) +
+                (multiPersons * 25) +
+                (multiFaces * 20) +
+                (lookingAway * 15) +
+                (faceAbsence * 15) +
+                (voiceDetections * 15) +
+                (tabSwitches * 10)
+        );
+        String riskLevel = riskScore >= 65 ? "HIGH" : riskScore >= 30 ? "MEDIUM" : "LOW";
+
+        User student = attempt.getStudent();
+        Quiz quiz = attempt.getQuiz();
+
+        return new TeacherProctoringReportResponse(
+                attempt.getId(),
+                student != null ? student.getId() : null,
+                student != null ? student.getFullName() : "Unknown Student",
+                student != null ? student.getEmail() : "N/A",
+                quiz != null ? quiz.getQuizCode() : "N/A",
+                quiz != null ? quiz.getTitle() : "N/A",
+                attempt.getStatus() != null ? attempt.getStatus().name() : "IN_PROGRESS",
+                attempt.getWarningsCount() != null ? attempt.getWarningsCount() : 0,
+                totalViolations,
+                riskScore,
+                riskLevel,
+                finalTotalFaceChecks,
+                finalIdentityMatches,
+                finalIdentityMismatches,
+                faceAbsence,
+                multiFaces,
+                multiPersons,
+                lookingAway,
+                phoneDetections,
+                voiceDetections,
+                tabSwitches,
+                attempt.getStartedAt(),
+                attempt.getSubmittedAt(),
+                eventDetails
+        );
+    }
+
+    private String formatEventTitle(String type) {
+        return switch (type) {
+            case "PHONE_DETECTED" -> "Mobile Phone Detected";
+            case "FACE_NOT_DETECTED" -> "Face Not Detected";
+            case "MULTIPLE_FACES" -> "Multiple Faces Detected";
+            case "MULTIPLE_PERSONS" -> "Multiple Persons Detected";
+            case "LOOKING_AWAY" -> "Gaze / Looking Away Detected";
+            case "IDENTITY_MISMATCH" -> "Biometric Identity Mismatch";
+            case "VOICE_ACTIVITY" -> "Voice / Speech Detected";
+            case "LOUD_VOICE" -> "Loud Voice Detected";
+            case "TAB_SWITCH" -> "Tab Switch / Window Focus Lost";
+            case "FULLSCREEN_EXIT" -> "Fullscreen Mode Exited";
+            default -> type.replace("_", " ");
+        };
+    }
+}
