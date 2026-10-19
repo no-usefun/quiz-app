@@ -34,7 +34,6 @@ import type {
 interface ProctoringEventResponse {
   recorded: boolean;
   warningCount: number;
-  maxWarnings?: number;
   autoSubmitted: boolean;
   message: string;
 }
@@ -462,6 +461,8 @@ export default function TestArenaPage({
               details,
               severity: "HIGH",
               confidence: 1.0,
+              frameTimestamp: now,
+              eventId: `browser-${activeAttemptId}-${eventType}-${now}`,
             },
             {
               headers: token ? { Authorization: `Bearer ${token}` } : {},
