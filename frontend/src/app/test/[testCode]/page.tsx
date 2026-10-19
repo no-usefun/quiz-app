@@ -1678,8 +1678,7 @@ export default function TestArenaPage({
                 {currentQuestion?.options.map((option, idx) => {
                   const optionId = Number(option.optionId);
                   const selectedIds =
-                    answersRef.current[Number(currentQuestion.questionId)] ??
-                    [];
+                    answers[Number(currentQuestion.questionId)] ?? [];
                   const isSelected = selectedIds.includes(optionId);
 
                   return (
@@ -1981,7 +1980,6 @@ export default function TestArenaPage({
         warningCount={Math.max(
           proctoring.warningCount,
           proctoring.activeWarningModal.count,
-          lastBackendWarningCountRef.current,
         )}
         reason={proctoring.activeWarningModal.reason}
         autoSubmitted={proctoring.activeWarningModal.autoSubmitted}
