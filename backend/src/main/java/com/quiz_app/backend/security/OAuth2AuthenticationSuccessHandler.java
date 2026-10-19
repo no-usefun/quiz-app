@@ -159,13 +159,7 @@ public class OAuth2AuthenticationSuccessHandler
                                         jwtUtils.getExpirationMs(),
                                         UserSummaryResponse.fromEntity(user));
 
-                        response.setStatus(HttpServletResponse.SC_OK);
-                        response.setContentType("application/json");
-                        response.setCharacterEncoding("UTF-8");
-
-                        new ObjectMapper().writeValue(
-                                        response.getWriter(),
-                                        authResponse);
+                        redirectOAuthSuccess(response, authResponse);
 
                 } catch (RuntimeException e) {
                         logger.error(
@@ -182,6 +176,39 @@ public class OAuth2AuthenticationSuccessHandler
                                                 "Unable to complete Google sign-in");
                         }
                 }
+        }
+
+        private void redirectOAuthSuccess(
+                        HttpServletResponse response,
+                        AuthResponse authResponse) throws IOException {
+
+                String callbackUrl = buildFrontendOAuthErrorUrl();
+                if (callbackUrl == null) {
+                        logger.error("Google OAuth succeeded but FRONTEND_URL is missing or invalid");
+                        writeOAuthError(
+                                        null,
+                                        response,
+                                        HttpServletResponse.SC_INTERNAL_SERVER_ERROR,
+                                        "SSO_REDIRECT_NOT_CONFIGURED",
+                                        "Google sign-in succeeded but the frontend redirect is not configured");
+                        return;
+                }
+
+                // Put the JWT in the URL fragment: browsers do not send fragments to
+                // the web server in HTTP requests or Referer headers. The frontend
+                // callback reads it and immediately removes it from the visible URL.
+                String encodedToken = URLEncoder.encode(
+                                authResponse.token(),
+                                StandardCharsets.UTF_8);
+                String location = callbackUrl + "#token=" + encodedToken
+                                + "&expiresIn=" + authResponse.expiresIn();
+
+                if (response.isCommitted()) {
+                        logger.warn("Google OAuth redirect could not be sent because the response is already committed");
+                        return;
+                }
+
+                response.sendRedirect(location);
         }
 
         private void redirectDuplicateEmailError(
@@ -267,6 +294,13 @@ public class OAuth2AuthenticationSuccessHandler
                         return;
                 }
 
+                String callbackUrl = buildFrontendOAuthErrorUrl();
+                if (callbackUrl != null) {
+                        String encodedCode = URLEncoder.encode(code, StandardCharsets.UTF_8);
+                        response.sendRedirect(callbackUrl + "?errorCode=" + encodedCode);
+                        return;
+                }
+
                 ErrorResponse errorResponse = new ErrorResponse(
                                 status,
                                 code,
@@ -276,15 +310,13 @@ public class OAuth2AuthenticationSuccessHandler
                                                                 ? "Internal Server Error"
                                                                 : "OAuth Authentication Error",
                                 message,
-                                request.getRequestURI());
+                                request != null ? request.getRequestURI() : "/oauth2/callback");
 
                 response.setStatus(status);
                 response.setContentType("application/json");
                 response.setCharacterEncoding("UTF-8");
 
-                new ObjectMapper().writeValue(
-                                response.getWriter(),
-                                errorResponse);
+                new ObjectMapper().writeValue(response.getWriter(), errorResponse);
         }
 
         private void createIdentity(

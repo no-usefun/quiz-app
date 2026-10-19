@@ -8,6 +8,8 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -35,6 +37,7 @@ import com.quiz_app.backend.repository.QuizRepository;
 @Service
 public class ProctoringService {
 
+    private static final Logger logger = LoggerFactory.getLogger(ProctoringService.class);
     private static final ZoneId QUIZ_TIMEZONE = ZoneId.of("Asia/Kolkata");
 
     @org.springframework.beans.factory.annotation.Value("${proctoring.max-warnings:3}")
@@ -255,7 +258,10 @@ public class ProctoringService {
                 event.setOccurredAt(LocalDateTime.now(QUIZ_TIMEZONE));
                 event.setMetadataJson(metadataJson);
                 proctoringEventRepository.save(event);
+                logger.info("Recorded proctoring summary for attempt {}: checks={}, matches={}, mismatches={}",
+                        attemptId, request.totalFaceChecks(), request.identityMatches(), request.identityMismatches());
             } catch (Exception e) {
+                logger.error("Failed to persist proctoring summary for attempt {}: {}", attemptId, e.getMessage(), e);
                 throw new IllegalStateException("Failed to persist proctoring summary for attempt " + attemptId, e);
             }
         }
