@@ -202,9 +202,9 @@ public class ProctoringService {
             quizAttemptRepository.save(attempt);
 
             boolean autoSubmitted = false;
-            String message = String.format("Warning %d of %d: %s", currentWarnings, MAX_WARNINGS, formatEventTitle(eventType));
+            String message = String.format("Warning %d of %d: %s", currentWarnings, maxWarnings, formatEventTitle(eventType));
 
-            if (currentWarnings >= MAX_WARNINGS) {
+            if (currentWarnings >= maxWarnings) {
                 autoSubmitted = true;
                 attempt.setTerminationReason("MALPRACTICE_WARNING_LIMIT");
                 attempt.setStatus(AttemptStatus.AUTO_SUBMITTED);
@@ -254,8 +254,6 @@ public class ProctoringService {
                 event.setOccurredAt(LocalDateTime.now());
                 event.setMetadataJson(metadataJson);
                 proctoringEventRepository.save(event);
-                logger.info("Recorded real proctoring summary for attempt {}: checks={}, matches={}, mismatches={}",
-                        attemptId, request.totalFaceChecks(), request.identityMatches(), request.identityMismatches());
             } catch (Exception e) {
                 throw new IllegalStateException("Failed to persist proctoring summary for attempt " + attemptId, e);
             }
