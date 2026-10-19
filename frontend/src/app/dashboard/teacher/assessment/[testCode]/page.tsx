@@ -26,6 +26,24 @@ import { ENDPOINTS } from "@/lib/api/endpoints";
 import LanExamPreflight from "@/components/LanExamPreflight";
 import { isLanExamMode } from "@/lib/examMode";
 
+type ApiRecord = Record<string, unknown>;
+
+function isApiRecord(value: unknown): value is ApiRecord {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function getApiRecords(value: unknown): ApiRecord[] {
+  if (Array.isArray(value)) return value.filter(isApiRecord);
+  if (!isApiRecord(value)) return [];
+  if (Array.isArray(value.content)) return value.content.filter(isApiRecord);
+  if (Array.isArray(value.data)) return value.data.filter(isApiRecord);
+  return [];
+}
+
+function getErrorMessage(error: unknown, fallback: string): string {
+  return error instanceof Error && error.message ? error.message : fallback;
+}
+
 type SortKey = "rank" | "name" | "score" | "timeTaken";
 type SortDir = "asc" | "desc";
 type ResultVisibility = "NONE" | "LEADERBOARD" | "QUESTION_WISE" | "BOTH";
@@ -276,16 +294,10 @@ export default function TeacherAssessmentPage({
       );
     }
 
-    const listPayload = await listRes.json();
-    const list: any[] = Array.isArray(listPayload)
-      ? listPayload
-      : Array.isArray(listPayload?.content)
-        ? listPayload.content
-        : Array.isArray(listPayload?.data)
-          ? listPayload.data
-          : [];
+    const listPayload: unknown = await listRes.json();
+    const list = getApiRecords(listPayload);
 
-    let matched = list.find(
+    let matched: ApiRecord | undefined = list.find(
       (quiz) =>
         String(quiz?.quizCode ?? "") === String(value) ||
         String(quiz?.quizId ?? quiz?.id ?? "") === String(value),
@@ -369,12 +381,8 @@ export default function TeacherAssessmentPage({
       );
     }
 
-    const payload = await res.json();
-    const entries: any[] = Array.isArray(payload)
-      ? payload
-      : Array.isArray(payload?.content)
-        ? payload.content
-        : [];
+    const payload: unknown = await res.json();
+    const entries = getApiRecords(payload);
 
     const mapped: StudentRecord[] = entries.map((entry, index) => {
       const rawFinalScore = numericValue(entry.finalScore ?? entry.score, 0);
@@ -456,7 +464,7 @@ export default function TeacherAssessmentPage({
           setStudents([]);
           setLeaderboardUnavailable(true);
         }
-      } catch (error: any) {
+      } catch (error: unknown) {
         if (cancelled) return;
 
         console.error("Backend assessment fetch error:", error);
@@ -464,8 +472,10 @@ export default function TeacherAssessmentPage({
         setStudents([]);
         setLeaderboardUnavailable(true);
         setLifecycleError(
-          error?.message ||
+          getErrorMessage(
+            error,
             "We couldn't retrieve this assessment from the server.",
+          ),
         );
       } finally {
         if (!cancelled) {
@@ -549,7 +559,7 @@ export default function TeacherAssessmentPage({
     } catch (error: any) {
       setResultVisibility(previousVisibility);
       setSettingsError(
-        error?.message || "Failed to update assessment settings on the server.",
+        getErrorMessage(error, "Failed to update assessment settings on the server."),
       );
     } finally {
       setSettingsSaving(false);
@@ -632,7 +642,7 @@ export default function TeacherAssessmentPage({
           : previous,
       );
     } catch (error: any) {
-      setLifecycleError(error?.message || "Failed to publish assessment.");
+      setLifecycleError(getErrorMessage(error, "Failed to publish assessment."));
     } finally {
       setLifecycleLoading(false);
     }
@@ -678,7 +688,7 @@ export default function TeacherAssessmentPage({
 
       setConfirmCompleteOpen(false);
     } catch (error: any) {
-      setLifecycleError(error?.message || "Failed to complete assessment.");
+      setLifecycleError(getErrorMessage(error, "Failed to complete assessment."));
     } finally {
       setLifecycleLoading(false);
     }
@@ -725,7 +735,7 @@ export default function TeacherAssessmentPage({
       );
     } catch (error: any) {
       setLifecycleError(
-        error?.message || "Failed to update result publication.",
+        getErrorMessage(error, "Failed to update result publication."),
       );
     } finally {
       setLifecycleLoading(false);
@@ -743,12 +753,6 @@ export default function TeacherAssessmentPage({
   const settingsLocked = status !== "DRAFT";
 
   const submitted = students;
-
-  const classAvg =
-    submitted.length > 0
-      ? submitted.reduce((sum, student) => sum + student.percentage, 0) /
-        submitted.length
-      : 0;
 
   const highScore = Math.max(
     ...(submitted.length > 0
