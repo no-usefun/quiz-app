@@ -84,6 +84,10 @@ export function useAIProctoring({
   // Telemetry & Hardware State
   const [cameraActive, setCameraActive] = useState(false);
   const [cameraError, setCameraError] = useState<string | null>(null);
+  const displayedCameraError =
+    enabled && !referenceImage
+      ? "Reference biometric photo is missing. Please return to the lobby to register your photo."
+      : cameraError;
   const [retryCount, setRetryCount] = useState(0);
   const [isOnline, setIsOnline] = useState(false);
   const [telemetryReceived, setTelemetryReceived] = useState(false);
@@ -327,7 +331,6 @@ export function useAIProctoring({
     cleanupPromiseRef.current = null;
 
     if (!referenceImage) {
-      setCameraError("Reference biometric photo is missing. Please return to the lobby to register your photo.");
       return;
     }
 
@@ -364,14 +367,16 @@ export function useAIProctoring({
           },
           audio: true,
         });
-      } catch (mediaErr: any) {
+      } catch (mediaErr: unknown) {
         if (!mounted) return;
+        const errorName =
+          mediaErr instanceof Error ? mediaErr.name : "";
         let msg = "Could not access camera or microphone.";
-        if (mediaErr?.name === "NotAllowedError" || mediaErr?.name === "PermissionDeniedError") {
+        if (errorName === "NotAllowedError" || errorName === "PermissionDeniedError") {
           msg = "Camera/microphone permission was denied. Please allow camera and mic permissions in browser settings.";
-        } else if (mediaErr?.name === "NotFoundError" || mediaErr?.name === "DevicesNotFoundError") {
+        } else if (errorName === "NotFoundError" || errorName === "DevicesNotFoundError") {
           msg = "No camera or microphone hardware device was found.";
-        } else if (mediaErr?.name === "NotReadableError" || mediaErr?.name === "TrackStartError") {
+        } else if (errorName === "NotReadableError" || errorName === "TrackStartError") {
           msg = "Camera or microphone is in use by another application. Please close other software and retry.";
         }
         setCameraError(msg);
@@ -470,9 +475,13 @@ export function useAIProctoring({
           authToken: authTokenRef.current,
           springBootUrl: springBootUrlRef.current,
         });
-      } catch (sessionErr: any) {
+      } catch (sessionErr: unknown) {
         if (!mounted) return;
-        setCameraError(sessionErr?.message || "Failed to initialize proctoring session.");
+        setCameraError(
+          sessionErr instanceof Error && sessionErr.message
+            ? sessionErr.message
+            : "Failed to initialize proctoring session.",
+        );
         console.error("Proctoring session initialization failed:", sessionErr);
         await cleanup();
         return;
@@ -622,7 +631,7 @@ export function useAIProctoring({
   return {
     videoRef,
     cameraActive,
-    cameraError,
+    cameraError: displayedCameraError,
     isOnline,
     telemetryReceived,
     faceDetected,
