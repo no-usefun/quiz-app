@@ -21,7 +21,7 @@ public class AiProctoringClient {
         public AiProctoringClient(
                         RestClient.Builder restClientBuilder,
                         ObjectMapper objectMapper,
-                        @Value("${app.ai-proctoring.base-url}") String baseUrl) {
+                        @Value("${app.ai-proctoring.base-url:http://localhost:8000}") String baseUrl) {
                 this.restClient = restClientBuilder.baseUrl(baseUrl).build();
                 this.objectMapper = objectMapper;
         }
@@ -65,7 +65,7 @@ public class AiProctoringClient {
                                         "ai-proctoring",
                                         false,
                                         Collections.emptyMap(),
-                                        "AI proctoring service is unavailable");
+                                        "AI server is down or unreachable");
                 } catch (Exception ex) {
                         return new AiProctoringHealthResponse(
                                         false,
