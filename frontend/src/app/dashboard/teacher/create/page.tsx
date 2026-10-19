@@ -124,7 +124,7 @@ function CreateAssessmentContent() {
   const searchParams = useSearchParams();
   const draftId = searchParams?.get("draftId") || null;
   const { user } = useSession();
-  const [loadingDraft, setLoadingDraft] = useState(false);
+  const [loadingDraft, setLoadingDraft] = useState(() => Boolean(draftId));
   const [submitting, setSubmitting] = useState(false);
   const [validationError, setValidationError] = useState<string | null>(null);
   const [draggedOption, setDraggedOption] = useState<{ qIdx: number; optIdx: number } | null>(null);
@@ -436,8 +436,6 @@ function CreateAssessmentContent() {
     }
 
     const fetchDraft = async () => {
-      setLoadingDraft(true);
-      setValidationError(null);
       try {
         const token =
           typeof window !== "undefined"
