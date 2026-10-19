@@ -12,6 +12,28 @@ import {
   ArrowRight,
 } from "lucide-react";
 import { ENDPOINTS } from "@/lib/api/endpoints";
+
+async function readSignupResponse(response: Response): Promise<Record<string, unknown>> {
+  const contentType = response.headers.get("content-type") || "";
+  const text = await response.text();
+
+  if (contentType.toLowerCase().includes("text/html") || /^\\s*<(?:!doctype\\s+html|html|head|body)\\b/i.test(text)) {
+    throw new Error(
+      `The API returned an HTML page instead of JSON (HTTP ${response.status}). Check NEXT_PUBLIC_API_URL and the backend signup/login endpoints. Request: ${response.url}`,
+    );
+  }
+
+  if (!text.trim()) return {};
+  try {
+    const data: unknown = JSON.parse(text);
+    return data && typeof data === "object" ? data as Record<string, unknown> : {};
+  } catch {
+    if (!response.ok) {
+      throw new Error(`The API returned an unreadable response (HTTP ${response.status}). Request: ${response.url}`);
+    }
+    throw new Error("The API returned an invalid JSON response.");
+  }
+}
 import { PublicNavbar } from "@/components/PublicNavbar";
 import { isLanExamMode } from "@/lib/examMode";
 
@@ -203,7 +225,7 @@ function SignupContent() {
         }),
       });
 
-      const data = await res.json().catch(() => ({}));
+      const data = await readSignupResponse(res);
 
       if (res.ok) {
         const verificationRequired = data?.verificationRequired === true;
@@ -249,7 +271,7 @@ function SignupContent() {
           cache: "no-store",
         });
 
-        const loginData = await loginRes.json().catch(() => ({}));
+        const loginData = await readSignupResponse(loginRes);
 
         if (!loginRes.ok) {
           throw new Error(
@@ -277,7 +299,7 @@ function SignupContent() {
           cache: "no-store",
         });
 
-        const meData = await meRes.json().catch(() => ({}));
+        const meData = await readSignupResponse(meRes);
 
         if (!meRes.ok) {
           throw new Error(
@@ -352,7 +374,9 @@ function SignupContent() {
       console.error("Signup connection error:", err);
       setSuccess("");
       setError(
-        "Cannot connect to the authentication server. Please ensure the backend is running.",
+        err instanceof Error
+          ? err.message
+          : "Cannot connect to the authentication server. Please ensure the backend is running.",
       );
     } finally {
       setLoading(false);
