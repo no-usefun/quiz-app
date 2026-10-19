@@ -2,7 +2,7 @@
 
 export const AI_PROCTORING_BASE_URL = (
   process.env.NEXT_PUBLIC_AI_PROCTORING_URL || "http://localhost:8000"
-).replace(/\\/+$/, "");
+).replace(/\/+$/, "");
 
 export const AI_PROCTORING_WS_URL = (
   process.env.NEXT_PUBLIC_AI_PROCTORING_WS_URL || "ws://localhost:8000"
@@ -231,4 +231,54 @@ export async function stopProctoringSession(
     // Graceful ignore
   }
   return null;
+}
+
+
+/**
+ * Persist final AI-proctoring counters through the authoritative Spring Boot API.
+ * The summary DTO intentionally contains only these three aggregate fields.
+ */
+export async function submitProctoringSummary(
+  params: {
+    attemptId: number;
+    authToken?: string;
+    totalFaceChecks: number;
+    identityMatches: number;
+    identityMismatches: number;
+  },
+): Promise<void> {
+  const baseUrl = (
+    process.env.NEXT_PUBLIC_API_URL || "http://localhost:8080"
+  ).replace(/\/+$/, "");
+  const token = params.authToken?.trim();
+  const response = await fetch(
+    `${baseUrl}/api/v1/attempts/${params.attemptId}/proctoring-summary`,
+    {
+      method: "POST",
+      headers: {
+        Accept: "application/json",
+        "Content-Type": "application/json",
+        ...(token
+          ? {
+              Authorization: token.startsWith("Bearer ")
+                ? token
+                : `Bearer ${token}`,
+            }
+          : {}),
+      },
+      body: JSON.stringify({
+        totalFaceChecks: Math.max(0, Math.floor(params.totalFaceChecks)),
+        identityMatches: Math.max(0, Math.floor(params.identityMatches)),
+        identityMismatches: Math.max(0, Math.floor(params.identityMismatches)),
+      }),
+      signal: AbortSignal.timeout(4000),
+    },
+  );
+
+  if (!response.ok) {
+    const detail = await response.text().catch(() => "");
+    throw new Error(
+      `Proctoring summary submission failed (${response.status})${detail ? `: ${detail.slice(0, 300)}` : ""}`,
+    );
+  }
 }
