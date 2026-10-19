@@ -556,7 +556,7 @@ export default function TeacherAssessmentPage({
             : previous,
         );
       }
-    } catch (error: any) {
+    } catch (error: unknown) {
       setResultVisibility(previousVisibility);
       setSettingsError(
         getErrorMessage(error, "Failed to update assessment settings on the server."),
@@ -641,7 +641,7 @@ export default function TeacherAssessmentPage({
             }
           : previous,
       );
-    } catch (error: any) {
+    } catch (error: unknown) {
       setLifecycleError(getErrorMessage(error, "Failed to publish assessment."));
     } finally {
       setLifecycleLoading(false);
@@ -687,7 +687,7 @@ export default function TeacherAssessmentPage({
       );
 
       setConfirmCompleteOpen(false);
-    } catch (error: any) {
+    } catch (error: unknown) {
       setLifecycleError(getErrorMessage(error, "Failed to complete assessment."));
     } finally {
       setLifecycleLoading(false);
@@ -733,7 +733,7 @@ export default function TeacherAssessmentPage({
             }
           : previous,
       );
-    } catch (error: any) {
+    } catch (error: unknown) {
       setLifecycleError(
         getErrorMessage(error, "Failed to update result publication."),
       );
