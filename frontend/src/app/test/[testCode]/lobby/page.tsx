@@ -145,7 +145,9 @@ function LobbyInner({ testCode }: { testCode: string }) {
 
   const status = availability?.status;
   const isLive = status === "LIVE" && availability?.available === true;
-  const aiRequired = availability?.aiProctoringEnabled !== false;
+  // Only render camera/biometric UI when the API explicitly says AI proctoring is enabled.
+  // This prevents the lobby from incorrectly requiring a camera when older API responses omit the flag.
+  const aiRequired = availability?.aiProctoringEnabled === true;
 
   const handleStartAssessment = async () => {
     if (!isLive) {
