@@ -1,6 +1,6 @@
 "use client";
 
-import { use, useEffect, useMemo, useState } from "react";
+import { use, useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import {
   ArrowLeft,
@@ -42,7 +42,7 @@ export default function StudentLeaderboardPage({
 
   const numericQuizId = Number(quizId);
 
-  const load = async (background = false) => {
+  const load = useCallback(async (background = false) => {
     if (!Number.isInteger(numericQuizId) || numericQuizId <= 0) {
       setLeaderboardLocked(false);
       setError("The leaderboard URL contains an invalid quiz ID.");
@@ -101,11 +101,14 @@ export default function StudentLeaderboardPage({
       setLoading(false);
       setRefreshing(false);
     }
-  };
+  }, [numericQuizId]);
 
   useEffect(() => {
+    // This starts an asynchronous API request; its state updates occur as the
+    // request resolves, rather than synchronously deriving state from props.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     void load();
-  }, [quizId]);
+  }, [load]);
 
   const podium = useMemo(() => entries.slice(0, 3), [entries]);
 
