@@ -140,10 +140,16 @@ export default function StudentLeaderboardPage({
       ).length,
     }));
 
+    const sortedPercentages = [...percentages].sort((a, b) => a - b);
+    const middle = Math.floor(sortedPercentages.length / 2);
+    const median = sortedPercentages.length % 2 === 0
+      ? (sortedPercentages[middle - 1] + sortedPercentages[middle]) / 2
+      : sortedPercentages[middle];
+
     return {
       average,
       highest: Math.max(...percentages),
-      median: [...percentages].sort((a, b) => a - b)[Math.floor(percentages.length / 2)],
+      median,
       completed: entries.length,
       distribution,
     };
