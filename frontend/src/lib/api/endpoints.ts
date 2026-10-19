@@ -78,6 +78,15 @@ export const ENDPOINTS = {
       `${API_BASE}/api/v1/student/attempts/${attemptId}/auto-submit`,
   },
 
+  proctoring: {
+    recordEvent: (attemptId: number | string) =>
+      `${API_BASE}/api/v1/attempts/${attemptId}/events`,
+    verifyAccess: (attemptId: number | string) =>
+      `${API_BASE}/api/v1/attempts/${attemptId}/verify-access`,
+    summary: (attemptId: number | string) =>
+      `${API_BASE}/api/v1/attempts/${attemptId}/proctoring-summary`,
+  },
+
   teacher: {
     quizzes: `${API_BASE}/api/v1/teacher/quizzes`,
 

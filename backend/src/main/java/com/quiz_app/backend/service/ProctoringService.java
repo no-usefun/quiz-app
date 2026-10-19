@@ -7,7 +7,10 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -35,7 +38,9 @@ import com.quiz_app.backend.repository.QuizRepository;
 @Service
 public class ProctoringService {
 
+    private static final Logger logger = LoggerFactory.getLogger(ProctoringService.class);
     private static final ZoneId QUIZ_TIMEZONE = ZoneId.of("Asia/Kolkata");
+    private static final long DEBOUNCE_INTERVAL_MS = 4000L;
 
     @org.springframework.beans.factory.annotation.Value("${proctoring.max-warnings:3}")
     private int maxWarnings = 3;
@@ -66,6 +71,8 @@ public class ProctoringService {
     private final StudentAttemptService studentAttemptService;
     private final ObjectMapper objectMapper;
 
+    // Debounce cache per (attemptId:eventType)
+    private final Map<String, Long> debounceCache = new ConcurrentHashMap<>();
 
     public ProctoringService(
             QuizAttemptRepository quizAttemptRepository,
@@ -165,6 +172,19 @@ public class ProctoringService {
                 );
             }
 
+            String debounceKey = attemptId + ":" + eventType;
+            long now = System.currentTimeMillis();
+            Long lastRecorded = debounceCache.get(debounceKey);
+            if (lastRecorded != null && (now - lastRecorded) < DEBOUNCE_INTERVAL_MS) {
+                return new ProctoringEventResponse(
+                        false,
+                        attempt.getWarningsCount() != null ? attempt.getWarningsCount() : 0,
+                        false,
+                        "Debounced duplicate event"
+                );
+            }
+            debounceCache.put(debounceKey, now);
+
             String severity = request.severity() != null && !request.severity().isBlank()
                     ? request.severity().trim().toUpperCase(Locale.ROOT)
                     : null;
@@ -255,7 +275,10 @@ public class ProctoringService {
                 event.setOccurredAt(LocalDateTime.now(QUIZ_TIMEZONE));
                 event.setMetadataJson(metadataJson);
                 proctoringEventRepository.save(event);
+                logger.info("Recorded real proctoring summary for attempt {}: checks={}, matches={}, mismatches={}",
+                        attemptId, request.totalFaceChecks(), request.identityMatches(), request.identityMismatches());
             } catch (Exception e) {
+                logger.error("Failed to serialize proctoring summary for attempt {}: {}", attemptId, e.getMessage());
                 throw new IllegalStateException("Failed to persist proctoring summary for attempt " + attemptId, e);
             }
         }

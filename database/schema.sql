@@ -231,3 +231,49 @@ CREATE TABLE email_verification_tokens (
 CREATE INDEX idx_email_verification_tokens_user ON email_verification_tokens(user_id);
 CREATE INDEX idx_email_verification_tokens_expiry ON email_verification_tokens(expires_at);
 
+CREATE TABLE password_reset_tokens (
+    token_id BIGSERIAL PRIMARY KEY,
+    user_id BIGINT NOT NULL REFERENCES users(user_id) ON UPDATE CASCADE ON DELETE CASCADE,
+    token_hash VARCHAR(255) NOT NULL UNIQUE,
+    expires_at TIMESTAMP NOT NULL,
+    used BOOLEAN NOT NULL DEFAULT FALSE,
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX idx_password_reset_tokens_user ON password_reset_tokens(user_id);
+CREATE INDEX idx_password_reset_tokens_expiry ON password_reset_tokens(expires_at);
+
+CREATE TABLE user_notification_preferences (
+    preference_id BIGSERIAL PRIMARY KEY,
+    user_id BIGINT NOT NULL UNIQUE REFERENCES users(user_id) ON UPDATE CASCADE ON DELETE CASCADE,
+    assessment_results BOOLEAN NOT NULL DEFAULT TRUE,
+    upcoming_assessments BOOLEAN NOT NULL DEFAULT TRUE,
+    proctoring_reports BOOLEAN NOT NULL DEFAULT FALSE,
+    browser_push BOOLEAN NOT NULL DEFAULT FALSE
+);
+
+CREATE TABLE offline_exams (
+    offline_exam_id BIGSERIAL PRIMARY KEY,
+    quiz_id BIGINT NOT NULL UNIQUE REFERENCES quizzes(quiz_id) ON UPDATE CASCADE ON DELETE CASCADE,
+    status VARCHAR(20) NOT NULL CHECK (status IN ('PREPARING', 'READY', 'RUNNING', 'ENDED')),
+    prepared_at TIMESTAMP,
+    started_at TIMESTAMP,
+    ended_at TIMESTAMP,
+    updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX idx_offline_exams_status ON offline_exams(status);
+
+CREATE TABLE quiz_attempt_proctoring_events (
+    event_id BIGSERIAL PRIMARY KEY,
+    attempt_id BIGINT NOT NULL REFERENCES quiz_attempts(attempt_id) ON DELETE CASCADE,
+    event_type VARCHAR(40) NOT NULL,
+    occurred_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    metadata_json TEXT,
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX idx_proctoring_events_attempt_time ON quiz_attempt_proctoring_events(attempt_id, occurred_at);
+CREATE INDEX idx_proctoring_events_attempt_type ON quiz_attempt_proctoring_events(attempt_id, event_type);
+
+
