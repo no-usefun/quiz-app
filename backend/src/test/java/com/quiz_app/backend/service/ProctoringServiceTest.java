@@ -7,6 +7,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.when;
 
 import java.lang.reflect.Field;
@@ -96,8 +97,8 @@ class ProctoringServiceTest {
 
     @Test
     void testRecordProctoringEvent_IncrementsWarningOne() {
-        when(quizAttemptRepository.findById(100L)).thenReturn(Optional.of(testAttempt));
-        when(quizAttemptRepository.findByIdForUpdate(100L)).thenReturn(Optional.of(testAttempt));
+        lenient().when(quizAttemptRepository.findById(100L)).thenReturn(Optional.of(testAttempt));
+        lenient().when(quizAttemptRepository.findByIdForUpdate(100L)).thenReturn(Optional.of(testAttempt));
         when(quizAttemptRepository.save(any(QuizAttempt.class))).thenReturn(testAttempt);
 
         ProctoringEventRequest request = new ProctoringEventRequest("PHONE_DETECTED", "Mobile phone visible", "CRITICAL", 0.95, null);
@@ -113,8 +114,8 @@ class ProctoringServiceTest {
     @Test
     void testRecordProctoringEvent_IncrementsWarningTwo() {
         testAttempt.setWarningsCount(1);
-        when(quizAttemptRepository.findById(100L)).thenReturn(Optional.of(testAttempt));
-        when(quizAttemptRepository.findByIdForUpdate(100L)).thenReturn(Optional.of(testAttempt));
+        lenient().when(quizAttemptRepository.findById(100L)).thenReturn(Optional.of(testAttempt));
+        lenient().when(quizAttemptRepository.findByIdForUpdate(100L)).thenReturn(Optional.of(testAttempt));
         when(quizAttemptRepository.save(any(QuizAttempt.class))).thenReturn(testAttempt);
 
         ProctoringEventRequest request = new ProctoringEventRequest("LOOKING_AWAY", "Gaze deviation left", "HIGH", 0.90, null);
@@ -129,8 +130,8 @@ class ProctoringServiceTest {
     @Test
     void testRecordProctoringEvent_AutoSubmitsOnThirdWarning() {
         testAttempt.setWarningsCount(2);
-        when(quizAttemptRepository.findById(100L)).thenReturn(Optional.of(testAttempt));
-        when(quizAttemptRepository.findByIdForUpdate(100L)).thenReturn(Optional.of(testAttempt));
+        lenient().when(quizAttemptRepository.findById(100L)).thenReturn(Optional.of(testAttempt));
+        lenient().when(quizAttemptRepository.findByIdForUpdate(100L)).thenReturn(Optional.of(testAttempt));
         when(quizAttemptRepository.save(any(QuizAttempt.class))).thenReturn(testAttempt);
 
         ProctoringEventRequest request = new ProctoringEventRequest("IDENTITY_MISMATCH", "Different face detected", "CRITICAL", 0.92, null);
@@ -147,8 +148,8 @@ class ProctoringServiceTest {
     void testRecordProctoringEvent_RejectsFourthEventAfterAutoSubmit() {
         testAttempt.setStatus(AttemptStatus.AUTO_SUBMITTED);
         testAttempt.setWarningsCount(3);
-        when(quizAttemptRepository.findById(100L)).thenReturn(Optional.of(testAttempt));
-        when(quizAttemptRepository.findByIdForUpdate(100L)).thenReturn(Optional.of(testAttempt));
+        lenient().when(quizAttemptRepository.findById(100L)).thenReturn(Optional.of(testAttempt));
+        lenient().when(quizAttemptRepository.findByIdForUpdate(100L)).thenReturn(Optional.of(testAttempt));
 
         ProctoringEventRequest request = new ProctoringEventRequest("PHONE_DETECTED", "Phone after submit", "CRITICAL", 0.95, null);
         ProctoringEventResponse response = proctoringService.recordProctoringEvent(100L, request, 10L);
@@ -161,9 +162,8 @@ class ProctoringServiceTest {
 
     @Test
     void testRecordProctoringEvent_DeduplicatesRepeatedClientEventId() {
-        when(quizAttemptRepository.findById(100L)).thenReturn(Optional.of(testAttempt));
-        when(quizAttemptRepository.findByIdForUpdate(100L)).thenReturn(Optional.of(testAttempt));
-        when(quizAttemptRepository.findByIdForUpdate(100L)).thenReturn(Optional.of(testAttempt));
+        lenient().when(quizAttemptRepository.findById(100L)).thenReturn(Optional.of(testAttempt));
+        lenient().when(quizAttemptRepository.findByIdForUpdate(100L)).thenReturn(Optional.of(testAttempt));
         when(quizAttemptRepository.save(any(QuizAttempt.class))).thenReturn(testAttempt);
         when(proctoringEventRepository.findByAttemptIdAndClientEventId(100L, "client-event-1"))
                 .thenReturn(Optional.empty(), Optional.of(new QuizAttemptProctoringEvent()));
@@ -181,9 +181,9 @@ class ProctoringServiceTest {
     }
 
     @Test
-    void testRecordProctoringEvent_AllowsDifferentEventTypesWithinDebounce() {
-        when(quizAttemptRepository.findById(100L)).thenReturn(Optional.of(testAttempt));
-        when(quizAttemptRepository.findByIdForUpdate(100L)).thenReturn(Optional.of(testAttempt));
+    void testRecordProctoringEvent_AllowsDifferentEventTypes() {
+        lenient().when(quizAttemptRepository.findById(100L)).thenReturn(Optional.of(testAttempt));
+        lenient().when(quizAttemptRepository.findByIdForUpdate(100L)).thenReturn(Optional.of(testAttempt));
         when(quizAttemptRepository.save(any(QuizAttempt.class))).thenReturn(testAttempt);
 
         ProctoringEventRequest req1 = new ProctoringEventRequest("MULTIPLE_PERSONS", "Two persons in room", "HIGH", 0.95, null);
@@ -199,8 +199,8 @@ class ProctoringServiceTest {
 
     @Test
     void testGetAttemptProctoringReport_UsesRealVerificationData_NoDoubleCounting() {
-        when(quizAttemptRepository.findById(100L)).thenReturn(Optional.of(testAttempt));
-        when(quizAttemptRepository.findByIdForUpdate(100L)).thenReturn(Optional.of(testAttempt));
+        lenient().when(quizAttemptRepository.findById(100L)).thenReturn(Optional.of(testAttempt));
+        lenient().when(quizAttemptRepository.findByIdForUpdate(100L)).thenReturn(Optional.of(testAttempt));
 
         QuizAttemptProctoringEvent evSummary = new QuizAttemptProctoringEvent();
         setField(evSummary, "id", 1L);
@@ -256,8 +256,8 @@ class ProctoringServiceTest {
 
     @Test
     void testGetAttemptProctoringReport_ZeroFaceChecksWhenNoSummary() {
-        when(quizAttemptRepository.findById(100L)).thenReturn(Optional.of(testAttempt));
-        when(quizAttemptRepository.findByIdForUpdate(100L)).thenReturn(Optional.of(testAttempt));
+        lenient().when(quizAttemptRepository.findById(100L)).thenReturn(Optional.of(testAttempt));
+        lenient().when(quizAttemptRepository.findByIdForUpdate(100L)).thenReturn(Optional.of(testAttempt));
         when(proctoringEventRepository.findByAttemptId(100L)).thenReturn(List.of());
 
         TeacherProctoringReportResponse report = proctoringService.getAttemptProctoringReport(100L, 20L);
@@ -272,8 +272,8 @@ class ProctoringServiceTest {
 
     @Test
     void testRecordProctoringEvent_ThrowsAccessDeniedForUnauthorizedUser() {
-        when(quizAttemptRepository.findById(100L)).thenReturn(Optional.of(testAttempt));
-        when(quizAttemptRepository.findByIdForUpdate(100L)).thenReturn(Optional.of(testAttempt));
+        lenient().when(quizAttemptRepository.findById(100L)).thenReturn(Optional.of(testAttempt));
+        lenient().when(quizAttemptRepository.findByIdForUpdate(100L)).thenReturn(Optional.of(testAttempt));
 
         ProctoringEventRequest request = new ProctoringEventRequest("PHONE_DETECTED", "Phone", "CRITICAL", 0.95, null);
         org.junit.jupiter.api.Assertions.assertThrows(
@@ -293,8 +293,8 @@ class ProctoringServiceTest {
 
     @Test
     void testRecordProctoringEvent_RejectsSessionSummaryAsMalpracticeEvent() {
-        when(quizAttemptRepository.findById(100L)).thenReturn(Optional.of(testAttempt));
-        when(quizAttemptRepository.findByIdForUpdate(100L)).thenReturn(Optional.of(testAttempt));
+        lenient().when(quizAttemptRepository.findById(100L)).thenReturn(Optional.of(testAttempt));
+        lenient().when(quizAttemptRepository.findByIdForUpdate(100L)).thenReturn(Optional.of(testAttempt));
 
         ProctoringEventRequest request = new ProctoringEventRequest("SESSION_SUMMARY", "Summary", "HIGH", 0.95, null);
         org.junit.jupiter.api.Assertions.assertThrows(
@@ -305,8 +305,8 @@ class ProctoringServiceTest {
 
     @Test
     void testRecordProctoringEvent_RejectsUnrecognizedEventType() {
-        when(quizAttemptRepository.findById(100L)).thenReturn(Optional.of(testAttempt));
-        when(quizAttemptRepository.findByIdForUpdate(100L)).thenReturn(Optional.of(testAttempt));
+        lenient().when(quizAttemptRepository.findById(100L)).thenReturn(Optional.of(testAttempt));
+        lenient().when(quizAttemptRepository.findByIdForUpdate(100L)).thenReturn(Optional.of(testAttempt));
 
         ProctoringEventRequest request = new ProctoringEventRequest("UNKNOWN_INJECTED_EVENT", "Hack", "HIGH", 0.95, null);
         org.junit.jupiter.api.Assertions.assertThrows(
@@ -317,8 +317,8 @@ class ProctoringServiceTest {
 
     @Test
     void testRecordProctoringSummary_SavesSummaryEvent() {
-        when(quizAttemptRepository.findById(100L)).thenReturn(Optional.of(testAttempt));
-        when(quizAttemptRepository.findByIdForUpdate(100L)).thenReturn(Optional.of(testAttempt));
+        lenient().when(quizAttemptRepository.findById(100L)).thenReturn(Optional.of(testAttempt));
+        lenient().when(quizAttemptRepository.findByIdForUpdate(100L)).thenReturn(Optional.of(testAttempt));
         when(proctoringEventRepository.findByAttemptIdAndEventType(100L, "SESSION_SUMMARY")).thenReturn(Optional.empty());
 
         ProctoringSummaryRequest request = new ProctoringSummaryRequest(50, 48, 2);
@@ -338,8 +338,8 @@ class ProctoringServiceTest {
 
     @Test
     void testRecordProctoringSummary_ThrowsAccessDeniedForUnauthorizedUser() {
-        when(quizAttemptRepository.findById(100L)).thenReturn(Optional.of(testAttempt));
-        when(quizAttemptRepository.findByIdForUpdate(100L)).thenReturn(Optional.of(testAttempt));
+        lenient().when(quizAttemptRepository.findById(100L)).thenReturn(Optional.of(testAttempt));
+        lenient().when(quizAttemptRepository.findByIdForUpdate(100L)).thenReturn(Optional.of(testAttempt));
 
         ProctoringSummaryRequest request = new ProctoringSummaryRequest(50, 48, 2);
         org.junit.jupiter.api.Assertions.assertThrows(
@@ -350,8 +350,8 @@ class ProctoringServiceTest {
 
     @Test
     void testRecordProctoringSummary_IdempotentDuplicateCallUpdatesExistingEvent() {
-        when(quizAttemptRepository.findById(100L)).thenReturn(Optional.of(testAttempt));
-        when(quizAttemptRepository.findByIdForUpdate(100L)).thenReturn(Optional.of(testAttempt));
+        lenient().when(quizAttemptRepository.findById(100L)).thenReturn(Optional.of(testAttempt));
+        lenient().when(quizAttemptRepository.findByIdForUpdate(100L)).thenReturn(Optional.of(testAttempt));
 
         QuizAttemptProctoringEvent existingSummary = new QuizAttemptProctoringEvent();
         setField(existingSummary, "id", 101L);
@@ -373,8 +373,8 @@ class ProctoringServiceTest {
 
     @Test
     void testVerifyAttemptAccess_Success() {
-        when(quizAttemptRepository.findById(100L)).thenReturn(Optional.of(testAttempt));
-        when(quizAttemptRepository.findByIdForUpdate(100L)).thenReturn(Optional.of(testAttempt));
+        lenient().when(quizAttemptRepository.findById(100L)).thenReturn(Optional.of(testAttempt));
+        lenient().when(quizAttemptRepository.findByIdForUpdate(100L)).thenReturn(Optional.of(testAttempt));
 
         com.quiz_app.backend.dto.proctoring.ProctoringAccessVerificationResponse response =
                 proctoringService.verifyAttemptAccess(100L, 10L);
@@ -392,8 +392,8 @@ class ProctoringServiceTest {
 
     @Test
     void testVerifyAttemptAccess_UnauthorizedStudent() {
-        when(quizAttemptRepository.findById(100L)).thenReturn(Optional.of(testAttempt));
-        when(quizAttemptRepository.findByIdForUpdate(100L)).thenReturn(Optional.of(testAttempt));
+        lenient().when(quizAttemptRepository.findById(100L)).thenReturn(Optional.of(testAttempt));
+        lenient().when(quizAttemptRepository.findByIdForUpdate(100L)).thenReturn(Optional.of(testAttempt));
 
         org.junit.jupiter.api.Assertions.assertThrows(
                 com.quiz_app.backend.exception.AccessDeniedApplicationException.class,
@@ -403,8 +403,8 @@ class ProctoringServiceTest {
 
     @Test
     void testVerifyAttemptAccess_UnauthenticatedUser() {
-        when(quizAttemptRepository.findById(100L)).thenReturn(Optional.of(testAttempt));
-        when(quizAttemptRepository.findByIdForUpdate(100L)).thenReturn(Optional.of(testAttempt));
+        lenient().when(quizAttemptRepository.findById(100L)).thenReturn(Optional.of(testAttempt));
+        lenient().when(quizAttemptRepository.findByIdForUpdate(100L)).thenReturn(Optional.of(testAttempt));
 
         org.junit.jupiter.api.Assertions.assertThrows(
                 com.quiz_app.backend.exception.AccessDeniedApplicationException.class,
@@ -425,8 +425,8 @@ class ProctoringServiceTest {
     @Test
     void testVerifyAttemptAccess_AttemptAlreadySubmitted() {
         testAttempt.setStatus(AttemptStatus.SUBMITTED);
-        when(quizAttemptRepository.findById(100L)).thenReturn(Optional.of(testAttempt));
-        when(quizAttemptRepository.findByIdForUpdate(100L)).thenReturn(Optional.of(testAttempt));
+        lenient().when(quizAttemptRepository.findById(100L)).thenReturn(Optional.of(testAttempt));
+        lenient().when(quizAttemptRepository.findByIdForUpdate(100L)).thenReturn(Optional.of(testAttempt));
 
         com.quiz_app.backend.dto.proctoring.ProctoringAccessVerificationResponse response =
                 proctoringService.verifyAttemptAccess(100L, 10L);
