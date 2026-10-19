@@ -455,35 +455,9 @@ function LobbyInner({ testCode }: { testCode: string }) {
           animate={{ opacity: 1, y: 0 }}
           className="space-y-5"
         >
-          <div className="rounded-[12px] border border-[#d1dee8]/70 bg-[#f5f5f4]/60 p-4 text-xs text-[#78716b] space-y-2 shadow-xs">
-            <div className="flex items-center gap-2 font-bold text-[#111111]">
-              <ShieldCheck className="h-4 w-4 text-[#165dfb]" />
-              Secure Assessment Architecture
-            </div>
-
-            <p className="leading-relaxed font-medium">
-              The assessment is live. Starting the secure server session will
-              establish your attempt timing and load the authoritative
-              student-safe quiz package.
-            </p>
-          </div>
-
-          <div className="space-y-2 text-xs text-[#78716b] font-medium">
-            <div className="flex items-center gap-2">
-              <Check className="h-3.5 w-3.5 text-[#165dfb]" />
-              <span>Assessment availability verified by server</span>
-            </div>
-
-            <div className="flex items-center gap-2">
-              <Check className="h-3.5 w-3.5 text-[#165dfb]" />
-              <span>Server creates or resumes the student attempt</span>
-            </div>
-
-            <div className="flex items-center gap-2">
-              <Check className="h-3.5 w-3.5 text-[#165dfb]" />
-              <span>Authoritative deadline is stored before Arena entry</span>
-            </div>
-          </div>
+          <p className="text-sm text-[#78716b]">
+            Allow camera access and capture your reference photo to continue.
+          </p>
 
           {startError && (
             <div className="rounded-[10px] bg-[#fbeee8] border border-[#8c381c]/30 p-3 text-xs text-[#8c381c] font-semibold flex items-center gap-2 shadow-xs">
@@ -516,31 +490,10 @@ function LobbyInner({ testCode }: { testCode: string }) {
               </span>
             </div>
 
-            <div className="space-y-2 text-xs text-[#78716b]">
-              <p className="font-semibold text-[#111111]">Directives:</p>
-
-              <ul className="list-disc pl-4 space-y-1 font-medium">
-                <li>
-                  The server starts or resumes the attempt for the logged-in
-                  student.
-                </li>
-                <li>
-                  The authoritative assessment deadline comes from the server
-                  response.
-                </li>
-                <li>
-                  The exam package is loaded only after the attempt is ready.
-                </li>
-                <li>
-                  AI proctoring requires a reference photo and camera/microphone
-                  access during the assessment.
-                </li>
-                <li>
-                  Fullscreen is requested before entering the assessment. Leaving
-                  fullscreen may be recorded as suspicious activity.
-                </li>
-              </ul>
-            </div>
+            <p className="text-sm text-[#78716b]">
+              Your camera and reference photo are required for this proctored assessment.
+              The test opens in fullscreen.
+            </p>
           </div>
 
           <div className="space-y-2">
@@ -553,7 +506,7 @@ function LobbyInner({ testCode }: { testCode: string }) {
               {isStarting ? (
                 <>
                   <Loader2 className="h-4 w-4 animate-spin" />
-                  Initializing Session &amp; Loading Package...
+                  Preparing your assessment...
                 </>
               ) : (
                 <>
