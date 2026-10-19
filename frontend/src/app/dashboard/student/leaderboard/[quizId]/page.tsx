@@ -119,7 +119,7 @@ export default function StudentLeaderboardPage({
 
   const scoreStats = useMemo(() => {
     if (entries.length === 0) {
-      return { average: 0, highest: 0, completed: 0, distribution: [] as { label: string; count: number; color: string }[] };
+      return { average: 0, highest: 0, median: 0, completed: 0, distribution: [] as { label: string; count: number; color: string }[] };
     }
 
     const percentages = entries.map((entry) => Math.min(100, Math.max(0, Number(entry.percentage) || 0)));
@@ -130,19 +130,20 @@ export default function StudentLeaderboardPage({
       { label: "41–60%", min: 40, max: 60, color: "bg-[#fcd34d]" },
       { label: "61–80%", min: 60, max: 80, color: "bg-[#86b7ff]" },
       { label: "81–100%", min: 80, max: 100, color: "bg-[#6ee7b7]" },
-    ].map((band, index, bands) => ({
+    ].map((band, index) => ({
       label: band.label,
       color: band.color,
       count: percentages.filter((value) =>
-        index === bands.length - 1
-          ? value > band.min && value <= band.max || value === 80
-          : value >= band.min && value <= band.max && (index === 0 || value > band.min),
+        index === 0
+          ? value >= band.min && value <= band.max
+          : value > band.min && value <= band.max,
       ).length,
     }));
 
     return {
       average,
       highest: Math.max(...percentages),
+      median: [...percentages].sort((a, b) => a - b)[Math.floor(percentages.length / 2)],
       completed: entries.length,
       distribution,
     };
@@ -226,7 +227,7 @@ export default function StudentLeaderboardPage({
                 { label: "Participants", value: scoreStats.completed.toLocaleString(), hint: "Ranked students", icon: Users, tone: "text-[#165dfb]", surface: "bg-[#e8f0ff]" },
                 { label: "Average score", value: `${scoreStats.average.toFixed(1)}%`, hint: "Across participants", icon: TrendingUp, tone: "text-[#1d5237]", surface: "bg-[#e2ede8]" },
                 { label: "Highest score", value: `${scoreStats.highest.toFixed(1)}%`, hint: "Top performance", icon: Award, tone: "text-[#92400e]", surface: "bg-[#fff0d8]" },
-                { label: "Ranked entries", value: scoreStats.completed.toLocaleString(), hint: "Published results", icon: Trophy, tone: "text-[#6b21a8]", surface: "bg-[#f3e8ff]" },
+                { label: "Median score", value: `${scoreStats.median.toFixed(1)}%`, hint: "Middle participant score", icon: Trophy, tone: "text-[#6b21a8]", surface: "bg-[#f3e8ff]" },
               ].map((stat) => (
                 <div key={stat.label} className="rounded-[14px] border border-[#d1dee8]/70 bg-white p-4 shadow-sm">
                   <div className="flex items-start justify-between gap-2">
