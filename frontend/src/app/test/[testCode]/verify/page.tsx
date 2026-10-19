@@ -84,6 +84,8 @@ export default function IdentityVerificationPage({
       .toUpperCase();
 
     if (!cleanCode) {
+      // Invalid route params must render the explicit verification error.
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- route validation state
       setError("Assessment access code is missing.");
       setLoadingSession(false);
       return;
