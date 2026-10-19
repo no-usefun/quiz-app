@@ -112,55 +112,51 @@ function LobbyInner({ testCode }: { testCode: string }) {
 
         if (cancelled) return;
 
-        // Some backend deployments expose the proctoring flag on the student-safe
-        // quiz package rather than the availability DTO. Normalize known response
-        // shapes before deciding whether this assessment requires camera/AI.
+        // Different backend versions may expose the flag on availability or on
+        // the student-safe package. Read both so a false/missing availability
+        // default cannot hide AI that the teacher explicitly enabled.
         const availabilityRecord = result as QuizAvailabilityResponse & Record<string, unknown>;
-        let aiProctoringEnabled: boolean | undefined =
-          typeof availabilityRecord.aiProctoringEnabled === "boolean"
-            ? availabilityRecord.aiProctoringEnabled
-            : typeof availabilityRecord.ai_proctoring_enabled === "boolean"
-              ? availabilityRecord.ai_proctoring_enabled
-              : typeof availabilityRecord.proctoringEnabled === "boolean"
-                ? availabilityRecord.proctoringEnabled
-                : undefined;
+        const readProctoringFlag = (value: unknown): boolean | undefined => {
+          if (!value || typeof value !== "object") return undefined;
+          const record = value as Record<string, unknown>;
+          const direct =
+            record.aiProctoringEnabled ??
+            record.ai_proctoring_enabled ??
+            record.proctoringEnabled;
+          if (typeof direct === "boolean") return direct;
 
-        const nestedSettings = availabilityRecord.settings;
-        if (
-          aiProctoringEnabled === undefined &&
-          nestedSettings !== null &&
-          typeof nestedSettings === "object"
-        ) {
-          const settings = nestedSettings as Record<string, unknown>;
-          const candidate =
-            settings.aiProctoringEnabled ??
-            settings.ai_proctoring_enabled ??
-            settings.proctoringEnabled;
-          if (typeof candidate === "boolean") aiProctoringEnabled = candidate;
-        }
-
-        // If availability omits the flag, try the existing student-safe package
-        // endpoint. Do not let a missing DTO field silently disable AI when the
-        // backend provides the setting on the package response.
-        if (aiProctoringEnabled === undefined) {
-          try {
-            const packageResponse = await api.get<unknown>(
-              ENDPOINTS.student.quizPackageByCode(cleanCode),
-              { retry: 0, cache: "no-store" },
-            );
-            const packageRecord = packageResponse as Record<string, unknown>;
+          const nested = record.settings;
+          if (nested && typeof nested === "object") {
+            const settings = nested as Record<string, unknown>;
             const candidate =
-              packageRecord.aiProctoringEnabled ??
-              packageRecord.ai_proctoring_enabled ??
-              packageRecord.proctoringEnabled ??
-              (typeof packageRecord.settings === "object" && packageRecord.settings !== null
-                ? (packageRecord.settings as Record<string, unknown>).aiProctoringEnabled
-                : undefined);
-            if (typeof candidate === "boolean") aiProctoringEnabled = candidate;
-          } catch {
-            // The package may only be available after an attempt is created.
+              settings.aiProctoringEnabled ??
+              settings.ai_proctoring_enabled ??
+              settings.proctoringEnabled;
+            if (typeof candidate === "boolean") return candidate;
           }
+          return undefined;
+        };
+
+        let packageFlag: boolean | undefined;
+        try {
+          const packageResponse = await api.get<unknown>(
+            ENDPOINTS.student.quizPackageByCode(cleanCode),
+            { retry: 0, cache: "no-store" },
+          );
+          packageFlag = readProctoringFlag(packageResponse);
+        } catch {
+          // Some backends only expose the package after an attempt is created.
         }
+
+        const availabilityFlag = readProctoringFlag(availabilityRecord);
+        // Enabling wins if either authoritative student endpoint says true.
+        // Explicit false is retained only when neither endpoint enables AI.
+        const aiProctoringEnabled =
+          availabilityFlag === true || packageFlag === true
+            ? true
+            : availabilityFlag === false || packageFlag === false
+              ? false
+              : undefined;
 
         setAvailability({
           ...result,
