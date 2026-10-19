@@ -399,8 +399,6 @@ function CreateAssessmentContent() {
     if (!draftId) return;
 
     let isMounted = true;
-    setLoadingDraft(true);
-    setValidationError(null);
 
     const cachedDraftRaw =
       typeof window !== "undefined"
@@ -438,6 +436,8 @@ function CreateAssessmentContent() {
     }
 
     const fetchDraft = async () => {
+      setLoadingDraft(true);
+      setValidationError(null);
       try {
         const token =
           typeof window !== "undefined"
