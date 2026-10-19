@@ -112,7 +112,62 @@ function LobbyInner({ testCode }: { testCode: string }) {
 
         if (cancelled) return;
 
-        setAvailability(result);
+        // Some backend deployments expose the proctoring flag on the student-safe
+        // quiz package rather than the availability DTO. Normalize known response
+        // shapes before deciding whether this assessment requires camera/AI.
+        const availabilityRecord = result as QuizAvailabilityResponse & Record<string, unknown>;
+        let aiProctoringEnabled: boolean | undefined =
+          typeof availabilityRecord.aiProctoringEnabled === "boolean"
+            ? availabilityRecord.aiProctoringEnabled
+            : typeof availabilityRecord.ai_proctoring_enabled === "boolean"
+              ? availabilityRecord.ai_proctoring_enabled
+              : typeof availabilityRecord.proctoringEnabled === "boolean"
+                ? availabilityRecord.proctoringEnabled
+                : undefined;
+
+        const nestedSettings = availabilityRecord.settings;
+        if (
+          aiProctoringEnabled === undefined &&
+          nestedSettings !== null &&
+          typeof nestedSettings === "object"
+        ) {
+          const settings = nestedSettings as Record<string, unknown>;
+          const candidate =
+            settings.aiProctoringEnabled ??
+            settings.ai_proctoring_enabled ??
+            settings.proctoringEnabled;
+          if (typeof candidate === "boolean") aiProctoringEnabled = candidate;
+        }
+
+        // If availability omits the flag, try the existing student-safe package
+        // endpoint. Do not let a missing DTO field silently disable AI when the
+        // backend provides the setting on the package response.
+        if (aiProctoringEnabled === undefined) {
+          try {
+            const packageResponse = await api.get<unknown>(
+              ENDPOINTS.student.quizPackageByCode(cleanCode),
+              { retry: 0, cache: "no-store" },
+            );
+            const packageRecord = packageResponse as Record<string, unknown>;
+            const candidate =
+              packageRecord.aiProctoringEnabled ??
+              packageRecord.ai_proctoring_enabled ??
+              packageRecord.proctoringEnabled ??
+              (typeof packageRecord.settings === "object" && packageRecord.settings !== null
+                ? (packageRecord.settings as Record<string, unknown>).aiProctoringEnabled
+                : undefined);
+            if (typeof candidate === "boolean") aiProctoringEnabled = candidate;
+          } catch {
+            // The package may only be available after an attempt is created.
+          }
+        }
+
+        setAvailability({
+          ...result,
+          ...(typeof aiProctoringEnabled === "boolean"
+            ? { aiProctoringEnabled }
+            : {}),
+        });
       } catch (error) {
         if (cancelled) return;
 
