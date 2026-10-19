@@ -108,6 +108,7 @@ export function useProctoring(
   const [isFullscreen, setIsFullscreen] = useState(
     typeof document !== "undefined" && !!document.fullscreenElement,
   );
+  const [events, setEvents] = useState<ProctoringEvent[]>(persisted.events);
   const eventsRef = useRef<ProctoringEvent[]>(persisted.events);
 
   const persist = useCallback(
@@ -141,6 +142,7 @@ export function useProctoring(
       ];
 
       eventsRef.current = nextEvents;
+      setEvents(nextEvents);
 
       setFlags((previous) => {
         const nextFlags = {
@@ -168,6 +170,10 @@ export function useProctoring(
    */
   useEffect(() => {
     eventsRef.current = persisted.events;
+    setEvents(persisted.events);
+    // The storage key can change when a new assessment attempt is loaded.
+    // This is a deliberate state reset from the newly selected persisted record.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setFlags(persisted.flags);
   }, [persisted]);
 
@@ -314,8 +320,6 @@ export function useProctoring(
     document.addEventListener("keydown", onKeyDown);
     window.addEventListener("blur", onBlur);
 
-    setIsFullscreen(!!document.fullscreenElement);
-
     return () => {
       document.removeEventListener("visibilitychange", onVisibilityChange);
       document.removeEventListener("fullscreenchange", onFullscreenChange);
@@ -374,7 +378,7 @@ export function useProctoring(
     warnings,
     violationCount,
     flags,
-    events: eventsRef.current,
+    events,
     isFullscreen,
     requestFullscreen,
     exitFullscreen,
