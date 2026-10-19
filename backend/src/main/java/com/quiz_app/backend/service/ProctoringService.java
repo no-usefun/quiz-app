@@ -206,10 +206,8 @@ public class ProctoringService {
 
             if (currentWarnings >= maxWarnings) {
                 autoSubmitted = true;
-                attempt.setTerminationReason("MALPRACTICE_WARNING_LIMIT");
-                attempt.setStatus(AttemptStatus.AUTO_SUBMITTED);
-                attempt.setSubmittedAt(LocalDateTime.now());
-                quizAttemptRepository.save(attempt);
+                studentAttemptService.autoSubmitForProctoring(
+                        attemptId, authenticatedUserId, "MALPRACTICE_WARNING_LIMIT");
                 message = "Assessment auto-submitted due to reaching " + maxWarnings + " proctoring violation warnings.";
             }
 
