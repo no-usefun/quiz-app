@@ -256,7 +256,7 @@ function SignupContent() {
           return;
         }
 
-        setSuccess("Account created. Signing you in...");
+        setSuccess("Account created successfully.");
 
         const loginRes = await fetch(ENDPOINTS.auth.login, {
           method: "POST",
@@ -352,7 +352,7 @@ function SignupContent() {
             "; samesite=lax";
         }
 
-        setSuccess("Account created. Redirecting to your dashboard...");
+        setSuccess("Account created successfully.");
 
         const redirectTarget = searchParams?.get("redirect");
         const destination =
@@ -361,7 +361,7 @@ function SignupContent() {
             ? "/dashboard/teacher"
             : "/dashboard/student");
 
-        router.replace(destination);
+        window.setTimeout(() => router.replace(destination), 900);
       } else {
         setSuccess("");
         setError(
@@ -554,7 +554,7 @@ function SignupContent() {
         {success && (
           <div
             role="status"
-            className="rounded-lg bg-green-50 p-3.5 text-sm text-green-700 font-medium border border-green-200/70"
+            className="fixed right-4 top-4 z-[100] max-w-sm rounded-xl border border-emerald-200 bg-white px-4 py-3 text-sm font-medium text-emerald-800 shadow-lg"
           >
             {success}
           </div>
@@ -587,12 +587,6 @@ function SignupContent() {
               <GoogleIcon />
               {googleLoading ? "Connecting to Google..." : "Continue with Google"}
             </button>
-            <p className="text-center text-xs leading-relaxed text-neutral-500">
-              Google verifies your sign-in. Students will complete their
-              registration number and academic details in Quizly before using
-              exam features.
-            </p>
-
             <div className="my-5 flex items-center gap-3">
               <div className="h-px flex-1 bg-neutral-100" />
               <span className="text-[10px] font-bold uppercase tracking-wider text-neutral-400">
@@ -876,8 +870,6 @@ function SignupContent() {
                 <span className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-white/30 border-t-white" />
                 Creating account...
               </span>
-            ) : success ? (
-              "Account Created"
             ) : (
               "Create Account"
             )}
