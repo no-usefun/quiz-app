@@ -577,7 +577,20 @@ export function useAIProctoring({
         return;
       }
 
-      if (!mounted || isCleaningUpRef.current) return;
+      if (!mounted || isCleaningUpRef.current) {
+        // React Strict Mode can clean up an effect while session creation is
+        // still in flight. Stop that orphaned remote session instead of leaking
+        // it or opening a WebSocket for an unmounted assessment.
+        await stopProctoringSession({
+          sessionId: sessionRes.sessionId,
+          ticket: sessionRes.wsTicket,
+          authToken: authTokenRef.current,
+          studentId: studentIdRef.current,
+          attemptId: attemptIdRef.current,
+        });
+        return;
+      }
+
       sessionIdRef.current = sessionRes.sessionId;
       wsTicketRef.current = sessionRes.wsTicket || null;
 
