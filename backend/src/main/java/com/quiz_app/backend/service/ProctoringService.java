@@ -195,7 +195,7 @@ public class ProctoringService {
             event.setAttempt(attempt);
             event.setEventType(eventType);
             event.setClientEventId(clientEventId);
-            event.setOccurredAt(LocalDateTime.now());
+            event.setOccurredAt(LocalDateTime.now(QUIZ_TIMEZONE));
             event.setMetadataJson(metadataJson);
             proctoringEventRepository.save(event);
 
@@ -252,7 +252,7 @@ public class ProctoringService {
                             ev.setEventType("SESSION_SUMMARY");
                             return ev;
                         });
-                event.setOccurredAt(LocalDateTime.now());
+                event.setOccurredAt(LocalDateTime.now(QUIZ_TIMEZONE));
                 event.setMetadataJson(metadataJson);
                 proctoringEventRepository.save(event);
             } catch (Exception e) {
