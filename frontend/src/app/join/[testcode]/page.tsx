@@ -70,6 +70,8 @@ export default function TestLandingPage({ params }: TestLandingPageProps) {
 
   useEffect(() => {
     if (!cleanCode) {
+      // Reset the view when the route has no usable code.
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- route validation reset
       setAvailability({
         quizCode: "",
         available: false,
