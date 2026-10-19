@@ -19,8 +19,6 @@ export default function BackendStatus() {
     const startedAt = performance.now();
 
     try {
-      setStatus("checking");
-
       const data = await api.get<HealthResponse>(ENDPOINTS.system.health, {
         skipAuth: true,
         retry: 1,
