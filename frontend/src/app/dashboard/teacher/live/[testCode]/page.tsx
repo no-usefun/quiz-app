@@ -70,24 +70,31 @@ function formatTimeTaken(seconds: number | null | undefined): string {
   return `${String(minutes).padStart(2, "0")}:${String(secs).padStart(2, "0")}`;
 }
 
-function normalizeQuiz(raw: any): QuizSummary | null {
-  if (!raw || typeof raw !== "object") return null;
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function normalizeQuiz(raw: unknown): QuizSummary | null {
+  if (!isRecord(raw)) return null;
 
   const quizId = raw.quizId ?? raw.id;
   const quizCode = String(raw.quizCode ?? raw.testCode ?? "").trim();
 
-  if (quizId == null || !quizCode) return null;
+  if (
+    (typeof quizId !== "string" && typeof quizId !== "number") ||
+    !quizCode
+  ) return null;
 
   return {
     quizId,
     quizCode,
-    title: raw.title ?? "Assessment Session",
+    title: String(raw.title ?? "Assessment Session"),
     totalStudents: Number(raw.totalStudents ?? 0),
     totalQuestions: Number(raw.totalQuestions ?? 0),
     totalMarks: Number(raw.totalMarks ?? 0),
     overallTimerSeconds: Number(raw.overallTimerSeconds ?? 0),
-    status: raw.status,
-    examState: raw.examState,
+    status: typeof raw.status === "string" ? raw.status : undefined,
+    examState: typeof raw.examState === "string" ? raw.examState : undefined,
     resultsPublished: Boolean(raw.resultsPublished),
   };
 }
@@ -177,13 +184,14 @@ export default function LiveLeaderboard({
 
       const payload = await listRes.json();
 
-      const list: any[] = Array.isArray(payload)
+      const rawList: unknown[] = Array.isArray(payload)
         ? payload
-        : Array.isArray(payload?.content)
+        : isRecord(payload) && Array.isArray(payload.content)
           ? payload.content
-          : Array.isArray(payload?.data)
+          : isRecord(payload) && Array.isArray(payload.data)
             ? payload.data
             : [];
+      const list = rawList.filter(isRecord);
 
       let matched = list.find(
         (item) =>
@@ -275,13 +283,13 @@ export default function LiveLeaderboard({
 
         const resolvedQuiz = await fetchQuiz();
         await fetchLeaderboard(resolvedQuiz.quizId, resolvedQuiz.totalQuestions);
-      } catch (err: any) {
+      } catch (err: unknown) {
         if (cancelled) return;
 
         console.error("Failed to load teacher live leaderboard:", err);
         setStudents([]);
         setError(
-          err?.message ||
+          (err instanceof Error ? err.message : null) ||
             "We couldn't retrieve the assessment leaderboard from the server.",
         );
       } finally {
