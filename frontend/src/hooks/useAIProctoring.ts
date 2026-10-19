@@ -1,6 +1,8 @@
 "use client";
 
 import { useEffect, useRef, useState, useCallback } from "react";
+import { api } from "@/lib/api/client";
+import { ENDPOINTS } from "@/lib/api/endpoints";
 import {
   AI_PROCTORING_WS_URL,
   checkAIHealth,
@@ -21,6 +23,41 @@ interface UseProctoringOptions {
   springBootUrl?: string;
   onAutoSubmit?: () => void;
   enabled?: boolean;
+}
+
+
+interface BackendProctoringEventResponse {
+  recorded: boolean;
+  warningCount: number;
+  autoSubmitted: boolean;
+  message: string;
+}
+
+const AI_EVENT_TYPE_MAP: Record<string, string> = {
+  FACE_NOT_DETECTED: "FACE_NOT_DETECTED",
+  FACE_MISSING: "FACE_NOT_DETECTED",
+  NO_FACE: "FACE_NOT_DETECTED",
+  MULTIPLE_FACES: "MULTIPLE_FACES",
+  MULTIPLE_FACE: "MULTIPLE_FACES",
+  MULTIPLE_FACES_DETECTED: "MULTIPLE_FACES",
+  MULTIPLE_PERSONS: "MULTIPLE_PERSONS",
+  MULTIPLE_PERSON: "MULTIPLE_PERSONS",
+  MULTIPLE_PEOPLE: "MULTIPLE_PERSONS",
+  LOOKING_AWAY: "LOOKING_AWAY",
+  GAZE_AWAY: "LOOKING_AWAY",
+  PHONE_DETECTED: "PHONE_DETECTED",
+  PHONE: "PHONE_DETECTED",
+  IDENTITY_MISMATCH: "IDENTITY_MISMATCH",
+  FACE_MISMATCH: "IDENTITY_MISMATCH",
+  IDENTITY_NOT_VERIFIED: "IDENTITY_MISMATCH",
+  VOICE_ACTIVITY: "VOICE_ACTIVITY",
+  VOICE_DETECTED: "VOICE_ACTIVITY",
+  LOUD_VOICE: "LOUD_VOICE",
+};
+
+function normalizeAIEventType(value: string): string | null {
+  const key = value.trim().toUpperCase().replace(/[\\s-]+/g, "_");
+  return AI_EVENT_TYPE_MAP[key] ?? null;
 }
 
 export function useAIProctoring({
@@ -246,6 +283,8 @@ export function useAIProctoring({
     setRetryCount((current) => current + 1);
   }, [cleanup]);
 
+  const reportedAiEventsRef = useRef<Map<string, number>>(new Map());
+
   const handleTelemetryUpdate = useCallback((telemetry: TelemetryResponse) => {
     setTelemetryReceived(true);
     setFaceDetected(telemetry.faceDetected);
@@ -272,26 +311,77 @@ export function useAIProctoring({
     setVoiceActive(telemetry.voiceActive);
     setLoudVoice(telemetry.loudVoice);
 
-    if (telemetry.warningCount !== undefined) {
-      setWarningCount(telemetry.warningCount);
+    // AI telemetry can repeat the same finding across many frames. Persist only
+    // recognized findings and throttle each type so a sustained condition does
+    // not create a warning for every frame. Spring Boot remains authoritative.
+    if (!telemetry.malpracticeEvent) {
+      return;
     }
 
-    // If a confirmed malpractice event occurred
-    if (telemetry.malpracticeEvent) {
-      const strikeCount = Math.max(warningCountRef.current, telemetry.warningCount ?? 0);
-      // Submission authority belongs to Spring Boot, not a client-side threshold.
-      const isAuto = Boolean(telemetry.autoSubmitted);
-      setActiveWarningModal({
-        isOpen: true,
-        reason: telemetry.eventMessage || telemetry.malpracticeEvent,
-        count: strikeCount,
-        autoSubmitted: isAuto,
-      });
-
-      if (isAuto && onAutoSubmitRef.current) {
-        onAutoSubmitRef.current();
+    const eventType = normalizeAIEventType(telemetry.malpracticeEvent);
+    const currentAttemptId = Number(attemptIdRef.current);
+    if (
+      !eventType ||
+      !Number.isSafeInteger(currentAttemptId) ||
+      currentAttemptId <= 0
+    ) {
+      if (!eventType) {
+        console.warn("[Proctoring] Ignoring unknown AI event type:", telemetry.malpracticeEvent);
       }
+      return;
     }
+
+    const now = Date.now();
+    const lastReportedAt = reportedAiEventsRef.current.get(eventType) ?? 0;
+    const eventCooldownMs = 10000;
+    if (now - lastReportedAt < eventCooldownMs) {
+      return;
+    }
+    reportedAiEventsRef.current.set(eventType, now);
+
+    const details = (
+      telemetry.eventMessage?.trim() || telemetry.malpracticeEvent
+    ).slice(0, 1000);
+    const severity =
+      eventType === "PHONE_DETECTED" || eventType === "IDENTITY_MISMATCH"
+        ? "CRITICAL"
+        : "HIGH";
+
+    void api
+      .post<BackendProctoringEventResponse>(
+        ENDPOINTS.proctoring.recordEvent(currentAttemptId),
+        {
+          eventType,
+          details,
+          severity,
+          frameTimestamp: now,
+          eventId: `ai-${currentAttemptId}-${eventType}-${now}`,
+        },
+      )
+      .then((response) => {
+        if (typeof response.warningCount === "number") {
+          setWarningCount(response.warningCount);
+        }
+
+        if (!response.recorded && !response.autoSubmitted) {
+          return;
+        }
+
+        setActiveWarningModal({
+          isOpen: true,
+          reason: response.message || details,
+          count: Math.max(0, Number(response.warningCount) || 0),
+          autoSubmitted: Boolean(response.autoSubmitted),
+        });
+
+        if (response.autoSubmitted) {
+          onAutoSubmitRef.current?.();
+        }
+      })
+      .catch((error: unknown) => {
+        console.error("[Proctoring] Failed to persist AI event:", error);
+        // Keep telemetry visible, but never pretend the backend recorded the event.
+      });
   }, [setWarningCount]);
 
   // Capture single frame from in-DOM video without depending on cameraActive state
