@@ -1,8 +1,6 @@
 "use client";
 
 import { useEffect, useRef, useState, useCallback } from "react";
-import { api } from "@/lib/api/client";
-import { ENDPOINTS } from "@/lib/api/endpoints";
 import {
   AI_PROCTORING_WS_URL,
   checkAIHealth,
@@ -25,13 +23,6 @@ interface UseProctoringOptions {
   enabled?: boolean;
 }
 
-
-interface BackendProctoringEventResponse {
-  recorded: boolean;
-  warningCount: number;
-  autoSubmitted: boolean;
-  message: string;
-}
 
 const AI_EVENT_TYPE_MAP: Record<string, string> = {
   FACE_NOT_DETECTED: "FACE_NOT_DETECTED",
@@ -80,6 +71,7 @@ export function useAIProctoring({
   const isCleaningUpRef = useRef(false);
   const cleanupPromiseRef = useRef<Promise<void> | null>(null);
   const summarySubmittedAttemptsRef = useRef<Set<number>>(new Set());
+  const autoSubmitHandledAttemptRef = useRef<number | null>(null);
   const isWsAuthenticatedRef = useRef(false);
   const inFlightRestRef = useRef(false);
 
@@ -311,77 +303,61 @@ export function useAIProctoring({
     setVoiceActive(telemetry.voiceActive);
     setLoudVoice(telemetry.loudVoice);
 
-    // AI telemetry can repeat the same finding across many frames. Persist only
-    // recognized findings and throttle each type so a sustained condition does
-    // not create a warning for every frame. Spring Boot remains authoritative.
+    // V2 sends the backend-authoritative warning count with telemetry. Keep the
+    // UI monotonic so delayed frames cannot make the HUD/modal count go backwards.
+    if (typeof telemetry.warningCount === "number" && Number.isFinite(telemetry.warningCount)) {
+      setWarningCount(telemetry.warningCount);
+    }
+
     if (!telemetry.malpracticeEvent) {
       return;
     }
 
     const eventType = normalizeAIEventType(telemetry.malpracticeEvent);
-    const currentAttemptId = Number(attemptIdRef.current);
-    if (
-      !eventType ||
-      !Number.isSafeInteger(currentAttemptId) ||
-      currentAttemptId <= 0
-    ) {
-      if (!eventType) {
-        console.warn("[Proctoring] Ignoring unknown AI event type:", telemetry.malpracticeEvent);
-      }
+    if (!eventType) {
+      console.warn("[Proctoring] Ignoring unknown AI event type:", telemetry.malpracticeEvent);
       return;
+    }
+
+    const currentAttemptId = Number(attemptIdRef.current);
+    const isValidAttempt = Number.isSafeInteger(currentAttemptId) && currentAttemptId > 0;
+    const isAutoSubmitted = Boolean(telemetry.autoSubmitted);
+    const authoritativeCount = Math.max(
+      warningCountRef.current,
+      typeof telemetry.warningCount === "number" ? telemetry.warningCount : 0,
+    );
+    const details = (
+      telemetry.eventMessage?.trim() || telemetry.malpracticeEvent
+    ).slice(0, 1000);
+
+    // V2's AI service dispatches confirmed events to Spring Boot itself and
+    // returns the authoritative count in telemetry. Do not POST the same event
+    // again from the browser: doing so can double-count a single violation.
+    // Auto-submit is likewise driven by the backend's explicit response flag,
+    // never by a hard-coded client-side warning threshold.
+    if (
+      isAutoSubmitted &&
+      isValidAttempt &&
+      autoSubmitHandledAttemptRef.current !== currentAttemptId
+    ) {
+      autoSubmitHandledAttemptRef.current = currentAttemptId;
+      onAutoSubmitRef.current?.();
     }
 
     const now = Date.now();
     const lastReportedAt = reportedAiEventsRef.current.get(eventType) ?? 0;
     const eventCooldownMs = 10000;
-    if (now - lastReportedAt < eventCooldownMs) {
+    if (now - lastReportedAt < eventCooldownMs && !isAutoSubmitted) {
       return;
     }
     reportedAiEventsRef.current.set(eventType, now);
 
-    const details = (
-      telemetry.eventMessage?.trim() || telemetry.malpracticeEvent
-    ).slice(0, 1000);
-    const severity =
-      eventType === "PHONE_DETECTED" || eventType === "IDENTITY_MISMATCH"
-        ? "CRITICAL"
-        : "HIGH";
-
-    void api
-      .post<BackendProctoringEventResponse>(
-        ENDPOINTS.proctoring.recordEvent(currentAttemptId),
-        {
-          eventType,
-          details,
-          severity,
-          frameTimestamp: now,
-          eventId: `ai-${currentAttemptId}-${eventType}-${now}`,
-        },
-      )
-      .then((response) => {
-        if (typeof response.warningCount === "number") {
-          setWarningCount(response.warningCount);
-        }
-
-        if (!response.recorded && !response.autoSubmitted) {
-          return;
-        }
-
-        setActiveWarningModal({
-          isOpen: true,
-          reason: response.message || details,
-          count: Math.max(0, Number(response.warningCount) || 0),
-          autoSubmitted: Boolean(response.autoSubmitted),
-        });
-
-        if (response.autoSubmitted) {
-          onAutoSubmitRef.current?.();
-        }
-      })
-      .catch((error: unknown) => {
-        console.error("[Proctoring] Failed to persist AI event:", error);
-        // Keep telemetry visible, but never pretend the backend recorded the event.
-      });
+    setActiveWarningModal({
+      isOpen: true,
+      reason: details,
+      count: authoritativeCount,
+      autoSubmitted: isAutoSubmitted,
+    });
   }, [setWarningCount]);
 
   // Capture single frame from in-DOM video without depending on cameraActive state
