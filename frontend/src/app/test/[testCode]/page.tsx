@@ -1132,15 +1132,31 @@ export default function TestArenaPage({
           if (state.status !== "IN_PROGRESS") {
             setIsSubmitted(true);
 
+            // A proctoring event may have auto-submitted the attempt on the
+            // server before the browser's normal submit request completed.
+            // Reconcile local navigation state with that authoritative result.
+            const reconciledAttemptId = String(state.attemptId ?? attemptId);
+            localStorage.setItem(
+              `dynoquizz_submittedAttemptId_${cleanCode}`,
+              reconciledAttemptId,
+            );
+            localStorage.setItem(
+              "dynoquizz_submittedAttemptId",
+              reconciledAttemptId,
+            );
+            localStorage.removeItem(`dynoquizz_attemptId_${cleanCode}`);
+            localStorage.removeItem("dynoquizz_attemptId");
+            localStorage.removeItem(
+              `dynoquizz_pending_submit_${attemptId}`,
+            );
+            sessionStorage.removeItem("dynoquizz_reference_photo");
+            localStorage.removeItem("dynoquizz_reference_photo");
+
             if (state.status === "AUTO_SUBMITTED") {
               setDeadlineNotice(
                 "The server has already automatically submitted this assessment attempt.",
               );
             }
-
-            localStorage.removeItem(
-              `dynoquizz_pending_submit_${attemptId}`,
-            );
             return;
           }
         } catch (reconcileError) {
