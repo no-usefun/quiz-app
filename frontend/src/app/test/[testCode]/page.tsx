@@ -255,9 +255,6 @@ export default function TestArenaPage({
   const [timeLeft, setTimeLeft] = useState(0);
 
   const [isSubmitted, setIsSubmitted] = useState(false);
-  const [submittedAttemptId, setSubmittedAttemptId] = useState<string | null>(
-    null,
-  );
   const [mounted, setMounted] = useState(false);
   const [sessionExpired, setSessionExpired] = useState(false);
   const [deadlineNotice, setDeadlineNotice] = useState<string | null>(null);
@@ -754,7 +751,6 @@ export default function TestArenaPage({
               }
 
               if (serverState.status !== "IN_PROGRESS") {
-                setSubmittedAttemptId(String(serverState.attemptId));
                 setIsSubmitted(true);
 
                 if (typeof window !== "undefined") {
@@ -1091,8 +1087,6 @@ export default function TestArenaPage({
           "The server accepted the submission but did not return an attempt ID.",
         );
       }
-
-      setSubmittedAttemptId(returnedAttemptId);
       setIsSubmitted(true);
 
       localStorage.setItem(
@@ -1134,8 +1128,6 @@ export default function TestArenaPage({
             ENDPOINTS.student.attemptState(attemptId),
             { retry: 2, retryDelayMs: 300, cache: "no-store" },
           );
-
-          setSubmittedAttemptId(String(state.attemptId));
 
           if (state.status !== "IN_PROGRESS") {
             setIsSubmitted(true);
