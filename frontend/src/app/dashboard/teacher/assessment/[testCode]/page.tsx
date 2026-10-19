@@ -793,6 +793,30 @@ export default function TeacherAssessmentPage({
     )
     .slice(0, 3);
 
+  const scoreDistribution = useMemo(() => {
+    const bands = [
+      { label: "0–20%", min: 0, max: 20, color: "bg-[#fca5a5]" },
+      { label: "21–40%", min: 20, max: 40, color: "bg-[#fdba74]" },
+      { label: "41–60%", min: 40, max: 60, color: "bg-[#fcd34d]" },
+      { label: "61–80%", min: 60, max: 80, color: "bg-[#86b7ff]" },
+      { label: "81–100%", min: 80, max: 100, color: "bg-[#6ee7b7]" },
+    ];
+
+    return bands.map((band, index) => ({
+      ...band,
+      count: submitted.filter((student) => {
+        const percentage = Math.min(100, Math.max(0, Number(student.percentage) || 0));
+        return index === 0
+          ? percentage >= band.min && percentage <= band.max
+          : percentage > band.min && percentage <= band.max;
+      }).length,
+    }));
+  }, [submitted]);
+
+  const averageScore = submitted.length
+    ? submitted.reduce((total, student) => total + (Number(student.percentage) || 0), 0) / submitted.length
+    : 0;
+
   const displayList = useMemo(() => {
     const ranked = [...submitted]
       .sort(
@@ -1169,6 +1193,33 @@ export default function TeacherAssessmentPage({
               </div>
             ))}
           </div>
+
+          {submitted.length > 0 && (
+            <section className="rounded-[14px] border border-[#d1dee8]/70 bg-paper-white p-4 sm:p-5 shadow-sm text-left">
+              <div className="mb-5 flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">
+                <div>
+                  <h2 className="text-xs font-bold uppercase tracking-wider text-midnight-navy">Score Distribution</h2>
+                  <p className="mt-1 text-xs text-steel-blue-gray">See how submitted students performed across score ranges.</p>
+                </div>
+                <p className="text-[10px] font-semibold text-steel-blue-gray">{submitted.length} submitted {submitted.length === 1 ? "attempt" : "attempts"} · {formatPercentage(averageScore)}% average</p>
+              </div>
+              <div className="grid grid-cols-5 items-end gap-2 sm:gap-4">
+                {scoreDistribution.map((band) => {
+                  const maximum = Math.max(1, ...scoreDistribution.map((item) => item.count));
+                  const height = band.count === 0 ? 4 : Math.max(12, (band.count / maximum) * 112);
+                  return (
+                    <div key={band.label} className="flex min-w-0 flex-col items-center gap-2">
+                      <span className="text-xs font-bold tabular-nums text-midnight-navy">{band.count}</span>
+                      <div className="flex h-28 w-full items-end justify-center rounded-t-[8px] bg-frost-surface">
+                        <div className={`w-full max-w-16 rounded-t-[7px] ${band.color} transition-[height] duration-500 ease-out`} style={{ height: `${height}px` }} />
+                      </div>
+                      <span className="text-center text-[9px] font-bold text-steel-blue-gray sm:text-[10px]">{band.label}</span>
+                    </div>
+                  );
+                })}
+              </div>
+            </section>
+          )}
 
           <section className="text-left">
             <div className="mb-2.5 flex items-center gap-2">
