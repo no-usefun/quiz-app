@@ -433,8 +433,14 @@ export default function TeacherAssessmentPage({
           ? rawAttemptId
           : undefined;
 
+      const rawStudentId = entry.studentId ?? entry.rank;
+      const id =
+        typeof rawStudentId === "string" || typeof rawStudentId === "number"
+          ? rawStudentId
+          : index + 1;
+
       return {
-        id: entry.studentId ?? entry.rank ?? index + 1,
+        id,
         attemptId,
         name,
         avatar,
