@@ -1176,7 +1176,9 @@ export default function TestArenaPage({
   };
 
   // Keep the latest submission callback available to asynchronous AI warning handlers.
-  finishAssessmentRef.current = finishAssessment;
+  useEffect(() => {
+    finishAssessmentRef.current = finishAssessment;
+  }, [finishAssessment]);
 
   const handleOverallTimerExpired = () => {
     if (
