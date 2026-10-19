@@ -145,6 +145,7 @@ function LobbyInner({ testCode }: { testCode: string }) {
 
   const status = availability?.status;
   const isLive = status === "LIVE" && availability?.available === true;
+  const aiRequired = availability?.aiProctoringEnabled !== false;
 
   const handleStartAssessment = async () => {
     if (!isLive) {
@@ -164,27 +165,20 @@ function LobbyInner({ testCode }: { testCode: string }) {
       (typeof window !== "undefined"
         ? sessionStorage.getItem("dynoquizz_reference_photo")
         : null);
-    if (!existingPhoto) {
-      setStartError("Capture your reference photo before starting AI-proctored assessments.");
+    if (aiRequired && !existingPhoto) {
+      setStartError("Capture your reference photo before starting this AI-proctored assessment.");
       return;
     }
+    sessionStorage.setItem(`dynoquizz_ai_proctoring_${cleanCode}`, String(aiRequired));
 
     setIsStarting(true);
     setStartError(null);
 
     try {
-      // Fail before creating/resuming an attempt if the AI service or its
-      // biometric model is not ready. The exam arena performs a second check.
-      const aiHealth = await checkAIHealth();
-      if (!aiHealth.isOnline) {
-        throw new Error(
-          "AI proctoring is currently unavailable. Please retry in a moment or contact your instructor.",
-        );
-      }
-      if (!aiHealth.biometricReady) {
-        throw new Error(
-          "The biometric verification model is not ready. Please retry shortly.",
-        );
+      if (aiRequired) {
+        const aiHealth = await checkAIHealth();
+        if (!aiHealth.isOnline) throw new Error("AI proctoring is currently unavailable. Please retry in a moment or contact your instructor.");
+        if (!aiHealth.biometricReady) throw new Error("The biometric verification model is not ready. Please retry shortly.");
       }
 
       // Fullscreen is required before the server creates the attempt.
@@ -453,9 +447,7 @@ function LobbyInner({ testCode }: { testCode: string }) {
           animate={{ opacity: 1, y: 0 }}
           className="space-y-5"
         >
-          <p className="text-sm text-[#78716b]">
-            Allow camera access and capture your reference photo to continue.
-          </p>
+          {aiRequired && <p className="text-sm text-[#78716b]">Allow camera access and capture your reference photo to continue.</p>}
 
           {startError && (
             <div className="rounded-[10px] bg-[#fbeee8] border border-[#8c381c]/30 p-3 text-xs text-[#8c381c] font-semibold flex items-center gap-2 shadow-xs">
@@ -464,17 +456,7 @@ function LobbyInner({ testCode }: { testCode: string }) {
             </div>
           )}
 
-          {/* AI reference photo is scoped to this browser session. */}
-          <CameraReferenceCapture
-            onCapture={(photo) => {
-              setReferencePhoto(photo);
-              sessionStorage.setItem("dynoquizz_reference_photo", photo);
-              // Remove any stale persistent copy created by an older build.
-              localStorage.removeItem("dynoquizz_reference_photo");
-              setStartError(null);
-            }}
-            disabled={isStarting}
-          />
+          {aiRequired && <CameraReferenceCapture onCapture={(photo) => { setReferencePhoto(photo); sessionStorage.setItem("dynoquizz_reference_photo", photo); localStorage.removeItem("dynoquizz_reference_photo"); setStartError(null); }} disabled={isStarting} />}
 
           <div className="rounded-[12px] border border-[#d1dee8]/70 bg-[#f5f5f4]/60 p-5 space-y-3 text-left shadow-xs">
             <div className="flex items-center justify-between border-b border-[#d1dee8]/50 pb-3">
@@ -488,10 +470,7 @@ function LobbyInner({ testCode }: { testCode: string }) {
               </span>
             </div>
 
-            <p className="text-sm text-[#78716b]">
-              Your camera and reference photo are required for this proctored assessment.
-              The test opens in fullscreen.
-            </p>
+            <p className="text-sm text-[#78716b]">{aiRequired ? "Your camera and reference photo are required for this proctored assessment." : "Camera and AI identity checks are disabled for this assessment. Tab switching and copy/paste restrictions remain active."} The test opens in fullscreen.</p>
           </div>
 
           <div className="space-y-2">
