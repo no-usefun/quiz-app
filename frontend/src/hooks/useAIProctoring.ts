@@ -56,7 +56,7 @@ const AI_EVENT_TYPE_MAP: Record<string, string> = {
 };
 
 function normalizeAIEventType(value: string): string | null {
-  const key = value.trim().toUpperCase().replace(/[\\s-]+/g, "_");
+  const key = value.trim().toUpperCase().replace(/[\s-]+/g, "_");
   return AI_EVENT_TYPE_MAP[key] ?? null;
 }
 
