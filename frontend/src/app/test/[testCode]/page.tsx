@@ -284,6 +284,10 @@ export default function TestArenaPage({
     typeof window !== "undefined"
       ? sessionStorage.getItem("dynoquizz_reference_photo")
       : null;
+  const [aiProctoringEnabled] = useState(() => {
+    if (typeof window === "undefined") return true;
+    return sessionStorage.getItem(`dynoquizz_ai_proctoring_${cleanCode}`) !== "false";
+  });
 
   const studentUser =
     typeof window !== "undefined"
@@ -338,16 +342,16 @@ export default function TestArenaPage({
       );
       void finishAssessmentRef.current?.(answersRef.current, timeTakenRef.current);
     },
-    enabled: !isSubmitted && Boolean(activeAttemptId),
+    enabled: aiProctoringEnabled && !isSubmitted && Boolean(activeAttemptId),
   });
 
-  const isAIProctoringReady = Boolean(activeAttemptId) &&
+  const isAIProctoringReady = !aiProctoringEnabled || (Boolean(activeAttemptId) &&
     proctoring.isOnline &&
     proctoring.cameraActive &&
     proctoring.telemetryReceived &&
     proctoring.faceDetected &&
     proctoring.identityVerified &&
-    !proctoring.cameraError;
+    !proctoring.cameraError);
 
   const requestFullscreen = useCallback(async () => {
     if (typeof document === "undefined") return false;
@@ -1816,7 +1820,7 @@ export default function TestArenaPage({
       </motion.div>
 
       <aside className="hidden w-72 flex-col gap-4 pl-6 lg:flex text-left">
-        <AIProctoringHUD
+        {aiProctoringEnabled && <AIProctoringHUD
           videoRef={proctoring.videoRef}
           cameraActive={proctoring.cameraActive}
           cameraError={proctoring.cameraError}
@@ -1836,7 +1840,7 @@ export default function TestArenaPage({
           loudVoice={proctoring.loudVoice}
           warningCount={proctoring.warningCount}
           isOnline={proctoring.isOnline}
-        />
+        />}
 
         <div className="rounded-[14px] border border-[#d1dee8]/70 bg-white p-4 shadow-sm">
           <div className="flex items-center justify-between gap-3">
@@ -1941,7 +1945,7 @@ export default function TestArenaPage({
         </div>
       </aside>
 
-      {!isSubmitted && activeAttemptId && !isAIProctoringReady && (
+      {aiProctoringEnabled && !isSubmitted && activeAttemptId && !isAIProctoringReady && (
         <div
           role="dialog"
           aria-modal="true"
