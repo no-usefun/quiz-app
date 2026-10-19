@@ -170,12 +170,12 @@ export default function IdentityVerificationPage({
         }
 
         setSessionCode(cleanCode);
-      } catch (err: any) {
+      } catch (err: unknown) {
         if (cancelled) return;
 
         console.error("Assessment verification failed:", err);
         setError(
-          err?.message ||
+          (err instanceof Error ? err.message : null) ||
             "Could not verify the assessment. Please check your connection and try again.",
         );
       } finally {
@@ -258,11 +258,11 @@ export default function IdentityVerificationPage({
        * -> store server attempt/deadline -> enter assessment.
        */
       router.push(`/test/${cleanCode}/lobby`);
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error("Identity verification error:", err);
 
       setError(
-        err?.message ||
+        (err instanceof Error ? err.message : null) ||
           "Could not verify your examination credentials. Please try again.",
       );
     } finally {
