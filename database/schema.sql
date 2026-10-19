@@ -45,8 +45,8 @@ CREATE INDEX idx_user_identities_user_id ON user_identities(user_id);
 
 CREATE TABLE quizzes (
     quiz_id BIGSERIAL PRIMARY KEY,
-    quiz_code VARCHAR(6) UNIQUE NOT NULL,
     teacher_id BIGINT NOT NULL REFERENCES users(user_id) ON UPDATE CASCADE ON DELETE RESTRICT,
+    quiz_code VARCHAR(10) UNIQUE NOT NULL,
     title VARCHAR(150) NOT NULL,
     subject VARCHAR(100) NOT NULL,
     subject_code VARCHAR(50) NOT NULL,
