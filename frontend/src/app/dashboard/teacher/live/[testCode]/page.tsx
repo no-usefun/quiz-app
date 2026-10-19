@@ -1,6 +1,6 @@
 "use client";
 
-import { use, useEffect, useMemo, useState } from "react";
+import { use, useEffect, useMemo, useState, useSyncExternalStore } from "react";
 import Link from "next/link";
 import { motion } from "framer-motion";
 import {
@@ -15,6 +15,10 @@ import {
 } from "lucide-react";
 import { Logo } from "@/components/Logo";
 import { ENDPOINTS } from "@/lib/api/endpoints";
+
+const subscribeToHydration = () => () => {};
+const getClientHydrationSnapshot = () => true;
+const getServerHydrationSnapshot = () => false;
 
 type QuizSummary = {
   quizId: number | string;
@@ -127,15 +131,17 @@ export default function LiveLeaderboard({
   const [students, setStudents] = useState<StudentRow[]>([]);
   const [lastSync, setLastSync] = useState("--:--:--");
   const [refreshKey, setRefreshKey] = useState(0);
-  const [mounted, setMounted] = useState(false);
+  const mounted = useSyncExternalStore(
+    subscribeToHydration,
+    getClientHydrationSnapshot,
+    getServerHydrationSnapshot,
+  );
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   const displayCode = quiz?.quizCode || testCode;
 
-  useEffect(() => {
-    setMounted(true);
-  }, []);
+  
 
   useEffect(() => {
     let cancelled = false;
