@@ -136,9 +136,7 @@ class ProctoringServiceTest {
         assertTrue(response.recorded());
         assertEquals(3, response.warningCount());
         assertTrue(response.autoSubmitted());
-        assertEquals("MALPRACTICE_WARNING_LIMIT", testAttempt.getTerminationReason());
-        assertEquals(AttemptStatus.AUTO_SUBMITTED, testAttempt.getStatus());
-        assertNotNull(testAttempt.getSubmittedAt());
+        verify(studentAttemptService).autoSubmitForProctoring(100L, 10L, "MALPRACTICE_WARNING_LIMIT");
     }
 
     @Test
