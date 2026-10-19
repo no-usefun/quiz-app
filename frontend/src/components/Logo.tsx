@@ -1,12 +1,16 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useSyncExternalStore } from "react";
 import Link from "next/link";
 import { motion } from "framer-motion";
 import { useSession } from "@/hooks/useSession";
 import { APP_NAME } from "@/lib/constants";
 
 // ─── Animated wordmark — plays once on mount, never loops ─────────────────────
+const subscribeToHydration = () => () => {};
+const getClientHydrationSnapshot = () => true;
+const getServerHydrationSnapshot = () => false;
+
 export function AppWordmark({
   className = "",
   size = "default",
@@ -14,8 +18,11 @@ export function AppWordmark({
   className?: string;
   size?: "default" | "lg" | "sm";
 }) {
-  const [mounted, setMounted] = useState(false);
-  useEffect(() => { setMounted(true); }, []);
+  const mounted = useSyncExternalStore(
+    subscribeToHydration,
+    getClientHydrationSnapshot,
+    getServerHydrationSnapshot,
+  );
 
   const letters = APP_NAME.split("");
 
