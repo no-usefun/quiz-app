@@ -1,5 +1,7 @@
 "use client";
 
+import { motion } from "framer-motion";
+
 type AppleSwitchProps = {
   checked: boolean;
   onChange: (checked: boolean) => void;
@@ -35,12 +37,18 @@ export function AppleSwitch({
         className
       }
     >
-      <span
+      <motion.span
         aria-hidden="true"
-        className={
-          "pointer-events-none absolute left-[3px] top-1 h-5 w-[34px] rounded-[10px] bg-white shadow-[0_1px_2px_rgba(0,0,0,0.16)] transition-transform duration-200 ease-in-out " +
-          (checked ? "translate-x-[20px]" : "translate-x-0")
-        }
+        initial={false}
+        animate={{
+          x: checked ? [0, 8, 20] : [20, 12, 0],
+          scaleX: [1, 1.12, 1],
+        }}
+        transition={{
+          x: { duration: 0.34, times: [0, 0.52, 1], ease: [0.22, 1, 0.36, 1] },
+          scaleX: { duration: 0.34, times: [0, 0.52, 1], ease: [0.22, 1, 0.36, 1] },
+        }}
+        className="pointer-events-none absolute left-[3px] top-1 h-5 w-[34px] rounded-[10px] bg-white shadow-[0_1px_2px_rgba(0,0,0,0.16)]"
       />
     </button>
   );
