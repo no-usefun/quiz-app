@@ -36,6 +36,8 @@ function JoinForm() {
 
   useEffect(() => {
     if (queryCode) {
+      // Keep the editable field in sync when the query parameter changes during navigation.
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- URL-to-form synchronization
       setTestCode(queryCode.toUpperCase());
     }
 
