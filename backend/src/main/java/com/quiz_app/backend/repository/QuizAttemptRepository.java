@@ -4,6 +4,11 @@ import java.util.List;
 import java.util.Optional;
 
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Lock;
+import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
+
+import jakarta.persistence.LockModeType;
 
 import com.quiz_app.backend.entity.AttemptStatus;
 import com.quiz_app.backend.entity.QuizAttempt;
@@ -26,4 +31,8 @@ public interface QuizAttemptRepository
         Optional<QuizAttempt> findByQuizQuizCodeAndStudentId(
                         String quizCode,
                         Long studentId);
+
+        @Lock(LockModeType.PESSIMISTIC_WRITE)
+        @Query("select a from QuizAttempt a where a.id = :attemptId")
+        Optional<QuizAttempt> findByIdForUpdate(@Param("attemptId") Long attemptId);
 }
