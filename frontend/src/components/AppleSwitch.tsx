@@ -40,7 +40,7 @@ export function AppleSwitch({
         aria-hidden="true"
         initial={false}
         animate={{
-          x: checked ? 30 : 0,
+          x: checked ? 24 : 0,
           y: [0, -1.5, 0],
           scaleX: [1, 1.16, 1],
           scaleY: [1, 0.94, 1],
@@ -51,7 +51,7 @@ export function AppleSwitch({
           scaleX: { duration: 0.28, times: [0, 0.42, 1], ease: [0.22, 1, 0.36, 1] },
           scaleY: { duration: 0.28, times: [0, 0.42, 1], ease: [0.22, 1, 0.36, 1] },
         }}
-        className="pointer-events-none absolute left-0 top-0 h-7 w-[30px] rounded-full bg-white shadow-[0_1px_2px_rgba(0,0,0,0.16)]"
+        className="pointer-events-none absolute left-0 top-0 h-7 w-[36px] rounded-full bg-white shadow-[0_1px_2px_rgba(0,0,0,0.16)]"
       />
     </button>
   );
