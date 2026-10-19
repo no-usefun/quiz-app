@@ -34,7 +34,13 @@ async function readSignupResponse(response: Response): Promise<Record<string, un
     throw new Error("The API returned an invalid JSON response.");
   }
 }
-import { PublicNavbar } from "@/components/PublicNavbar";
+
+
+function getResponseMessage(data: Record<string, unknown>, fallback: string): string {
+  const message = typeof data.message === "string" ? data.message.trim() : "";
+  const error = typeof data.error === "string" ? data.error.trim() : "";
+  return message || error || fallback;
+}import { PublicNavbar } from "@/components/PublicNavbar";
 import { isLanExamMode } from "@/lib/examMode";
 
 function GoogleIcon() {
@@ -234,8 +240,10 @@ function SignupContent() {
 
         if (verificationRequired) {
           setSuccess(
-            data?.message ||
+            getResponseMessage(
+              data,
               "Account created. Please verify your email before signing in.",
+            ),
           );
 
           if (typeof window !== "undefined") {
@@ -275,9 +283,10 @@ function SignupContent() {
 
         if (!loginRes.ok) {
           throw new Error(
-            loginData?.message ||
-              loginData?.error ||
+            getResponseMessage(
+              loginData,
               "Account was created, but automatic sign-in failed. Please try logging in.",
+            ),
           );
         }
 
@@ -303,9 +312,10 @@ function SignupContent() {
 
         if (!meRes.ok) {
           throw new Error(
-            meData?.message ||
-              meData?.error ||
+            getResponseMessage(
+              meData,
               "Account was created, but the authenticated session could not be verified.",
+            ),
           );
         }
 
@@ -365,9 +375,10 @@ function SignupContent() {
       } else {
         setSuccess("");
         setError(
-          data.message ||
-            data.error ||
+          getResponseMessage(
+            data,
             "Signup failed. Please check your details and try again.",
+          ),
         );
       }
     } catch (err) {
