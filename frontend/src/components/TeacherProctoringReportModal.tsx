@@ -72,6 +72,8 @@ export function TeacherProctoringReportModal({
 
   useEffect(() => {
     if (!isOpen || !attemptId) {
+      // Clear data when the modal closes or loses its attempt context.
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- modal lifecycle reset
       setReport(null);
       setError(null);
       return;
