@@ -209,9 +209,10 @@ export async function apiRequest<T = unknown>(
     typeof data === "object" &&
     "__unexpectedHtmlResponse" in data
   ) {
+    const htmlResponse = data as Record<string, unknown>;
     const contentType =
-      typeof (data as { contentType?: unknown }).contentType === "string"
-        ? (data as { contentType: string }).contentType
+      typeof htmlResponse.contentType === "string"
+        ? htmlResponse.contentType
         : "unknown";
 
     throw new ApiClientError(
