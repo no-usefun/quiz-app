@@ -6,6 +6,7 @@ import {
   checkAIHealth,
   startProctoringSession,
   stopProctoringSession,
+  submitProctoringSummary,
   analyzeFrameREST,
   TelemetryResponse,
   StartSessionResult,
@@ -41,6 +42,7 @@ export function useAIProctoring({
   const wsTicketRef = useRef<string | null>(null);
   const isCleaningUpRef = useRef(false);
   const cleanupPromiseRef = useRef<Promise<void> | null>(null);
+  const summarySubmittedAttemptsRef = useRef<Set<number>>(new Set());
   const isWsAuthenticatedRef = useRef(false);
   const inFlightRestRef = useRef(false);
 
@@ -190,7 +192,7 @@ export function useAIProctoring({
 
       if (sid) {
         try {
-          await Promise.race([
+          const stopResult = await Promise.race([
             stopProctoringSession({
               sessionId: sid,
               ticket: ticket || undefined,
@@ -198,8 +200,30 @@ export function useAIProctoring({
               studentId: studentIdRef.current,
               attemptId: attemptIdRef.current,
             }),
-            new Promise((resolve) => setTimeout(resolve, 3000)),
+            new Promise<null>((resolve) => setTimeout(() => resolve(null), 3000)),
           ]);
+
+          const currentAttemptId = Number(attemptIdRef.current);
+          if (
+            stopResult &&
+            Number.isSafeInteger(currentAttemptId) &&
+            currentAttemptId > 0 &&
+            !summarySubmittedAttemptsRef.current.has(currentAttemptId)
+          ) {
+            try {
+              await submitProctoringSummary({
+                attemptId: currentAttemptId,
+                authToken: authTokenRef.current,
+                totalFaceChecks: stopResult.totalVerifications,
+                identityMatches: stopResult.identityMatches,
+                identityMismatches: stopResult.identityMismatches,
+              });
+              summarySubmittedAttemptsRef.current.add(currentAttemptId);
+            } catch (summaryErr) {
+              // Do not block assessment cleanup if the summary endpoint is unavailable.
+              console.warn("Proctoring summary submission failed:", summaryErr);
+            }
+          }
         } catch (err) {
           console.warn("Error stopping proctoring session:", err);
         }
@@ -251,7 +275,8 @@ export function useAIProctoring({
     // If a confirmed malpractice event occurred
     if (telemetry.malpracticeEvent) {
       const strikeCount = Math.max(warningCountRef.current, telemetry.warningCount ?? 0);
-      const isAuto = Boolean(telemetry.autoSubmitted) || strikeCount >= 3;
+      // Submission authority belongs to Spring Boot, not a client-side threshold.
+      const isAuto = Boolean(telemetry.autoSubmitted);
       setActiveWarningModal({
         isOpen: true,
         reason: telemetry.eventMessage || telemetry.malpracticeEvent,
@@ -575,7 +600,8 @@ export function useAIProctoring({
     (reason: string, count: number, autoSubmitted: boolean = false) => {
       setWarningCount(count);
       const strikeCount = Math.max(warningCountRef.current, count);
-      const isAuto = autoSubmitted || strikeCount >= 3;
+      // Never infer submission from a local count; use the server's decision.
+      const isAuto = autoSubmitted;
       setActiveWarningModal({
         isOpen: true,
         reason,
