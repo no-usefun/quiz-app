@@ -7,13 +7,11 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { motion } from "framer-motion";
 import {
-  ShieldCheck,
   ArrowRight,
   Loader2,
   Lock,
   AlertCircle,
   ArrowLeft,
-  Check,
 } from "lucide-react";
 import { Logo } from "@/components/Logo";
 import { CameraReferenceCapture } from "@/components/CameraReferenceCapture";
