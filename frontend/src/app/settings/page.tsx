@@ -17,7 +17,6 @@ import {
   EyeOff,
   CheckCircle2,
   AlertTriangle,
-  ChevronRight,
   LayoutDashboard,
   Settings as SettingsIcon,
 } from "lucide-react";
@@ -128,6 +127,8 @@ function Toggle({
 
   useEffect(() => {
     if (checked !== undefined) {
+      // Supports a controlled switch whose parent may change its value asynchronously.
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- controlled prop synchronization
       setOn(checked);
     }
   }, [checked]);
@@ -240,6 +241,8 @@ function ProfilePanel({
   useEffect(() => {
     if (!user) return;
 
+    // Populate the profile form when the session provider finishes loading the user.
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- session-to-form hydration
     setFullName(
       user.fullName ||
         user.name ||
@@ -1132,6 +1135,8 @@ export default function SettingsPage() {
 
   useEffect(() => {
     if (typeof window !== "undefined") {
+      // The URL is read only after client hydration to avoid server/client URL mismatch.
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- client URL initialization
       setIsProfileCompletionMode(
         new URLSearchParams(window.location.search).get("profile") === "complete",
       );
