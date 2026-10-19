@@ -42,12 +42,11 @@ public class AiProctoringClient {
             String service = root.path("service").asText("ai-proctoring");
             boolean biometricAvailable = root.path("biometricAvailable").asBoolean(false);
 
-            Map<String, Boolean> models = objectMapper.convertValue(
-                    root.path("models"),
-                    objectMapper.getTypeFactory().constructMapType(Map.class, String.class, Boolean.class));
-            if (models == null) {
-                models = Collections.emptyMap();
-            }
+            Map<String, Boolean> models = root.path("models").isObject()
+                    ? objectMapper.convertValue(
+                            root.path("models"),
+                            objectMapper.getTypeFactory().constructMapType(Map.class, String.class, Boolean.class))
+                    : Collections.emptyMap();
 
             boolean reachable = "UP".equalsIgnoreCase(status) || "DEGRADED".equalsIgnoreCase(status);
             return new AiProctoringHealthResponse(
