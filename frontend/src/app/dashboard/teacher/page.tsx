@@ -241,6 +241,8 @@ export default function TeacherDashboard() {
       return;
     }
 
+    // This effect starts the async API/cache synchronization for the active teacher session.
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- async fetch updates dashboard state
     fetchQuizzes();
   }, [sessionLoading, user?.id, user?.userId, user?.email]);
 
