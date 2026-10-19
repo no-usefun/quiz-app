@@ -198,10 +198,11 @@ function OAuthCallbackContent() {
         ["token", "access_token", "jwt"],
       );
 
-      const code = getCallbackValue(
+      const code = getCallbackValue(searchParams, hashParams, ["code"]);
+      const errorCode = getCallbackValue(
         searchParams,
         hashParams,
-        ["code", "errorCode", "error"],
+        ["errorCode", "error"],
       );
 
       const callbackMessage = getCallbackValue(
@@ -220,8 +221,11 @@ function OAuthCallbackContent() {
         window.location.pathname,
       );
 
-      if (!token) {
-        const errorMessage = getOAuthErrorMessage(code, callbackMessage);
+      if (errorCode || (!token && !code)) {
+        const errorMessage = getOAuthErrorMessage(
+          errorCode,
+          callbackMessage || code,
+        );
 
         clearOAuthSession();
         cleanOAuthStorage();
@@ -234,14 +238,44 @@ function OAuthCallbackContent() {
       }
 
       try {
-        const expiresInParam = getCallbackValue(
+        let sessionToken = token;
+        let expiresInParam: unknown = getCallbackValue(
           searchParams,
           hashParams,
           ["expiresIn", "expires_in"],
         );
 
+        // New backend contract: exchange a short-lived, single-use code for
+        // the existing AuthResponse. Direct-token callbacks remain temporarily
+        // supported for compatibility with older deployed backend versions.
+        if (!sessionToken && code) {
+          const exchange = await api.post<{
+            token?: string;
+            expiresIn?: number | string;
+            user?: OAuthUser;
+          }>(
+            ENDPOINTS.auth.googleExchange,
+            { code },
+            { skipAuth: true, cache: "no-store" },
+          );
+
+          sessionToken =
+            typeof exchange?.token === "string" ? exchange.token.trim() : "";
+          expiresInParam = exchange?.expiresIn;
+
+          if (!sessionToken) {
+            throw new Error(
+              "Google sign-in code exchange did not return a session token.",
+            );
+          }
+        }
+
+        if (!sessionToken) {
+          throw new Error("Google sign-in did not return a valid authorization result.");
+        }
+
         const meData = await api.get<OAuthUser>(ENDPOINTS.auth.me, {
-          token,
+          token: sessionToken,
           cache: "no-store",
         });
 
@@ -277,8 +311,10 @@ function OAuthCallbackContent() {
             [meData.firstName, meData.lastName].filter(Boolean).join(" "),
         };
 
-        persistOAuthSession(token, normalizedUser, expiresInParam);
+        persistOAuthSession(sessionToken, normalizedUser, expiresInParam);
 
+        // Profile completion takes priority over any saved destination.
+        // A new Google student account may not yet have its academic details.
         const destination =
           normalizedUser.profileComplete === false
             ? "/settings?profile=complete"

@@ -5,12 +5,11 @@ import { usePathname } from "next/navigation";
 import { useSession } from "@/hooks/useSession";
 import {
   LogOut,
-  User,
   LayoutDashboard,
   PlusCircle,
-  Settings,
 } from "lucide-react";
 import { AppWordmark } from "@/components/Logo";
+import { ProfileDropdown } from "@/components/ProfileDropdown";
 
 interface TopNavbarProps {
   role?: string;
@@ -86,23 +85,10 @@ export function TopNavbar({ role: propRole }: TopNavbarProps = {}) {
             </Link>
           )}
 
-          <Link
-            href="/settings"
-            className={`flex items-center space-x-1.5 rounded-[10px] px-3 py-2 text-xs font-bold transition-all duration-150 active:scale-[0.98] ${
-              pathname === "/settings"
-                ? "bg-[#e8f0ff] text-[#165dfb] shadow-xs"
-                : "text-[#78716b] hover:bg-[#f5f5f4] hover:text-[#111111]"
-            }`}
-          >
-            <Settings className="h-4 w-4" />
-            <span>Settings</span>
-          </Link>
         </nav>
-        <div className="flex items-center space-x-4">
-          <div className="flex items-center space-x-3 border-l border-[#d1dee8]/70 pl-3">
-            <div className="flex h-8 w-8 items-center justify-center rounded-full bg-[#111111] text-xs font-bold text-white shadow-xs ring-2 ring-[#111111]/10">
-              {displayName[0]?.toUpperCase() || <User className="h-4 w-4" />}
-            </div>
+        <div className="flex items-center gap-2 sm:gap-4">
+          <div className="flex items-center gap-2 border-l border-[#d1dee8]/70 pl-2 sm:gap-3 sm:pl-3">
+            <ProfileDropdown dashboardHref={isTeacher ? "/dashboard/teacher" : "/dashboard/student"} />
 
             <div className="hidden text-left sm:block">
               <p className="text-xs font-bold text-[#111111]">{displayName}</p>
@@ -117,10 +103,10 @@ export function TopNavbar({ role: propRole }: TopNavbarProps = {}) {
             type="button"
             onClick={() => logout()}
             title="Sign out"
-            className="flex cursor-pointer items-center gap-1.5 rounded-[10px] border border-[#8c381c]/25 bg-white px-3 py-1.5 text-xs font-bold text-[#8c381c] shadow-xs transition-all duration-150 hover:bg-[#fbeee8] hover:shadow-sm active:scale-[0.98]"
+            className="flex min-h-10 cursor-pointer items-center gap-1.5 rounded-[10px] border border-[#8c381c]/25 bg-white px-2.5 py-2 text-xs font-bold text-[#8c381c] shadow-xs transition-all duration-150 hover:bg-[#fbeee8] hover:shadow-sm active:scale-[0.98] sm:px-3"
           >
             <LogOut className="h-3.5 w-3.5" />
-            <span>Sign Out</span>
+            <span className="hidden sm:inline">Sign Out</span>
           </button>
         </div>
       </div>

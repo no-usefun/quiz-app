@@ -1,9 +1,9 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState, useSyncExternalStore } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { motion } from "framer-motion";
+import { motion, useReducedMotion } from "framer-motion";
 import {
   Plus,
   Users,
@@ -12,6 +12,10 @@ import {
   FileQuestion,
   BookOpen,
   Settings,
+  Search,
+  X,
+  ArrowUp,
+  ArrowDown,
 } from "lucide-react";
 import { TopNav } from "@/components/TopNav";
 import { useSession } from "@/hooks/useSession";
@@ -20,26 +24,60 @@ import { ENDPOINTS } from "@/lib/api/endpoints";
 import { api } from "@/lib/api/client";
 import { QuizResponse, TeacherQuizDetailResponse } from "@/lib/types";
 
+const subscribeToHydration = () => () => {};
+const getClientHydrationSnapshot = () => true;
+const getServerHydrationSnapshot = () => false;
+
 type TeacherDashboardQuiz = QuizResponse & {
   displayState: QuizDisplayState;
 };
 
+type TeacherDashboardStatusFilter =
+  | "ALL"
+  | "DRAFT"
+  | "UPCOMING"
+  | "LIVE"
+  | "COMPLETED"
+  | "CANCELLED";
+
+type TeacherDashboardSortField =
+  | "CREATED"
+  | "TITLE"
+  | "SUBJECT"
+  | "CODE"
+  | "START"
+  | "QUESTIONS"
+  | "DURATION"
+  | "STUDENTS";
+
+type TeacherDashboardSortDirection = "ASC" | "DESC";
+
 export default function TeacherDashboard() {
   const router = useRouter();
   const { user, loading: sessionLoading } = useSession();
+  const reduceMotion = useReducedMotion();
 
   const [tests, setTests] = useState<TeacherDashboardQuiz[]>([]);
   const [loading, setLoading] = useState(true);
   const [fetchError, setFetchError] = useState<string | null>(null);
+  const [hasCachedData, setHasCachedData] = useState(false);
+  const [cacheReady, setCacheReady] = useState(false);
+  const [hasLoadedQuizData, setHasLoadedQuizData] = useState(false);
+  const [cacheOwnerKey, setCacheOwnerKey] = useState<string | null>(null);
   const [copiedCode, setCopiedCode] = useState<string | null>(null);
-  const [mounted, setMounted] = useState(false);
+  const mounted = useSyncExternalStore(
+    subscribeToHydration,
+    getClientHydrationSnapshot,
+    getServerHydrationSnapshot,
+  );
+  const [statusFilter, setStatusFilter] =
+    useState<TeacherDashboardStatusFilter>("ALL");
+  const [searchQuery, setSearchQuery] = useState("");
+  const [sortField, setSortField] =
+    useState<TeacherDashboardSortField>("CREATED");
+  const [sortDirection, setSortDirection] =
+    useState<TeacherDashboardSortDirection>("DESC");
   const [visibleCount, setVisibleCount] = useState(5);
-  const [statusFilter, setStatusFilter] = useState<
-    "ALL" | "DRAFT" | "UPCOMING" | "LIVE" | "COMPLETED" | "CANCELLED"
-  >("ALL");
-  const [sortOrder, setSortOrder] = useState<
-    "NEWEST" | "OLDEST" | "TITLE_ASC" | "TITLE_DESC"
-  >("NEWEST");
 
   const [quizToEnd, setQuizToEnd] = useState<{
     quizId: number;
@@ -47,7 +85,9 @@ export default function TeacherDashboard() {
     title: string;
   } | null>(null);
 
-  const [actionLoadingQuizId, setActionLoadingQuizId] = useState<number | null>(null);
+  const [actionLoadingQuizId, setActionLoadingQuizId] = useState<number | null>(
+    null,
+  );
   const [actionError, setActionError] = useState<string | null>(null);
 
   const normalizeQuiz = (quiz: QuizResponse): TeacherDashboardQuiz => ({
@@ -68,8 +108,45 @@ export default function TeacherDashboard() {
     return fallback;
   };
 
+  const getQuizCacheKey = () => {
+    if (typeof window === "undefined") {
+      return null;
+    }
+
+    const userKey = user?.id ?? user?.userId ?? user?.email;
+    return userKey != null
+      ? `dynoquizz_teacher_quizzes_${String(userKey).toLowerCase()}`
+      : null;
+  };
+
   const fetchQuizzes = async () => {
-    setLoading(true);
+    const cacheKey = getQuizCacheKey();
+    let hasUsableCache = false;
+
+    if (cacheKey) {
+      try {
+        const rawCache = localStorage.getItem(cacheKey);
+        if (rawCache) {
+          const parsed = JSON.parse(rawCache) as {
+            quizzes?: QuizResponse[];
+            savedAt?: number;
+          };
+
+          if (Array.isArray(parsed.quizzes)) {
+            setTests(parsed.quizzes.map(normalizeQuiz));
+            setHasCachedData(true);
+            setHasLoadedQuizData(true);
+            setCacheOwnerKey(cacheKey);
+            hasUsableCache = true;
+          }
+        }
+      } catch (cacheError) {
+        console.warn("Could not read cached teacher quizzes:", cacheError);
+      }
+    }
+
+    setCacheReady(true);
+    setLoading(!hasUsableCache);
     setFetchError(null);
 
     try {
@@ -88,57 +165,76 @@ export default function TeacherDashboard() {
       const normalized = data.map(normalizeQuiz);
 
       const expiredPublishedQuizzes = normalized.filter(
-        (quiz) =>
-          quiz.displayState === "Ended" &&
-          quiz.status === "PUBLISHED",
+        (quiz) => quiz.displayState === "Ended" && quiz.status === "PUBLISHED",
       );
 
+      // Render the fetched quiz list immediately. Expired quiz completion
+      // is a follow-up operation and must not block the dashboard's loading
+      // state while the backend processes those updates.
+      setTests(normalized);
+      setHasCachedData(false);
+      setHasLoadedQuizData(true);
+      setCacheOwnerKey(cacheKey);
+
+      if (cacheKey) {
+        try {
+          localStorage.setItem(
+            cacheKey,
+            JSON.stringify({ quizzes: normalized, savedAt: Date.now() }),
+          );
+        } catch (cacheError) {
+          console.warn("Could not cache teacher quizzes:", cacheError);
+        }
+      }
+
       if (expiredPublishedQuizzes.length > 0) {
-        const completionResults = await Promise.allSettled(
+        void Promise.allSettled(
           expiredPublishedQuizzes.map((quiz) =>
-            api.put<QuizResponse>(
-              ENDPOINTS.teacher.completeQuiz(quiz.quizId),
-            ),
+            api.put<QuizResponse>(ENDPOINTS.teacher.completeQuiz(quiz.quizId)),
           ),
-        );
+        ).then((completionResults) => {
+          const completedById = new Map<number, QuizResponse>();
 
-        const completedById = new Map<number, QuizResponse>();
+          completionResults.forEach((result) => {
+            if (result.status === "fulfilled") {
+              completedById.set(result.value.quizId, result.value);
+            } else {
+              console.error("Automatic quiz completion failed:", result.reason);
+            }
+          });
 
-        completionResults.forEach((result) => {
-          if (result.status === "fulfilled") {
-            completedById.set(result.value.quizId, result.value);
-          } else {
-            console.error(
-              "Automatic quiz completion failed:",
-              result.reason,
+          if (completedById.size > 0) {
+            setTests((current) =>
+              current.map((quiz) => {
+                const completed = completedById.get(quiz.quizId);
+                return completed ? normalizeQuiz(completed) : quiz;
+              }),
             );
           }
         });
-
-        setTests(
-          normalized.map((quiz) =>
-            normalizeQuiz(completedById.get(quiz.quizId) ?? quiz),
-          ),
-        );
-      } else {
-        setTests(normalized);
       }
     } catch (error) {
       console.error("Dashboard fetch error:", error);
 
-      setFetchError(
-        getErrorMessage(error, "Failed to load assessments from server."),
+      const message = getErrorMessage(
+        error,
+        "Failed to load assessments from server.",
       );
 
-      setTests([]);
+      if (hasUsableCache) {
+        // Keep the last successful list visible without exposing cache details
+        // or a background-refresh error in the teacher-facing dashboard.
+        setHasCachedData(true);
+      } else {
+        setFetchError(message);
+        setTests([]);
+      }
     } finally {
       setLoading(false);
     }
   };
 
-  useEffect(() => {
-    setMounted(true);
-  }, []);
+  
 
   useEffect(() => {
     if (sessionLoading) {
@@ -146,11 +242,23 @@ export default function TeacherDashboard() {
     }
 
     fetchQuizzes();
-  }, [sessionLoading]);
+  }, [sessionLoading, user?.id, user?.userId, user?.email]);
 
   useEffect(() => {
-    setVisibleCount(5);
-  }, [tests.length]);
+    const cacheKey = getQuizCacheKey();
+    if (!cacheReady || !hasLoadedQuizData || !cacheKey || cacheOwnerKey !== cacheKey) {
+      return;
+    }
+
+    try {
+      localStorage.setItem(
+        cacheKey,
+        JSON.stringify({ quizzes: tests, savedAt: Date.now() }),
+      );
+    } catch (cacheError) {
+      console.warn("Could not persist teacher quiz cache:", cacheError);
+    }
+  }, [tests, cacheReady, hasLoadedQuizData, cacheOwnerKey, user?.id, user?.userId, user?.email]);
 
   const replaceQuizInState = (updatedQuiz: QuizResponse) => {
     const normalized = normalizeQuiz(updatedQuiz);
@@ -266,82 +374,196 @@ export default function TeacherDashboard() {
     user?.fullName?.split(" ")[0] ||
     "Instructor";
 
-  const liveCount = tests.filter((test) => test.displayState === "Live").length;
+  const liveCount = useMemo(
+    () => tests.filter((test) => test.displayState === "Live").length,
+    [tests],
+  );
 
-  const draftCount = tests.filter(
-    (test) => test.displayState === "Draft",
-  ).length;
+  const draftCount = useMemo(
+    () => tests.filter((test) => test.displayState === "Draft").length,
+    [tests],
+  );
 
-  const completedCount = tests.filter(
-    (test) => test.displayState === "Completed",
-  ).length;
+  const completedCount = useMemo(
+    () => tests.filter((test) => test.displayState === "Completed").length,
+    [tests],
+  );
 
-  const filteredTests = tests.filter((test) => {
-    switch (statusFilter) {
-      case "DRAFT":
-        return test.displayState === "Draft";
+  const statusCounts = useMemo(
+    () => ({
+      ALL: tests.length,
+      DRAFT: tests.filter((test) => test.displayState === "Draft").length,
+      UPCOMING: tests.filter((test) => test.displayState === "Scheduled").length,
+      LIVE: tests.filter((test) => test.displayState === "Live").length,
+      COMPLETED: tests.filter(
+        (test) =>
+          test.displayState === "Completed" || test.displayState === "Ended",
+      ).length,
+      CANCELLED: tests.filter((test) => test.displayState === "Cancelled").length,
+    }),
+    [tests],
+  );
 
-      case "UPCOMING":
-        return test.displayState === "Scheduled";
+  const sortedTests = useMemo(() => {
+    const queryTerms = searchQuery
+      .trim()
+      .toLocaleLowerCase()
+      .split(/\s+/)
+      .filter(Boolean);
 
-      case "LIVE":
-        return test.displayState === "Live";
+    const dateSearchText = (value?: string | null) => {
+      if (!value) return "";
+      const parsed = new Date(value);
+      return Number.isNaN(parsed.getTime())
+        ? value
+        : `${value} ${parsed.toLocaleDateString()} ${parsed.toLocaleString()}`;
+    };
 
-      case "COMPLETED":
-        return (
-          test.displayState === "Completed" ||
-          test.displayState === "Ended"
+    const filtered = tests.filter((test) => {
+      let matchesStatus: boolean;
+
+      switch (statusFilter) {
+        case "DRAFT":
+          matchesStatus = test.displayState === "Draft";
+          break;
+        case "UPCOMING":
+          matchesStatus = test.displayState === "Scheduled";
+          break;
+        case "LIVE":
+          matchesStatus = test.displayState === "Live";
+          break;
+        case "COMPLETED":
+          matchesStatus =
+            test.displayState === "Completed" || test.displayState === "Ended";
+          break;
+        case "CANCELLED":
+          matchesStatus = test.displayState === "Cancelled";
+          break;
+        case "ALL":
+        default:
+          matchesStatus = true;
+          break;
+      }
+
+      if (!matchesStatus) return false;
+      if (queryTerms.length === 0) return true;
+
+      const durationSeconds = Number(test.overallTimerSeconds || 0);
+      const durationMinutes = Math.ceil(durationSeconds / 60);
+      const searchableText = [
+        test.title,
+        test.description,
+        test.instructions,
+        test.subject,
+        test.subjectCode,
+        test.quizCode,
+        test.quizId,
+        test.teacherId,
+        test.status,
+        test.examState,
+        test.displayState,
+        test.totalQuestions,
+        test.totalMarks,
+        test.totalStudents,
+        test.overallTimerSeconds,
+        `${durationMinutes} min`,
+        `${durationMinutes} mins`,
+        `${durationMinutes} minutes`,
+        dateSearchText(test.startTime),
+        dateSearchText(test.endTime),
+      ]
+        .map((value) => String(value ?? ""))
+        .join(" ")
+        .toLocaleLowerCase();
+
+      // Every term must match somewhere across an assessment's searchable fields.
+      return queryTerms.every((term) => searchableText.includes(term));
+    });
+
+    const sorted = [...filtered];
+    const compareText = (
+      left: unknown,
+      right: unknown,
+      direction: 1 | -1 = 1,
+    ) =>
+      direction *
+      String(left ?? "").localeCompare(String(right ?? ""), undefined, {
+        sensitivity: "base",
+        numeric: true,
+      });
+
+    const compareNumber = (
+      left: unknown,
+      right: unknown,
+      direction: 1 | -1 = 1,
+    ) =>
+      direction * (Number(left || 0) - Number(right || 0));
+
+    const compareStartTime = (
+      left?: string | null,
+      right?: string | null,
+      direction: 1 | -1 = 1,
+    ) => {
+      const leftTime = left ? Date.parse(left) : Number.NaN;
+      const rightTime = right ? Date.parse(right) : Number.NaN;
+      const leftValid = Number.isFinite(leftTime);
+      const rightValid = Number.isFinite(rightTime);
+
+      // Assessments without a valid start time stay at the bottom in either order.
+      if (!leftValid && !rightValid) return 0;
+      if (!leftValid) return 1;
+      if (!rightValid) return -1;
+      return direction * (leftTime - rightTime);
+    };
+
+    const direction = sortDirection === "ASC" ? 1 : -1;
+
+    switch (sortField) {
+      case "TITLE":
+        sorted.sort((a, b) => compareText(a.title, b.title, direction));
+        break;
+      case "SUBJECT":
+        sorted.sort((a, b) =>
+          compareText(a.subject || a.subjectCode, b.subject || b.subjectCode, direction),
         );
-
-      case "CANCELLED":
-        return test.displayState === "Cancelled";
-
-      case "ALL":
+        break;
+      case "CODE":
+        sorted.sort((a, b) => compareText(a.quizCode, b.quizCode, direction));
+        break;
+      case "START":
+        sorted.sort((a, b) =>
+          compareStartTime(a.startTime, b.startTime, direction),
+        );
+        break;
+      case "QUESTIONS":
+        sorted.sort((a, b) =>
+          compareNumber(a.totalQuestions, b.totalQuestions, direction),
+        );
+        break;
+      case "DURATION":
+        sorted.sort((a, b) =>
+          compareNumber(a.overallTimerSeconds, b.overallTimerSeconds, direction),
+        );
+        break;
+      case "STUDENTS":
+        sorted.sort((a, b) =>
+          compareNumber(a.totalStudents, b.totalStudents, direction),
+        );
+        break;
+      case "CREATED":
       default:
-        return true;
+        // API order is newest-first, so reverse only for ascending/oldest-first.
+        if (sortDirection === "ASC") sorted.reverse();
+        break;
     }
-  });
 
-  const sortedTests = [...filteredTests];
-
-  switch (sortOrder) {
-    case "OLDEST":
-      sortedTests.reverse();
-      break;
-
-    case "TITLE_ASC":
-      sortedTests.sort((a, b) =>
-        String(a.title || "Assessment").localeCompare(
-          String(b.title || "Assessment"),
-          undefined,
-          { sensitivity: "base" },
-        ),
-      );
-      break;
-
-    case "TITLE_DESC":
-      sortedTests.sort((a, b) =>
-        String(b.title || "Assessment").localeCompare(
-          String(a.title || "Assessment"),
-          undefined,
-          { sensitivity: "base" },
-        ),
-      );
-      break;
-
-    case "NEWEST":
-    default:
-      // The backend response is already newest-first. Preserve that order.
-      break;
-  }
+    return sorted;
+  }, [tests, statusFilter, searchQuery, sortField, sortDirection]);
 
   const visibleTests = sortedTests.slice(0, visibleCount);
   const hasMoreTests = visibleCount < sortedTests.length;
-
   const handleLoadMore = () => {
-    setVisibleCount((current) =>
-      Math.min(current + 5, sortedTests.length),
-    );
+    setVisibleCount((current) => Math.min(current + 5, sortedTests.length));
   };
 
   const handleFilterChange = (
@@ -357,10 +579,36 @@ export default function TeacherDashboard() {
     setVisibleCount(5);
   };
 
-  const handleSortChange = (
-    nextSort: "NEWEST" | "OLDEST" | "TITLE_ASC" | "TITLE_DESC",
-  ) => {
-    setSortOrder(nextSort);
+  const handleSearchChange = (nextQuery: string) => {
+    setSearchQuery(nextQuery);
+    setVisibleCount(5);
+  };
+
+  const handleSortChange = (nextField: TeacherDashboardSortField) => {
+    setSortField(nextField);
+
+    // Start each field in the direction people usually expect for that data.
+    setSortDirection(
+      nextField === "CREATED" ||
+        nextField === "QUESTIONS" ||
+        nextField === "DURATION" ||
+        nextField === "STUDENTS"
+        ? "DESC"
+        : "ASC",
+    );
+    setVisibleCount(5);
+  };
+
+  const handleSortDirectionToggle = () => {
+    setSortDirection((current) => (current === "ASC" ? "DESC" : "ASC"));
+    setVisibleCount(5);
+  };
+
+  const handleClearRosterFilters = () => {
+    setStatusFilter("ALL");
+    setSearchQuery("");
+    setSortField("CREATED");
+    setSortDirection("DESC");
     setVisibleCount(5);
   };
 
@@ -394,7 +642,7 @@ export default function TeacherDashboard() {
       <TopNav role="teacher" />
 
       <main className="flex-1 p-4 md:p-8 space-y-6 max-w-7xl mx-auto w-full">
-        <section className="border-b border-[#d1dee8]/50 pb-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+        <motion.section initial={reduceMotion ? false : { opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.32, ease: "easeOut" }} className="border-b border-[#d1dee8]/50 pb-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
           <div>
             <span className="text-xs font-bold uppercase tracking-widest text-[#78716b]">
               Educator Control Center
@@ -405,8 +653,8 @@ export default function TeacherDashboard() {
             </h1>
 
             <p className="text-xs text-[#78716b] font-medium mt-0.5">
-              Manage your assessments, invite candidates, and review live results
-              telemetry.
+              Manage your assessments, invite candidates, and review live
+              results telemetry.
             </p>
           </div>
 
@@ -417,9 +665,9 @@ export default function TeacherDashboard() {
             <Plus className="h-4 w-4 text-white" />
             Create Assessment
           </Link>
-        </section>
+        </motion.section>
 
-        <section className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+        <motion.section initial={reduceMotion ? false : { opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.32, delay: 0.07, ease: "easeOut" }} className="grid grid-cols-2 sm:grid-cols-4 gap-4">
           <div className="rounded-[14px] border border-[#d1dee8]/70 bg-white p-4 sm:p-5 shadow-sm hover:shadow-md transition-all duration-200">
             <span className="text-[10px] font-bold uppercase tracking-wider text-[#78716b]">
               Total Assessments
@@ -459,16 +707,16 @@ export default function TeacherDashboard() {
               {loading ? "..." : completedCount}
             </p>
           </div>
-        </section>
+        </motion.section>
 
-        <section className="space-y-4">
+        <motion.section initial={reduceMotion ? false : { opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.32, delay: 0.14, ease: "easeOut" }} className="space-y-4">
           <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
             <div className="flex items-center gap-2">
               <h2 className="text-sm font-extrabold text-[#111111] uppercase tracking-wider">
                 Assessments Roster (
-                {statusFilter === "ALL"
+                {statusFilter === "ALL" && !searchQuery.trim()
                   ? tests.length
-                  : `${filteredTests.length} of ${tests.length}`}
+                  : `${sortedTests.length} of ${tests.length}`}
                 )
               </h2>
             </div>
@@ -477,52 +725,120 @@ export default function TeacherDashboard() {
               <div className="flex flex-wrap gap-1.5">
                 {(
                   [
-                    ["ALL", "All"],
-                    ["DRAFT", "Draft"],
-                    ["UPCOMING", "Upcoming"],
-                    ["LIVE", "Live"],
-                    ["COMPLETED", "Completed"],
-                    ["CANCELLED", "Cancelled"],
+                    { value: "ALL", label: "All", count: statusCounts.ALL },
+                    { value: "DRAFT", label: "Draft", count: statusCounts.DRAFT },
+                    { value: "UPCOMING", label: "Upcoming", count: statusCounts.UPCOMING },
+                    { value: "LIVE", label: "Live", count: statusCounts.LIVE },
+                    { value: "COMPLETED", label: "Completed", count: statusCounts.COMPLETED },
+                    { value: "CANCELLED", label: "Cancelled", count: statusCounts.CANCELLED },
                   ] as const
-                ).map(([value, label]) => (
+                ).map(({ value, label, count }) => (
                   <button
                     key={value}
                     type="button"
                     onClick={() => handleFilterChange(value)}
+                    aria-pressed={statusFilter === value}
                     className={
-                      "rounded-full border px-3 py-1.5 text-[10px] font-bold transition-all " +
+                      "inline-flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-[10px] font-bold transition-all " +
                       (statusFilter === value
                         ? "border-[#165dfb] bg-[#165dfb] text-white shadow-xs"
                         : "border-[#d1dee8]/80 bg-white text-[#78716b] hover:border-[#165dfb]/40 hover:text-[#111111]")
                     }
                   >
-                    {label}
+                    <span>{label}</span>
+                    <span
+                      className={
+                        "tabular-nums " +
+                        (statusFilter === value ? "text-white/80" : "text-[#a8a29e]")
+                      }
+                    >
+                      {count}
+                    </span>
                   </button>
                 ))}
               </div>
 
-              <label className="flex items-center gap-2 rounded-[10px] border border-[#d1dee8]/80 bg-white px-3 py-1.5 text-[10px] font-bold text-[#78716b] shadow-xs">
-                <span className="whitespace-nowrap">Sort</span>
+              <div className="flex h-8 w-full items-center justify-between gap-1 rounded-[10px] border border-[#d1dee8]/80 bg-white px-2 text-[10px] font-bold text-[#78716b] shadow-xs sm:w-auto sm:justify-start">
+                <label htmlFor="assessment-sort-field" className="pl-1 whitespace-nowrap">
+                  Sort
+                </label>
                 <select
-                  value={sortOrder}
+                  id="assessment-sort-field"
+                  value={sortField}
                   onChange={(event) =>
-                    handleSortChange(
-                      event.target.value as
-                        | "NEWEST"
-                        | "OLDEST"
-                        | "TITLE_ASC"
-                        | "TITLE_DESC",
-                    )
+                    handleSortChange(event.target.value as TeacherDashboardSortField)
                   }
-                  className="min-w-[138px] cursor-pointer border-0 bg-transparent text-[10px] font-bold text-[#111111] outline-none"
+                  aria-label="Sort assessments by"
+                  className="min-w-0 flex-1 cursor-pointer border-0 bg-transparent px-1 py-0 text-[10px] font-bold text-[#111111] outline-none sm:min-w-[122px] sm:flex-none"
                 >
-                  <option value="NEWEST">Newest first</option>
-                  <option value="OLDEST">Oldest first</option>
-                  <option value="TITLE_ASC">Title A → Z</option>
-                  <option value="TITLE_DESC">Title Z → A</option>
+                  <option value="CREATED">Created date</option>
+                  <option value="TITLE">Assessment title</option>
+                  <option value="SUBJECT">Subject</option>
+                  <option value="CODE">Test code</option>
+                  <option value="START">Start date</option>
+                  <option value="QUESTIONS">Questions</option>
+                  <option value="DURATION">Duration</option>
+                  <option value="STUDENTS">Students</option>
                 </select>
-              </label>
+                <button
+                  type="button"
+                  onClick={handleSortDirectionToggle}
+                  aria-label={
+                    sortDirection === "ASC"
+                      ? "Currently ascending. Switch to descending order"
+                      : "Currently descending. Switch to ascending order"
+                  }
+                  title={
+                    sortDirection === "ASC"
+                      ? "Ascending — click for descending"
+                      : "Descending — click for ascending"
+                  }
+                  className="inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-[7px] text-[#165dfb] transition-colors hover:bg-[#eef4ff] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#165dfb]"
+                >
+                  {sortDirection === "ASC" ? (
+                    <ArrowUp aria-hidden="true" className="h-3.5 w-3.5" />
+                  ) : (
+                    <ArrowDown aria-hidden="true" className="h-3.5 w-3.5" />
+                  )}
+                </button>
+              </div>
             </div>
+          </div>
+
+          <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+            <label className="relative block w-full sm:max-w-md">
+              <span className="sr-only">Search assessments</span>
+              <Search
+                aria-hidden="true"
+                className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[#78716b]"
+              />
+              <input
+                type="text"
+                id="assessment-search"
+                role="searchbox"
+                autoComplete="off"
+                value={searchQuery}
+                onChange={(event) => handleSearchChange(event.target.value)}
+                placeholder="Search title, subject, test code, ID..."
+                aria-label="Search assessments by title, subject, code, or ID"
+                className="w-full rounded-[10px] border border-[#d1dee8]/80 bg-white py-2.5 pl-9 pr-10 text-xs font-medium text-[#111111] shadow-xs outline-none transition focus:border-[#165dfb]/60 focus:ring-2 focus:ring-[#165dfb]/10 placeholder:text-[#a8a29e]"
+              />
+              {searchQuery && (
+                <button
+                  type="button"
+                  aria-label="Clear assessment search"
+                  onClick={() => handleSearchChange("")}
+                  className="absolute right-2 top-1/2 flex h-7 w-7 -translate-y-1/2 items-center justify-center rounded-full text-[#78716b] transition hover:bg-[#f5f5f4] hover:text-[#111111] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#165dfb]"
+                >
+                  <X aria-hidden="true" className="h-3.5 w-3.5" />
+                </button>
+              )}
+            </label>
+            <p className="text-[10px] font-medium text-[#78716b]" aria-live="polite">
+              {searchQuery.trim()
+                ? `Found ${sortedTests.length} matching assessment${sortedTests.length === 1 ? "" : "s"}`
+                : `Showing ${Math.min(visibleCount, sortedTests.length)} of ${sortedTests.length} assessments`}
+            </p>
           </div>
 
           <div className="grid gap-3.5">
@@ -530,7 +846,7 @@ export default function TeacherDashboard() {
               <div className="rounded-[14px] bg-white border border-[#d1dee8]/70 p-10 text-center text-xs text-[#78716b] shadow-sm">
                 Loading assessments roster...
               </div>
-            ) : fetchError ? (
+            ) : fetchError && tests.length === 0 ? (
               <div className="rounded-[14px] bg-[#fbeee8] border border-[#8c381c]/30 p-8 text-center space-y-3 shadow-sm">
                 <p className="font-bold text-[#8c381c] text-sm">{fetchError}</p>
 
@@ -579,16 +895,16 @@ export default function TeacherDashboard() {
                   </p>
 
                   <p className="text-xs text-[#78716b] mt-0.5 font-medium max-w-sm mx-auto">
-                    Try a different status filter or sort option.
+                    Try a different search, status filter, or sort option.
                   </p>
                 </div>
 
                 <button
                   type="button"
-                  onClick={() => handleFilterChange("ALL")}
+                  onClick={handleClearRosterFilters}
                   className="inline-flex items-center gap-1.5 rounded-[10px] border border-[#d1dee8]/80 bg-white px-4 py-2 text-xs font-bold text-[#111111] hover:bg-[#f5f5f4] hover:border-[#b9cbd9] shadow-xs active:scale-[0.98] transition-all cursor-pointer"
                 >
-                  Clear Filter
+                  Clear Search & Filters
                 </button>
               </div>
             ) : (
@@ -784,7 +1100,8 @@ export default function TeacherDashboard() {
                               <button
                                 type="button"
                                 disabled={
-                                  test.status !== "COMPLETED" || actionLoadingQuizId === quizId
+                                  test.status !== "COMPLETED" ||
+                                  actionLoadingQuizId === quizId
                                 }
                                 onClick={() => {
                                   if (test.status === "COMPLETED") {
@@ -828,14 +1145,11 @@ export default function TeacherDashboard() {
                 onClick={handleLoadMore}
                 className="inline-flex items-center justify-center rounded-[10px] border border-[#d1dee8]/80 bg-white px-5 py-2 text-xs font-bold text-[#111111] hover:bg-[#f5f5f4] hover:border-[#b9cbd9] shadow-xs active:scale-[0.98] transition-all cursor-pointer"
               >
-                Load More
-                <span className="ml-1.5 text-[#78716b]">
-                  ({Math.min(5, sortedTests.length - visibleCount)} more)
-                </span>
+                Show More Assessments
               </button>
             </div>
           )}
-        </section>
+        </motion.section>
       </main>
 
       {quizToEnd && (

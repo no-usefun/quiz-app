@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useRef } from "react";
+import { useEffect, useState, useRef, useSyncExternalStore } from "react";
 import Link from "next/link";
 import {
   motion,
@@ -285,6 +285,10 @@ const PROCTOR_CHECKS = [
   { label: "Clipboard protected", ok: true },
   { label: "Unusual head movement", ok: false },
 ];
+
+const subscribeToHydration = () => () => {};
+const getClientHydrationSnapshot = () => true;
+const getServerHydrationSnapshot = () => false;
 
 function ProctoringMonitor() {
   const [step, setStep] = useState(0);
@@ -748,7 +752,11 @@ function JoinCodeWidget() {
 // ─── Main Page ────────────────────────────────────────────────────────────────
 export default function Home() {
   const { user } = useSession();
-  const [mounted, setMounted] = useState(false);
+  const mounted = useSyncExternalStore(
+    subscribeToHydration,
+    getClientHydrationSnapshot,
+    getServerHydrationSnapshot,
+  );
   const [activeSlide, setActiveSlide] = useState(0);
   const [autoplay, setAutoplay] = useState(true);
   const sliderTimer = useRef<NodeJS.Timeout | null>(null);
@@ -757,9 +765,7 @@ export default function Home() {
   const heroY = useTransform(scrollY, [0, 500], [0, -70]);
   const heroOpacity = useTransform(scrollY, [0, 350], [1, 0]);
 
-  useEffect(() => {
-    setMounted(true);
-  }, []);
+  
 
   useEffect(() => {
     if (!autoplay) return;
@@ -776,7 +782,7 @@ export default function Home() {
 
   return (
     <main
-      className="min-h-screen font-sans overflow-x-hidden"
+      className="public-landing min-h-screen font-sans overflow-x-hidden"
       style={{ background: C.paper, color: C.ink }}
     >
       {/* ─── Sticky Navigation ─────────────────────────────────────────── */}

@@ -155,6 +155,24 @@ export function proxy(request: NextRequest) {
   }
 
   /*
+   * Shared exam links should take unauthenticated visitors directly to the
+   * student login form, preserving the exact destination (including quiz code).
+   * This avoids dropping visitors onto the role-picker screen.
+   */
+  if (isStudentExamRoute && (!claims || !role)) {
+    const loginUrl = new URL("/login", request.url);
+    loginUrl.searchParams.set("role", "student");
+    loginUrl.searchParams.set(
+      "redirect",
+      path + (request.nextUrl.search || ""),
+    );
+
+    const response = NextResponse.redirect(loginUrl);
+    response.cookies.delete("dynoquizz_token");
+    return response;
+  }
+
+  /*
    * Any route that needs an authenticated browser session.
    */
   if (isDashboardRoute || isSettingsRoute || isStudentExamRoute) {

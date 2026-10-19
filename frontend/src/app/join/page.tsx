@@ -2,7 +2,7 @@
 
 // join/page.tsx
 
-import { useState, useEffect, Suspense } from "react";
+import { useState, useEffect, Suspense, useSyncExternalStore } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { motion } from "framer-motion";
@@ -19,6 +19,10 @@ import {
 import { ApiClientError, api, getAuthToken } from "@/lib/api/client";
 import { ENDPOINTS } from "@/lib/api/endpoints";
 import type { QuizAvailabilityResponse } from "@/lib/types";
+
+const subscribeToHydration = () => () => {};
+const getClientHydrationSnapshot = () => true;
+const getServerHydrationSnapshot = () => false;
 
 function JoinForm() {
   const router = useRouter();
@@ -39,11 +43,7 @@ function JoinForm() {
       const token = getAuthToken();
 
       if (!token) {
-        router.push(
-          `/login?role=student&redirect=/join${
-            queryCode ? `?code=${encodeURIComponent(queryCode)}` : ""
-          }`,
-        );
+        router.push("/login?role=student&redirect=" + encodeURIComponent("/join" + (queryCode ? "?code=" + encodeURIComponent(queryCode) : "")));
         return;
       }
 
@@ -86,11 +86,7 @@ function JoinForm() {
     const token = getAuthToken();
 
     if (!token) {
-      router.push(
-        `/login?role=student&redirect=/join${
-          cleanCode ? `?code=${encodeURIComponent(cleanCode)}` : ""
-        }`,
-      );
+      router.push("/login?role=student&redirect=" + encodeURIComponent("/join" + (cleanCode ? "?code=" + encodeURIComponent(cleanCode) : "")));
       return;
     }
 
@@ -181,11 +177,7 @@ function JoinForm() {
 
       if (err instanceof ApiClientError) {
         if (err.status === 401) {
-          router.push(
-            `/login?role=student&redirect=/join?code=${encodeURIComponent(
-              cleanCode,
-            )}`,
-          );
+          router.push("/login?role=student&redirect=" + encodeURIComponent("/join?code=" + encodeURIComponent(cleanCode)));
           return;
         }
 
@@ -315,14 +307,17 @@ function formatStartTime(value: string): string {
 }
 
 export default function JoinPage() {
-  const [mounted, setMounted] = useState(false);
+  const mounted = useSyncExternalStore(
+    subscribeToHydration,
+    getClientHydrationSnapshot,
+    getServerHydrationSnapshot,
+  );
 
-  useEffect(() => {
-    setMounted(true);
-  }, []);
+  
 
   return (
-    <main className="relative flex min-h-screen items-center justify-center bg-frost-surface text-midnight-navy p-4 font-sans selection:bg-frost-surface selection:text-signal-green overflow-hidden">
+    <>
+    <main className="relative flex min-h-[calc(100vh-4rem)] items-center justify-center bg-frost-surface text-midnight-navy p-4 font-sans selection:bg-frost-surface selection:text-signal-green overflow-hidden">
       <div
         aria-hidden
         className="pointer-events-none absolute inset-0"
@@ -332,9 +327,6 @@ export default function JoinPage() {
         }}
       />
 
-      <span className="absolute left-1/2 top-6 z-10 -translate-x-1/2 rounded-full bg-white/90 px-4 py-1.5 text-sm font-bold tracking-tight text-midnight-navy shadow-xs ring-1 ring-black/5 backdrop-blur">
-        Quizly
-      </span>
 
       <motion.div
         initial={mounted ? { opacity: 0, y: 8 } : false}
@@ -390,5 +382,6 @@ export default function JoinPage() {
         </Suspense>
       </motion.div>
     </main>
+    </>
   );
 }

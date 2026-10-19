@@ -4,8 +4,12 @@ import { Suspense, useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { ArrowLeft, ArrowRight, Eye, EyeOff } from "lucide-react";
+import { ApiClientError, api } from "@/lib/api/client";
 import { ENDPOINTS } from "@/lib/api/endpoints";
+import { isLanExamMode } from "@/lib/examMode";
 import { APP_NAME } from "@/lib/constants";
+import { PublicNavbar } from "@/components/PublicNavbar";
+import type { AuthResponse } from "@/lib/types";
 
 function GoogleIcon() {
   return (
@@ -79,13 +83,8 @@ function roleDestination(role: "TEACHER" | "STUDENT"): string {
 
 function getPostAuthDestination(
   role: "TEACHER" | "STUDENT",
-  profileComplete: unknown,
   redirectTarget: string,
 ): string {
-  if (profileComplete === false) {
-    return "/settings?profile=complete";
-  }
-
   return redirectTarget || roleDestination(role);
 }
 
@@ -96,11 +95,13 @@ function LoginContent() {
   const activeRole = getRoleFromQuery(searchParams.get("role"));
   const redirectTarget = searchParams.get("redirect") || "";
   const selectedBackendRole = activeRole ? roleToBackendRole(activeRole) : null;
+  const lanExamMode = isLanExamMode();
 
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [googleLoading, setGoogleLoading] = useState(false);
   const [error, setError] = useState("");
 
   useEffect(() => {
@@ -138,11 +139,7 @@ function LoginContent() {
 
         localStorage.setItem("dynoquizz_user", JSON.stringify(user));
         localStorage.setItem("dynoquizz_role", backendRole);
-        window.location.href = getPostAuthDestination(
-          backendRole,
-          user?.profileComplete,
-          redirectTarget,
-        );
+        window.location.href = getPostAuthDestination(backendRole, redirectTarget);
       } catch {
         // Keep the login screen usable when the backend is temporarily offline.
       }
@@ -158,7 +155,13 @@ function LoginContent() {
   const handleGoogleAuth = () => {
     if (!selectedBackendRole) return;
 
+    if (lanExamMode) {
+      setError("Google sign-in is unavailable in LAN exam mode. Use your local exam account.");
+      return;
+    }
+
     setError("");
+    setGoogleLoading(true);
 
     sessionStorage.setItem("dynoquizz_google_role", selectedBackendRole);
 
@@ -190,45 +193,29 @@ function LoginContent() {
     setLoading(true);
 
     try {
-      const response = await fetch(
+      const data = await api.post<AuthResponse>(
         ENDPOINTS.auth.login,
         {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            Accept: "application/json",
-          },
-          body: JSON.stringify({
-            email: trimmedEmail,
-            password,
-          }),
+          email: trimmedEmail,
+          password,
+        },
+        {
+          skipAuth: true,
           cache: "no-store",
         },
       );
-
-      const data = await response.json().catch(() => ({}));
-
-      if (!response.ok) {
-        throw new Error(data?.message || data?.error || "Login failed. Please check your credentials.");
-      }
 
       const token = typeof data?.token === "string" ? data.token.trim() : "";
       if (!token) {
         throw new Error("Login succeeded but the backend did not return a session token.");
       }
 
-      const meResponse = await fetch(ENDPOINTS.auth.me, {
-        headers: {
-          Authorization: "Bearer " + token,
-          Accept: "application/json",
-        },
+      const meData = await api.get<AuthResponse["user"]>(ENDPOINTS.auth.me, {
+        token,
+        retry: 2,
+        retryDelayMs: 300,
         cache: "no-store",
       });
-
-      const meData = await meResponse.json().catch(() => ({}));
-      if (!meResponse.ok) {
-        throw new Error(meData?.message || meData?.error || "Unable to verify the authenticated session.");
-      }
 
       const backendRole = normalizeRole(meData?.role || data?.user?.role);
       if (!backendRole) {
@@ -261,13 +248,15 @@ function LoginContent() {
         "; samesite=lax";
 
       router.refresh();
-      window.location.href = getPostAuthDestination(
-        backendRole,
-        meData?.profileComplete,
-        redirectTarget,
-      );
+      window.location.href = getPostAuthDestination(backendRole, redirectTarget);
     } catch (requestError) {
-      setError(requestError instanceof Error ? requestError.message : "Cannot connect to the authentication server.");
+      setError(
+        requestError instanceof ApiClientError && requestError.status === 0
+          ? "The local exam server is unreachable. Verify the LAN connection and NEXT_PUBLIC_API_URL."
+          : requestError instanceof Error
+            ? requestError.message
+            : "Cannot connect to the authentication server.",
+      );
     } finally {
       setLoading(false);
     }
@@ -275,17 +264,19 @@ function LoginContent() {
 
   if (!activeRole) {
     return (
-      <main className="min-h-screen w-full grid grid-cols-1 md:grid-cols-2 font-sans">
+      <>
+      <PublicNavbar redirectTarget={redirectTarget} />
+      <main className="min-h-[calc(100vh-4rem)] w-full grid grid-cols-1 md:grid-cols-2 font-sans">
         <section className="flex flex-col items-center justify-center bg-[#F9FAFB] p-8 text-center sm:p-16">
           <div className="w-full max-w-xs space-y-5">
             <div>
               <h1 className="text-3xl font-bold tracking-tight text-[#111827]">Student</h1>
               <p className="mt-1 text-sm text-[#6B7280]">Take quizzes with an access code</p>
             </div>
-            <button type="button" onClick={() => router.push("/login?role=student")} className="inline-flex w-full items-center justify-center gap-2 rounded-lg bg-[#111827] px-5 py-3 text-sm font-medium text-white shadow-sm transition-all hover:bg-black active:scale-[0.99]">
+            <Link href={"/login?role=student" + (redirectTarget ? "&redirect=" + encodeURIComponent(redirectTarget) : "")} className="inline-flex w-full items-center justify-center gap-2 rounded-lg bg-[#111827] px-5 py-3 text-sm font-medium text-white shadow-sm transition-all hover:bg-black active:scale-[0.99] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#165dfb] focus-visible:ring-offset-2">
               Continue as Student
               <ArrowRight className="h-4 w-4" />
-            </button>
+            </Link>
           </div>
         </section>
 
@@ -295,41 +286,55 @@ function LoginContent() {
               <h1 className="text-3xl font-bold tracking-tight text-white">Instructor</h1>
               <p className="mt-1 text-sm text-[#94A3B8]">Create and manage quizzes</p>
             </div>
-            <button type="button" onClick={() => router.push("/login?role=teacher")} className="inline-flex w-full items-center justify-center gap-2 rounded-lg bg-white px-5 py-3 text-sm font-medium text-[#0F172A] shadow-sm transition-all hover:bg-neutral-100 active:scale-[0.99]">
+            <Link href={"/login?role=teacher" + (redirectTarget ? "&redirect=" + encodeURIComponent(redirectTarget) : "")} className="inline-flex w-full items-center justify-center gap-2 rounded-lg bg-white px-5 py-3 text-sm font-medium text-[#0F172A] shadow-sm transition-all hover:bg-neutral-100 active:scale-[0.99] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white focus-visible:ring-offset-2 focus-visible:ring-offset-[#0F172A]">
               Continue as Instructor
               <ArrowRight className="h-4 w-4" />
-            </button>
+            </Link>
           </div>
         </section>
       </main>
+      </>
     );
   }
 
   const roleLabel = activeRole === "teacher" ? "Instructor" : "Student";
 
   return (
-    <main className="min-h-screen bg-neutral-50 px-4 py-8 font-sans text-[#111827] sm:px-8">
+    <>
+    <PublicNavbar redirectTarget={redirectTarget} />
+    <main className="min-h-[calc(100vh-4rem)] bg-neutral-50 px-4 py-8 font-sans text-[#111827] sm:px-8">
       <div className="mx-auto flex min-h-[calc(100vh-4rem)] max-w-md items-center">
         <div className="w-full rounded-2xl border border-neutral-100 bg-white p-7 shadow-[0_18px_55px_-24px_rgba(15,23,42,0.25)] sm:p-8">
-          <button type="button" onClick={() => router.push("/login")} className="mb-6 inline-flex items-center gap-1.5 border-0 bg-transparent p-0 text-xs font-semibold text-neutral-400 transition-colors hover:text-neutral-800">
+          <button type="button" onClick={() => router.push("/login" + (redirectTarget ? "?redirect=" + encodeURIComponent(redirectTarget) : ""))} className="mb-6 inline-flex items-center gap-1.5 border-0 bg-transparent p-0 text-xs font-semibold text-neutral-400 transition-colors hover:text-neutral-800">
             <ArrowLeft className="h-3.5 w-3.5" />
             Back to roles
           </button>
 
           <div className="mb-6">
             <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-neutral-400">{APP_NAME} Authentication</p>
+            {lanExamMode && (
+              <span className="mt-2 inline-flex rounded-full bg-[#e8f0ff] px-2.5 py-1 text-[9px] font-bold uppercase tracking-wider text-[#165dfb]">
+                LAN Exam Mode · Local Authentication
+              </span>
+            )}
             <h1 className="mt-1.5 text-2xl font-bold tracking-tight text-neutral-900">Log in as {roleLabel}</h1>
-            <p className="mt-1.5 text-sm leading-relaxed text-neutral-500">Use your account credentials or continue with Google.</p>
+            <p className="mt-1.5 text-sm leading-relaxed text-neutral-500">
+              {lanExamMode
+                ? "Sign in with an account registered on this local exam server."
+                : "Use your account credentials or continue with Google."}
+            </p>
           </div>
 
           {error && (
             <div className="mb-4 rounded-lg border border-red-100 bg-red-50 p-3 text-sm font-medium text-red-700">{error}</div>
           )}
 
-          <button type="button" onClick={handleGoogleAuth} disabled={loading} className="flex w-full items-center justify-center gap-2.5 rounded-lg border border-neutral-200 bg-white px-4 py-3 text-sm font-semibold text-neutral-900 transition-all hover:border-neutral-300 hover:bg-neutral-50 active:scale-[0.99] disabled:cursor-not-allowed disabled:opacity-60">
+          {!lanExamMode && (
+          <button type="button" onClick={handleGoogleAuth} disabled={loading || googleLoading} aria-busy={googleLoading} className="flex w-full items-center justify-center gap-2.5 rounded-lg border border-neutral-200 bg-white px-4 py-3 text-sm font-semibold text-neutral-900 transition-all hover:border-neutral-300 hover:bg-neutral-50 active:scale-[0.99] disabled:cursor-not-allowed disabled:opacity-60">
             <GoogleIcon />
-            Sign in with Google
+            {googleLoading ? "Connecting to Google..." : "Sign in with Google"}
           </button>
+          )}
 
           <div className="my-5 flex items-center gap-3">
             <div className="h-px flex-1 bg-neutral-100" />
@@ -340,13 +345,13 @@ function LoginContent() {
           <form onSubmit={handleLoginSubmit} className="space-y-4">
             <div className="space-y-1.5">
               <label className="block text-xs font-bold text-neutral-700">Email address</label>
-              <input type="email" value={email} onChange={(event) => setEmail(event.target.value)} placeholder="name@example.com" autoComplete="email" required className="w-full rounded-lg border border-neutral-200 bg-neutral-50 px-3.5 py-2.5 text-sm text-neutral-900 outline-none transition-all placeholder:text-neutral-400 focus:border-neutral-900 focus:bg-white focus:ring-1 focus:ring-neutral-900" />
+              <input type="email" value={email} onChange={(event) => { setEmail(event.target.value); if (error) setError(""); }} placeholder="name@example.com" autoComplete="email" inputMode="email" autoCapitalize="none" spellCheck={false} required aria-invalid={!!error} className="w-full rounded-lg border border-neutral-200 bg-neutral-50 px-3.5 py-2.5 text-sm text-neutral-900 outline-none transition-all placeholder:text-neutral-400 focus:border-neutral-900 focus:bg-white focus:ring-1 focus:ring-neutral-900" />
             </div>
 
             <div className="space-y-1.5">
               <div className="flex items-center justify-between gap-3">
                 <label className="block text-xs font-bold text-neutral-700">Password</label>
-                {activeRole && (
+                {!lanExamMode && activeRole && (
                   <Link
                     href={"/forgot-password?role=" + activeRole}
                     className="text-[10px] font-bold text-[#165dfb] hover:underline"
@@ -356,7 +361,7 @@ function LoginContent() {
                 )}
               </div>
               <div className="relative">
-                <input type={showPassword ? "text" : "password"} value={password} onChange={(event) => setPassword(event.target.value)} placeholder="••••••••" autoComplete="current-password" required className="w-full rounded-lg border border-neutral-200 bg-neutral-50 px-3.5 py-2.5 pr-10 text-sm text-neutral-900 outline-none transition-all placeholder:text-neutral-400 focus:border-neutral-900 focus:bg-white focus:ring-1 focus:ring-neutral-900" />
+                <input type={showPassword ? "text" : "password"} value={password} onChange={(event) => { setPassword(event.target.value); if (error) setError(""); }} placeholder="••••••••" autoComplete="current-password" required aria-invalid={!!error} className="w-full rounded-lg border border-neutral-200 bg-neutral-50 px-3.5 py-2.5 pr-10 text-sm text-neutral-900 outline-none transition-all placeholder:text-neutral-400 focus:border-neutral-900 focus:bg-white focus:ring-1 focus:ring-neutral-900" />
                 <button type="button" onClick={() => setShowPassword((value) => !value)} aria-label={showPassword ? "Hide password" : "Show password"} className="absolute right-2.5 top-1/2 -translate-y-1/2 border-0 bg-transparent p-1.5 text-neutral-400 transition-colors hover:text-neutral-800">
                   {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                 </button>
@@ -371,11 +376,14 @@ function LoginContent() {
 
           <p className="mt-5 text-center text-sm text-neutral-500">
             Don&apos;t have an account?{" "}
-            <Link href={`/signup?role=${activeRole}`} className="font-bold text-neutral-900 hover:underline">Sign up</Link>
+            <Link href={`/signup?role=${activeRole}${redirectTarget ? `&redirect=${encodeURIComponent(redirectTarget)}` : ""}`} className="font-bold text-neutral-900 hover:underline">
+              Sign up
+            </Link>
           </p>
         </div>
       </div>
     </main>
+    </>
   );
 }
 

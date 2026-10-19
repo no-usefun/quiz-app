@@ -2,7 +2,7 @@
 
 // frontend/src/app/test/[testCode]/page.tsx
 
-import { use, useCallback, useEffect, useRef, useState } from "react";
+import { use, useCallback, useEffect, useRef, useState, useSyncExternalStore } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { AnimatePresence, motion } from "framer-motion";
@@ -19,7 +19,9 @@ import {
   ShieldCheck,
 } from "lucide-react";
 
-import { type ProctoringEvent, useProctoring } from "@/hooks/useProctoring";
+import { useAIProctoring } from "@/hooks/useAIProctoring";
+import { AIProctoringHUD } from "@/components/AIProctoringHUD";
+import { ProctoringWarningModal } from "@/components/ProctoringWarningModal";
 import { ApiClientError, api, getAuthToken } from "@/lib/api/client";
 import { ENDPOINTS } from "@/lib/api/endpoints";
 import type {
@@ -29,7 +31,45 @@ import type {
   SubmitAttemptResponse,
 } from "@/lib/types";
 
+const subscribeToHydration = () => () => {};
+const getClientHydrationSnapshot = () => true;
+const getServerHydrationSnapshot = () => false;
+
+interface ProctoringEventResponse {
+  recorded: boolean;
+  warningCount: number;
+  autoSubmitted: boolean;
+  message: string;
+}
+
 type ActiveAnswerState = Record<number, number[]>;
+
+type BrowserProctoringFlag =
+  | "tab_switch"
+  | "fullscreen_exit"
+  | "right_click"
+  | "copy_attempt"
+  | "cut_attempt"
+  | "paste_attempt"
+  | "focus_loss"
+  | "keyboard_attempt"
+  | "refresh_count"
+  | "reconnect_count";
+
+type BrowserProctoringFlags = Record<BrowserProctoringFlag, number>;
+
+const initialBrowserFlags: BrowserProctoringFlags = {
+  tab_switch: 0,
+  fullscreen_exit: 0,
+  right_click: 0,
+  copy_attempt: 0,
+  cut_attempt: 0,
+  paste_attempt: 0,
+  focus_loss: 0,
+  keyboard_attempt: 0,
+  refresh_count: 0,
+  reconnect_count: 0,
+};
 
 function formatRemainingTime(seconds: number): string {
   const safe = Math.max(0, Math.floor(seconds));
@@ -219,13 +259,17 @@ export default function TestArenaPage({
   const [timeLeft, setTimeLeft] = useState(0);
 
   const [isSubmitted, setIsSubmitted] = useState(false);
-  const [submittedAttemptId, setSubmittedAttemptId] = useState<string | null>(
-    null,
+  const mounted = useSyncExternalStore(
+    subscribeToHydration,
+    getClientHydrationSnapshot,
+    getServerHydrationSnapshot,
   );
-  const [mounted, setMounted] = useState(false);
   const [sessionExpired, setSessionExpired] = useState(false);
   const [deadlineNotice, setDeadlineNotice] = useState<string | null>(null);
   const [submissionNotice, setSubmissionNotice] = useState<string | null>(null);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [submissionStarted, setSubmissionStarted] = useState(false);
+  const [deadlineReached, setDeadlineReached] = useState(false);
 
   const answersRef = useRef<ActiveAnswerState>({});
   const timeTakenRef = useRef<Record<number, number>>({});
@@ -234,51 +278,103 @@ export default function TestArenaPage({
   const expiryHandledRef = useRef(false);
   const submissionInFlightRef = useRef(false);
 
-  const syncProctoringEvent = useCallback(
-    async (event: ProctoringEvent) => {
-      if (!activeAttemptId || !event || isSubmitted) return;
+  // The biometric reference remains session-scoped; do not persist raw imagery
+  // in localStorage beyond this assessment flow.
+  const referencePhoto =
+    typeof window !== "undefined"
+      ? sessionStorage.getItem("dynoquizz_reference_photo")
+      : null;
 
-      try {
-        await api.post(
-          ENDPOINTS.student.proctoringEvents(activeAttemptId),
-          {
-            type: event.type,
-            metadata: { source: "browser" },
-          },
-        );
-        if (event.type === "tab_switch") {
-          const state = await api.get<AttemptStateResponse>(
-            ENDPOINTS.student.attemptState(activeAttemptId),
-          );
-
-          if (state.status !== "IN_PROGRESS") {
-            setSubmittedAttemptId(String(state.attemptId));
-            setDeadlineNotice(
-              state.status === "AUTO_SUBMITTED"
-                ? "The server automatically submitted this attempt after the configured proctoring limit was exceeded."
-                : "This assessment attempt is no longer active.",
-            );
-            setIsSubmitted(true);
+  const studentUser =
+    typeof window !== "undefined"
+      ? (() => {
+          try {
+            return JSON.parse(localStorage.getItem("dynoquizz_user") || "{}");
+          } catch {
+            return {};
           }
-        }
-      } catch (error) {
-        console.warn("[Proctoring] Server event sync failed:", error);
-      }
-    },
-    [activeAttemptId, isSubmitted],
+        })()
+      : {};
+  const effectiveStudentId = studentUser?.id ? String(studentUser.id) : undefined;
+
+  const finishAssessmentRef = useRef<
+    ((latestAnswers?: ActiveAnswerState, latestTimeTaken?: Record<number, number>) => Promise<void>) | null
+  >(null);
+
+  const [isFullscreen, setIsFullscreen] = useState(() => {
+    if (typeof document !== "undefined") {
+      return Boolean(document.fullscreenElement);
+    }
+    return true;
+  });
+  const mountTimeRef = useRef<number | null>(null);
+  const hasEnteredFullscreenRef = useRef(false);
+  const lastBrowserViolationTimeRef = useRef(0);
+  const lastAuditEventTimeRef = useRef<Partial<Record<BrowserProctoringFlag, number>>>({});
+  const [flags, setFlags] = useState<BrowserProctoringFlags>(initialBrowserFlags);
+  const [warnings, setWarnings] = useState<string[]>([]);
+  const violationCount = Object.values(flags).reduce(
+    (sum, count) => sum + Number(count || 0),
+    0,
   );
 
-  const {
-    flags,
-    warnings,
-    violationCount,
-    isFullscreen,
-    requestFullscreen,
-    exitFullscreen,
-  } = useProctoring(
-    activeAttemptId ? `attempt_${activeAttemptId}` : `code_${cleanCode}`,
-    syncProctoringEvent,
+  const recordBrowserEvent = useCallback(
+    (type: BrowserProctoringFlag, message: string) => {
+      setFlags((previous) => ({ ...previous, [type]: previous[type] + 1 }));
+      setWarnings((previous) => [...previous.slice(-9), message]);
+    },
+    [],
   );
+
+  const proctoring = useAIProctoring({
+    attemptId: Number(activeAttemptId || 0),
+    studentId: effectiveStudentId,
+    testCode: cleanCode,
+    referenceImage: referencePhoto,
+    authToken: getAuthToken() || undefined,
+    onAutoSubmit: () => {
+      setDeadlineNotice(
+        "Assessment automatically submitted due to reaching the configured proctoring warning limit.",
+      );
+      void finishAssessmentRef.current?.(answersRef.current, timeTakenRef.current);
+    },
+    enabled: !isSubmitted && Boolean(activeAttemptId),
+  });
+
+  const isAIProctoringReady = Boolean(activeAttemptId) &&
+    proctoring.isOnline &&
+    proctoring.cameraActive &&
+    proctoring.telemetryReceived &&
+    proctoring.faceDetected &&
+    proctoring.identityVerified &&
+    !proctoring.cameraError;
+
+  const requestFullscreen = useCallback(async () => {
+    if (typeof document === "undefined") return false;
+    if (document.fullscreenElement) {
+      setIsFullscreen(true);
+      return true;
+    }
+    try {
+      await document.documentElement.requestFullscreen();
+      setIsFullscreen(true);
+      hasEnteredFullscreenRef.current = true;
+      return true;
+    } catch {
+      setIsFullscreen(false);
+      return false;
+    }
+  }, []);
+
+  const exitFullscreen = useCallback(async () => {
+    if (typeof document === "undefined" || !document.fullscreenElement) return;
+    try {
+      await document.exitFullscreen();
+      setIsFullscreen(false);
+    } catch {
+      // Ignore browser fullscreen teardown failures.
+    }
+  }, []);
 
   useEffect(() => {
     answersRef.current = answers;
@@ -317,14 +413,240 @@ export default function TestArenaPage({
     return () => window.removeEventListener("beforeunload", handleBeforeUnload);
   }, [isSubmitted]);
 
+  const proctoringCleanupRef = useRef(proctoring.cleanup);
+  useEffect(() => {
+    proctoringCleanupRef.current = proctoring.cleanup;
+  }, [proctoring.cleanup]);
+
+  const proctoringSetWarningCountRef = useRef(proctoring.setWarningCount);
+  useEffect(() => {
+    proctoringSetWarningCountRef.current = proctoring.setWarningCount;
+  }, [proctoring.setWarningCount]);
+
+  const proctoringShowWarningModalRef = useRef(proctoring.showWarningModal);
+  useEffect(() => {
+    proctoringShowWarningModalRef.current = proctoring.showWarningModal;
+  }, [proctoring.showWarningModal]);
+
+  const lastBackendWarningCountRef = useRef(0);
+
+  useEffect(() => {
+    if (typeof window === "undefined" || isSubmitted || !activeAttemptId) {
+      return;
+    }
+
+    const INITIAL_GRACE_PERIOD_MS = 8000;
+    const VIOLATION_COOLDOWN_MS = 3500;
+
+    const reportEvent = async (type: BrowserProctoringFlag, details: string) => {
+      const now = Date.now();
+      const isCountableViolation = type === "tab_switch" || type === "fullscreen_exit";
+
+      if (isCountableViolation) {
+        if (!mountTimeRef.current) mountTimeRef.current = now;
+        if (now - mountTimeRef.current < INITIAL_GRACE_PERIOD_MS) return;
+        if (now - lastBrowserViolationTimeRef.current < VIOLATION_COOLDOWN_MS) return;
+        lastBrowserViolationTimeRef.current = now;
+      } else {
+        const lastTime = lastAuditEventTimeRef.current[type] || 0;
+        if (now - lastTime < 600) return;
+        lastAuditEventTimeRef.current[type] = now;
+      }
+
+      recordBrowserEvent(type, details);
+
+      try {
+        if (isCountableViolation) {
+          const eventType = type === "tab_switch" ? "TAB_SWITCH" : "FULLSCREEN_EXIT";
+          const token = getAuthToken();
+          const response = await api.post<ProctoringEventResponse>(
+            ENDPOINTS.proctoring.recordEvent(activeAttemptId),
+            {
+              eventType,
+              details,
+              severity: "HIGH",
+              confidence: 1.0,
+              frameTimestamp: now,
+              eventId: `browser-${activeAttemptId}-${eventType}-${now}`,
+            },
+            {
+              headers: token ? { Authorization: `Bearer ${token}` } : {},
+            },
+          );
+
+          if (response && typeof response.warningCount === "number") {
+            // The server is authoritative for auto-submission. Do not infer it
+            // from a warning count because the policy may change server-side.
+            const isAutoSubmitted = Boolean(response.autoSubmitted);
+            proctoringSetWarningCountRef.current(response.warningCount);
+            lastBackendWarningCountRef.current = Math.max(
+              lastBackendWarningCountRef.current,
+              response.warningCount,
+            );
+            proctoringShowWarningModalRef.current(
+              details,
+              response.warningCount,
+              isAutoSubmitted,
+            );
+            if (isAutoSubmitted) {
+              void proctoringCleanupRef.current();
+              void finishAssessmentRef.current?.(answersRef.current, timeTakenRef.current);
+            }
+          }
+        } else {
+          // Keep legacy non-strike audit events compatible while the backend
+          // team adds the unified V2 warning-count contract.
+          await api.post(
+            ENDPOINTS.student.proctoringEvents(activeAttemptId),
+            {
+              type,
+              occurredAt: new Date().toISOString(),
+              metadata: { source: "browser", details },
+            },
+          );
+        }
+      } catch (error) {
+        console.warn("[Proctoring] Browser event sync failed:", error);
+      }
+    };
+
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === "hidden") {
+        void reportEvent("tab_switch", "Candidate switched tabs or minimized the assessment window.");
+      }
+    };
+
+    const handleBlur = () => {
+      if (document.visibilityState === "hidden" || !document.hasFocus()) {
+        void reportEvent("tab_switch", "Candidate switched away from the assessment window.");
+      } else {
+        void reportEvent("focus_loss", "The assessment window lost focus.");
+      }
+    };
+
+    const handleFullscreenChange = () => {
+      const active = Boolean(document.fullscreenElement);
+      setIsFullscreen(active);
+      if (active) {
+        hasEnteredFullscreenRef.current = true;
+      } else if (
+        hasEnteredFullscreenRef.current &&
+        document.visibilityState === "visible"
+      ) {
+        void reportEvent("fullscreen_exit", "Candidate exited required fullscreen mode.");
+      }
+    };
+
+    const handleContextMenu = (event: MouseEvent) => {
+      event.preventDefault();
+      void reportEvent("right_click", "Right-click was blocked during the assessment.");
+    };
+
+    const handleCopy = (event: ClipboardEvent) => {
+      event.preventDefault();
+      void reportEvent("copy_attempt", "Copy was blocked during the assessment.");
+    };
+
+    const handleCut = (event: ClipboardEvent) => {
+      event.preventDefault();
+      void reportEvent("cut_attempt", "Cut was blocked during the assessment.");
+    };
+
+    const handlePaste = (event: ClipboardEvent) => {
+      event.preventDefault();
+      void reportEvent("paste_attempt", "Paste was blocked during the assessment.");
+    };
+
+    const handleBeforeInput = (event: InputEvent) => {
+      if (event.inputType === "insertFromPaste") {
+        event.preventDefault();
+        void reportEvent("paste_attempt", "Paste input was blocked during the assessment.");
+      }
+    };
+
+    const handleDragStart = (event: DragEvent) => event.preventDefault();
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      const key = event.key.toLowerCase();
+      const command = event.ctrlKey || event.metaKey;
+      const blocked =
+        (command && ["c", "x", "v", "a", "p", "s", "u"].includes(key)) ||
+        key === "printscreen";
+      if (!blocked) return;
+
+      event.preventDefault();
+      const type: BrowserProctoringFlag =
+        key === "c" ? "copy_attempt" :
+        key === "x" ? "cut_attempt" :
+        key === "v" ? "paste_attempt" : "keyboard_attempt";
+      const message =
+        key === "c" ? "Copy shortcut was blocked during the assessment." :
+        key === "x" ? "Cut shortcut was blocked during the assessment." :
+        key === "v" ? "Paste shortcut was blocked during the assessment." :
+        "A restricted keyboard shortcut was blocked during the assessment.";
+      void reportEvent(type, message);
+    };
+
+    const navigation = performance.getEntriesByType("navigation")[0] as
+      | PerformanceNavigationTiming
+      | undefined;
+    if (navigation?.type === "reload") {
+      void reportEvent("refresh_count", "Assessment page refresh detected.");
+    }
+
+    let wasOffline = !navigator.onLine;
+    const handleOnline = () => {
+      if (wasOffline) {
+        void reportEvent("reconnect_count", "Network reconnection detected during the assessment.");
+      }
+      wasOffline = false;
+    };
+    const handleOffline = () => { wasOffline = true; };
+
+    if (!mountTimeRef.current) mountTimeRef.current = Date.now();
+    const initialFullscreen = Boolean(document.fullscreenElement);
+    setIsFullscreen(initialFullscreen);
+    if (initialFullscreen) hasEnteredFullscreenRef.current = true;
+
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+    window.addEventListener("blur", handleBlur);
+    document.addEventListener("fullscreenchange", handleFullscreenChange);
+    document.addEventListener("contextmenu", handleContextMenu);
+    document.addEventListener("copy", handleCopy);
+    document.addEventListener("cut", handleCut);
+    document.addEventListener("paste", handlePaste);
+    document.addEventListener("beforeinput", handleBeforeInput as EventListener);
+    document.addEventListener("dragstart", handleDragStart);
+    document.addEventListener("keydown", handleKeyDown);
+    window.addEventListener("online", handleOnline);
+    window.addEventListener("offline", handleOffline);
+
+    return () => {
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
+      window.removeEventListener("blur", handleBlur);
+      document.removeEventListener("fullscreenchange", handleFullscreenChange);
+      document.removeEventListener("contextmenu", handleContextMenu);
+      document.removeEventListener("copy", handleCopy);
+      document.removeEventListener("cut", handleCut);
+      document.removeEventListener("paste", handlePaste);
+      document.removeEventListener("beforeinput", handleBeforeInput as EventListener);
+      document.removeEventListener("dragstart", handleDragStart);
+      document.removeEventListener("keydown", handleKeyDown);
+      window.removeEventListener("online", handleOnline);
+      window.removeEventListener("offline", handleOffline);
+    };
+  }, [activeAttemptId, isSubmitted, recordBrowserEvent]);
+
   useEffect(() => {
     if (isSubmitted) {
       void exitFullscreen();
+      if (deadlineReached) {
+        window.close();
+      }
     }
-  }, [isSubmitted, exitFullscreen]);
+  }, [isSubmitted, exitFullscreen, deadlineReached]);
 
   useEffect(() => {
-    setMounted(true);
 
     if (!cleanCode) {
       setTestLoadError("Assessment code is missing.");
@@ -382,6 +704,11 @@ export default function TestArenaPage({
 
         const packageData = await api.get<QuizPackageResponse>(
           ENDPOINTS.student.quizPackageByCode(cleanCode),
+          {
+            retry: 2,
+            retryDelayMs: 300,
+            cache: "no-store",
+          },
         );
 
         if (
@@ -420,6 +747,7 @@ export default function TestArenaPage({
           try {
             const serverState = await api.get<AttemptStateResponse>(
               ENDPOINTS.student.attemptState(activeAttemptId),
+              { retry: 2, retryDelayMs: 300, cache: "no-store" },
             );
 
             if (!cancelled && serverState) {
@@ -430,7 +758,6 @@ export default function TestArenaPage({
               }
 
               if (serverState.status !== "IN_PROGRESS") {
-                setSubmittedAttemptId(String(serverState.attemptId));
                 setIsSubmitted(true);
 
                 if (typeof window !== "undefined") {
@@ -714,6 +1041,7 @@ export default function TestArenaPage({
     if (
       submissionInFlightRef.current ||
       isSubmitted ||
+      isSubmitting ||
       !test ||
       !attemptId
     ) {
@@ -726,7 +1054,8 @@ export default function TestArenaPage({
     }
 
     submissionInFlightRef.current = true;
-    setIsSubmitted(true);
+    setSubmissionStarted(true);
+    setIsSubmitting(true);
     setSubmissionNotice(null);
 
     persistCurrentState(latestAnswers, latestTimeTaken);
@@ -765,8 +1094,7 @@ export default function TestArenaPage({
           "The server accepted the submission but did not return an attempt ID.",
         );
       }
-
-      setSubmittedAttemptId(returnedAttemptId);
+      setIsSubmitted(true);
 
       localStorage.setItem(
         `dynoquizz_submittedAttemptId_${cleanCode}`,
@@ -777,6 +1105,9 @@ export default function TestArenaPage({
       localStorage.removeItem(`dynoquizz_attemptId_${cleanCode}`);
       localStorage.removeItem("dynoquizz_attemptId");
       localStorage.removeItem(`dynoquizz_pending_submit_${attemptId}`);
+      // The reference image is needed only for this attempt/session.
+      sessionStorage.removeItem("dynoquizz_reference_photo");
+      localStorage.removeItem("dynoquizz_reference_photo");
 
       if (result.status === "AUTO_SUBMITTED") {
         setDeadlineNotice(
@@ -796,27 +1127,43 @@ export default function TestArenaPage({
       }
     } catch (error) {
       console.error("[Assessment Submission] Failed:", error);
+      setIsSubmitted(false);
 
       if (error instanceof ApiClientError && error.status === 409) {
         try {
           const state = await api.get<AttemptStateResponse>(
             ENDPOINTS.student.attemptState(attemptId),
+            { retry: 2, retryDelayMs: 300, cache: "no-store" },
           );
-
-          setSubmittedAttemptId(String(state.attemptId));
 
           if (state.status !== "IN_PROGRESS") {
             setIsSubmitted(true);
+
+            // A proctoring event may have auto-submitted the attempt on the
+            // server before the browser's normal submit request completed.
+            // Reconcile local navigation state with that authoritative result.
+            const reconciledAttemptId = String(state.attemptId ?? attemptId);
+            localStorage.setItem(
+              `dynoquizz_submittedAttemptId_${cleanCode}`,
+              reconciledAttemptId,
+            );
+            localStorage.setItem(
+              "dynoquizz_submittedAttemptId",
+              reconciledAttemptId,
+            );
+            localStorage.removeItem(`dynoquizz_attemptId_${cleanCode}`);
+            localStorage.removeItem("dynoquizz_attemptId");
+            localStorage.removeItem(
+              `dynoquizz_pending_submit_${attemptId}`,
+            );
+            sessionStorage.removeItem("dynoquizz_reference_photo");
+            localStorage.removeItem("dynoquizz_reference_photo");
 
             if (state.status === "AUTO_SUBMITTED") {
               setDeadlineNotice(
                 "The server has already automatically submitted this assessment attempt.",
               );
             }
-
-            localStorage.removeItem(
-              `dynoquizz_pending_submit_${attemptId}`,
-            );
             return;
           }
         } catch (reconcileError) {
@@ -839,8 +1186,14 @@ export default function TestArenaPage({
       }
     } finally {
       submissionInFlightRef.current = false;
+      setIsSubmitting(false);
     }
   };
+
+  // Keep the latest submission callback available to asynchronous AI warning handlers.
+  useEffect(() => {
+    finishAssessmentRef.current = finishAssessment;
+  }, [finishAssessment]);
 
   const handleOverallTimerExpired = () => {
     if (
@@ -854,15 +1207,13 @@ export default function TestArenaPage({
 
     expiryHandledRef.current = true;
     setTimeLeft(0);
+    setDeadlineReached(true);
+    setDeadlineNotice(null);
 
     // Reuse the same single-flight submission path as manual submission.
     // It marks the UI submitted immediately, then sends the complete answer
     // sheet to the backend. The backend remains authoritative and will return
     // AUTO_SUBMITTED because the deadline has been reached.
-    setDeadlineNotice(
-      "Time is up. Submitting your assessment automatically...",
-    );
-
     void finishAssessment(
       { ...answersRef.current },
       { ...timeTakenRef.current },
@@ -996,54 +1347,59 @@ export default function TestArenaPage({
     );
   }
 
-  if (isSubmitted) {
+  if (isSubmitted || deadlineReached || submissionStarted) {
     return (
       <main className="flex min-h-screen items-center justify-center bg-[#f5f5f4] text-[#111111] p-4 font-sans">
         <motion.div
           initial={mounted ? { opacity: 0, y: 8 } : false}
           animate={mounted ? { opacity: 1, y: 0 } : false}
-          transition={{ duration: 0.25, ease: "easeOut" }}
+          transition={{ duration: 0.2, ease: "easeOut" }}
           className="w-full max-w-md rounded-[14px] bg-white p-6 md:p-8 text-center border border-[#d1dee8]/70 shadow-xl space-y-4"
         >
-          <div className="mx-auto flex h-10 w-10 items-center justify-center rounded-[10px] bg-[#e2ede8] border border-[#d1dee8]/70 text-[#1d5237] shadow-xs">
+          <div className="mx-auto flex h-10 w-10 items-center justify-center rounded-[10px] bg-[#e2ede8] border border-[#d1dee8]/70 text-[#1d5237]">
             <CheckCircle2 className="h-6 w-6 text-[#1d5237]" />
           </div>
-
-          <div>
-            <span className="text-[10px] font-bold uppercase tracking-wider text-[#78716b]">
-              Response Recorded
-            </span>
-
-            <h1 className="mt-0.5 text-xl font-bold text-[#111111]">
-              Assessment Submitted
-            </h1>
-
-            <p className="mt-1 text-xs text-[#78716b] leading-relaxed font-medium">
-              Your responses have been transmitted to the server for evaluation.
+          <h1 className="text-xl font-bold text-[#111111]">
+            {isSubmitted
+              ? "Exam Submitted"
+              : submissionNotice
+                ? "Submission Needs Attention"
+                : "Submitting Assessment"}
+          </h1>
+          {!isSubmitted && !submissionNotice && (
+            <p className="text-xs text-[#78716b] leading-relaxed font-medium">
+              Your submission is being processed. You can return to the dashboard while it completes.
             </p>
-          </div>
-
-          {deadlineNotice && (
-            <div className="rounded-[10px] border border-[#73561a]/20 bg-[#f6efe1] p-3 text-xs text-[#73561a] text-left font-medium">
-              {deadlineNotice}
-            </div>
           )}
-
-          {submissionNotice && (
-            <div className="rounded-[10px] border border-[#d1dee8]/70 bg-[#f5f5f4] p-3 text-xs text-[#111111] text-left font-medium">
-              {submissionNotice}
-            </div>
+          {submissionNotice && !isSubmitted && (
+            <>
+              <p className="text-xs text-[#8c381c] leading-relaxed font-medium">
+                Submission could not be confirmed.
+              </p>
+              <button
+                type="button"
+                onClick={() => {
+                  setSubmissionNotice(null);
+                  expiryHandledRef.current = false;
+                  void finishAssessment(
+                    { ...answersRef.current },
+                    { ...timeTakenRef.current },
+                  );
+                }}
+                disabled={isSubmitting}
+                className="w-full rounded-[10px] bg-[#165dfb] py-2.5 text-xs font-bold text-white disabled:opacity-50"
+              >
+                Retry Submission
+              </button>
+            </>
           )}
-
-          <div className="pt-4">
-            <Link
-              href="/dashboard/student"
-              className="flex w-full items-center justify-center gap-1.5 rounded-[10px] bg-[#165dfb] py-2.5 text-xs font-bold text-white hover:bg-[#165dfb]/90 transition-all"
-            >
-              Return to Dashboard
-              <ChevronRight className="h-4 w-4" />
-            </Link>
-          </div>
+          <Link
+            href="/dashboard/student"
+            className="flex w-full items-center justify-center gap-1.5 rounded-[10px] bg-[#165dfb] py-2.5 text-xs font-bold text-white hover:bg-[#165dfb]/90 transition-all"
+          >
+            Return to Dashboard
+            <ChevronRight className="h-4 w-4" />
+          </Link>
         </motion.div>
       </main>
     );
@@ -1254,6 +1610,30 @@ export default function TestArenaPage({
           </div>
         </div>
 
+        {submissionNotice && !isSubmitted && (
+          <div className="border-b border-[#8c381c]/20 bg-[#fff8f5] px-4 py-3 md:px-6">
+            <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+              <div className="flex items-start gap-2 text-xs font-semibold text-[#8c381c]">
+                <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
+                <span>{submissionNotice}</span>
+              </div>
+              <button
+                type="button"
+                onClick={() =>
+                  void finishAssessment(
+                    { ...answersRef.current },
+                    { ...timeTakenRef.current },
+                  )
+                }
+                disabled={isSubmitting}
+                className="inline-flex shrink-0 items-center justify-center rounded-[10px] bg-[#8c381c] px-3 py-2 text-[10px] font-bold text-white hover:bg-[#6e2b14] disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                {isSubmitting ? "Submitting..." : "Retry Submission"}
+              </button>
+            </div>
+          </div>
+        )}
+
         {deadlineNotice && !isSubmitted && (
           <div className="border-b border-[#73561a]/20 bg-[#f6efe1] px-4 py-3 md:px-6">
             <div className="flex items-start gap-2 text-xs font-semibold text-[#73561a]">
@@ -1313,8 +1693,7 @@ export default function TestArenaPage({
                 {currentQuestion?.options.map((option, idx) => {
                   const optionId = Number(option.optionId);
                   const selectedIds =
-                    answersRef.current[Number(currentQuestion.questionId)] ??
-                    [];
+                    answers[Number(currentQuestion.questionId)] ?? [];
                   const isSelected = selectedIds.includes(optionId);
 
                   return (
@@ -1409,12 +1788,12 @@ export default function TestArenaPage({
                   void finishAssessment(answersRef.current, timeTakenRef.current);
                 }
               }}
-              disabled={isSubmitted}
+              disabled={isSubmitted || isSubmitting}
               className="inline-flex items-center gap-1 rounded-lg bg-[#165dfb] px-4 py-2.5 text-xs font-bold text-white shadow-xs transition-all hover:bg-[#0f4fd8] active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-40"
             >
               {currentIndex === questions.length - 1 ? (
                 <>
-                  Submit Assessment
+                  {isSubmitting ? "Submitting..." : "Submit Assessment"}
                   <ChevronRight className="h-3.5 w-3.5" />
                 </>
               ) : (
@@ -1429,6 +1808,28 @@ export default function TestArenaPage({
       </motion.div>
 
       <aside className="hidden w-72 flex-col gap-4 pl-6 lg:flex text-left">
+        <AIProctoringHUD
+          videoRef={proctoring.videoRef}
+          cameraActive={proctoring.cameraActive}
+          cameraError={proctoring.cameraError}
+          telemetryReceived={proctoring.telemetryReceived}
+          faceDetected={proctoring.faceDetected}
+          numFaces={proctoring.numFaces}
+          numPersons={proctoring.numPersons}
+          identityVerified={proctoring.identityVerified}
+          similarityScore={proctoring.similarityScore}
+          gazeDirection={proctoring.gazeDirection}
+          yaw={proctoring.yaw}
+          pitch={proctoring.pitch}
+          isLookingAway={proctoring.isLookingAway}
+          phoneDetected={proctoring.phoneDetected}
+          micLevel={proctoring.micLevel}
+          voiceActive={proctoring.voiceActive}
+          loudVoice={proctoring.loudVoice}
+          warningCount={proctoring.warningCount}
+          isOnline={proctoring.isOnline}
+        />
+
         <div className="rounded-[14px] border border-[#d1dee8]/70 bg-white p-4 shadow-sm">
           <div className="flex items-center justify-between gap-3">
             <h3 className="flex items-center gap-1.5 text-xs font-bold text-[#111111]">
@@ -1447,6 +1848,7 @@ export default function TestArenaPage({
           <div className="mt-3 grid grid-cols-2 gap-2">
             {[
               ["Tab switches", flags.tab_switch],
+              ["Fullscreen exits", flags.fullscreen_exit],
               ["Copy / cut / paste", flags.copy_attempt + flags.cut_attempt + flags.paste_attempt],
               ["Focus / keyboard", flags.focus_loss + flags.keyboard_attempt],
               ["Right clicks", flags.right_click],
@@ -1517,42 +1919,93 @@ export default function TestArenaPage({
           <ul className="space-y-1.5 text-[10px] font-medium text-[#78716b]">
             <li className="flex items-start gap-1 leading-relaxed">
               <span className="mt-1 h-1 w-1 rounded-full bg-[#165dfb] shrink-0" />
-              Select an option to answer the question. Unanswered questions may
-              be skipped.
+              Select an option to answer each question.
             </li>
-
             <li className="flex items-start gap-1 leading-relaxed">
               <span className="mt-1 h-1 w-1 rounded-full bg-[#165dfb] shrink-0" />
-              The countdown is based on the server&apos;s authoritative attempt
-              deadline.
+              Mark questions for review if needed.
             </li>
-
             <li className="flex items-start gap-1 leading-relaxed">
               <span className="mt-1 h-1 w-1 rounded-full bg-[#165dfb] shrink-0" />
-              Backend scoring remains authoritative after submission.
+              Submit before the timer expires.
             </li>
-
-            <li className="flex items-start gap-1 leading-relaxed">
-              <span className="mt-1 h-1 w-1 rounded-full bg-[#165dfb] shrink-0" />
-              Browser-observable suspicious activity is reported to the server during the session.
-            </li>
-
-            {violationCount > 0 && (
-              <li className="flex items-start gap-1 leading-relaxed text-[#8c381c]">
-                <span className="mt-1 h-1 w-1 rounded-full bg-[#8c381c] shrink-0" />
-                {violationCount} suspicious activity event{violationCount === 1 ? "" : "s"} detected.
-              </li>
-            )}
-
-            {flags.tab_switch > 0 && (
-              <li className="flex items-start gap-1 leading-relaxed text-[#8c381c]">
-                <span className="mt-1 h-1 w-1 rounded-full bg-[#8c381c] shrink-0" />
-                Tab-switch activity was detected.
-              </li>
-            )}
           </ul>
         </div>
       </aside>
+
+      {!isSubmitted && activeAttemptId && !isAIProctoringReady && (
+        <div
+          role="dialog"
+          aria-modal="true"
+          aria-live="polite"
+          aria-label="AI proctoring initialization"
+          className="fixed inset-0 z-[90] flex items-center justify-center bg-[#111111]/75 p-4 backdrop-blur-sm"
+        >
+          <div className="w-full max-w-md space-y-4 rounded-[16px] border border-[#d1dee8] bg-white p-6 text-center shadow-2xl">
+            <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-[#e8f0ff] text-[#165dfb]">
+              {proctoring.cameraError ? (
+                <AlertTriangle className="h-6 w-6" />
+              ) : (
+                <Clock className="h-6 w-6 animate-pulse" />
+              )}
+            </div>
+            <h2 className="text-lg font-extrabold text-[#111111]">
+              {proctoring.cameraError
+                ? "AI Proctoring Could Not Start"
+                : "Verifying AI Proctoring"}
+            </h2>
+            <p className="text-xs leading-relaxed text-[#78716b]">
+              {proctoring.cameraError
+                ? proctoring.cameraError
+                : !proctoring.cameraActive
+                  ? "Connecting to the camera, microphone, and AI proctoring service. The assessment stays locked until initialization succeeds."
+                  : !proctoring.telemetryReceived
+                    ? "Camera is active. Waiting for the first verified AI telemetry response."
+                    : !proctoring.faceDetected
+                      ? "Keep your face clearly visible and centered in the camera."
+                      : "Confirming your face matches the reference photo captured in the lobby."}
+            </p>
+            <div className="flex flex-col gap-2 sm:flex-row">
+              <button
+                type="button"
+                onClick={() => void proctoring.retryInitialization()}
+                disabled={!proctoring.cameraError}
+                className="flex-1 rounded-[10px] bg-[#165dfb] px-4 py-2.5 text-xs font-bold text-white transition hover:bg-[#0f4fd8] disabled:cursor-not-allowed disabled:opacity-40"
+              >
+                Retry AI Connection
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  void proctoring.cleanup();
+                  void exitFullscreen();
+                  router.push(`/test/${encodeURIComponent(cleanCode)}/lobby`);
+                }}
+                className="flex-1 rounded-[10px] border border-[#d1dee8] bg-white px-4 py-2.5 text-xs font-bold text-[#111111] transition hover:bg-[#f5f5f4]"
+              >
+                Return to Lobby
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      <ProctoringWarningModal
+        isOpen={proctoring.activeWarningModal.isOpen}
+        warningCount={Math.max(
+          proctoring.warningCount,
+          proctoring.activeWarningModal.count,
+        )}
+        reason={proctoring.activeWarningModal.reason}
+        autoSubmitted={proctoring.activeWarningModal.autoSubmitted}
+        faceDetected={proctoring.faceDetected}
+        onAcknowledge={() => {
+          proctoring.dismissWarningModal();
+          if (proctoring.activeWarningModal.autoSubmitted) {
+            router.push(`/dashboard/student/result/${cleanCode}`);
+          }
+        }}
+      />
     </div>
   );
 }
