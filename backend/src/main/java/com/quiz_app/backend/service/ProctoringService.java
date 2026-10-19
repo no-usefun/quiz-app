@@ -1,6 +1,7 @@
 package com.quiz_app.backend.service;
 
 import java.time.LocalDateTime;
+import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
@@ -33,6 +34,8 @@ import com.quiz_app.backend.repository.QuizRepository;
 
 @Service
 public class ProctoringService {
+
+    private static final ZoneId QUIZ_TIMEZONE = ZoneId.of("Asia/Kolkata");
 
     @org.springframework.beans.factory.annotation.Value("${proctoring.max-warnings:3}")
     private int maxWarnings = 3;
