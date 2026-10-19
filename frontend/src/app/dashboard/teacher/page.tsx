@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, useSyncExternalStore } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { motion, useReducedMotion } from "framer-motion";
@@ -23,6 +23,10 @@ import { computeQuizDisplayState, QuizDisplayState } from "@/lib/quizStatus";
 import { ENDPOINTS } from "@/lib/api/endpoints";
 import { api } from "@/lib/api/client";
 import { QuizResponse, TeacherQuizDetailResponse } from "@/lib/types";
+
+const subscribeToHydration = () => () => {};
+const getClientHydrationSnapshot = () => true;
+const getServerHydrationSnapshot = () => false;
 
 type TeacherDashboardQuiz = QuizResponse & {
   displayState: QuizDisplayState;
@@ -61,7 +65,11 @@ export default function TeacherDashboard() {
   const [hasLoadedQuizData, setHasLoadedQuizData] = useState(false);
   const [cacheOwnerKey, setCacheOwnerKey] = useState<string | null>(null);
   const [copiedCode, setCopiedCode] = useState<string | null>(null);
-  const [mounted, setMounted] = useState(false);
+  const mounted = useSyncExternalStore(
+    subscribeToHydration,
+    getClientHydrationSnapshot,
+    getServerHydrationSnapshot,
+  );
   const [statusFilter, setStatusFilter] =
     useState<TeacherDashboardStatusFilter>("ALL");
   const [searchQuery, setSearchQuery] = useState("");
@@ -226,9 +234,7 @@ export default function TeacherDashboard() {
     }
   };
 
-  useEffect(() => {
-    setMounted(true);
-  }, []);
+  
 
   useEffect(() => {
     if (sessionLoading) {
