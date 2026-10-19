@@ -139,6 +139,8 @@ public class ProctoringService {
         }
 
         String eventType = rawType;
+        String clientEventId = request.eventId() == null || request.eventId().isBlank()
+                ? null : request.eventId().trim();
 
         {
             if (attempt.getStatus() != AttemptStatus.IN_PROGRESS) {
@@ -150,8 +152,8 @@ public class ProctoringService {
                 );
             }
 
-            if (request.eventId() != null && !request.eventId().isBlank()
-                    && proctoringEventRepository.findByAttemptIdAndClientEventId(attemptId, request.eventId()).isPresent()) {
+            if (clientEventId != null
+                    && proctoringEventRepository.findByAttemptIdAndClientEventId(attemptId, clientEventId).isPresent()) {
                 return new ProctoringEventResponse(
                         false,
                         attempt.getWarningsCount() != null ? attempt.getWarningsCount() : 0,
@@ -189,7 +191,7 @@ public class ProctoringService {
             QuizAttemptProctoringEvent event = new QuizAttemptProctoringEvent();
             event.setAttempt(attempt);
             event.setEventType(eventType);
-            event.setClientEventId(request.eventId());
+            event.setClientEventId(clientEventId);
             event.setOccurredAt(LocalDateTime.now());
             event.setMetadataJson(metadataJson);
             proctoringEventRepository.save(event);
