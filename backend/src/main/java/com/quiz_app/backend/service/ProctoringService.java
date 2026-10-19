@@ -63,8 +63,6 @@ public class ProctoringService {
     private final StudentAttemptService studentAttemptService;
     private final ObjectMapper objectMapper;
 
-    // JVM-local locks are an optimization only; database row locks provide cross-instance correctness.
-    private final java.util.concurrent.ConcurrentHashMap<Long, Object> attemptLocks = new java.util.concurrent.ConcurrentHashMap<>();
 
     public ProctoringService(
             QuizAttemptRepository quizAttemptRepository,
@@ -142,7 +140,7 @@ public class ProctoringService {
 
         String eventType = rawType;
 
-        synchronized (attemptLocks.computeIfAbsent(attemptId, k -> new Object())) {
+        {
             if (attempt.getStatus() != AttemptStatus.IN_PROGRESS) {
                 return new ProctoringEventResponse(
                         false,
