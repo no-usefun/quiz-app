@@ -7,7 +7,6 @@ import { ArrowLeft, ArrowRight, Eye, EyeOff } from "lucide-react";
 import { ApiClientError, api } from "@/lib/api/client";
 import { ENDPOINTS } from "@/lib/api/endpoints";
 import { isLanExamMode } from "@/lib/examMode";
-import { APP_NAME } from "@/lib/constants";
 import { PublicNavbar } from "@/components/PublicNavbar";
 import type { AuthResponse } from "@/lib/types";
 
