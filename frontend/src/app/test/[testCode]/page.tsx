@@ -605,6 +605,8 @@ export default function TestArenaPage({
 
     if (!mountTimeRef.current) mountTimeRef.current = Date.now();
     const initialFullscreen = Boolean(document.fullscreenElement);
+    // Read the browser fullscreen state once while registering the browser event listeners.
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- DOM state synchronization
     setIsFullscreen(initialFullscreen);
     if (initialFullscreen) hasEnteredFullscreenRef.current = true;
 
@@ -639,6 +641,8 @@ export default function TestArenaPage({
 
   useEffect(() => {
     if (isSubmitted) {
+      // Submission must release the browser fullscreen lock as part of the teardown lifecycle.
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- fullscreen teardown side effect
       void exitFullscreen();
       if (deadlineReached) {
         window.close();
@@ -649,6 +653,8 @@ export default function TestArenaPage({
   useEffect(() => {
 
     if (!cleanCode) {
+      // Invalid route params must transition the page into its explicit error state.
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- route validation state
       setTestLoadError("Assessment code is missing.");
       setIsLoadingTest(false);
       return;
@@ -917,7 +923,7 @@ export default function TestArenaPage({
     }, 1000);
 
     return () => window.clearInterval(interval);
-  }, [currentQuestion?.questionId, isSubmitted]);
+  }, [currentQuestion, isSubmitted]);
   const persistCurrentState = (
     nextAnswers: ActiveAnswerState = answersRef.current,
     nextTimeTaken: Record<number, number> = timeTakenRef.current,
@@ -1032,7 +1038,7 @@ export default function TestArenaPage({
 
   };
 
-  const finishAssessment = async (
+  const finishAssessment = useCallback(async (
     latestAnswers: ActiveAnswerState = answersRef.current,
     latestTimeTaken: Record<number, number> = timeTakenRef.current,
   ) => {
@@ -1058,7 +1064,7 @@ export default function TestArenaPage({
     setIsSubmitting(true);
     setSubmissionNotice(null);
 
-    persistCurrentState(latestAnswers, latestTimeTaken);
+    persistAttemptDraft(activeAttemptId, latestAnswers, latestTimeTaken);
 
     try {
       const completeAnswers = questions.map((question) => {
@@ -1188,14 +1194,14 @@ export default function TestArenaPage({
       submissionInFlightRef.current = false;
       setIsSubmitting(false);
     }
-  };
+  }, [activeAttemptId, cleanCode, isSubmitted, isSubmitting, questions, test]);
 
   // Keep the latest submission callback available to asynchronous AI warning handlers.
   useEffect(() => {
     finishAssessmentRef.current = finishAssessment;
   }, [finishAssessment]);
 
-  const handleOverallTimerExpired = () => {
+  const handleOverallTimerExpired = useCallback(() => {
     if (
       expiryHandledRef.current ||
       isSubmitted ||
@@ -1218,7 +1224,7 @@ export default function TestArenaPage({
       { ...answersRef.current },
       { ...timeTakenRef.current },
     );
-  };
+  }, [activeAttemptId, finishAssessment, isSubmitted, test]);
 
   useEffect(() => {
     if (isSubmitted || !effectiveDeadline) {
@@ -1228,6 +1234,8 @@ export default function TestArenaPage({
     const deadlineMs = parseBackendDeadline(effectiveDeadline);
 
     if (!Number.isFinite(deadlineMs)) {
+      // This validation follows a server response and must block the assessment on invalid data.
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- server response validation
       setTestLoadError(
         "The server returned an invalid assessment deadline. Please return to the lobby and start the assessment again.",
       );
@@ -1265,7 +1273,7 @@ export default function TestArenaPage({
       window.clearInterval(interval);
       document.removeEventListener("visibilitychange", handleVisibilityChange);
     };
-  }, [effectiveDeadline, isSubmitted]);
+  }, [effectiveDeadline, handleOverallTimerExpired, isSubmitted]);
 
   useEffect(() => {
     if (!activeAttemptId) {
