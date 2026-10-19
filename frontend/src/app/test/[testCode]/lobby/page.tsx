@@ -8,8 +8,6 @@ import Link from "next/link";
 import { motion } from "framer-motion";
 import {
   ShieldCheck,
-  Clock,
-  FileQuestion,
   ArrowRight,
   Loader2,
   Lock,
@@ -77,6 +75,8 @@ function LobbyInner({ testCode }: { testCode: string }) {
 
   useEffect(() => {
     if (!cleanCode) {
+      // No code means there is no availability request to make; show the invalid-code state.
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- route validation reset
       setAvailability({
         quizCode: "",
         available: false,
