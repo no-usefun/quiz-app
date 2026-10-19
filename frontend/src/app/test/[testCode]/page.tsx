@@ -2,7 +2,7 @@
 
 // frontend/src/app/test/[testCode]/page.tsx
 
-import { use, useCallback, useEffect, useRef, useState } from "react";
+import { use, useCallback, useEffect, useRef, useState, useSyncExternalStore } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { AnimatePresence, motion } from "framer-motion";
@@ -30,6 +30,10 @@ import type {
   QuestionResponse,
   SubmitAttemptResponse,
 } from "@/lib/types";
+
+const subscribeToHydration = () => () => {};
+const getClientHydrationSnapshot = () => true;
+const getServerHydrationSnapshot = () => false;
 
 interface ProctoringEventResponse {
   recorded: boolean;
@@ -255,7 +259,11 @@ export default function TestArenaPage({
   const [timeLeft, setTimeLeft] = useState(0);
 
   const [isSubmitted, setIsSubmitted] = useState(false);
-  const [mounted, setMounted] = useState(false);
+  const mounted = useSyncExternalStore(
+    subscribeToHydration,
+    getClientHydrationSnapshot,
+    getServerHydrationSnapshot,
+  );
   const [sessionExpired, setSessionExpired] = useState(false);
   const [deadlineNotice, setDeadlineNotice] = useState<string | null>(null);
   const [submissionNotice, setSubmissionNotice] = useState<string | null>(null);
@@ -639,7 +647,6 @@ export default function TestArenaPage({
   }, [isSubmitted, exitFullscreen, deadlineReached]);
 
   useEffect(() => {
-    setMounted(true);
 
     if (!cleanCode) {
       setTestLoadError("Assessment code is missing.");
