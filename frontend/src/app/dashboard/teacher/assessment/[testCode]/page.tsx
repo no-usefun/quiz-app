@@ -321,8 +321,28 @@ export default function TeacherAssessmentPage({
       );
     }
 
-    const quizId = matched.quizId ?? matched.id;
+    const rawQuizId = matched.quizId ?? matched.id;
+    const quizId =
+      typeof rawQuizId === "string" || typeof rawQuizId === "number"
+        ? rawQuizId
+        : null;
     const quizCode = String(matched.quizCode ?? "").trim();
+    const title =
+      typeof matched.title === "string" && matched.title.trim()
+        ? matched.title
+        : "Assessment Session";
+    const description =
+      typeof matched.description === "string" ? matched.description : undefined;
+    const subject =
+      typeof matched.subject === "string" ? matched.subject : undefined;
+    const subjectCode =
+      typeof matched.subjectCode === "string" ? matched.subjectCode : undefined;
+    const startTime =
+      typeof matched.startTime === "string" ? matched.startTime : null;
+    const endTime =
+      typeof matched.endTime === "string" ? matched.endTime : null;
+    const examState =
+      typeof matched.examState === "string" ? matched.examState : undefined;
 
     if (quizId == null || !quizCode) {
       throw new Error("The backend returned an incomplete assessment record.");
@@ -333,10 +353,10 @@ export default function TeacherAssessmentPage({
       quiz: {
         quizId,
         quizCode,
-        title: matched.title ?? "Assessment Session",
-        description: matched.description,
-        subject: matched.subject,
-        subjectCode: matched.subjectCode,
+        title,
+        description,
+        subject,
+        subjectCode,
         totalStudents: numericValue(matched.totalStudents),
         totalQuestions: numericValue(matched.totalQuestions),
         totalMarks: numericValue(matched.totalMarks),
@@ -348,14 +368,14 @@ export default function TeacherAssessmentPage({
             )
           : undefined,
         overallTimerSeconds: numericValue(matched.overallTimerSeconds),
-        startTime: matched.startTime ?? null,
-        endTime: matched.endTime ?? null,
+        startTime,
+        endTime,
         resultVisibility: matched.resultVisibility as
           | ResultVisibility
           | undefined,
         resultsPublished: Boolean(matched.resultsPublished),
         status: String(matched.status ?? "DRAFT"),
-        examState: matched.examState,
+        examState,
       } satisfies AssessmentData,
     };
   };
