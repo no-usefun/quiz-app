@@ -6,7 +6,7 @@ export const AI_PROCTORING_BASE_URL = (
 
 export const AI_PROCTORING_WS_URL = (
   process.env.NEXT_PUBLIC_AI_PROCTORING_WS_URL || "ws://localhost:8000"
-).replace(/\\/+$/, "");
+).replace(/\/+$/, "");
 
 export interface AIHealthResponse {
   status: string;
