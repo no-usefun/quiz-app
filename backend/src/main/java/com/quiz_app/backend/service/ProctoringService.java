@@ -230,7 +230,7 @@ public class ProctoringService {
             throw new AccessDeniedApplicationException("UNAUTHORIZED_ATTEMPT", "User does not own this attempt");
         }
 
-        synchronized (attemptLocks.computeIfAbsent(attemptId, k -> new Object())) {
+        {
             try {
                 Map<String, Object> metaMap = Map.of(
                         "totalFaceChecks", request.totalFaceChecks(),
