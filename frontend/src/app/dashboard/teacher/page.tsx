@@ -562,11 +562,6 @@ export default function TeacherDashboard() {
 
   const visibleTests = sortedTests.slice(0, visibleCount);
   const hasMoreTests = visibleCount < sortedTests.length;
-
-  useEffect(() => {
-    setVisibleCount(5);
-  }, [tests.length]);
-
   const handleLoadMore = () => {
     setVisibleCount((current) => Math.min(current + 5, sortedTests.length));
   };
