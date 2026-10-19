@@ -170,10 +170,11 @@ export function useProctoring(
    */
   useEffect(() => {
     eventsRef.current = persisted.events;
+    // Restore the React view from the selected persisted attempt record.
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- persisted state hydration
     setEvents(persisted.events);
     // The storage key can change when a new assessment attempt is loaded.
     // This is a deliberate state reset from the newly selected persisted record.
-    // eslint-disable-next-line react-hooks/set-state-in-effect
     setFlags(persisted.flags);
   }, [persisted]);
 
