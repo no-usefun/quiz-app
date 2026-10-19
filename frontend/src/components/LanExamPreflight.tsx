@@ -127,7 +127,7 @@ export default function LanExamPreflight({ quiz }: LanExamPreflightProps) {
 
       <p className="mt-3 text-[9px] font-medium leading-relaxed text-[#78716b]">
         This is a frontend preflight only. The current backend contract does
-        not expose a LAN "Prepare" or "Mark READY" endpoint, so no fake server
+        not expose a LAN &quot;Prepare&quot; or &quot;Mark READY&quot; endpoint, so no fake server
         readiness state is created.
       </p>
     </section>
