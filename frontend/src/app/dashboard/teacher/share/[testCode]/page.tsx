@@ -37,14 +37,24 @@ function normalizeQuiz(raw: unknown): QuizData | null {
 
   return {
     ...raw,
-    quizId: raw.quizId ?? raw.id,
+    quizId:
+      typeof (raw.quizId ?? raw.id) === "string" ||
+      typeof (raw.quizId ?? raw.id) === "number"
+        ? (raw.quizId ?? raw.id) as string | number
+        : undefined,
     quizCode: String(raw.quizCode ?? raw.testCode ?? ""),
     title: String(raw.title ?? raw.quizName ?? raw.quizTitle ?? "Assessment Session"),
     subject: String(raw.subject ?? raw.subjectName ?? ""),
     totalStudents: Number(raw.totalStudents ?? 0),
-    totalQuestions:
-      raw.totalQuestions ??
-      (Array.isArray(raw.questions) ? raw.questions.length : 0),
+    totalQuestions: (() => {
+      const value = raw.totalQuestions;
+      if (typeof value === "number" && Number.isFinite(value)) return value;
+      if (typeof value === "string" && value.trim() !== "") {
+        const parsed = Number(value);
+        if (Number.isFinite(parsed)) return parsed;
+      }
+      return Array.isArray(raw.questions) ? raw.questions.length : 0;
+    })(),
     overallTimerSeconds: Number(raw.overallTimerSeconds ?? 0),
     status: typeof raw.status === "string" ? raw.status : undefined,
     examState: typeof raw.examState === "string" ? raw.examState : undefined,
