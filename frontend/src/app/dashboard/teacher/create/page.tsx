@@ -150,6 +150,7 @@ function CreateAssessmentContent() {
   const [subjectCode, setSubjectCode] = useState("");
   const [allowedRollsText, setAllowedRollsText] = useState("");
   const [timeLimit, setTimeLimit] = useState(30);
+  const [aiProctoringEnabled, setAiProctoringEnabled] = useState(true);
 
   const [showAdvanced, setShowAdvanced] = useState(false);
   const [negativeMarking, setNegativeMarking] = useState(false);
@@ -199,6 +200,8 @@ function CreateAssessmentContent() {
     if (root.subjectCode) {
       setSubjectCode(root.subjectCode);
     }
+    const savedAiProctoring = root.aiProctoringEnabled ?? root.settings?.aiProctoringEnabled;
+    if (typeof savedAiProctoring === "boolean") setAiProctoringEnabled(savedAiProctoring);
 
     if (root.overallTimerSeconds || root.settings?.overallTimerSeconds) {
       const timerSecs =
@@ -1289,6 +1292,7 @@ function CreateAssessmentContent() {
       acceptedEmailDomain:
         acceptedDomain.trim() === "" ? null : acceptedDomain.trim(),
       allowedRegistrationNumbers: allowedRolls,
+      aiProctoringEnabled,
       questions: buildQuestionPayload(true),
     };
   };
@@ -1309,6 +1313,7 @@ function CreateAssessmentContent() {
       allowResume: Boolean(allowResume),
       autoSubmit: true,
       maxTabSwitch: Math.max(0, Number(maxTabSwitch) || 0),
+      aiProctoringEnabled,
       startTime: formatToLocalDateTime(startTime),
       endTime: formatToLocalDateTime(endTime),
       resultVisibility: getResultVisibility(),
@@ -1362,6 +1367,7 @@ function CreateAssessmentContent() {
           allowResume: Boolean(allowResume),
           autoSubmit: true,
           maxTabSwitch: Number(maxTabSwitch),
+          aiProctoringEnabled,
           startTime: formatToLocalDateTime(startTime) || null,
           endTime: formatToLocalDateTime(endTime) || null,
           publishScoresImmediately: Boolean(publishScoresImmediately),
@@ -1609,6 +1615,7 @@ function CreateAssessmentContent() {
           allowResume: Boolean(allowResume),
           autoSubmit: true,
           maxTabSwitch: Number(maxTabSwitch),
+          aiProctoringEnabled,
           startTime: formatToLocalDateTime(startTime) || null,
           endTime: formatToLocalDateTime(endTime) || null,
           publishScoresImmediately: Boolean(publishScoresImmediately),
@@ -2022,6 +2029,11 @@ function CreateAssessmentContent() {
               </div>
             </div>
           </div>
+
+          <section className="rounded-[14px] border border-[#d1dee8]/70 bg-white p-5 shadow-sm" aria-labelledby="ai-proctoring-setting-title">
+            <div className="flex items-center justify-between gap-4"><div className="min-w-0 space-y-1"><h3 id="ai-proctoring-setting-title" className="text-sm font-bold text-[#111111]">AI Proctoring</h3><p className="text-xs leading-relaxed text-[#78716b]">{aiProctoringEnabled ? "Camera, reference photo, and AI identity checks are required for this assessment." : "Camera and AI identity checks are off. Tab switching and copy, cut, and paste restrictions remain active."}</p></div><button type="button" role="switch" aria-checked={aiProctoringEnabled} aria-label="Enable AI proctoring" onClick={() => setAiProctoringEnabled((enabled) => !enabled)} className={`relative inline-flex h-7 w-12 shrink-0 items-center rounded-full transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#165dfb] focus-visible:ring-offset-2 ${aiProctoringEnabled ? "bg-[#165dfb]" : "bg-[#d6d3d1]"}`}><span className={`inline-block h-5 w-5 transform rounded-full bg-white shadow transition-transform ${aiProctoringEnabled ? "translate-x-6" : "translate-x-1"}`} /></button></div>
+            <div className="mt-3 flex items-center gap-2 text-[11px] font-semibold"><span className={`h-2 w-2 rounded-full ${aiProctoringEnabled ? "bg-emerald-500" : "bg-amber-500"}`} /><span className="text-[#57534e]">{aiProctoringEnabled ? "AI proctoring enabled" : "Standard assessment mode"}</span></div>
+          </section>
 
           <div className="space-y-4">
             <div className="flex items-center justify-between border-b border-[#d1dee8]/50 pb-2.5">
