@@ -26,6 +26,24 @@ import { ENDPOINTS } from "@/lib/api/endpoints";
 import LanExamPreflight from "@/components/LanExamPreflight";
 import { isLanExamMode } from "@/lib/examMode";
 
+type ApiRecord = Record<string, unknown>;
+
+function isApiRecord(value: unknown): value is ApiRecord {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function getApiRecords(value: unknown): ApiRecord[] {
+  if (Array.isArray(value)) return value.filter(isApiRecord);
+  if (!isApiRecord(value)) return [];
+  if (Array.isArray(value.content)) return value.content.filter(isApiRecord);
+  if (Array.isArray(value.data)) return value.data.filter(isApiRecord);
+  return [];
+}
+
+function getErrorMessage(error: unknown, fallback: string): string {
+  return error instanceof Error && error.message ? error.message : fallback;
+}
+
 type SortKey = "rank" | "name" | "score" | "timeTaken";
 type SortDir = "asc" | "desc";
 type ResultVisibility = "NONE" | "LEADERBOARD" | "QUESTION_WISE" | "BOTH";
@@ -276,16 +294,10 @@ export default function TeacherAssessmentPage({
       );
     }
 
-    const listPayload = await listRes.json();
-    const list: any[] = Array.isArray(listPayload)
-      ? listPayload
-      : Array.isArray(listPayload?.content)
-        ? listPayload.content
-        : Array.isArray(listPayload?.data)
-          ? listPayload.data
-          : [];
+    const listPayload: unknown = await listRes.json();
+    const list = getApiRecords(listPayload);
 
-    let matched = list.find(
+    let matched: ApiRecord | undefined = list.find(
       (quiz) =>
         String(quiz?.quizCode ?? "") === String(value) ||
         String(quiz?.quizId ?? quiz?.id ?? "") === String(value),
@@ -309,8 +321,28 @@ export default function TeacherAssessmentPage({
       );
     }
 
-    const quizId = matched.quizId ?? matched.id;
+    const rawQuizId = matched.quizId ?? matched.id;
+    const quizId =
+      typeof rawQuizId === "string" || typeof rawQuizId === "number"
+        ? rawQuizId
+        : null;
     const quizCode = String(matched.quizCode ?? "").trim();
+    const title =
+      typeof matched.title === "string" && matched.title.trim()
+        ? matched.title
+        : "Assessment Session";
+    const description =
+      typeof matched.description === "string" ? matched.description : undefined;
+    const subject =
+      typeof matched.subject === "string" ? matched.subject : undefined;
+    const subjectCode =
+      typeof matched.subjectCode === "string" ? matched.subjectCode : undefined;
+    const startTime =
+      typeof matched.startTime === "string" ? matched.startTime : null;
+    const endTime =
+      typeof matched.endTime === "string" ? matched.endTime : null;
+    const examState =
+      typeof matched.examState === "string" ? matched.examState : undefined;
 
     if (quizId == null || !quizCode) {
       throw new Error("The backend returned an incomplete assessment record.");
@@ -321,10 +353,10 @@ export default function TeacherAssessmentPage({
       quiz: {
         quizId,
         quizCode,
-        title: matched.title ?? "Assessment Session",
-        description: matched.description,
-        subject: matched.subject,
-        subjectCode: matched.subjectCode,
+        title,
+        description,
+        subject,
+        subjectCode,
         totalStudents: numericValue(matched.totalStudents),
         totalQuestions: numericValue(matched.totalQuestions),
         totalMarks: numericValue(matched.totalMarks),
@@ -336,14 +368,14 @@ export default function TeacherAssessmentPage({
             )
           : undefined,
         overallTimerSeconds: numericValue(matched.overallTimerSeconds),
-        startTime: matched.startTime ?? null,
-        endTime: matched.endTime ?? null,
+        startTime,
+        endTime,
         resultVisibility: matched.resultVisibility as
           | ResultVisibility
           | undefined,
         resultsPublished: Boolean(matched.resultsPublished),
         status: String(matched.status ?? "DRAFT"),
-        examState: matched.examState,
+        examState,
       } satisfies AssessmentData,
     };
   };
@@ -369,12 +401,8 @@ export default function TeacherAssessmentPage({
       );
     }
 
-    const payload = await res.json();
-    const entries: any[] = Array.isArray(payload)
-      ? payload
-      : Array.isArray(payload?.content)
-        ? payload.content
-        : [];
+    const payload: unknown = await res.json();
+    const entries = getApiRecords(payload);
 
     const mapped: StudentRecord[] = entries.map((entry, index) => {
       const rawFinalScore = numericValue(entry.finalScore ?? entry.score, 0);
@@ -405,8 +433,14 @@ export default function TeacherAssessmentPage({
           ? rawAttemptId
           : undefined;
 
+      const rawStudentId = entry.studentId ?? entry.rank;
+      const id =
+        typeof rawStudentId === "string" || typeof rawStudentId === "number"
+          ? rawStudentId
+          : index + 1;
+
       return {
-        id: entry.studentId ?? entry.rank ?? index + 1,
+        id,
         attemptId,
         name,
         avatar,
@@ -456,7 +490,7 @@ export default function TeacherAssessmentPage({
           setStudents([]);
           setLeaderboardUnavailable(true);
         }
-      } catch (error: any) {
+      } catch (error: unknown) {
         if (cancelled) return;
 
         console.error("Backend assessment fetch error:", error);
@@ -464,8 +498,10 @@ export default function TeacherAssessmentPage({
         setStudents([]);
         setLeaderboardUnavailable(true);
         setLifecycleError(
-          error?.message ||
+          getErrorMessage(
+            error,
             "We couldn't retrieve this assessment from the server.",
+          ),
         );
       } finally {
         if (!cancelled) {
@@ -546,10 +582,10 @@ export default function TeacherAssessmentPage({
             : previous,
         );
       }
-    } catch (error: any) {
+    } catch (error: unknown) {
       setResultVisibility(previousVisibility);
       setSettingsError(
-        error?.message || "Failed to update assessment settings on the server.",
+        getErrorMessage(error, "Failed to update assessment settings on the server."),
       );
     } finally {
       setSettingsSaving(false);
@@ -631,8 +667,8 @@ export default function TeacherAssessmentPage({
             }
           : previous,
       );
-    } catch (error: any) {
-      setLifecycleError(error?.message || "Failed to publish assessment.");
+    } catch (error: unknown) {
+      setLifecycleError(getErrorMessage(error, "Failed to publish assessment."));
     } finally {
       setLifecycleLoading(false);
     }
@@ -677,8 +713,8 @@ export default function TeacherAssessmentPage({
       );
 
       setConfirmCompleteOpen(false);
-    } catch (error: any) {
-      setLifecycleError(error?.message || "Failed to complete assessment.");
+    } catch (error: unknown) {
+      setLifecycleError(getErrorMessage(error, "Failed to complete assessment."));
     } finally {
       setLifecycleLoading(false);
     }
@@ -723,9 +759,9 @@ export default function TeacherAssessmentPage({
             }
           : previous,
       );
-    } catch (error: any) {
+    } catch (error: unknown) {
       setLifecycleError(
-        error?.message || "Failed to update result publication.",
+        getErrorMessage(error, "Failed to update result publication."),
       );
     } finally {
       setLifecycleLoading(false);
@@ -743,12 +779,6 @@ export default function TeacherAssessmentPage({
   const settingsLocked = status !== "DRAFT";
 
   const submitted = students;
-
-  const classAvg =
-    submitted.length > 0
-      ? submitted.reduce((sum, student) => sum + student.percentage, 0) /
-        submitted.length
-      : 0;
 
   const highScore = Math.max(
     ...(submitted.length > 0

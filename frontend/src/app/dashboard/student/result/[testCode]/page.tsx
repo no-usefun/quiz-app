@@ -1,6 +1,6 @@
 "use client";
 
-import { use, useEffect, useState } from "react";
+import { use, useEffect, useState, useSyncExternalStore } from "react";
 
 import Link from "next/link";
 
@@ -24,6 +24,10 @@ import { Logo } from "@/components/Logo";
 import { ApiClientError, api } from "@/lib/api/client";
 
 import { ENDPOINTS } from "@/lib/api/endpoints";
+
+const subscribeToHydration = () => () => {};
+const getClientHydrationSnapshot = () => true;
+const getServerHydrationSnapshot = () => false;
 
 import type {
   AttemptResultResponse,
@@ -234,15 +238,17 @@ export default function StudentResultPage({
 
   const [loading, setLoading] = useState(true);
 
-  const [mounted, setMounted] = useState(false);
+  const mounted = useSyncExternalStore(
+    subscribeToHydration,
+    getClientHydrationSnapshot,
+    getServerHydrationSnapshot,
+  );
 
   const [pendingRelease, setPendingRelease] = useState(false);
 
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    setMounted(true);
-
     let cancelled = false;
 
     const fetchResult = async () => {

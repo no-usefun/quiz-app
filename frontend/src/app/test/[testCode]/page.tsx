@@ -2,7 +2,7 @@
 
 // frontend/src/app/test/[testCode]/page.tsx
 
-import { use, useCallback, useEffect, useRef, useState } from "react";
+import { use, useCallback, useEffect, useRef, useState, useSyncExternalStore } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { AnimatePresence, motion } from "framer-motion";
@@ -31,10 +31,13 @@ import type {
   SubmitAttemptResponse,
 } from "@/lib/types";
 
+const subscribeToHydration = () => () => {};
+const getClientHydrationSnapshot = () => true;
+const getServerHydrationSnapshot = () => false;
+
 interface ProctoringEventResponse {
   recorded: boolean;
   warningCount: number;
-  maxWarnings?: number;
   autoSubmitted: boolean;
   message: string;
 }
@@ -256,10 +259,11 @@ export default function TestArenaPage({
   const [timeLeft, setTimeLeft] = useState(0);
 
   const [isSubmitted, setIsSubmitted] = useState(false);
-  const [submittedAttemptId, setSubmittedAttemptId] = useState<string | null>(
-    null,
+  const mounted = useSyncExternalStore(
+    subscribeToHydration,
+    getClientHydrationSnapshot,
+    getServerHydrationSnapshot,
   );
-  const [mounted, setMounted] = useState(false);
   const [sessionExpired, setSessionExpired] = useState(false);
   const [deadlineNotice, setDeadlineNotice] = useState<string | null>(null);
   const [submissionNotice, setSubmissionNotice] = useState<string | null>(null);
@@ -462,6 +466,8 @@ export default function TestArenaPage({
               details,
               severity: "HIGH",
               confidence: 1.0,
+              frameTimestamp: now,
+              eventId: `browser-${activeAttemptId}-${eventType}-${now}`,
             },
             {
               headers: token ? { Authorization: `Bearer ${token}` } : {},
@@ -469,9 +475,9 @@ export default function TestArenaPage({
           );
 
           if (response && typeof response.warningCount === "number") {
-            const isAutoSubmitted =
-              Boolean(response.autoSubmitted) ||
-              response.warningCount >= (response.maxWarnings ?? 3);
+            // The server is authoritative for auto-submission. Do not infer it
+            // from a warning count because the policy may change server-side.
+            const isAutoSubmitted = Boolean(response.autoSubmitted);
             proctoringSetWarningCountRef.current(response.warningCount);
             lastBackendWarningCountRef.current = Math.max(
               lastBackendWarningCountRef.current,
@@ -641,7 +647,6 @@ export default function TestArenaPage({
   }, [isSubmitted, exitFullscreen, deadlineReached]);
 
   useEffect(() => {
-    setMounted(true);
 
     if (!cleanCode) {
       setTestLoadError("Assessment code is missing.");
@@ -753,7 +758,6 @@ export default function TestArenaPage({
               }
 
               if (serverState.status !== "IN_PROGRESS") {
-                setSubmittedAttemptId(String(serverState.attemptId));
                 setIsSubmitted(true);
 
                 if (typeof window !== "undefined") {
@@ -1090,8 +1094,6 @@ export default function TestArenaPage({
           "The server accepted the submission but did not return an attempt ID.",
         );
       }
-
-      setSubmittedAttemptId(returnedAttemptId);
       setIsSubmitted(true);
 
       localStorage.setItem(
@@ -1134,20 +1136,34 @@ export default function TestArenaPage({
             { retry: 2, retryDelayMs: 300, cache: "no-store" },
           );
 
-          setSubmittedAttemptId(String(state.attemptId));
-
           if (state.status !== "IN_PROGRESS") {
             setIsSubmitted(true);
+
+            // A proctoring event may have auto-submitted the attempt on the
+            // server before the browser's normal submit request completed.
+            // Reconcile local navigation state with that authoritative result.
+            const reconciledAttemptId = String(state.attemptId ?? attemptId);
+            localStorage.setItem(
+              `dynoquizz_submittedAttemptId_${cleanCode}`,
+              reconciledAttemptId,
+            );
+            localStorage.setItem(
+              "dynoquizz_submittedAttemptId",
+              reconciledAttemptId,
+            );
+            localStorage.removeItem(`dynoquizz_attemptId_${cleanCode}`);
+            localStorage.removeItem("dynoquizz_attemptId");
+            localStorage.removeItem(
+              `dynoquizz_pending_submit_${attemptId}`,
+            );
+            sessionStorage.removeItem("dynoquizz_reference_photo");
+            localStorage.removeItem("dynoquizz_reference_photo");
 
             if (state.status === "AUTO_SUBMITTED") {
               setDeadlineNotice(
                 "The server has already automatically submitted this assessment attempt.",
               );
             }
-
-            localStorage.removeItem(
-              `dynoquizz_pending_submit_${attemptId}`,
-            );
             return;
           }
         } catch (reconcileError) {
@@ -1175,7 +1191,9 @@ export default function TestArenaPage({
   };
 
   // Keep the latest submission callback available to asynchronous AI warning handlers.
-  finishAssessmentRef.current = finishAssessment;
+  useEffect(() => {
+    finishAssessmentRef.current = finishAssessment;
+  }, [finishAssessment]);
 
   const handleOverallTimerExpired = () => {
     if (
@@ -1675,8 +1693,7 @@ export default function TestArenaPage({
                 {currentQuestion?.options.map((option, idx) => {
                   const optionId = Number(option.optionId);
                   const selectedIds =
-                    answersRef.current[Number(currentQuestion.questionId)] ??
-                    [];
+                    answers[Number(currentQuestion.questionId)] ?? [];
                   const isSelected = selectedIds.includes(optionId);
 
                   return (
@@ -1978,7 +1995,6 @@ export default function TestArenaPage({
         warningCount={Math.max(
           proctoring.warningCount,
           proctoring.activeWarningModal.count,
-          lastBackendWarningCountRef.current,
         )}
         reason={proctoring.activeWarningModal.reason}
         autoSubmitted={proctoring.activeWarningModal.autoSubmitted}

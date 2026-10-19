@@ -164,7 +164,7 @@ function ProfilePanel({
 }: {
   onSave: () => void;
   refreshSession: ReturnType<typeof useSession>["refreshSession"];
-  user: any;
+  user: ReturnType<typeof useSession>["user"];
   isProfileCompletionMode: boolean;
   onProfileCompleted: (role: string) => void;
 }) {
@@ -335,9 +335,9 @@ function ProfilePanel({
           );
         }
       }
-    } catch (e: any) {
+    } catch (e: unknown) {
       console.error("Profile update failed:", e);
-      setError(e?.message || "Failed to update profile.");
+      setError((e instanceof Error ? e.message : null) || "Failed to update profile.");
     } finally {
       setSaving(false);
     }
@@ -551,7 +551,7 @@ function PreferencesPanel({
   user,
 }: {
   onSave: () => void;
-  user: any;
+  user: ReturnType<typeof useSession>["user"];
 }) {
   const [preferences, setPreferences] = useState({
     assessmentResults: true,
@@ -657,9 +657,9 @@ function PreferencesPanel({
       }
 
       onSave();
-    } catch (error: any) {
+    } catch (error: unknown) {
       setPreferenceError(
-        error?.message || "Unable to save notification preferences.",
+        (error instanceof Error ? error.message : null) || "Unable to save notification preferences.",
       );
     } finally {
       setSavingPreferences(false);
@@ -762,7 +762,7 @@ function SecurityPanel({
   user,
 }: {
   onSave: () => void;
-  user: any;
+  user: ReturnType<typeof useSession>["user"];
 }) {
   const [currentPassword, setCurrentPassword] = useState("");
   const [setPasswordValue, setSetPasswordValue] = useState("");
@@ -833,9 +833,9 @@ function SecurityPanel({
       setNewPassword("");
       setConfirmPassword("");
       onSave();
-    } catch (e: any) {
+    } catch (e: unknown) {
       console.error("Password change failed:", e);
-      setError(e?.message || "Failed to change password.");
+      setError((e instanceof Error ? e.message : null) || "Failed to change password.");
     } finally {
       setSaving(false);
     }
@@ -1012,9 +1012,9 @@ function DangerPanel({ logout }: { logout: () => void }) {
       }
 
       logout();
-    } catch (e: any) {
+    } catch (e: unknown) {
       console.error("Account deletion failed:", e);
-      setError(e?.message || "Failed to delete account.");
+      setError((e instanceof Error ? e.message : null) || "Failed to delete account.");
       setDeleting(false);
     }
   };

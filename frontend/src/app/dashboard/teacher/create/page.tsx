@@ -124,8 +124,7 @@ function CreateAssessmentContent() {
   const searchParams = useSearchParams();
   const draftId = searchParams?.get("draftId") || null;
   const { user } = useSession();
-  const [mounted, setMounted] = useState(false);
-  const [loadingDraft, setLoadingDraft] = useState(false);
+  const [loadingDraft, setLoadingDraft] = useState(() => Boolean(draftId));
   const [submitting, setSubmitting] = useState(false);
   const [validationError, setValidationError] = useState<string | null>(null);
   const [draggedOption, setDraggedOption] = useState<{ qIdx: number; optIdx: number } | null>(null);
@@ -135,9 +134,6 @@ function CreateAssessmentContent() {
   } | null>(null);
   const [retryingPublish, setRetryingPublish] = useState(false);
 
-  useEffect(() => {
-    setMounted(true);
-  }, []);
 
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
@@ -148,11 +144,6 @@ function CreateAssessmentContent() {
   const [subjectCode, setSubjectCode] = useState("");
   const [allowedRollsText, setAllowedRollsText] = useState("");
   const [timeLimit, setTimeLimit] = useState(30);
-  const setOverallTimerSeconds = (secs: number) => {
-    if (secs > 0) {
-      setTimeLimit(Math.max(1, Math.round(secs / 60)));
-    }
-  };
 
   const [showAdvanced, setShowAdvanced] = useState(false);
   const [negativeMarking, setNegativeMarking] = useState(false);
@@ -408,8 +399,6 @@ function CreateAssessmentContent() {
     if (!draftId) return;
 
     let isMounted = true;
-    setLoadingDraft(true);
-    setValidationError(null);
 
     const cachedDraftRaw =
       typeof window !== "undefined"
@@ -764,7 +753,7 @@ function CreateAssessmentContent() {
               }
 
               const optionLetters = ["A", "B", "C", "D", "E", "F"];
-              let rawOptionTexts = hasHeader
+              const rawOptionTexts = hasHeader
                 ? optionLetters.map((letter) =>
                     getField([`option${letter}`, `option${letter.toLowerCase()}`]),
                   )
@@ -2351,10 +2340,10 @@ function CreateAssessmentContent() {
                   <div className="overflow-x-auto rounded-[10px] border border-[#d1dee8]/70 bg-[#fbfbfa]">
                     <pre className="min-w-[980px] p-3 text-[9px] leading-relaxed text-[#111111] font-mono whitespace-pre-wrap">
 questionText,optionA,optionB,optionC,optionD,optionE,optionF,correctAnswer,marks,questionType,negativeMarks,questionTimerSeconds,difficulty,explanation,imageUrl,optionAImageUrl,optionBImageUrl,optionCImageUrl,optionDImageUrl,optionEImageUrl,optionFImageUrl
-"What is the time complexity of binary search?","O(n)","O(log n)","O(n^2)","O(1)","","","B","1","MCQ","0.25","60","EASY","Binary search halves the search space.","","","","","","",""
-"Which HTTP status indicates success?","200","301","404","500","204","","A|E","2","MSQ","0.5","90","MEDIUM","Both 200 and 204 indicate success.","","","","","","",""
-"Which number is prime?","4","6","7","8","9","","C","1","MCQ","0","60","EASY","Seven is prime.","","","","","","",""
-"Java is a programming language.","True","False","","","","","A","1","TRUE_FALSE","0","45","EASY","","","","","","","",""
+&quot;What is the time complexity of binary search?&quot;,&quot;O(n)&quot;,&quot;O(log n)&quot;,&quot;O(n^2)&quot;,&quot;O(1)&quot;,&quot;&quot;,&quot;&quot;,&quot;B&quot;,&quot;1&quot;,&quot;MCQ&quot;,&quot;0.25&quot;,&quot;60&quot;,&quot;EASY&quot;,&quot;Binary search halves the search space.&quot;,&quot;&quot;,&quot;&quot;,&quot;&quot;,&quot;&quot;,&quot;&quot;,&quot;&quot;,&quot;&quot;
+&quot;Which HTTP status indicates success?&quot;,&quot;200&quot;,&quot;301&quot;,&quot;404&quot;,&quot;500&quot;,&quot;204&quot;,&quot;&quot;,&quot;A|E&quot;,&quot;2&quot;,&quot;MSQ&quot;,&quot;0.5&quot;,&quot;90&quot;,&quot;MEDIUM&quot;,&quot;Both 200 and 204 indicate success.&quot;,&quot;&quot;,&quot;&quot;,&quot;&quot;,&quot;&quot;,&quot;&quot;,&quot;&quot;,&quot;&quot;
+&quot;Which number is prime?&quot;,&quot;4&quot;,&quot;6&quot;,&quot;7&quot;,&quot;8&quot;,&quot;9&quot;,&quot;&quot;,&quot;C&quot;,&quot;1&quot;,&quot;MCQ&quot;,&quot;0&quot;,&quot;60&quot;,&quot;EASY&quot;,&quot;Seven is prime.&quot;,&quot;&quot;,&quot;&quot;,&quot;&quot;,&quot;&quot;,&quot;&quot;,&quot;&quot;,&quot;&quot;
+&quot;Java is a programming language.&quot;,&quot;True&quot;,&quot;False&quot;,&quot;&quot;,&quot;&quot;,&quot;&quot;,&quot;&quot;,&quot;A&quot;,&quot;1&quot;,&quot;TRUE_FALSE&quot;,&quot;0&quot;,&quot;45&quot;,&quot;EASY&quot;,&quot;&quot;,&quot;&quot;,&quot;&quot;,&quot;&quot;,&quot;&quot;,&quot;&quot;,&quot;&quot;,&quot;&quot;
                     </pre>
                   </div>
 
