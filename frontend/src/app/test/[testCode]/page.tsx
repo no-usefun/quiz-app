@@ -469,9 +469,9 @@ export default function TestArenaPage({
           );
 
           if (response && typeof response.warningCount === "number") {
-            const isAutoSubmitted =
-              Boolean(response.autoSubmitted) ||
-              response.warningCount >= (response.maxWarnings ?? 3);
+            // The server is authoritative for auto-submission. Do not infer it
+            // from a warning count because the policy may change server-side.
+            const isAutoSubmitted = Boolean(response.autoSubmitted);
             proctoringSetWarningCountRef.current(response.warningCount);
             lastBackendWarningCountRef.current = Math.max(
               lastBackendWarningCountRef.current,
