@@ -19,9 +19,5 @@ public interface QuizAttemptProctoringEventRepository extends JpaRepository<Quiz
 
     List<QuizAttemptProctoringEvent> findByAttemptIdOrderByOccurredAtAsc(Long attemptId);
 
-    List<QuizAttemptProctoringEvent> findByAttemptId(Long attemptId);
-
-    java.util.Optional<QuizAttemptProctoringEvent> findByAttemptIdAndEventType(Long attemptId, String eventType);
-
-    java.util.Optional<QuizAttemptProctoringEvent> findByAttemptIdAndClientEventId(Long attemptId, String clientEventId);
+    Optional<QuizAttemptProctoringEvent> findByAttemptIdAndClientEventId(Long attemptId, String clientEventId);
 }
