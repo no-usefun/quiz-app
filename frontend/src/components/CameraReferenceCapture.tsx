@@ -103,6 +103,8 @@ export function CameraReferenceCapture({
   }, [stopCamera]);
 
   useEffect(() => {
+    // Camera acquisition is an external browser side effect; its async result updates UI state.
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- camera lifecycle setup
     void startCamera();
     return () => {
       stopCamera();
