@@ -5,7 +5,9 @@ import java.time.LocalDateTime;
 import jakarta.persistence.*;
 
 @Entity
-@Table(name = "quiz_attempt_proctoring_events")
+@Table(name = "quiz_attempt_proctoring_events", uniqueConstraints = {
+        @UniqueConstraint(name = "uq_proctoring_attempt_client_event", columnNames = { "attempt_id", "client_event_id" })
+})
 public class QuizAttemptProctoringEvent {
 
     @Id
@@ -23,6 +25,9 @@ public class QuizAttemptProctoringEvent {
     @Column(name = "occurred_at", nullable = false)
     private LocalDateTime occurredAt;
 
+    @Column(name = "client_event_id", length = 100)
+    private String clientEventId;
+
     @Column(name = "metadata_json", columnDefinition = "TEXT")
     private String metadataJson;
 
@@ -39,6 +44,8 @@ public class QuizAttemptProctoringEvent {
     public void setAttempt(QuizAttempt attempt) { this.attempt = attempt; }
     public String getEventType() { return eventType; }
     public void setEventType(String eventType) { this.eventType = eventType; }
+    public String getClientEventId() { return clientEventId; }
+    public void setClientEventId(String clientEventId) { this.clientEventId = clientEventId; }
     public LocalDateTime getOccurredAt() { return occurredAt; }
     public void setOccurredAt(LocalDateTime occurredAt) { this.occurredAt = occurredAt; }
     public String getMetadataJson() { return metadataJson; }
