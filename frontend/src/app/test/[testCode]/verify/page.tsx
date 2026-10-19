@@ -1,6 +1,6 @@
 "use client";
 
-import { use, useEffect, useState } from "react";
+import { use, useEffect, useState, useSyncExternalStore } from "react";
 import { useRouter } from "next/navigation";
 import { motion } from "framer-motion";
 import { api } from "@/lib/api/client";
@@ -13,6 +13,10 @@ import {
   Loader2,
 } from "lucide-react";
 import { ENDPOINTS } from "@/lib/api/endpoints";
+
+const subscribeToHydration = () => () => {};
+const getClientHydrationSnapshot = () => true;
+const getServerHydrationSnapshot = () => false;
 
 type AvailabilityStatus =
   | "NOT_FOUND"
@@ -64,13 +68,16 @@ export default function IdentityVerificationPage({
 
   const [registrationNo, setRegistrationNo] = useState("");
   const [sessionCode, setSessionCode] = useState(testCode || "");
-  const [mounted, setMounted] = useState(false);
+  const mounted = useSyncExternalStore(
+    subscribeToHydration,
+    getClientHydrationSnapshot,
+    getServerHydrationSnapshot,
+  );
   const [submitting, setSubmitting] = useState(false);
   const [loadingSession, setLoadingSession] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    setMounted(true);
 
     const cleanCode = String(testCode || "")
       .trim()
