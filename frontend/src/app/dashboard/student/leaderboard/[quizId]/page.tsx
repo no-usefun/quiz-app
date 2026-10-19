@@ -9,6 +9,10 @@ import {
   Lock,
   Trophy,
   RefreshCw,
+  Search,
+  TrendingUp,
+  Users,
+  Award,
 } from "lucide-react";
 
 import { TopNav } from "@/components/TopNav";
@@ -39,6 +43,7 @@ export default function StudentLeaderboardPage({
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [leaderboardLocked, setLeaderboardLocked] = useState(false);
+  const [searchQuery, setSearchQuery] = useState("");
 
   const numericQuizId = Number(quizId);
 
@@ -112,6 +117,47 @@ export default function StudentLeaderboardPage({
 
   const podium = useMemo(() => entries.slice(0, 3), [entries]);
 
+  const scoreStats = useMemo(() => {
+    if (entries.length === 0) {
+      return { average: 0, highest: 0, completed: 0, distribution: [] as { label: string; count: number; color: string }[] };
+    }
+
+    const percentages = entries.map((entry) => Math.min(100, Math.max(0, Number(entry.percentage) || 0)));
+    const average = percentages.reduce((sum, value) => sum + value, 0) / percentages.length;
+    const distribution = [
+      { label: "0–20%", min: 0, max: 20, color: "bg-[#fca5a5]" },
+      { label: "21–40%", min: 20, max: 40, color: "bg-[#fdba74]" },
+      { label: "41–60%", min: 40, max: 60, color: "bg-[#fcd34d]" },
+      { label: "61–80%", min: 60, max: 80, color: "bg-[#86b7ff]" },
+      { label: "81–100%", min: 80, max: 100, color: "bg-[#6ee7b7]" },
+    ].map((band, index, bands) => ({
+      label: band.label,
+      color: band.color,
+      count: percentages.filter((value) =>
+        index === bands.length - 1
+          ? value > band.min && value <= band.max || value === 80
+          : value >= band.min && value <= band.max && (index === 0 || value > band.min),
+      ).length,
+    }));
+
+    return {
+      average,
+      highest: Math.max(...percentages),
+      completed: entries.length,
+      distribution,
+    };
+  }, [entries]);
+
+  const filteredEntries = useMemo(() => {
+    const query = searchQuery.trim().toLowerCase();
+    if (!query) return entries;
+    return entries.filter((entry) =>
+      (entry.studentName || "Student").toLowerCase().includes(query) ||
+      String(entry.rank).includes(query) ||
+      String(entry.percentage).includes(query),
+    );
+  }, [entries, searchQuery]);
+
   if (loading) {
     return (
       <div className="min-h-screen bg-[#f5f5f4]">
@@ -173,6 +219,55 @@ export default function StudentLeaderboardPage({
           </div>
         ) : null}
 
+        {entries.length > 0 && (
+          <>
+            <section className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+              {[
+                { label: "Participants", value: scoreStats.completed.toLocaleString(), hint: "Ranked students", icon: Users, tone: "text-[#165dfb]", surface: "bg-[#e8f0ff]" },
+                { label: "Average score", value: `${scoreStats.average.toFixed(1)}%`, hint: "Across participants", icon: TrendingUp, tone: "text-[#1d5237]", surface: "bg-[#e2ede8]" },
+                { label: "Highest score", value: `${scoreStats.highest.toFixed(1)}%`, hint: "Top performance", icon: Award, tone: "text-[#92400e]", surface: "bg-[#fff0d8]" },
+                { label: "Ranked entries", value: scoreStats.completed.toLocaleString(), hint: "Published results", icon: Trophy, tone: "text-[#6b21a8]", surface: "bg-[#f3e8ff]" },
+              ].map((stat) => (
+                <div key={stat.label} className="rounded-[14px] border border-[#d1dee8]/70 bg-white p-4 shadow-sm">
+                  <div className="flex items-start justify-between gap-2">
+                    <span className="text-[10px] font-bold uppercase tracking-wider text-[#78716b]">{stat.label}</span>
+                    <span className={`flex h-8 w-8 items-center justify-center rounded-[10px] ${stat.surface} ${stat.tone}`}>
+                      <stat.icon className="h-4 w-4" />
+                    </span>
+                  </div>
+                  <p className="mt-3 text-2xl font-extrabold tracking-tight text-[#111111]">{stat.value}</p>
+                  <p className="mt-1 text-[10px] font-medium text-[#78716b]">{stat.hint}</p>
+                </div>
+              ))}
+            </section>
+
+            <section className="rounded-[14px] border border-[#d1dee8]/70 bg-white p-5 shadow-sm">
+              <div className="mb-5 flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">
+                <div>
+                  <h2 className="text-sm font-extrabold text-[#111111]">Score distribution</h2>
+                  <p className="mt-1 text-xs text-[#78716b]">How published participant scores are spread across percentage bands.</p>
+                </div>
+                <span className="text-[10px] font-semibold text-[#78716b]">Based on {scoreStats.completed} ranked students</span>
+              </div>
+              <div className="grid grid-cols-5 items-end gap-2 sm:gap-4">
+                {scoreStats.distribution.map((band) => {
+                  const maxCount = Math.max(1, ...scoreStats.distribution.map((item) => item.count));
+                  const height = band.count === 0 ? 4 : Math.max(12, (band.count / maxCount) * 112);
+                  return (
+                    <div key={band.label} className="flex min-w-0 flex-col items-center gap-2">
+                      <span className="text-xs font-bold tabular-nums text-[#44403c]">{band.count}</span>
+                      <div className="flex h-28 w-full items-end justify-center rounded-t-[8px] bg-[#f5f5f4]">
+                        <div className={`w-full max-w-16 rounded-t-[7px] ${band.color} transition-[height] duration-500 ease-out`} style={{ height: `${height}px` }} />
+                      </div>
+                      <span className="text-center text-[9px] font-bold text-[#78716b] sm:text-[10px]">{band.label}</span>
+                    </div>
+                  );
+                })}
+              </div>
+            </section>
+          </>
+        )}
+
         {entries.length === 0 ? (
           <div className="rounded-[14px] border border-[#d1dee8]/70 bg-white p-10 text-center shadow-sm">
             {leaderboardLocked ? (
@@ -227,6 +322,18 @@ export default function StudentLeaderboardPage({
             </section>
 
             <section className="overflow-hidden rounded-[14px] border border-[#d1dee8]/70 bg-white shadow-sm">
+              <div className="flex flex-col gap-3 border-b border-[#d1dee8]/50 p-4 sm:flex-row sm:items-center sm:justify-between">
+                <div>
+                  <h2 className="text-sm font-extrabold text-[#111111]">Full rankings</h2>
+                  <p className="mt-1 text-[10px] text-[#78716b]">{filteredEntries.length} of {entries.length} students</p>
+                </div>
+                <label className="relative block w-full sm:max-w-xs">
+                  <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[#a8a29e]" />
+                  <input value={searchQuery} onChange={(event) => setSearchQuery(event.target.value)} placeholder="Search student or rank..." aria-label="Search leaderboard" className="h-10 w-full rounded-[10px] border border-[#d1dee8] bg-[#fbfbfa] pl-9 pr-3 text-xs outline-none transition focus:border-[#165dfb] focus:ring-2 focus:ring-[#165dfb]/10" />
+                </label>
+              </div>
+              <div className="overflow-x-auto">
+              <div className="min-w-[620px]">
               <div className="grid grid-cols-[4rem_1fr_8rem_8rem] gap-3 border-b border-[#d1dee8]/40 bg-[#fbfbfa] px-5 py-3 text-[10px] font-bold uppercase tracking-wider text-[#78716b]">
                 <span>Rank</span>
                 <span>Student</span>
@@ -235,7 +342,7 @@ export default function StudentLeaderboardPage({
               </div>
 
               <ul className="divide-y divide-[#d1dee8]/40">
-                {entries.map((entry) => (
+                {filteredEntries.map((entry) => (
                   <li
                     key={entry.studentId}
                     className="grid grid-cols-[4rem_1fr_8rem_8rem] items-center gap-3 px-5 py-3.5 transition-colors hover:bg-[#f8fafc]"
@@ -259,6 +366,11 @@ export default function StudentLeaderboardPage({
                   </li>
                 ))}
               </ul>
+              {filteredEntries.length === 0 && (
+                <p className="px-5 py-10 text-center text-xs font-medium text-[#78716b]">No students match “{searchQuery}”.</p>
+              )}
+              </div>
+              </div>
             </section>
           </>
         )}
