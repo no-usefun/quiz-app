@@ -713,6 +713,9 @@ export default function TestArenaPage({
       try {
         setIsLoadingTest(true);
         setTestLoadError(null);
+        // Clear any prior route/session policy before requesting the current
+        // assessment package; never carry a previous quiz's AI setting forward.
+        setAiProctoringEnabled(null);
 
         const packageData = await api.get<QuizPackageResponse>(
           ENDPOINTS.student.quizPackageByCode(cleanCode),
