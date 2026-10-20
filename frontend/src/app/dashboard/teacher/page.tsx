@@ -7,6 +7,10 @@ import { motion, useReducedMotion } from "framer-motion";
 import {
   Plus,
   Users,
+  ClipboardList,
+  Activity,
+  FileEdit,
+  Trophy,
   Copy,
   CheckCircle2,
   FileQuestion,
@@ -640,11 +644,11 @@ export default function TeacherDashboard() {
   };
 
   return (
-    <div className="min-h-screen bg-[#f5f5f4] font-sans text-[#111111] flex flex-col text-left">
+    <div className="teacher-dashboard min-h-screen bg-[#f5f5f4] font-sans text-[#111111] flex flex-col text-left">
       <TopNav role="teacher" />
 
       <main className="flex-1 p-4 md:p-8 space-y-6 max-w-7xl mx-auto w-full">
-        <motion.section initial={reduceMotion ? false : { opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.32, ease: "easeOut" }} className="border-b border-[#d1dee8]/50 pb-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+        <motion.section initial={reduceMotion ? false : { opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.32, ease: "easeOut" }} className="teacher-dashboard-hero relative isolate overflow-hidden rounded-[24px] border border-[#dce7ff] bg-gradient-to-br from-[#f8f6ff] via-white to-[#eaf5ff] p-5 sm:px-7 sm:py-6 shadow-[0_8px_30px_rgba(71,100,180,0.07)] flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
           <div>
             <span className="text-xs font-bold uppercase tracking-widest text-[#78716b]">
               Educator Control Center
@@ -669,46 +673,21 @@ export default function TeacherDashboard() {
           </Link>
         </motion.section>
 
-        <motion.section initial={reduceMotion ? false : { opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.32, delay: 0.07, ease: "easeOut" }} className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-          <div className="rounded-[14px] border border-[#d1dee8]/70 bg-white p-4 sm:p-5 shadow-sm hover:shadow-md transition-all duration-200">
-            <span className="text-[10px] font-bold uppercase tracking-wider text-[#78716b]">
-              Total Assessments
-            </span>
-
-            <p className="text-2xl font-black text-[#111111] mt-1">
-              {loading ? "..." : tests.length}
-            </p>
-          </div>
-
-          <div className="rounded-[14px] border border-[#d1dee8]/70 bg-white p-4 sm:p-5 shadow-sm hover:shadow-md transition-all duration-200">
-            <span className="text-[10px] font-bold uppercase tracking-wider text-[#1d5237]">
-              Live Sessions
-            </span>
-
-            <p className="text-2xl font-black text-[#1d5237] mt-1">
-              {loading ? "..." : liveCount}
-            </p>
-          </div>
-
-          <div className="rounded-[14px] border border-[#d1dee8]/70 bg-white p-4 sm:p-5 shadow-sm hover:shadow-md transition-all duration-200">
-            <span className="text-[10px] font-bold uppercase tracking-wider text-[#92400e]">
-              Draft Assessments
-            </span>
-
-            <p className="text-2xl font-black text-[#92400e] mt-1">
-              {loading ? "..." : draftCount}
-            </p>
-          </div>
-
-          <div className="rounded-[14px] border border-[#d1dee8]/70 bg-white p-4 sm:p-5 shadow-sm hover:shadow-md transition-all duration-200">
-            <span className="text-[10px] font-bold uppercase tracking-wider text-[#6b21a8]">
-              Completed
-            </span>
-
-            <p className="text-2xl font-black text-[#6b21a8] mt-1">
-              {loading ? "..." : completedCount}
-            </p>
-          </div>
+        <motion.section initial={reduceMotion ? false : { opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.32, delay: 0.07, ease: "easeOut" }} className="grid grid-cols-2 sm:grid-cols-4 gap-3.5">
+          {[
+            { label: "Total Assessments", value: loading ? "..." : tests.length, icon: ClipboardList, card: "border-[#d9e8ff] bg-gradient-to-br from-[#f4f8ff] to-[#e8f2ff]", iconStyle: "bg-[#d9ebff] text-[#1685e8]", valueStyle: "text-[#155eef]" },
+            { label: "Live Sessions", value: loading ? "..." : liveCount, icon: Activity, card: "border-[#ccefe3] bg-gradient-to-br from-[#f2fcf8] to-[#dff8ef]", iconStyle: "bg-[#d1f5e6] text-[#059669]", valueStyle: "text-[#047857]" },
+            { label: "Draft Assessments", value: loading ? "..." : draftCount, icon: FileEdit, card: "border-[#fde7b1] bg-gradient-to-br from-[#fffaf0] to-[#fff1ce]", iconStyle: "bg-[#ffedbd] text-[#d97706]", valueStyle: "text-[#b45309]" },
+            { label: "Completed", value: loading ? "..." : completedCount, icon: Trophy, card: "border-[#e3d9ff] bg-gradient-to-br from-[#faf7ff] to-[#eee7ff]", iconStyle: "bg-[#e8ddff] text-[#8b5cf6]", valueStyle: "text-[#7c3aed]" },
+          ].map((stat) => (
+            <div key={stat.label} className={`teacher-stat relative isolate overflow-hidden rounded-[18px] border p-4 sm:p-5 shadow-[0_4px_14px_rgba(71,100,180,0.05)] transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md ${stat.card}`}>
+              <div className="flex items-center justify-between gap-2">
+                <span className="text-[10px] font-extrabold uppercase tracking-wider text-[#64748b] dark:text-slate-300">{stat.label}</span>
+                <span className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-full ${stat.iconStyle}`}><stat.icon className="h-4.5 w-4.5" /></span>
+              </div>
+              <p className={`mt-2 text-2xl font-black tabular-nums ${stat.valueStyle}`}>{stat.value}</p>
+            </div>
+          ))}
         </motion.section>
 
         <motion.section initial={reduceMotion ? false : { opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.32, delay: 0.14, ease: "easeOut" }} className="space-y-4">
@@ -957,7 +936,7 @@ export default function TeacherDashboard() {
                       duration: 0.2,
                       ease: "easeOut",
                     }}
-                    className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4 rounded-[14px] bg-white border border-[#d1dee8]/70 p-4 sm:p-5 shadow-sm hover:border-[#165dfb]/40 hover:shadow-md hover:-translate-y-[1px] transition-all duration-200 cursor-pointer"
+                    className={`teacher-assessment-card flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4 rounded-[18px] border p-4 sm:p-5 shadow-[0_4px_16px_rgba(71,100,180,0.05)] hover:border-[#165dfb]/40 hover:shadow-md hover:-translate-y-[1px] transition-all duration-200 cursor-pointer ${displayState === "Completed" ? "border-[#e3d9ff] bg-gradient-to-r from-[#faf7ff] via-white to-[#f1ebff]" : displayState === "Live" ? "border-[#bdebd7] bg-gradient-to-r from-[#f0fcf6] via-white to-[#e2f9ed]" : displayState === "Draft" ? "border-[#fde7b1] bg-gradient-to-r from-[#fffaf0] via-white to-[#fff4d8]" : "border-[#d9e8ff] bg-gradient-to-r from-[#f4f8ff] via-white to-[#edf4ff]"}`}
                   >
                     <div className="min-w-0 flex-1 space-y-1.5">
                       <div className="flex items-center gap-2">
