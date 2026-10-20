@@ -32,6 +32,51 @@ type TeacherDashboardQuiz = QuizResponse & {
   displayState: QuizDisplayState;
 };
 
+function extractQuizList(payload: unknown): QuizResponse[] {
+  if (Array.isArray(payload)) {
+    return payload as QuizResponse[];
+  }
+
+  if (payload && typeof payload === "object") {
+    const response = payload as Record<string, unknown>;
+
+    // Support common Spring/API response envelopes while keeping the API
+    // response contract explicit instead of calling .map on an unknown value.
+    for (const key of ["quizzes", "assessments", "items", "content", "results", "data"]) {
+      const value = response[key];
+      if (Array.isArray(value)) {
+        return value as QuizResponse[];
+      }
+      if (value && typeof value === "object") {
+        try {
+          return extractQuizList(value);
+        } catch {
+          // Try the next known envelope key.
+        }
+      }
+    }
+
+    const serverMessage =
+      typeof response.message === "string"
+        ? response.message
+        : typeof response.error === "string"
+          ? response.error
+          : null;
+
+    if (serverMessage) {
+      throw new Error(serverMessage);
+    }
+  }
+
+  if (typeof payload === "string" && payload.trim()) {
+    throw new Error(payload.trim().slice(0, 240));
+  }
+
+  throw new Error(
+    "The server returned an unexpected assessment-list response. Expected a list of quizzes.",
+  );
+}
+
 type TeacherDashboardStatusFilter =
   | "ALL"
   | "DRAFT"
@@ -150,7 +195,8 @@ export default function TeacherDashboard() {
     setFetchError(null);
 
     try {
-      const data = await api.get<QuizResponse[]>(ENDPOINTS.teacher.quizzes);
+      const response = await api.get<unknown>(ENDPOINTS.teacher.quizzes);
+      const data = extractQuizList(response);
 
       /*
        * Once an assessment's configured end time has passed, treat it the
