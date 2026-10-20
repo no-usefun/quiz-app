@@ -62,6 +62,7 @@ export function useAIProctoring({
   const audioContextRef = useRef<AudioContext | null>(null);
   const wsRef = useRef<WebSocket | null>(null);
   const frameIntervalRef = useRef<NodeJS.Timeout | null>(null);
+  const lastTelemetryAtRef = useRef(0);
   const sessionIdRef = useRef<string | null>(null);
   const wsTicketRef = useRef<string | null>(null);
   const isCleaningUpRef = useRef(false);
@@ -296,6 +297,7 @@ export function useAIProctoring({
   }, [cleanup, setIdentityHoldSnapshot]);
 
   const handleTelemetryUpdate = useCallback((telemetry: TelemetryResponse) => {
+    lastTelemetryAtRef.current = Date.now();
     setTelemetryReceived(true);
     setFaceDetected(Boolean(telemetry.faceDetected));
     setNumFaces(Number.isFinite(Number(telemetry.numFaces)) ? Number(telemetry.numFaces) : 0);
@@ -471,6 +473,7 @@ export function useAIProctoring({
       // A retry starts a new session; never let telemetry from the previous
       // session satisfy the readiness gate before fresh telemetry arrives.
       setTelemetryReceived(false);
+      lastTelemetryAtRef.current = 0;
       setFaceDetected(false);
       setNumFaces(0);
       setNumPersons(0);
@@ -680,6 +683,7 @@ export function useAIProctoring({
         return;
       }
       setReferenceRegistered(true);
+      lastTelemetryAtRef.current = Date.now();
       sessionIdRef.current = sessionRes.sessionId;
       wsTicketRef.current = sessionRes.wsTicket || null;
 
@@ -734,16 +738,47 @@ export function useAIProctoring({
         const audioSamples = latestAudioSamplesRef.current;
         latestAudioSamplesRef.current = []; // drain buffer
 
-        if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN && isWsAuthenticatedRef.current) {
-          wsRef.current.send(
-            JSON.stringify({
-              frame: frameB64,
-              audio: audioSamples,
-              sampleRate: audioSampleRateRef.current,
-              warningCount: warningCountRef.current,
-            })
+        const socketReady =
+          Boolean(
+            wsRef.current &&
+              wsRef.current.readyState === WebSocket.OPEN &&
+              isWsAuthenticatedRef.current,
           );
-        } else if (sessionIdRef.current && !inFlightRestRef.current) {
+        const telemetryIsFresh =
+          lastTelemetryAtRef.current > 0 &&
+          Date.now() - lastTelemetryAtRef.current < 6000;
+
+        if (socketReady && telemetryIsFresh) {
+          try {
+            wsRef.current!.send(
+              JSON.stringify({
+                frame: frameB64,
+                audio: audioSamples,
+                sampleRate: audioSampleRateRef.current,
+                warningCount: warningCountRef.current,
+              }),
+            );
+            return;
+          } catch (socketError) {
+            console.warn("AI WebSocket send failed; switching to REST fallback:", socketError);
+          }
+        }
+
+        // A stalled WebSocket must not leave the assessment unlocked on stale
+        // telemetry. Close it, enter hold immediately, and try the authenticated
+        // REST endpoint with the same frames while it recovers.
+        if (socketReady || wsRef.current) {
+          setIdentityHoldSnapshot(true, "PROCTORING_TELEMETRY_STALE");
+          isWsAuthenticatedRef.current = false;
+          try {
+            wsRef.current?.close();
+          } catch {
+            // The REST fallback below remains available.
+          }
+          wsRef.current = null;
+        }
+
+        if (sessionIdRef.current && !inFlightRestRef.current) {
           inFlightRestRef.current = true;
           try {
             const res = await analyzeFrameREST({
