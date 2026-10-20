@@ -14,7 +14,7 @@ os.makedirs(MODELS_DIR, exist_ok=True)
 # Server Config
 HOST = os.getenv("HOST", "0.0.0.0")
 PORT = int(os.getenv("PORT", 8000))
-SPRING_BOOT_URL = os.getenv("SPRING_BOOT_URL", "http://localhost:8080")
+SPRING_BOOT_URL = os.getenv("SPRING_BOOT_URL", "https://quiz-app-production-24a8.up.railway.app")
 PROCTOR_FRONTEND_ORIGINS = [
     origin.strip()
     for origin in os.getenv(
