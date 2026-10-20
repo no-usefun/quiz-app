@@ -302,12 +302,17 @@ export default function TestArenaPage({
   const expiryHandledRef = useRef(false);
   const submissionInFlightRef = useRef(false);
 
-  // The biometric reference remains session-scoped; do not persist raw imagery
-  // in localStorage beyond this assessment flow.
-  const referencePhoto =
-    typeof window !== "undefined"
-      ? sessionStorage.getItem("dynoquizz_reference_photo")
-      : null;
+  // Accept a reference image only when the lobby marked it fresh for this
+  // exact server attempt after a Start click. A stale sessionStorage image
+  // cannot authorize direct navigation back into the exam.
+  const [referencePhoto] = useState<string | null>(() => {
+    if (typeof window === "undefined" || !activeAttemptId) return null;
+    const freshMarker = sessionStorage.getItem(
+      `dynoquizz_reference_photo_fresh_${activeAttemptId}`,
+    );
+    if (freshMarker !== "true") return null;
+    return sessionStorage.getItem("dynoquizz_reference_photo");
+  });
   // The backend package is authoritative. Do not use browser storage as the
   // source of truth for a policy that determines whether proctoring is required.
   const [aiProctoringEnabled, setAiProctoringEnabled] = useState<boolean | null>(null);
