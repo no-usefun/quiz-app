@@ -1180,6 +1180,25 @@ function CreateAssessmentContent() {
     );
   };
 
+  // Publishing must be blocked if the assessment's scheduled end time has passed.
+  // Keep this separate from shared form validation so expired drafts can still be saved.
+  const validatePublishTime = (): string | null => {
+    if (!endTime) {
+      return "Could not calculate the assessment end time. Check the start time and duration.";
+    }
+
+    const endTimestamp = new Date(endTime).getTime();
+    if (!Number.isFinite(endTimestamp)) {
+      return "The assessment end time is invalid. Please correct the schedule before publishing.";
+    }
+
+    if (endTimestamp <= Date.now()) {
+      return "This assessment's end time has already passed. Please set a future end time before publishing.";
+    }
+
+    return null;
+  };
+
   // Shared validation — used by both Publish and Save as Draft flows.
   const validateForm = (): string | null => {
     if (!title.trim()) return "Please enter an assessment title.";
@@ -1343,6 +1362,12 @@ function CreateAssessmentContent() {
     e.preventDefault();
     const formErr = validateForm();
     if (formErr) return setValidationError(formErr);
+
+    const publishTimeError = validatePublishTime();
+    if (publishTimeError) {
+      setPublishRetryData(null);
+      return setValidationError(publishTimeError);
+    }
 
     setSubmitting(true);
     setValidationError(null);
@@ -1836,6 +1861,14 @@ function CreateAssessmentContent() {
 
   const handleRetryPublish = async () => {
     if (!publishRetryData) return;
+
+    const publishTimeError = validatePublishTime();
+    if (publishTimeError) {
+      setPublishRetryData(null);
+      setValidationError(publishTimeError);
+      return;
+    }
+
     setRetryingPublish(true);
     const token =
       typeof window !== "undefined"
