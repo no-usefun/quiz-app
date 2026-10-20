@@ -5,9 +5,17 @@
  * attempts, scoring, results, and permissions.
  */
 
-export const API_BASE = (
-  process.env.NEXT_PUBLIC_API_URL || "http://localhost:8080"
-).replace(/\/+$/, "");
+const configuredMode = String(process.env.NEXT_PUBLIC_EXAM_MODE ?? "")
+  .trim()
+  .toUpperCase();
+
+const isLanMode = configuredMode === "LAN" || configuredMode === "OFFLINE_LAN";
+
+// Online mode uses a same-origin Next.js proxy to avoid browser CORS failures.
+// LAN exam mode must call the local network backend directly.
+export const API_BASE = isLanMode
+  ? (process.env.NEXT_PUBLIC_API_URL || "http://localhost:8080").replace(/\/+$/, "")
+  : "/backend";
 
 export const ENDPOINTS = {
   system: {
