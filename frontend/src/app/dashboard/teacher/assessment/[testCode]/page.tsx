@@ -1494,8 +1494,9 @@ export default function TeacherAssessmentPage({
               </div>
             </div>
 
-            <div className="flex-1 overflow-hidden rounded-[14px] border border-[#d1dee8]/80 bg-paper-white text-left shadow-sm">
-              <div className="grid grid-cols-[2rem_minmax(100px,1fr)_minmax(110px,1fr)_90px_70px_auto] items-center gap-3 border-b border-[#d1dee8]/70 bg-frost-surface/70 px-4 py-3">
+            <div className="flex-1 overflow-x-auto rounded-[18px] border border-[#dce7ff] bg-white text-left shadow-[0_6px_22px_rgba(71,100,180,0.06)]">
+              <div className="min-w-[1000px]">
+              <div className="grid grid-cols-[32px_minmax(140px,1.2fr)_minmax(120px,1fr)_80px_90px_80px_110px_80px_100px] items-center gap-3 border-b border-[#dce7ff] bg-gradient-to-r from-[#f4f8ff] to-[#faf7ff] px-4 py-3">
                 <Th
                   label="#"
                   col="rank"
@@ -1521,7 +1522,7 @@ export default function TeacherAssessmentPage({
                 />
 
                 <Th
-                  label="Score / %"
+                  label="Score"
                   col="score"
                   sortKey={sortKey}
                   sortDir={sortDir}
@@ -1530,13 +1531,26 @@ export default function TeacherAssessmentPage({
                 />
 
                 <Th
-                  label="Duration"
+                  label="Percentage"
+                  col="score"
+                  sortKey={sortKey}
+                  sortDir={sortDir}
+                  onSort={toggleSort}
+                  className="justify-center"
+                />
+
+                <Th
+                  label="Time Taken"
                   col="timeTaken"
                   sortKey={sortKey}
                   sortDir={sortDir}
                   onSort={toggleSort}
                   className="justify-center"
                 />
+
+                <span className="text-[9px] font-bold uppercase tracking-wider text-steel-blue-gray">Status</span>
+                <span className="text-[9px] font-bold uppercase tracking-wider text-steel-blue-gray text-center">Warnings</span>
+                <span className="text-[9px] font-bold uppercase tracking-wider text-steel-blue-gray text-center">Actions</span>
               </div>
 
               {leaderboardUnavailable ? (
@@ -1557,7 +1571,7 @@ export default function TeacherAssessmentPage({
                   {displayList.map((student) => (
                     <li
                       key={student.id}
-                      className="grid grid-cols-[2rem_minmax(100px,1fr)_minmax(110px,1fr)_90px_70px_auto] items-center gap-3 px-4 py-3 transition-colors hover:bg-[#f5f8ff]"
+                      className="grid grid-cols-[32px_minmax(140px,1.2fr)_minmax(120px,1fr)_80px_90px_80px_110px_80px_100px] items-center gap-3 px-4 py-3 transition-colors hover:bg-[#f6f9ff]"
                     >
                       <span className={`flex h-7 w-7 items-center justify-center rounded-full text-[11px] font-bold tabular-nums ${student.rank === 1 ? "bg-amber-100 text-amber-800" : student.rank === 2 ? "bg-slate-100 text-slate-700" : student.rank === 3 ? "bg-orange-100 text-orange-800" : "bg-frost-surface text-steel-blue-gray"}`}>
                         {student.rank}
@@ -1601,15 +1615,31 @@ export default function TeacherAssessmentPage({
                         <span className="text-xs font-bold tabular-nums text-midnight-navy">
                           {formatMarks(student.finalScore)} / {formatMarks(student.totalMarks)}
                         </span>
+                      </div>
 
-                        <span className="mt-1 rounded-full bg-[#ecfdf3] px-1.5 py-0.5 text-[9px] font-bold tabular-nums text-[#15803d]">
-                          {formatPercentage(student.percentage)}%
+                      <div className="flex flex-col items-center gap-1">
+                        <span className="text-xs font-bold tabular-nums text-midnight-navy">{formatPercentage(student.percentage)}%</span>
+                        <span className="h-1.5 w-16 overflow-hidden rounded-full bg-[#e3ebfb]">
+                          <span className="block h-full rounded-full bg-gradient-to-r from-[#3984ff] to-[#7c5cff]" style={{ width: `${Math.max(0, Math.min(100, student.percentage))}%` }} />
                         </span>
                       </div>
 
                       <div className="flex justify-center">
                         <span className="font-mono text-[10px] font-semibold text-steel-blue-gray">
                           {student.timeTaken || "00:00"}
+                        </span>
+                      </div>
+
+                      <div className="flex justify-center">
+                        <span className={`inline-flex items-center gap-1 rounded-full px-2 py-1 text-[9px] font-bold ${student.terminationReason === "MALPRACTICE_WARNING_LIMIT" ? "bg-rose-100 text-rose-700" : student.status === "SUBMITTED" ? "bg-emerald-100 text-emerald-700" : "bg-slate-100 text-slate-600"}`}>
+                          <span className={`h-1.5 w-1.5 rounded-full ${student.terminationReason === "MALPRACTICE_WARNING_LIMIT" ? "bg-rose-500" : student.status === "SUBMITTED" ? "bg-emerald-500" : "bg-slate-400"}`} />
+                          {student.terminationReason === "MALPRACTICE_WARNING_LIMIT" ? "FLAGGED" : (student.status || "UNKNOWN").replaceAll("_", " ")}
+                        </span>
+                      </div>
+
+                      <div className="text-center">
+                        <span className={`inline-flex min-w-8 items-center justify-center rounded-full px-2 py-1 text-[10px] font-bold ${(student.warningCount ?? 0) > 0 ? "bg-amber-100 text-amber-800" : "bg-slate-100 text-slate-600"}`}>
+                          {student.warningCount ?? "—"}
                         </span>
                       </div>
 
@@ -1622,11 +1652,14 @@ export default function TeacherAssessmentPage({
                           <ShieldAlert aria-hidden="true" className="h-3 w-3" />
                           AI Audit
                         </button>
-                      ) : null}
+                      ) : (
+                        <span className="text-[10px] text-steel-blue-gray">—</span>
+                      )}
                     </li>
                   ))}
                 </ul>
               )}
+              </div>
             </div>
           </section>
         </div>
