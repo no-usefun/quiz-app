@@ -1274,48 +1274,37 @@ export default function TeacherAssessmentPage({
                 </div>
               </div>
 
-              <div
-                className="mb-5 flex h-3 w-full overflow-hidden rounded-full bg-frost-surface"
-                role="img"
-                aria-label={`Score distribution for ${submitted.length} submitted attempts`}
-              >
-                {scoreDistribution.map((band) => (
-                  <div
-                    key={band.label}
-                    className={`${band.color} transition-[width] duration-500 ease-out`}
-                    style={{ width: `${(band.count / submitted.length) * 100}%` }}
-                    title={`${band.label}: ${band.count} students`}
-                  />
-                ))}
+              <div className="mb-4 flex items-center justify-between border-b border-[#d1dee8]/50 pb-2">
+                <p className="text-[10px] font-bold uppercase tracking-wider text-steel-blue-gray">Score range</p>
+                <p className="text-[10px] font-bold uppercase tracking-wider text-steel-blue-gray">Students</p>
               </div>
 
-              <div className="space-y-3">
+              <div className="space-y-3.5">
                 {scoreDistribution.map((band) => {
-                  const share = (band.count / submitted.length) * 100;
+                  const maximumCount = Math.max(1, ...scoreDistribution.map((item) => item.count));
+                  const barWidth = (band.count / maximumCount) * 100;
                   return (
-                    <div key={band.label} className="grid grid-cols-[76px_minmax(0,1fr)_72px] items-center gap-3 sm:grid-cols-[90px_minmax(0,1fr)_100px]">
+                    <div key={band.label} className="grid grid-cols-[76px_minmax(0,1fr)_36px] items-center gap-3 sm:grid-cols-[90px_minmax(0,1fr)_44px]">
                       <span className="text-[10px] font-semibold tabular-nums text-steel-blue-gray sm:text-xs">{band.label}</span>
                       <div
                         className="h-2.5 overflow-hidden rounded-full bg-frost-surface"
                         role="progressbar"
                         aria-label={`Students scoring ${band.label}`}
                         aria-valuemin={0}
-                        aria-valuemax={100}
-                        aria-valuenow={Math.round(share)}
+                        aria-valuemax={maximumCount}
+                        aria-valuenow={band.count}
                       >
                         <div
                           className={`h-full rounded-full ${band.color} transition-[width] duration-500 ease-out`}
-                          style={{ width: `${share}%` }}
+                          style={{ width: `${barWidth}%` }}
                         />
                       </div>
-                      <span className="text-right text-[10px] font-bold tabular-nums text-midnight-navy sm:text-xs">
-                        {band.count} <span className="font-medium text-steel-blue-gray">({Math.round(share)}%)</span>
-                      </span>
+                      <span className="text-right text-xs font-bold tabular-nums text-midnight-navy">{band.count}</span>
                     </div>
                   );
                 })}
               </div>
-              <p className="mt-4 text-[10px] text-steel-blue-gray">Each row shows the score range, number of students, and share of submissions.</p>
+              <p className="mt-4 text-[10px] text-steel-blue-gray">Bars compare student counts across score ranges. Empty ranges remain visible.</p>
             </section>
           )}
 
