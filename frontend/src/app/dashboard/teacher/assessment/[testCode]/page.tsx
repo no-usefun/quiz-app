@@ -20,6 +20,12 @@ import {
   Lock,
   ShieldAlert,
   ClipboardList,
+  Eye,
+  BarChart3,
+  Star,
+  FileText,
+  Medal,
+  Sparkles,
 } from "lucide-react";
 import { Logo } from "@/components/Logo";
 import { TeacherProctoringReportModal } from "@/components/TeacherProctoringReportModal";
@@ -1021,7 +1027,10 @@ export default function TeacherAssessmentPage({
         )}
 
         <div className="flex flex-1 flex-col gap-5 p-5 md:p-6 bg-paper-white">
-          <div className="flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">
+          <div className="relative isolate overflow-hidden rounded-[24px] border border-[#dce7ff] bg-gradient-to-br from-[#f8f6ff] via-white to-[#eaf5ff] px-5 py-5 sm:px-7 sm:py-6 shadow-[0_8px_30px_rgba(71,100,180,0.08)]">
+            <div aria-hidden="true" className="pointer-events-none absolute -right-5 -top-12 h-48 w-48 rounded-full bg-[#dceaff]/60 blur-2xl" />
+            <div aria-hidden="true" className="pointer-events-none absolute right-24 top-10 h-28 w-28 rounded-full bg-[#fce7f3]/60 blur-2xl" />
+            <div className="relative z-10 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
             <div className="text-left">
               <p className="text-[10px] font-bold uppercase tracking-widest text-steel-blue-gray">
                 Assessment Governance
@@ -1100,6 +1109,22 @@ export default function TeacherAssessmentPage({
                   : "Publish Results"}
               </button>
             </div>
+            <div aria-hidden="true" className="pointer-events-none absolute right-5 top-1/2 hidden -translate-y-1/2 sm:block">
+              <div className="relative flex h-36 w-44 items-center justify-center">
+                <div className="absolute bottom-2 h-12 w-40 rounded-full bg-[#dbeafe]/70 blur-md" />
+                <div className="absolute bottom-3 left-5 h-14 w-14 rotate-[-12deg] rounded-[12px] bg-gradient-to-br from-[#c4b5fd] to-[#818cf8] opacity-80 shadow-sm" />
+                <div className="absolute bottom-3 right-4 h-16 w-14 rotate-[10deg] rounded-[12px] bg-gradient-to-br from-[#bfdbfe] to-[#60a5fa] opacity-80 shadow-sm" />
+                <div className="absolute bottom-3 h-20 w-20 rounded-[22px] bg-gradient-to-br from-[#fff1bf] to-[#fbbf24] shadow-[0_10px_24px_rgba(245,158,11,0.22)]" />
+                <div className="relative z-10 flex h-20 w-20 items-center justify-center text-[#b45309]">
+                  <Trophy className="h-12 w-12 drop-shadow-sm" strokeWidth={1.7} />
+                </div>
+                <Sparkles className="absolute right-1 top-4 h-5 w-5 text-[#fb923c]" />
+                <Star className="absolute left-2 top-7 h-4 w-4 fill-[#fbbf24] text-[#fbbf24]" />
+                <span className="absolute right-7 top-0 text-sm text-[#f472b6]">✦</span>
+                <span className="absolute bottom-0 left-2 text-lg text-[#60a5fa]">✦</span>
+              </div>
+            </div>
+            </div>
           </div>
 
           {lifecycleError && (
@@ -1143,9 +1168,9 @@ export default function TeacherAssessmentPage({
             </div>
           )}
 
-          <section className="rounded-[14px] border border-[#d1dee8]/70 bg-paper-white p-4 space-y-3 shadow-sm">
-            <h3 className="text-xs font-bold uppercase tracking-wider text-midnight-navy flex items-center gap-1.5 border-b border-[#d1dee8]/40 pb-2">
-              <Lock className="h-3.5 w-3.5 text-signal-green" />
+          <section className="rounded-[20px] border border-[#dce7ff] bg-white/90 p-4 sm:p-5 space-y-3 shadow-[0_5px_20px_rgba(71,100,180,0.06)]">
+            <h3 className="text-xs font-extrabold uppercase tracking-wider text-midnight-navy flex items-center gap-2 border-b border-[#e6edfb] pb-3">
+              <Eye className="h-4 w-4 text-[#3984ff]" />
               Student Result Visibility
             </h3>
 
@@ -1176,7 +1201,7 @@ export default function TeacherAssessmentPage({
                   type="button"
                   onClick={item.onClick}
                   disabled={settingsSaving}
-                  className={`flex items-start justify-between gap-3 rounded-[10px] border p-3 text-left transition-all duration-150 ${
+                  className={`flex items-center justify-between gap-3 rounded-[15px] border p-3.5 text-left transition-all duration-200 ${
                     item.active
                       ? "border-signal-green bg-frost-surface text-midnight-navy ring-2 ring-signal-green/20"
                       : "border-[#d1dee8]/80 bg-paper-white text-steel-blue-gray hover:border-[#b9cbd9]"
@@ -1186,7 +1211,11 @@ export default function TeacherAssessmentPage({
                       : "cursor-pointer active:scale-[0.98] shadow-xs"
                   }`}
                 >
-                  <div className="text-left">
+                  <div className="flex min-w-0 items-center gap-3">
+                    <span className={`flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl ${item.label === "Show Leaderboard" ? "bg-gradient-to-br from-[#fff1bf] to-[#ffdf80] text-[#d97706]" : "bg-gradient-to-br from-[#dff3ff] to-[#bfe8ff] text-[#0284c7]"}`}>
+                      {item.label === "Show Leaderboard" ? <Trophy className="h-5 w-5" /> : <BarChart3 className="h-5 w-5" />}
+                    </span>
+                    <span className="min-w-0 text-left">
                     <span className="block text-xs font-bold text-midnight-navy">
                       {item.label}
                     </span>
@@ -1286,12 +1315,28 @@ export default function TeacherAssessmentPage({
                   assessmentData.overallTimerSeconds / 60,
                 )}m`,
               },
-            ].map((stat) => (
+            ].map((stat, index) => {
+              const palette = [
+                { card: "border-[#d9e8ff] bg-gradient-to-br from-[#f4f8ff] to-[#e8f2ff]", icon: "bg-[#d9ebff] text-[#1685e8]", decor: "text-[#b9d7ff]" },
+                { card: "border-[#ccefe3] bg-gradient-to-br from-[#f2fcf8] to-[#dff8ef]", icon: "bg-[#d1f5e6] text-[#059669]", decor: "text-[#bdebd9]" },
+                { card: "border-[#fde7b1] bg-gradient-to-br from-[#fffaf0] to-[#fff1ce]", icon: "bg-[#ffedbd] text-[#d97706]", decor: "text-[#f9df9b]" },
+                { card: "border-[#e3d9ff] bg-gradient-to-br from-[#faf7ff] to-[#eee7ff]", icon: "bg-[#e8ddff] text-[#8b5cf6]", decor: "text-[#d7c8ff]" },
+                { card: "border-[#ffd8df] bg-gradient-to-br from-[#fff7f8] to-[#ffe7eb]", icon: "bg-[#ffe0e6] text-[#e11d48]", decor: "text-[#ffc8d2]" },
+              ][index];
+              const decorativeIcon = [
+                <Users key="users" className="h-14 w-14" />,
+                <CheckCircle2 key="check" className="h-14 w-14" />,
+                <TrendingUp key="trend" className="h-14 w-14" />,
+                <FileText key="file" className="h-14 w-14" />,
+                <Clock key="clock" className="h-14 w-14" />,
+              ][index];
+              return (
               <div
                 key={stat.label}
-                className="flex items-center gap-3 rounded-[14px] border border-[#d1dee8]/70 bg-paper-white p-4 shadow-sm hover:shadow-md transition-all duration-200"
+                className={`group relative isolate overflow-hidden flex items-center gap-3 rounded-[17px] border p-4 shadow-[0_4px_14px_rgba(71,100,180,0.05)] transition-all duration-200 hover:-translate-y-0.5 hover:shadow-[0_9px_22px_rgba(71,100,180,0.11)] ${palette.card}`}
               >
-                <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-[10px] bg-frost-surface text-signal-green border border-mist-blue/20 shadow-xs">
+                <div aria-hidden="true" className={`pointer-events-none absolute -bottom-3 -right-2 opacity-50 ${palette.decor}`}>{decorativeIcon}</div>
+                <div className={`relative z-10 flex h-12 w-12 shrink-0 items-center justify-center rounded-full shadow-sm ${palette.icon}`}>
                   {stat.icon}
                 </div>
                 <div className="text-left">
@@ -1303,14 +1348,15 @@ export default function TeacherAssessmentPage({
                   </p>
                 </div>
               </div>
-            ))}
+              );
+            })}
           </div>
 
           {submitted.length > 0 && (
-            <section className="rounded-[14px] border border-[#d1dee8]/70 bg-paper-white p-4 sm:p-5 shadow-sm text-left">
+            <section className="rounded-[20px] border border-[#dce7ff] bg-white/95 p-4 sm:p-6 shadow-[0_6px_22px_rgba(71,100,180,0.06)] text-left">
               <div className="mb-4 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
                 <div>
-                  <h2 className="text-xs font-bold uppercase tracking-wider text-midnight-navy">Class Performance</h2>
+                  <h2 className="flex items-center gap-2 text-xs font-extrabold uppercase tracking-wider text-midnight-navy"><BarChart3 className="h-4 w-4 text-[#8b5cf6]" />Class Performance</h2>
                   <p className="mt-1 text-xs text-steel-blue-gray">A quick breakdown of marks across all submitted attempts.</p>
                 </div>
                 <div className="flex items-center gap-3">
@@ -1360,11 +1406,14 @@ export default function TeacherAssessmentPage({
           )}
 
           <section className="text-left">
-            <div className="mb-2.5 flex items-center gap-2">
-              <Trophy className="h-4 w-4 text-pastel-yellow-text" />
-              <h2 className="text-xs font-bold text-midnight-navy uppercase tracking-wider">
-                Top Performers
-              </h2>
+            <div className="mb-3 flex items-center gap-3">
+              <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-gradient-to-br from-[#fff0b8] to-[#ffd45f] text-[#b45309] shadow-sm">
+                <Trophy className="h-5 w-5" />
+              </div>
+              <div>
+                <h2 className="text-sm font-extrabold text-midnight-navy uppercase tracking-wider">Top Performers</h2>
+                <p className="mt-0.5 text-[11px] text-steel-blue-gray">Celebrating the highest-scoring submissions.</p>
+              </div>
             </div>
 
             <div className="grid gap-3 sm:grid-cols-3">
@@ -1374,7 +1423,7 @@ export default function TeacherAssessmentPage({
                 return (
                   <div
                     key={student.id || pos}
-                    className="relative overflow-hidden rounded-[14px] border border-[#d1dee8]/70 bg-paper-white p-4 shadow-sm hover:shadow-md transition-all duration-200"
+                    className={`relative isolate overflow-hidden rounded-[18px] border p-4 shadow-[0_5px_18px_rgba(71,100,180,0.06)] transition-all duration-200 hover:-translate-y-0.5 hover:shadow-[0_12px_24px_rgba(71,100,180,0.11)] ${pos === 0 ? "border-[#f8df98] bg-gradient-to-br from-[#fffaf0] via-white to-[#fff1c9]" : pos === 1 ? "border-[#dce4f0] bg-gradient-to-br from-[#f7faff] to-[#edf2f9]" : "border-[#f6d8c8] bg-gradient-to-br from-[#fff8f3] to-[#ffeadf]"}`}
                   >
                     <span className="absolute right-3.5 top-3.5 text-lg">
                       {c.icon}
@@ -1415,14 +1464,14 @@ export default function TeacherAssessmentPage({
           </section>
 
           <section className="flex flex-1 flex-col">
-            <div className="mb-4 flex flex-col gap-3 rounded-[14px] border border-[#d1dee8]/70 bg-frost-surface/40 p-4 sm:flex-row sm:items-center sm:justify-between">
+            <div className="mb-4 flex flex-col gap-3 rounded-[20px] border border-[#dce7ff] bg-gradient-to-r from-[#f7faff] via-white to-[#f8f5ff] p-4 sm:flex-row sm:items-center sm:justify-between shadow-[0_4px_16px_rgba(71,100,180,0.05)]">
               <div className="text-left">
                 <div className="flex items-center gap-2">
-                  <div className="flex h-8 w-8 items-center justify-center rounded-[10px] border border-[#d1dee8]/70 bg-paper-white text-[#165dfb]">
-                    <Trophy className="h-4 w-4" />
+                  <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-gradient-to-br from-[#dceaff] to-[#c7d2fe] text-[#315ce8] shadow-sm">
+                    <Trophy className="h-5 w-5" />
                   </div>
                   <div>
-                    <h2 className="text-sm font-bold text-midnight-navy">Student Leaderboard</h2>
+                    <h2 className="text-base font-extrabold tracking-tight text-midnight-navy">Student Leaderboard</h2>
                     <p className="mt-0.5 text-[11px] text-steel-blue-gray">
                       Ranked by score, with completion time as the tie-breaker.
                     </p>
