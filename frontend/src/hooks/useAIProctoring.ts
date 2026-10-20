@@ -15,7 +15,6 @@ import {
 
 interface UseProctoringOptions {
   attemptId: number;
-  studentId?: string;
   testCode: string;
   referenceImage: string | null;
   authToken?: string;
@@ -53,7 +52,6 @@ function normalizeAIEventType(value: string): string | null {
 
 export function useAIProctoring({
   attemptId,
-  studentId,
   testCode,
   referenceImage,
   authToken,
@@ -88,11 +86,6 @@ export function useAIProctoring({
   useEffect(() => {
     authTokenRef.current = authToken;
   }, [authToken]);
-
-  const studentIdRef = useRef(studentId);
-  useEffect(() => {
-    studentIdRef.current = studentId;
-  }, [studentId]);
 
   const attemptIdRef = useRef(attemptId);
   useEffect(() => {
@@ -575,7 +568,6 @@ export function useAIProctoring({
           sessionId: sessionRes.sessionId,
           ticket: sessionRes.wsTicket,
           authToken: authTokenRef.current,
-          studentId: studentIdRef.current,
           attemptId: attemptIdRef.current,
         });
         return;
