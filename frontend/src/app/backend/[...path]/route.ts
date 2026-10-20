@@ -63,14 +63,19 @@ async function proxyRequest(
     responseHeaders.delete("transfer-encoding");
     responseHeaders.delete("connection");
 
-    return new Response(
-      method === "HEAD" ? null : await upstreamResponse.arrayBuffer(),
-      {
-        status: upstreamResponse.status,
-        statusText: upstreamResponse.statusText,
-        headers: responseHeaders,
-      },
-    );
+    const responseBody =
+      method === "HEAD" ||
+      upstreamResponse.status === 204 ||
+      upstreamResponse.status === 205 ||
+      upstreamResponse.status === 304
+        ? null
+        : await upstreamResponse.arrayBuffer();
+
+    return new Response(responseBody, {
+      status: upstreamResponse.status,
+      statusText: upstreamResponse.statusText,
+      headers: responseHeaders,
+    });
   } catch {
     return NextResponse.json(
       {
