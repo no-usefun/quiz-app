@@ -20,12 +20,15 @@ import { api, getAuthToken } from "@/lib/api/client";
 import { ENDPOINTS } from "@/lib/api/endpoints";
 
 interface ProctoringEventDetail {
-  id: number;
+  id?: number | string;
+  eventId?: string;
+  clientEventId?: string;
   eventType: string;
   details: string;
   severity: string;
   confidence?: number;
-  timestamp: string;
+  timestamp: string | number;
+  frameTimestamp?: number;
 }
 
 interface ProctoringReportData {
@@ -36,6 +39,7 @@ interface ProctoringReportData {
   quizCode: string;
   quizTitle: string;
   status: string;
+  terminationReason?: string | null;
   warningCount: number;
   totalViolationsCount: number;
   riskScore: number;
@@ -53,6 +57,30 @@ interface ProctoringReportData {
   startedAt: string;
   submittedAt: string | null;
   events: ProctoringEventDetail[];
+}
+
+function eventTimestamp(event: ProctoringEventDetail): Date | null {
+  const value = event.frameTimestamp ?? event.timestamp;
+  if (typeof value === "number") {
+    const milliseconds = value < 1e12 ? value * 1000 : value;
+    const date = new Date(milliseconds);
+    return Number.isNaN(date.getTime()) ? null : date;
+  }
+  const date = new Date(value);
+  return Number.isNaN(date.getTime()) ? null : date;
+}
+
+function uniqueEvents(events: ProctoringEventDetail[]): ProctoringEventDetail[] {
+  const seen = new Set<string>();
+  return events.filter((event, index) => {
+    const key = String(
+      event.eventId ?? event.clientEventId ?? event.id ??
+      `${event.eventType}|${eventTimestamp(event)?.getTime() ?? index}|${event.details}`
+    );
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
 }
 
 interface TeacherProctoringReportModalProps {
@@ -195,9 +223,9 @@ export function TeacherProctoringReportModal({
                     <span className="text-xs font-semibold text-[#78716b]">/ 3</span>
                   </div>
                   <span className="text-[10px] font-semibold text-[#78716b]">
-                    {report.status === "AUTO_SUBMITTED"
-                      ? "Terminated by Malpractice Limit"
-                      : "Within Allowed Threshold"}
+                    {report.terminationReason === "MALPRACTICE_WARNING_LIMIT"
+                      ? "Terminated: malpractice warning limit"
+                      : "Review recorded warnings and detections"}
                   </span>
                 </div>
 
@@ -320,9 +348,9 @@ export function TeacherProctoringReportModal({
                   </div>
                 ) : (
                   <div className="space-y-2 max-h-60 overflow-y-auto pr-1">
-                    {report.events.map((ev) => (
+                    {uniqueEvents(report.events).map((ev, index) => (
                       <div
-                        key={ev.id}
+                        key={String(ev.eventId ?? ev.clientEventId ?? ev.id ?? `${ev.eventType}-${eventTimestamp(ev)?.getTime() ?? index}`)}
                         className="rounded-[10px] border border-[#d1dee8]/80 bg-[#f5f5f4]/40 p-3 text-xs flex items-start justify-between gap-3 hover:bg-[#f5f5f4] transition-colors"
                       >
                         <div className="space-y-1">
@@ -336,17 +364,16 @@ export function TeacherProctoringReportModal({
                             >
                               {ev.eventType}
                             </span>
-                            {ev.confidence !== undefined && ev.confidence > 0 && (
+                            {ev.confidence !== undefined && Number.isFinite(ev.confidence) && (
                               <span className="text-[9px] font-bold text-[#78716b] bg-white px-1.5 py-0.5 rounded border border-[#d1dee8]">
-                                {Math.round(ev.confidence * 100)}% conf
+                                Model confidence {Math.round(Math.max(0, Math.min(1, ev.confidence)) * 100)}%
                               </span>
                             )}
                             <span className="text-[10px] text-[#78716b] font-medium">
-                              {new Date(ev.timestamp).toLocaleTimeString("en-IN", {
-                                hour: "2-digit",
-                                minute: "2-digit",
-                                second: "2-digit",
-                              })}
+                              {eventTimestamp(ev)?.toLocaleString("en-IN", {
+                                dateStyle: "medium",
+                                timeStyle: "medium",
+                              }) ?? "Timestamp unavailable"}
                             </span>
                           </div>
                           <p className="text-[#111111] font-semibold text-[11px]">
