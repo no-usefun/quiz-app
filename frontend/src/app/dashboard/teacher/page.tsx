@@ -922,12 +922,20 @@ export default function TeacherDashboard() {
                         handleCardClick();
                       }
                     }}
-                    initial={mounted ? { opacity: 0, y: 4 } : false}
-                    animate={mounted ? { opacity: 1, y: 0 } : false}
+                    initial={
+                      reduceMotion || !mounted
+                        ? false
+                        : { opacity: 0, y: 12, scale: 0.99 }
+                    }
+                    animate={
+                      reduceMotion || !mounted
+                        ? false
+                        : { opacity: 1, y: 0, scale: 1 }
+                    }
                     transition={{
-                      delay: idx * 0.03,
-                      duration: 0.2,
-                      ease: "easeOut",
+                      delay: reduceMotion ? 0 : idx * 0.075,
+                      duration: reduceMotion ? 0 : 0.35,
+                      ease: [0.22, 1, 0.36, 1],
                     }}
                     className="teacher-assessment-card flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4 rounded-xl border border-slate-200 bg-white p-4 sm:p-5 transition-colors duration-150 hover:border-slate-300 hover:bg-slate-50/40 cursor-pointer dark:border-slate-700 dark:bg-slate-900 dark:hover:bg-slate-800/60"
                   >
