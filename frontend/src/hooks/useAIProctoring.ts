@@ -345,6 +345,23 @@ export function useAIProctoring({
     }
   }, []);
 
+  // Fail visibly if the camera is active but the AI service never returns
+  // its first telemetry packet. This enables the existing Retry action instead
+  // of leaving the student behind an indefinite verification screen.
+  useEffect(() => {
+    if (!enabled || !cameraActive || telemetryReceived || cameraError) {
+      return;
+    }
+
+    const timeoutId = window.setTimeout(() => {
+      setCameraError(
+        "The AI service did not return verification data in time. Check your connection and retry.",
+      );
+    }, 15000);
+
+    return () => window.clearTimeout(timeoutId);
+  }, [enabled, cameraActive, telemetryReceived, cameraError, retryCount]);
+
   // Auxiliary effect: Ensure stream attaches to video element whenever video element is available
   useEffect(() => {
     if (cameraActive && streamRef.current && videoRef.current && videoRef.current.srcObject !== streamRef.current) {
