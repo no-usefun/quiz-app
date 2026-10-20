@@ -392,14 +392,14 @@ export default function TestArenaPage({
   // State controls rendering, while the ref is checked inside event handlers
   // to close the small window before React commits a hold-state update.
   const examInteractionBlocked =
-    aiProctoringEnabled &&
+    aiProctoringEnabled === true &&
     (!isAIProctoringReady ||
       proctoring.identityHold ||
       proctoring.serverAutoSubmitted);
 
   const isInteractionLockedNow = useCallback(
     () =>
-      aiProctoringEnabled &&
+      aiProctoringEnabled === true &&
       (!isAIProctoringReady ||
         proctoring.identityHoldRef.current ||
         proctoring.serverAutoSubmitted),
