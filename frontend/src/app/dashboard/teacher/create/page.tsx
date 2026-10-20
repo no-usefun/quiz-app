@@ -1528,9 +1528,12 @@ function CreateAssessmentContent() {
             );
           }
         } catch (error) {
-          console.warn(
-            "[Quizly] Could not persist maxTabSwitch after quiz creation.",
+          console.error(
+            "[Quizly] Could not persist quiz settings after creation.",
             error,
+          );
+          throw new Error(
+            "The assessment was created, but its security settings could not be saved. It has not been published. Please reopen the draft, verify AI proctoring and other settings, then retry.",
           );
         }
       }
