@@ -99,6 +99,7 @@ function LobbyInner({ testCode }: { testCode: string }) {
     const loadAvailability = async () => {
       try {
         setLoading(true);
+        setAvailability(null);
         setStartError(null);
 
         const result = await api.get<QuizAvailabilityResponse>(
