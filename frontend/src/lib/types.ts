@@ -141,6 +141,8 @@ export interface QuizResponse {
   allowReview: boolean;
   allowResume: boolean;
   autoSubmit: boolean;
+  /** Persisted quiz policy; student endpoints must return this explicitly. */
+  aiProctoringEnabled?: boolean;
   startTime?: string | null;
   endTime?: string | null;
   resultVisibility: ResultVisibility;
