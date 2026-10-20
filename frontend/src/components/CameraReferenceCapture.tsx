@@ -6,17 +6,25 @@ import { checkAIHealth } from "@/lib/proctoring/aiProctoringClient";
 
 interface CameraReferenceCaptureProps {
   onCapture: (base64Image: string) => void;
+  onCaptureError?: (message: string) => void;
   disabled?: boolean;
   captureRequested?: boolean;
 }
 
 export function CameraReferenceCapture({
   onCapture,
+  onCaptureError,
   disabled = false,
   captureRequested = false,
 }: CameraReferenceCaptureProps) {
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
+  const cameraStartInFlightRef = useRef(false);
+  const onCaptureErrorRef = useRef(onCaptureError);
+
+  useEffect(() => {
+    onCaptureErrorRef.current = onCaptureError;
+  }, [onCaptureError]);
 
   const [cameraActive, setCameraActive] = useState(false);
   const [cameraError, setCameraError] = useState<string | null>(null);
@@ -55,6 +63,8 @@ export function CameraReferenceCapture({
   }, []);
 
   const startCamera = useCallback(async () => {
+    if (cameraStartInFlightRef.current) return;
+    cameraStartInFlightRef.current = true;
     stopCamera();
     setCameraError(null);
 
@@ -87,6 +97,22 @@ export function CameraReferenceCapture({
           });
         }
         await videoRef.current.play().catch(() => {});
+        if (videoRef.current.readyState < 2) {
+          await new Promise<void>((resolve) => {
+            let settled = false;
+            const finish = () => {
+              if (settled) return;
+              settled = true;
+              videoRef.current?.removeEventListener("loadeddata", finish);
+              videoRef.current?.removeEventListener("canplay", finish);
+              window.clearTimeout(timeoutId);
+              resolve();
+            };
+            const timeoutId = window.setTimeout(finish, 2500);
+            videoRef.current?.addEventListener("loadeddata", finish, { once: true });
+            videoRef.current?.addEventListener("canplay", finish, { once: true });
+          });
+        }
       }
       setCameraActive(true);
     } catch (err: unknown) {
@@ -101,6 +127,9 @@ export function CameraReferenceCapture({
         msg = "Camera is currently in use by another application. Please close other software and retry.";
       }
       setCameraError(msg);
+      onCaptureErrorRef.current?.(msg);
+    } finally {
+      cameraStartInFlightRef.current = false;
     }
   }, [stopCamera]);
 
@@ -135,7 +164,9 @@ export function CameraReferenceCapture({
       stopCamera();
     } catch (e) {
       console.error("Capture failed:", e);
-      setCameraError("Failed to capture reference image.");
+      const message = "Failed to capture a fresh reference image. Please retry camera access.";
+      setCameraError(message);
+      onCaptureErrorRef.current?.(message);
     } finally {
       setIsProcessing(false);
     }
@@ -147,17 +178,21 @@ export function CameraReferenceCapture({
       autoCaptureHandledRef.current = false;
       return;
     }
-    if (
-      !cameraActive ||
-      !videoRef.current ||
-      videoRef.current.readyState < 2 ||
-      autoCaptureHandledRef.current
-    ) {
+    if (disabled || autoCaptureHandledRef.current || cameraError) return;
+
+    // Starting the camera can be asynchronous, especially after a previous
+    // photo stopped its stream. Never reuse the previous captured image.
+    if (!cameraActive) {
+      setCapturedPhoto(null);
+      if (!cameraStartInFlightRef.current) void startCamera();
       return;
     }
+
+    if (!videoRef.current || videoRef.current.readyState < 2) return;
+
     autoCaptureHandledRef.current = true;
     handleCapture();
-  }, [captureRequested, cameraActive, handleCapture]);
+  }, [captureRequested, cameraActive, cameraError, disabled, handleCapture, startCamera]);
 
   const handleRetake = () => {
     setCapturedPhoto(null);
