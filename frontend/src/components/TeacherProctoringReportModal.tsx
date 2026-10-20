@@ -52,6 +52,7 @@ interface ProctoringReportData {
   tabSwitchesCount: number;
   startedAt: string;
   submittedAt: string | null;
+  terminationReason?: string | null;
   events: ProctoringEventDetail[];
 }
 
@@ -159,6 +160,27 @@ export function TeacherProctoringReportModal({
 
           {report && !loading && (
             <>
+              {report.terminationReason === "MALPRACTICE_WARNING_LIMIT" ? (
+                <div className="flex items-start gap-2 rounded-[10px] border border-rose-200 bg-rose-50 p-3 text-rose-800">
+                  <ShieldAlert className="mt-0.5 h-4 w-4 shrink-0" />
+                  <div>
+                    <p className="text-xs font-extrabold">Student caught in malpractice</p>
+                    <p className="mt-1 text-[11px] font-medium">
+                      The attempt was auto-submitted after reaching the configured proctoring violation threshold.
+                    </p>
+                  </div>
+                </div>
+              ) : report.status === "AUTO_SUBMITTED" ? (
+                <div className="flex items-start gap-2 rounded-[10px] border border-amber-200 bg-amber-50 p-3 text-amber-900">
+                  <ShieldAlert className="mt-0.5 h-4 w-4 shrink-0" />
+                  <div>
+                    <p className="text-xs font-extrabold">Attempt auto-submitted</p>
+                    <p className="mt-1 text-[11px] font-medium">
+                      Reason: {report.terminationReason || "Not specified by backend"}.
+                    </p>
+                  </div>
+                </div>
+              ) : null}
               {/* Top Overview Cards */}
               <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
                 {/* Risk Score */}
@@ -338,7 +360,7 @@ export function TeacherProctoringReportModal({
                             </span>
                             {ev.confidence !== undefined && ev.confidence > 0 && (
                               <span className="text-[9px] font-bold text-[#78716b] bg-white px-1.5 py-0.5 rounded border border-[#d1dee8]">
-                                {Math.round(ev.confidence * 100)}% conf
+                                Detection probability {Math.round(ev.confidence * 100)}%
                               </span>
                             )}
                             <span className="text-[10px] text-[#78716b] font-medium">
