@@ -184,9 +184,9 @@ class MalpracticeDetector:
                         # Backend is authoritative: stop creating further violations for this attempt.
                         session.attempt_terminated = True
                 else:
-                    session.warning_count += 1
-                    if session.warning_count >= 3:
-                        auto_submitted = True
+                    # Backend is authoritative for warning counts and auto-submission.
+                    # A failed delivery must not invent a warning or close the attempt locally.
+                    # The failed event is reported in logs after bounded retries are exhausted.
 
                 dispatched_event = confirmed_event
                 dispatched_message = event_message
