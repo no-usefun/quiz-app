@@ -446,15 +446,23 @@ function LobbyInner({ testCode }: { testCode: string }) {
       localStorage.setItem("dynoquizz_attemptId", attemptId);
       localStorage.setItem(`dynoquizz_attemptId_${attempt.quizId}`, attemptId);
       localStorage.setItem(`dynoquizz_attemptId_${cleanCode}`, attemptId);
-      sessionStorage.setItem(pendingAttemptKey, JSON.stringify(attempt));
 
-      // The arena will call POST /proctor/start with this fresh image. Keep it
-      // only for this navigation; if validation fails, returning to the lobby
-      // always clears it and captures a new frame.
+      const pendingAttemptKey = `dynoquizz_pending_proctor_attempt_${cleanCode}`;
+      if (aiRequired) {
+        sessionStorage.setItem(pendingAttemptKey, JSON.stringify(attempt));
+      } else {
+        sessionStorage.removeItem(pendingAttemptKey);
+      }
+
+      // The arena may only use a reference image accompanied by this
+      // attempt-scoped one-navigation freshness marker. Direct navigation or
+      // a failed validation cannot silently reuse a prior photo.
       if (aiRequired && freshReferencePhoto) {
         sessionStorage.setItem("dynoquizz_reference_photo", freshReferencePhoto);
+        sessionStorage.setItem(`dynoquizz_reference_photo_fresh_${attemptId}`, "true");
       } else {
         sessionStorage.removeItem("dynoquizz_reference_photo");
+        sessionStorage.removeItem(`dynoquizz_reference_photo_fresh_${attemptId}`);
       }
       freshPhotoForStartRef.current = false;
 
