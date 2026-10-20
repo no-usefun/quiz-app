@@ -64,6 +64,7 @@ CREATE TABLE quizzes (
     allow_review BOOLEAN NOT NULL DEFAULT TRUE,
     allow_resume BOOLEAN NOT NULL DEFAULT TRUE,
     auto_submit BOOLEAN NOT NULL DEFAULT TRUE,
+    ai_proctoring_enabled BOOLEAN NOT NULL DEFAULT FALSE,
     max_tab_switch INTEGER NOT NULL DEFAULT 3 CHECK (max_tab_switch >= 0),
     start_time TIMESTAMP NOT NULL,
     end_time TIMESTAMP NOT NULL,
