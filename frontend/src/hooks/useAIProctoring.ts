@@ -650,9 +650,6 @@ export function useAIProctoring({
             const res = await analyzeFrameREST({
               sessionId: sessionIdRef.current,
               ticket: wsTicketRef.current || undefined,
-              authToken: authTokenRef.current,
-              studentId: studentIdRef.current,
-              attemptId: attemptIdRef.current,
               frame: frameB64,
               audio: audioSamples,
               sampleRate: audioSampleRateRef.current,
