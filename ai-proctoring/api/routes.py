@@ -245,13 +245,22 @@ async def start_proctoring_session(
             detail="MULTIPLE_FACES_DETECTED: Multiple faces found in reference photo. Ensure only you are in frame."
         )
 
-    # Also reject additional people whose faces are not clearly visible to YuNet.
-    # Face-only validation can miss a person turned away from the camera or partially out of frame.
-    reference_person_count, _ = person_detector.detect_persons(img)
+    # Fail closed: do not register/cache a reference photo unless person detection
+    # actually ran successfully. The non-strict detector intentionally degrades to zero
+    # detections for live frames, but that fallback is unsafe for exam initialization.
+    try:
+        reference_person_count, _ = person_detector.detect_persons(img, strict=True)
+    except (RuntimeError, ValueError) as exc:
+        logger.error("Reference-photo person validation failed: %s", exc)
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="PERSON_VALIDATION_UNAVAILABLE: Could not reliably validate the reference photo. Please retry when the proctoring service is ready."
+        ) from exc
+
     if reference_person_count > 1:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="MULTIPLE_PERSONS_DETECTED: More than one person was detected in the reference photo. Ensure only the test taker is in frame."
+            detail="MULTIPLE_PERSONS_DETECTED: More than one person was detected in the reference photo. Ensure only the test taker is in frame, then capture a new photo."
         )
 
     # Extract 128-d biometric embedding
