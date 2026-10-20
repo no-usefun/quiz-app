@@ -37,16 +37,19 @@ public class SecurityConfig {
     private final AccessDeniedHandlerJwt accessDeniedHandlerJwt;
     private final boolean oauth2Enabled;
     private final boolean emailFeaturesEnabled;
+    private final String configuredCorsOrigins;
 
     public SecurityConfig(JwtAuthenticationFilter jwtAuthenticationFilter, AuthEntryPointJwt authEntryPointJwt,
             AccessDeniedHandlerJwt accessDeniedHandlerJwt,
             @Value("${app.auth.oauth2-enabled:false}") boolean oauth2Enabled,
-            @Value("${app.auth.email-features-enabled:true}") boolean emailFeaturesEnabled) {
+            @Value("${app.auth.email-features-enabled:true}") boolean emailFeaturesEnabled,
+            @Value("${CORS_ALLOWED_ORIGINS:${FRONTEND_URL:}}") String configuredCorsOrigins) {
         this.jwtAuthenticationFilter = jwtAuthenticationFilter;
         this.authEntryPointJwt = authEntryPointJwt;
         this.accessDeniedHandlerJwt = accessDeniedHandlerJwt;
         this.oauth2Enabled = oauth2Enabled;
         this.emailFeaturesEnabled = emailFeaturesEnabled;
+        this.configuredCorsOrigins = configuredCorsOrigins;
     }
 
     @Bean
@@ -60,13 +63,9 @@ public class SecurityConfig {
     @Bean
     public CorsConfigurationSource corsConfigurationSource() {
         CorsConfiguration configuration = new CorsConfiguration();
-        String configuredOrigins = System.getenv("CORS_ALLOWED_ORIGINS");
-        if (configuredOrigins == null || configuredOrigins.isBlank()) {
-            configuredOrigins = System.getenv("FRONTEND_URL");
-        }
-        List<String> allowedOrigins = configuredOrigins == null || configuredOrigins.isBlank()
+        List<String> allowedOrigins = configuredCorsOrigins == null || configuredCorsOrigins.isBlank()
                 ? List.of()
-                : Arrays.stream(configuredOrigins.split(","))
+                : Arrays.stream(configuredCorsOrigins.split(","))
                         .map(String::trim)
                         .filter(origin -> !origin.isEmpty())
                         .toList();
