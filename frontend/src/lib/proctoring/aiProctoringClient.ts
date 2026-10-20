@@ -174,6 +174,9 @@ export async function startProctoringSession(
       testCode: params.testCode,
       referenceImage: params.referenceImage,
     }),
+    // Do not leave the exam lobby stuck forever if the AI service or its
+    // backend-access validation stops responding.
+    signal: AbortSignal.timeout(10000),
   });
 
   if (!res.ok) {
@@ -224,6 +227,8 @@ export async function analyzeFrameREST(
     method: "POST",
     headers,
     body: JSON.stringify(requestPayload),
+    // A stalled inference request must not permanently block REST fallback.
+    signal: AbortSignal.timeout(5000),
   });
 
   if (!res.ok) {
