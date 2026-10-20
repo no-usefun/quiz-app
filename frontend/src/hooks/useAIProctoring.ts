@@ -278,6 +278,14 @@ export function useAIProctoring({
     setServerAutoSubmitted(true);
     setIdentityHoldSnapshot(true, reason || "AUTO_SUBMITTED");
 
+    // A server-confirmed terminal attempt must not remain eligible for lobby
+    // retry/reuse, and no reference bytes should remain cached after validation.
+    const currentTestCode = String(testCodeRef.current || "").trim().toUpperCase();
+    sessionStorage.removeItem(`dynoquizz_pending_proctor_attempt_${currentTestCode}`);
+    sessionStorage.removeItem("dynoquizz_reference_photo");
+    sessionStorage.removeItem(`dynoquizz_reference_photo_fresh_${currentAttemptId}`);
+    localStorage.removeItem("dynoquizz_reference_photo");
+
     if (isFirstForAttempt) {
       onAutoSubmitRef.current?.();
     }
@@ -435,8 +443,19 @@ export function useAIProctoring({
     cleanupPromiseRef.current = null;
 
     if (!referenceImage) {
+      // A route without a fresh, attempt-scoped reference is not allowed to
+      // reuse any old image from session storage.
+      sessionStorage.removeItem("dynoquizz_reference_photo");
+      sessionStorage.removeItem(`dynoquizz_reference_photo_fresh_${attemptId}`);
+      setIdentityHoldSnapshot(true, "REFERENCE_PHOTO_REQUIRED");
       return;
     }
+
+    // Consume the freshness marker as soon as this attempt takes ownership of
+    // the frame. Keep the image only in this mounted component's memory while
+    // /proctor/start validates it; it must not be reused on a later navigation.
+    sessionStorage.removeItem(`dynoquizz_reference_photo_fresh_${attemptId}`);
+    sessionStorage.removeItem("dynoquizz_reference_photo");
 
     const initProctoring = async () => {
       setCameraError(null);
@@ -657,7 +676,6 @@ export function useAIProctoring({
         return;
       }
       setReferenceRegistered(true);
-      sessionStorage.removeItem(`dynoquizz_pending_proctor_attempt_${String(testCodeRef.current || "").trim().toUpperCase()}`);
       sessionIdRef.current = sessionRes.sessionId;
       wsTicketRef.current = sessionRes.wsTicket || null;
 
