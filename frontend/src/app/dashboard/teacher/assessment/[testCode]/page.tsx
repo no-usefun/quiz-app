@@ -874,8 +874,10 @@ export default function TeacherAssessmentPage({
         rank: index + 1,
       }));
 
+    const normalizedQuery = query.trim().toLowerCase();
     const filtered = ranked.filter((student) =>
-      student.name.toLowerCase().includes(query.toLowerCase()),
+      student.name.toLowerCase().includes(normalizedQuery) ||
+      student.registrationNumber.toLowerCase().includes(normalizedQuery),
     );
 
     return filtered.sort((a, b) => {
