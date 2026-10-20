@@ -1222,6 +1222,7 @@ export default function TeacherAssessmentPage({
                     <span className="block text-[10px] text-steel-blue-gray mt-0.5 font-medium">
                       {item.hint}
                     </span>
+                    </span>
                   </div>
 
                   <div
@@ -1577,10 +1578,6 @@ export default function TeacherAssessmentPage({
                         {student.rank}
                       </span>
 
-                      <span className="truncate font-mono text-[11px] font-medium text-steel-blue-gray" title={student.registrationNumber || "Registration number unavailable"}>
-                        {student.registrationNumber || "—"}
-                      </span>
-
                       <div className="flex min-w-0 items-center gap-2">
                         <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-frost-surface border border-mist-blue/30 text-midnight-navy font-bold text-[10px] shadow-xs">
                           {student.avatar}
@@ -1610,6 +1607,10 @@ export default function TeacherAssessmentPage({
                           </div>
                         </div>
                       </div>
+
+                      <span className="truncate font-mono text-[11px] font-medium text-steel-blue-gray" title={student.registrationNumber || "Registration number unavailable"}>
+                        {student.registrationNumber || "—"}
+                      </span>
 
                       <div className="flex flex-col items-center justify-center leading-tight">
                         <span className="text-xs font-bold tabular-nums text-midnight-navy">
