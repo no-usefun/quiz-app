@@ -80,6 +80,9 @@ type StudentRecord = {
   timeTakenSeconds: number;
   // Populated only when the backend leaderboard contract returns a real attempt ID.
   attemptId?: number;
+  attemptStatus?: string;
+  terminationReason?: string | null;
+  warningCount: number;
 };
 
 function numericValue(value: unknown, fallback = 0): number {
@@ -450,6 +453,9 @@ export default function TeacherAssessmentPage({
         percentage,
         timeTaken: formatTime(timeTakenSeconds),
         timeTakenSeconds,
+        attemptStatus: String(entry.status ?? "UNKNOWN"),
+        terminationReason: entry.terminationReason == null ? null : String(entry.terminationReason),
+        warningCount: numericValue(entry.warningCount, 0),
       };
     });
 
@@ -1360,9 +1366,24 @@ export default function TeacherAssessmentPage({
                           {student.avatar}
                         </div>
 
-                        <p className="truncate text-xs font-bold text-midnight-navy">
-                          {student.name}
-                        </p>
+                        <div className="min-w-0">
+                          <p className="truncate text-xs font-bold text-midnight-navy">
+                            {student.name}
+                          </p>
+                          {student.terminationReason === "MALPRACTICE_WARNING_LIMIT" ? (
+                            <span className="mt-0.5 inline-flex rounded-full bg-rose-100 px-1.5 py-0.5 text-[9px] font-extrabold text-rose-700">
+                              Caught in malpractice
+                            </span>
+                          ) : student.attemptStatus === "AUTO_SUBMITTED" ? (
+                            <span className="mt-0.5 inline-flex rounded-full bg-amber-100 px-1.5 py-0.5 text-[9px] font-extrabold text-amber-800">
+                              Auto-submitted
+                            </span>
+                          ) : student.warningCount > 0 ? (
+                            <span className="mt-0.5 inline-flex rounded-full bg-amber-50 px-1.5 py-0.5 text-[9px] font-bold text-amber-700">
+                              {student.warningCount} proctoring warning{student.warningCount === 1 ? "" : "s"}
+                            </span>
+                          ) : null}
+                        </div>
                       </div>
 
                       <div className="flex flex-col items-center justify-center leading-tight">
