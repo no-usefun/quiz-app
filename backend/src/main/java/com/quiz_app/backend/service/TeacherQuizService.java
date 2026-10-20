@@ -123,6 +123,7 @@ public class TeacherQuizService {
                 quiz.setAllowReview(request.allowReview());
                 quiz.setAllowResume(request.allowResume());
                 quiz.setAutoSubmit(request.autoSubmit());
+                quiz.setAiProctoringEnabled(request.aiProctoringEnabled());
 
                 // Phase 2 field
                 // Keep the DB value, but don't implement proctoring logic now.
@@ -286,7 +287,8 @@ public class TeacherQuizService {
                                                 .toList(),
 
                                 quiz.getStatus(),
-                                quiz.getExamState());
+                                quiz.getExamState(),
+                                quiz.isAiProctoringEnabled());
         }
 
         private void validateQuiz(CreateQuizRequest request) {
@@ -786,7 +788,8 @@ public class TeacherQuizService {
                                                 .map(QuizAllowedStudent::getRegistrationNumber)
                                                 .toList(),
                                 quiz.getStatus(),
-                                quiz.getExamState());
+                                quiz.getExamState(),
+                                quiz.isAiProctoringEnabled());
         }
 
         @Transactional(readOnly = true)
@@ -880,6 +883,10 @@ public class TeacherQuizService {
 
                 if (request.autoSubmit() != null) {
                         quiz.setAutoSubmit(request.autoSubmit());
+                }
+
+                if (request.aiProctoringEnabled() != null) {
+                        quiz.setAiProctoringEnabled(request.aiProctoringEnabled());
                 }
 
                 if (request.maxTabSwitch() != null) {
@@ -1380,6 +1387,7 @@ public class TeacherQuizService {
                                 quiz.isAllowReview(),
                                 quiz.isAllowResume(),
                                 quiz.isAutoSubmit(),
+                                quiz.isAiProctoringEnabled(),
                                 quiz.getMaxTabSwitch(),
                                 quiz.getStartTime(),
                                 quiz.getEndTime(),
@@ -1392,7 +1400,8 @@ public class TeacherQuizService {
                                                 .toList(),
                                 quiz.getStatus(),
                                 quiz.getExamState(),
-                                questions);
+                                questions,
+                                quiz.isAiProctoringEnabled());
         }
 
         public List<LeaderboardEntryResponse> getLeaderboard(Long quizId, Long teacherId) {
