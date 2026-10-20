@@ -350,6 +350,7 @@ export default function TeacherAssessmentPage({
       typeof matched.endTime === "string" ? matched.endTime : null;
     const examState =
       typeof matched.examState === "string" ? matched.examState : undefined;
+    const settings = isApiRecord(matched.settings) ? matched.settings : {};
 
     if (quizId == null || !quizCode) {
       throw new Error("The backend returned an incomplete assessment record.");
@@ -375,15 +376,15 @@ export default function TeacherAssessmentPage({
             )
           : undefined,
         overallTimerSeconds: numericValue(matched.overallTimerSeconds),
-        negativeMarking: Boolean(matched.negativeMarking ?? matched.settings?.negativeMarking),
-        negativeMarks: numericValue(matched.negativeMarks ?? matched.settings?.negativeMarks),
-        timeBonusEnabled: Boolean(matched.timeBonusEnabled ?? matched.settings?.timeBonusEnabled),
-        allowReview: Boolean(matched.allowReview ?? matched.settings?.allowReview),
-        allowResume: Boolean(matched.allowResume ?? matched.settings?.allowResume),
-        aiProctoringEnabled: typeof (matched.aiProctoringEnabled ?? matched.settings?.aiProctoringEnabled) === "boolean"
+        negativeMarking: Boolean(matched.negativeMarking ?? settings.negativeMarking),
+        negativeMarks: numericValue(matched.negativeMarks ?? settings.negativeMarks),
+        timeBonusEnabled: Boolean(matched.timeBonusEnabled ?? settings.timeBonusEnabled),
+        allowReview: Boolean(matched.allowReview ?? settings.allowReview),
+        allowResume: Boolean(matched.allowResume ?? settings.allowResume),
+        aiProctoringEnabled: typeof (matched.aiProctoringEnabled ?? settings.aiProctoringEnabled) === "boolean"
           ? Boolean(matched.aiProctoringEnabled ?? matched.settings?.aiProctoringEnabled)
           : undefined,
-        maxTabSwitch: matched.maxTabSwitch == null && matched.settings?.maxTabSwitch == null
+        maxTabSwitch: matched.maxTabSwitch == null && settings.maxTabSwitch == null
           ? undefined
           : numericValue(matched.maxTabSwitch ?? matched.settings?.maxTabSwitch),
         startTime,
@@ -587,7 +588,9 @@ export default function TeacherAssessmentPage({
         );
       }
 
-      const updated = await res.json();
+      const updated = res.status === 204
+        ? null
+        : await res.json().catch(() => null);
 
       if (updated?.resultVisibility) {
         setResultVisibility(updated.resultVisibility as ResultVisibility);
