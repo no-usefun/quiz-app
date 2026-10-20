@@ -87,8 +87,11 @@ type StudentRecord = {
   percentage: number;
   timeTaken: string;
   timeTakenSeconds: number;
-  // Populated only when the backend leaderboard contract returns a real attempt ID.
+  // Proctoring fields are backend-authoritative and may be absent during rollout.
   attemptId?: number;
+  status?: string | null;
+  terminationReason?: string | null;
+  warningCount?: number | null;
 };
 
 function numericValue(value: unknown, fallback = 0): number {
@@ -162,6 +165,9 @@ function exportCSV(testCode: string, data: StudentRecord[], title: string) {
     "Total Marks",
     "Percentage (%)",
     "Time Taken",
+    "Attempt Status",
+    "Warning Count",
+    "Termination Reason",
   ];
 
   const rows = data.map((student, index) => [
@@ -172,6 +178,9 @@ function exportCSV(testCode: string, data: StudentRecord[], title: string) {
     student.totalMarks,
     student.percentage,
     student.timeTaken,
+    student.status ?? "",
+    student.warningCount ?? "",
+    student.terminationReason ?? "",
   ]);
 
   const escapeCSV = (value: unknown) =>
@@ -450,6 +459,15 @@ export default function TeacherAssessmentPage({
         entry.studentRegistrationNumber ??
         ""
       ).trim();
+      const status = typeof entry.status === "string" ? entry.status : null;
+      const terminationReason =
+        typeof entry.terminationReason === "string"
+          ? entry.terminationReason
+          : null;
+      const warningCount =
+        entry.warningCount === null || entry.warningCount === undefined
+          ? null
+          : Math.max(0, Math.trunc(numericValue(entry.warningCount, 0)));
 
       const avatar =
         name
@@ -478,6 +496,9 @@ export default function TeacherAssessmentPage({
         name,
         registrationNumber,
         avatar,
+        status,
+        terminationReason,
+        warningCount,
         score: percentage,
         finalScore: rawFinalScore,
         totalMarks: rawTotalMarks,
@@ -1502,9 +1523,29 @@ export default function TeacherAssessmentPage({
                           {student.avatar}
                         </div>
 
-                        <p className="truncate text-xs font-bold text-midnight-navy">
-                          {student.name}
-                        </p>
+                        <div className="min-w-0">
+                          <p className="truncate text-xs font-bold text-midnight-navy">
+                            {student.name}
+                          </p>
+                          <div className="mt-1 flex flex-wrap items-center gap-1">
+                            {student.terminationReason === "MALPRACTICE_WARNING_LIMIT" && (
+                              <span className="inline-flex items-center gap-1 rounded-full border border-rose-200 bg-rose-50 px-1.5 py-0.5 text-[9px] font-bold text-rose-700">
+                                <ShieldAlert className="h-3 w-3" />
+                                Auto-terminated: malpractice limit
+                              </span>
+                            )}
+                            {student.warningCount !== null && student.warningCount !== undefined && student.warningCount > 0 && (
+                              <span className="rounded-full border border-amber-200 bg-amber-50 px-1.5 py-0.5 text-[9px] font-bold text-amber-800">
+                                {student.warningCount} {student.warningCount === 1 ? "warning" : "warnings"}
+                              </span>
+                            )}
+                            {student.status && (
+                              <span className="text-[9px] font-medium text-steel-blue-gray">
+                                {student.status.replaceAll("_", " ")}
+                              </span>
+                            )}
+                          </div>
+                        </div>
                       </div>
 
                       <div className="flex flex-col items-center justify-center leading-tight">
