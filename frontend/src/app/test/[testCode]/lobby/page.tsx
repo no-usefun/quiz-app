@@ -9,8 +9,7 @@ import { motion } from "framer-motion";
 import {
   ArrowRight,
   Loader2,
-  Lock,
-  AlertCircle,
+   AlertCircle,
   ArrowLeft,
 } from "lucide-react";
 import { Logo } from "@/components/Logo";
@@ -458,7 +457,7 @@ function LobbyInner({ testCode }: { testCode: string }) {
           className="mt-6 inline-flex items-center gap-2 rounded-[10px] bg-[#111111] px-5 py-2.5 text-xs font-bold text-white hover:bg-[#222222] active:scale-[0.98] shadow-sm transition-all"
         >
           <ArrowLeft className="h-3.5 w-3.5" />
-          Return to Join Gateway
+          Back to Join
         </Link>
       </div>
     );
@@ -479,7 +478,7 @@ function LobbyInner({ testCode }: { testCode: string }) {
           <span className="flex h-2 w-2 rounded-full bg-[#165dfb] animate-pulse" />
 
           <span className="text-[10px] font-bold uppercase tracking-wider text-[#78716b]">
-            Assessment Lobby
+            Assessment
           </span>
         </div>
       </div>
@@ -492,36 +491,27 @@ function LobbyInner({ testCode }: { testCode: string }) {
             </span>
 
             <span className="text-xs font-semibold text-[#78716b]">
-              Assessment Status:{" "}
-              <span className="font-bold text-[#111111]">LIVE</span>
+              <span className="font-bold text-[#1d5237]">Available</span>
             </span>
           </div>
 
           <h1 className="text-2xl font-extrabold text-[#111111] tracking-tight">
-            Secure Assessment Lobby
+            Ready to begin?
           </h1>
 
-          <p className="mt-2 text-xs text-[#78716b] leading-relaxed font-medium">
-            Your logged-in student account is validated by the server before
-            the assessment attempt is created or resumed.
-          </p>
-        </div>
+                  </div>
 
-        <div className="grid grid-cols-2 gap-3">
-        </div>
-
-        <motion.div
+         <motion.div
           initial={{ opacity: 0, y: 6 }}
           animate={{ opacity: 1, y: 0 }}
           className="space-y-5"
         >
           {!aiPolicyKnown && (
             <div className="rounded-[10px] border border-[#8c381c]/30 bg-[#fbeee8] p-3 text-xs font-semibold leading-relaxed text-[#8c381c]">
-              AI proctoring configuration could not be verified. Starting is disabled until the backend returns an explicit policy.
+We couldn’t verify this assessment’s security settings. Please contact your instructor.
             </div>
           )}
-          {aiRequired && <p className="text-sm text-[#78716b]">Allow camera access and capture your reference photo to continue.</p>}
-
+ 
           {startError && (
             <div className="rounded-[10px] bg-[#fbeee8] border border-[#8c381c]/30 p-3 text-xs text-[#8c381c] font-semibold flex items-center gap-2 shadow-xs">
               <AlertCircle className="h-4 w-4 shrink-0" />
@@ -531,22 +521,7 @@ function LobbyInner({ testCode }: { testCode: string }) {
 
           {aiRequired && <CameraReferenceCapture onCapture={(photo) => { setReferencePhoto(photo); sessionStorage.setItem("dynoquizz_reference_photo", photo); localStorage.removeItem("dynoquizz_reference_photo"); setStartError(null); }} disabled={isStarting} />}
 
-          <div className="rounded-[12px] border border-[#d1dee8]/70 bg-[#f5f5f4]/60 p-5 space-y-3 text-left shadow-xs">
-            <div className="flex items-center justify-between border-b border-[#d1dee8]/50 pb-3">
-              <span className="text-xs font-bold text-[#111111] uppercase tracking-wider flex items-center gap-1.5">
-                <Lock className="h-3.5 w-3.5 text-[#165dfb]" />
-                Candidate Ready Room
-              </span>
-
-              <span className="rounded-full bg-white px-2.5 py-0.5 text-[10px] font-bold text-[#165dfb] border border-[#d1dee8]/80 shadow-xs">
-                LIVE
-              </span>
-            </div>
-
-            <p className="text-sm text-[#78716b]">{aiRequired ? "Your camera and reference photo are required for this proctored assessment." : "Camera and AI identity checks are disabled for this assessment. Tab switching and copy/paste restrictions remain active."} The test opens in fullscreen.</p>
-          </div>
-
-          <div className="space-y-2">
+           <div className="space-y-2">
             <button
               type="button"
               onClick={handleStartAssessment}
@@ -556,11 +531,11 @@ function LobbyInner({ testCode }: { testCode: string }) {
               {isStarting ? (
                 <>
                   <Loader2 className="h-4 w-4 animate-spin" />
-                  Preparing your assessment...
+                  Starting...
                 </>
               ) : (
                 <>
-                  Start / Resume Assessment
+                  Start assessment
                   <ArrowRight className="h-4 w-4" />
                 </>
               )}
@@ -601,7 +576,7 @@ export default function AssessmentLobbyPage({
           fallback={
             <div className="flex items-center gap-2 text-xs font-bold text-[#78716b]">
               <Loader2 className="h-4 w-4 animate-spin text-[#165dfb]" />
-              Loading Assessment Lobby...
+              Loading...
             </div>
           }
         >
