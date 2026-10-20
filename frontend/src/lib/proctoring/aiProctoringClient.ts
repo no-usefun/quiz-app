@@ -70,6 +70,18 @@ export interface TelemetryResponse {
   malpracticeEvent: string | null;
   eventMessage: string | null;
   autoSubmitted: boolean;
+  confirmedEvents?: Array<{
+    eventType: string;
+    details: string;
+    severity: string;
+    confidence: number;
+    timestamp: number;
+    persisted: boolean;
+    eventId?: string;
+    warningCount?: number;
+    autoSubmitted?: boolean;
+  }>;
+  eventPersistenceFailed?: boolean;
 }
 
 export interface StopSessionParams {
