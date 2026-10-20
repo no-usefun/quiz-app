@@ -9,5 +9,9 @@ public record LeaderboardEntryResponse(
         BigDecimal score,
         BigDecimal totalMarks,
         BigDecimal percentage,
-        Integer totalTimeTaken) {
+        Integer totalTimeTaken,
+        Long attemptId,
+        String status,
+        String terminationReason,
+        Integer warningCount) {
 }
