@@ -164,6 +164,12 @@ function LobbyInner({ testCode }: { testCode: string }) {
             ? { aiProctoringEnabled }
             : {}),
         });
+
+        if (typeof aiProctoringEnabled !== "boolean") {
+          setStartError(
+            "The server did not confirm whether AI proctoring is required for this assessment. Ask your instructor to verify the backend configuration before starting.",
+          );
+        }
       } catch (error) {
         if (cancelled) return;
 
@@ -196,13 +202,20 @@ function LobbyInner({ testCode }: { testCode: string }) {
 
   const status = availability?.status;
   const isLive = status === "LIVE" && availability?.available === true;
-  // Only render camera/biometric UI when the API explicitly says AI proctoring is enabled.
-  // This prevents the lobby from incorrectly requiring a camera when older API responses omit the flag.
+  // A missing policy is a configuration error, never an implicit standard-mode assessment.
+  const aiPolicyKnown = typeof availability?.aiProctoringEnabled === "boolean";
   const aiRequired = availability?.aiProctoringEnabled === true;
 
   const handleStartAssessment = async () => {
     if (!isLive) {
       setStartError("This assessment is not currently live.");
+      return;
+    }
+
+    if (!aiPolicyKnown) {
+      setStartError(
+        "The server has not confirmed this assessment's AI proctoring policy. You cannot start until the backend returns aiProctoringEnabled as true or false.",
+      );
       return;
     }
 
@@ -500,6 +513,11 @@ function LobbyInner({ testCode }: { testCode: string }) {
           animate={{ opacity: 1, y: 0 }}
           className="space-y-5"
         >
+          {!aiPolicyKnown && (
+            <div className="rounded-[10px] border border-[#8c381c]/30 bg-[#fbeee8] p-3 text-xs font-semibold leading-relaxed text-[#8c381c]">
+              AI proctoring configuration could not be verified. Starting is disabled until the backend returns an explicit policy.
+            </div>
+          )}
           {aiRequired && <p className="text-sm text-[#78716b]">Allow camera access and capture your reference photo to continue.</p>}
 
           {startError && (
@@ -530,7 +548,7 @@ function LobbyInner({ testCode }: { testCode: string }) {
             <button
               type="button"
               onClick={handleStartAssessment}
-              disabled={isStarting}
+              disabled={isStarting || !aiPolicyKnown}
               className="w-full flex items-center justify-center gap-2 rounded-[10px] bg-[#111111] py-3.5 text-sm font-bold text-white hover:bg-[#222222] active:scale-[0.98] shadow-sm hover:shadow-md transition-all cursor-pointer border-0 disabled:opacity-70"
             >
               {isStarting ? (
