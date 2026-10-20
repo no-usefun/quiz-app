@@ -486,3 +486,69 @@ html.dark .public-landing [style*="border-color:#c5d8f7"] { border-color: #334a7
 
 html.dark .public-landing [style*="border-color: #f5c6c6"],
 html.dark .public-landing [style*="border-color:#f5c6c6"] { border-color: #5a3640 !important; }
+
+
+/* Assessment results dashboard: complete dark-theme surfaces while retaining pastel accents. */
+html.dark .assessment-governance {
+  background-color: #0b1120 !important;
+  color: #e5edf9;
+}
+html.dark .assessment-governance .assessment-hero {
+  background: linear-gradient(125deg, #172033 0%, #151d30 48%, #10243c 100%) !important;
+  border-color: #334765 !important;
+  box-shadow: 0 8px 30px rgba(0, 0, 0, 0.22) !important;
+}
+html.dark .assessment-governance .assessment-stat {
+  background: linear-gradient(135deg, #182337, #172033) !important;
+  border-color: #33445e !important;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.14) !important;
+}
+html.dark .assessment-governance section[class*="bg-white"],
+html.dark .assessment-governance section[class*="bg-paper-white"],
+html.dark .assessment-governance div[class*="bg-white/"],
+html.dark .assessment-governance div[class*="bg-paper-white"] {
+  background-color: #151e2e !important;
+  border-color: #2c3b52 !important;
+}
+html.dark .assessment-governance [class*="bg-gradient-to-br"][class*="from-[#f4f8ff]"],
+html.dark .assessment-governance [class*="bg-gradient-to-br"][class*="from-[#f2fcf8]"],
+html.dark .assessment-governance [class*="bg-gradient-to-br"][class*="from-[#fffaf0]"],
+html.dark .assessment-governance [class*="bg-gradient-to-br"][class*="from-[#faf7ff]"],
+html.dark .assessment-governance [class*="bg-gradient-to-br"][class*="from-[#fff7f8]"] {
+  background: linear-gradient(135deg, #182337, #172033) !important;
+  border-color: #33445e !important;
+}
+html.dark .assessment-governance [class*="bg-gradient-to-r"][class*="from-[#f0f6ff]"],
+html.dark .assessment-governance [class*="bg-gradient-to-r"][class*="from-[#f7faff]"] {
+  background: linear-gradient(100deg, #19263a, #171d2e) !important;
+  border-color: #33445e !important;
+}
+html.dark .assessment-governance [class*="bg-[#e3ebfb]"] {
+  background-color: #29364d !important;
+}
+html.dark .assessment-governance [class*="hover:bg-[#f6f9ff]"]:hover {
+  background-color: #1d2a40 !important;
+}
+html.dark .assessment-governance [class*="divide-[#d1dee8]"] > * + * {
+  border-color: #2d3b50 !important;
+}
+html.dark .assessment-governance input {
+  background-color: #111a2a !important;
+  border-color: #35465f !important;
+  color: #e5edf9 !important;
+}
+html.dark .assessment-governance input::placeholder {
+  color: #94a3b8 !important;
+}
+html.dark .assessment-governance [class*="text-[#111111]"],
+html.dark .assessment-governance [class*="text-[#0f172a]"] {
+  color: #e8eef9 !important;
+}
+html.dark .assessment-governance [class*="text-[#78716b]"],
+html.dark .assessment-governance [class*="text-[#64748b]"] {
+  color: #a7b4c8 !important;
+}
+html.dark .assessment-governance [class*="border-[#dce7ff]"],
+html.dark .assessment-governance [class*="border-[#d1dee8]"] {
+  border-color: #2e3d54 !important;
+}
