@@ -100,6 +100,19 @@ public class TeacherQuizController {
                                                 userDetails.getId()));
         }
 
+        @GetMapping("/quizzes/{quizId}/settings")
+        public ResponseEntity<QuizResponse> getQuizSettings(
+                        @PathVariable Long quizId,
+                        Authentication authentication) {
+
+                CustomUserDetails userDetails = (CustomUserDetails) authentication.getPrincipal();
+
+                return ResponseEntity.ok(
+                                teacherQuizService.getTeacherQuizSettings(
+                                                quizId,
+                                                userDetails.getId()));
+        }
+
         @PutMapping("/quizzes/{quizId}/settings")
         public ResponseEntity<QuizResponse> updateQuizSettings(
                         @PathVariable Long quizId,
