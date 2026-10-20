@@ -23,6 +23,26 @@ import {
 import { Logo } from "@/components/Logo";
 import { TeacherProctoringReportModal } from "@/components/TeacherProctoringReportModal";
 import { ENDPOINTS } from "@/lib/api/endpoints";
+import LanExamPreflight from "@/components/LanExamPreflight";
+import { isLanExamMode } from "@/lib/examMode";
+
+type ApiRecord = Record<string, unknown>;
+
+function isApiRecord(value: unknown): value is ApiRecord {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function getApiRecords(value: unknown): ApiRecord[] {
+  if (Array.isArray(value)) return value.filter(isApiRecord);
+  if (!isApiRecord(value)) return [];
+  if (Array.isArray(value.content)) return value.content.filter(isApiRecord);
+  if (Array.isArray(value.data)) return value.data.filter(isApiRecord);
+  return [];
+}
+
+function getErrorMessage(error: unknown, fallback: string): string {
+  return error instanceof Error && error.message ? error.message : fallback;
+}
 
 type SortKey = "rank" | "name" | "score" | "timeTaken";
 type SortDir = "asc" | "desc";
@@ -38,6 +58,7 @@ type AssessmentData = {
   totalStudents: number;
   totalQuestions: number;
   totalMarks: number;
+  allowedRegistrationNumbers?: string[] | null;
   overallTimerSeconds: number;
   startTime?: string | null;
   endTime?: string | null;
@@ -57,6 +78,8 @@ type StudentRecord = {
   percentage: number;
   timeTaken: string;
   timeTakenSeconds: number;
+  // Populated only when the backend leaderboard contract returns a real attempt ID.
+  attemptId?: number;
 };
 
 function numericValue(value: unknown, fallback = 0): number {
@@ -271,16 +294,10 @@ export default function TeacherAssessmentPage({
       );
     }
 
-    const listPayload = await listRes.json();
-    const list: any[] = Array.isArray(listPayload)
-      ? listPayload
-      : Array.isArray(listPayload?.content)
-        ? listPayload.content
-        : Array.isArray(listPayload?.data)
-          ? listPayload.data
-          : [];
+    const listPayload: unknown = await listRes.json();
+    const list = getApiRecords(listPayload);
 
-    let matched = list.find(
+    let matched: ApiRecord | undefined = list.find(
       (quiz) =>
         String(quiz?.quizCode ?? "") === String(value) ||
         String(quiz?.quizId ?? quiz?.id ?? "") === String(value),
@@ -304,8 +321,28 @@ export default function TeacherAssessmentPage({
       );
     }
 
-    const quizId = matched.quizId ?? matched.id;
+    const rawQuizId = matched.quizId ?? matched.id;
+    const quizId =
+      typeof rawQuizId === "string" || typeof rawQuizId === "number"
+        ? rawQuizId
+        : null;
     const quizCode = String(matched.quizCode ?? "").trim();
+    const title =
+      typeof matched.title === "string" && matched.title.trim()
+        ? matched.title
+        : "Assessment Session";
+    const description =
+      typeof matched.description === "string" ? matched.description : undefined;
+    const subject =
+      typeof matched.subject === "string" ? matched.subject : undefined;
+    const subjectCode =
+      typeof matched.subjectCode === "string" ? matched.subjectCode : undefined;
+    const startTime =
+      typeof matched.startTime === "string" ? matched.startTime : null;
+    const endTime =
+      typeof matched.endTime === "string" ? matched.endTime : null;
+    const examState =
+      typeof matched.examState === "string" ? matched.examState : undefined;
 
     if (quizId == null || !quizCode) {
       throw new Error("The backend returned an incomplete assessment record.");
@@ -316,22 +353,29 @@ export default function TeacherAssessmentPage({
       quiz: {
         quizId,
         quizCode,
-        title: matched.title ?? "Assessment Session",
-        description: matched.description,
-        subject: matched.subject,
-        subjectCode: matched.subjectCode,
+        title,
+        description,
+        subject,
+        subjectCode,
         totalStudents: numericValue(matched.totalStudents),
         totalQuestions: numericValue(matched.totalQuestions),
         totalMarks: numericValue(matched.totalMarks),
+        allowedRegistrationNumbers: Array.isArray(
+          matched.allowedRegistrationNumbers,
+        )
+          ? matched.allowedRegistrationNumbers.map((value: unknown) =>
+              String(value).trim().toUpperCase(),
+            )
+          : undefined,
         overallTimerSeconds: numericValue(matched.overallTimerSeconds),
-        startTime: matched.startTime ?? null,
-        endTime: matched.endTime ?? null,
+        startTime,
+        endTime,
         resultVisibility: matched.resultVisibility as
           | ResultVisibility
           | undefined,
         resultsPublished: Boolean(matched.resultsPublished),
         status: String(matched.status ?? "DRAFT"),
-        examState: matched.examState,
+        examState,
       } satisfies AssessmentData,
     };
   };
@@ -357,12 +401,8 @@ export default function TeacherAssessmentPage({
       );
     }
 
-    const payload = await res.json();
-    const entries: any[] = Array.isArray(payload)
-      ? payload
-      : Array.isArray(payload?.content)
-        ? payload.content
-        : [];
+    const payload: unknown = await res.json();
+    const entries = getApiRecords(payload);
 
     const mapped: StudentRecord[] = entries.map((entry, index) => {
       const rawFinalScore = numericValue(entry.finalScore ?? entry.score, 0);
@@ -387,8 +427,21 @@ export default function TeacherAssessmentPage({
           .join("")
           .toUpperCase() || "ST";
 
+      const rawAttemptId = Number(entry.attemptId);
+      const attemptId =
+        Number.isSafeInteger(rawAttemptId) && rawAttemptId > 0
+          ? rawAttemptId
+          : undefined;
+
+      const rawStudentId = entry.studentId ?? entry.rank;
+      const id =
+        typeof rawStudentId === "string" || typeof rawStudentId === "number"
+          ? rawStudentId
+          : index + 1;
+
       return {
-        id: entry.studentId ?? entry.rank ?? index + 1,
+        id,
+        attemptId,
         name,
         avatar,
         score: percentage,
@@ -437,7 +490,7 @@ export default function TeacherAssessmentPage({
           setStudents([]);
           setLeaderboardUnavailable(true);
         }
-      } catch (error: any) {
+      } catch (error: unknown) {
         if (cancelled) return;
 
         console.error("Backend assessment fetch error:", error);
@@ -445,8 +498,10 @@ export default function TeacherAssessmentPage({
         setStudents([]);
         setLeaderboardUnavailable(true);
         setLifecycleError(
-          error?.message ||
+          getErrorMessage(
+            error,
             "We couldn't retrieve this assessment from the server.",
+          ),
         );
       } finally {
         if (!cancelled) {
@@ -527,10 +582,10 @@ export default function TeacherAssessmentPage({
             : previous,
         );
       }
-    } catch (error: any) {
+    } catch (error: unknown) {
       setResultVisibility(previousVisibility);
       setSettingsError(
-        error?.message || "Failed to update assessment settings on the server.",
+        getErrorMessage(error, "Failed to update assessment settings on the server."),
       );
     } finally {
       setSettingsSaving(false);
@@ -612,8 +667,8 @@ export default function TeacherAssessmentPage({
             }
           : previous,
       );
-    } catch (error: any) {
-      setLifecycleError(error?.message || "Failed to publish assessment.");
+    } catch (error: unknown) {
+      setLifecycleError(getErrorMessage(error, "Failed to publish assessment."));
     } finally {
       setLifecycleLoading(false);
     }
@@ -658,8 +713,8 @@ export default function TeacherAssessmentPage({
       );
 
       setConfirmCompleteOpen(false);
-    } catch (error: any) {
-      setLifecycleError(error?.message || "Failed to complete assessment.");
+    } catch (error: unknown) {
+      setLifecycleError(getErrorMessage(error, "Failed to complete assessment."));
     } finally {
       setLifecycleLoading(false);
     }
@@ -704,9 +759,9 @@ export default function TeacherAssessmentPage({
             }
           : previous,
       );
-    } catch (error: any) {
+    } catch (error: unknown) {
       setLifecycleError(
-        error?.message || "Failed to update result publication.",
+        getErrorMessage(error, "Failed to update result publication."),
       );
     } finally {
       setLifecycleLoading(false);
@@ -725,12 +780,6 @@ export default function TeacherAssessmentPage({
 
   const submitted = students;
 
-  const classAvg =
-    submitted.length > 0
-      ? submitted.reduce((sum, student) => sum + student.percentage, 0) /
-        submitted.length
-      : 0;
-
   const highScore = Math.max(
     ...(submitted.length > 0
       ? submitted.map((student) => student.percentage)
@@ -743,6 +792,30 @@ export default function TeacherAssessmentPage({
         b.percentage - a.percentage || a.timeTakenSeconds - b.timeTakenSeconds,
     )
     .slice(0, 3);
+
+  const scoreDistribution = useMemo(() => {
+    const bands = [
+      { label: "0–20%", min: 0, max: 20, color: "bg-[#fca5a5]" },
+      { label: "21–40%", min: 20, max: 40, color: "bg-[#fdba74]" },
+      { label: "41–60%", min: 40, max: 60, color: "bg-[#fcd34d]" },
+      { label: "61–80%", min: 60, max: 80, color: "bg-[#86b7ff]" },
+      { label: "81–100%", min: 80, max: 100, color: "bg-[#6ee7b7]" },
+    ];
+
+    return bands.map((band, index) => ({
+      ...band,
+      count: submitted.filter((student) => {
+        const percentage = Math.min(100, Math.max(0, Number(student.percentage) || 0));
+        return index === 0
+          ? percentage >= band.min && percentage <= band.max
+          : percentage > band.min && percentage <= band.max;
+      }).length,
+    }));
+  }, [submitted]);
+
+  const averageScore = submitted.length
+    ? submitted.reduce((total, student) => total + (Number(student.percentage) || 0), 0) / submitted.length
+    : 0;
 
   const displayList = useMemo(() => {
     const ranked = [...submitted]
@@ -827,7 +900,7 @@ export default function TeacherAssessmentPage({
   return (
     <main className="min-h-screen bg-frost-surface text-midnight-navy p-4 md:p-6 lg:p-8 font-sans selection:bg-frost-surface selection:text-signal-green">
       <div className="mx-auto flex min-h-[90vh] max-w-[1400px] flex-col rounded-cards bg-paper-white shadow-xl border border-mist-blue overflow-hidden text-left">
-        <header className="flex w-full items-center justify-between border-b border-mist-blue/30 px-6 py-4 bg-paper-white">
+        <header className="flex w-full flex-wrap items-center justify-between gap-3 border-b border-mist-blue/30 px-4 py-4 bg-paper-white sm:px-6">
           <div className="flex items-center gap-3">
             <Link
               href="/dashboard/teacher"
@@ -840,6 +913,7 @@ export default function TeacherAssessmentPage({
             <Logo />
           </div>
 
+          <div className="flex flex-wrap items-center justify-end gap-2 sm:gap-3">
           <button
             type="button"
             onClick={handleExport}
@@ -862,7 +936,21 @@ export default function TeacherAssessmentPage({
               </>
             )}
           </button>
+          </div>
         </header>
+
+        {isLanExamMode() && assessmentData && (
+          <LanExamPreflight
+            quiz={{
+              quizCode: assessmentData.quizCode,
+              status,
+              totalStudents: assessmentData.totalStudents,
+              totalQuestions: assessmentData.totalQuestions,
+              allowedRegistrationNumbers:
+                assessmentData.allowedRegistrationNumbers,
+            }}
+          />
+        )}
 
         <div className="flex flex-1 flex-col gap-5 p-5 md:p-6 bg-paper-white">
           <div className="flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">
@@ -1106,6 +1194,33 @@ export default function TeacherAssessmentPage({
             ))}
           </div>
 
+          {submitted.length > 0 && (
+            <section className="rounded-[14px] border border-[#d1dee8]/70 bg-paper-white p-4 sm:p-5 shadow-sm text-left">
+              <div className="mb-5 flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">
+                <div>
+                  <h2 className="text-xs font-bold uppercase tracking-wider text-midnight-navy">Score Distribution</h2>
+                  <p className="mt-1 text-xs text-steel-blue-gray">See how submitted students performed across score ranges.</p>
+                </div>
+                <p className="text-[10px] font-semibold text-steel-blue-gray">{submitted.length} submitted {submitted.length === 1 ? "attempt" : "attempts"} · {formatPercentage(averageScore)}% average</p>
+              </div>
+              <div className="grid grid-cols-5 items-end gap-2 sm:gap-4">
+                {scoreDistribution.map((band) => {
+                  const maximum = Math.max(1, ...scoreDistribution.map((item) => item.count));
+                  const height = band.count === 0 ? 4 : Math.max(12, (band.count / maximum) * 112);
+                  return (
+                    <div key={band.label} className="flex min-w-0 flex-col items-center gap-2">
+                      <span className="text-xs font-bold tabular-nums text-midnight-navy">{band.count}</span>
+                      <div className="flex h-28 w-full items-end justify-center rounded-t-[8px] bg-frost-surface">
+                        <div className={`w-full max-w-16 rounded-t-[7px] ${band.color} transition-[height] duration-500 ease-out`} style={{ height: `${height}px` }} />
+                      </div>
+                      <span className="text-center text-[9px] font-bold text-steel-blue-gray sm:text-[10px]">{band.label}</span>
+                    </div>
+                  );
+                })}
+              </div>
+            </section>
+          )}
+
           <section className="text-left">
             <div className="mb-2.5 flex items-center gap-2">
               <Trophy className="h-4 w-4 text-pastel-yellow-text" />
@@ -1180,7 +1295,7 @@ export default function TeacherAssessmentPage({
             </div>
 
             <div className="flex-1 rounded-[14px] border border-[#d1dee8]/70 overflow-hidden bg-paper-white shadow-sm text-left">
-              <div className="grid grid-cols-[2.5rem_1fr_7rem_6rem_5.5rem] items-center gap-3 border-b border-[#d1dee8]/40 bg-paper-white px-5 py-2.5">
+              <div className="grid grid-cols-[2.5rem_1fr_7rem_6rem] items-center gap-3 border-b border-[#d1dee8]/40 bg-paper-white px-5 py-2.5">
                 <Th
                   label="#"
                   col="rank"
@@ -1214,10 +1329,6 @@ export default function TeacherAssessmentPage({
                   onSort={toggleSort}
                   className="justify-center"
                 />
-
-                <span className="text-[9px] font-bold uppercase tracking-wider text-steel-blue-gray text-center">
-                  Proctor
-                </span>
               </div>
 
               {leaderboardUnavailable ? (
@@ -1238,7 +1349,7 @@ export default function TeacherAssessmentPage({
                   {displayList.map((student) => (
                     <li
                       key={student.id}
-                      className="grid grid-cols-[2.5rem_1fr_7rem_6rem_5.5rem] items-center gap-3 px-5 py-2.5 transition-colors hover:bg-frost-surface/40"
+                      className="grid grid-cols-[2.5rem_1fr_7rem_6rem_auto] items-center gap-3 px-5 py-2.5 transition-colors hover:bg-frost-surface/40"
                     >
                       <span className="text-xs font-bold font-mono text-steel-blue-gray">
                         {student.rank}
@@ -1271,15 +1382,16 @@ export default function TeacherAssessmentPage({
                         </span>
                       </div>
 
-                      <div className="flex justify-center">
+                      {student.attemptId ? (
                         <button
                           type="button"
-                          onClick={() => setInspectingAttemptId(Number(student.id))}
-                          className="inline-flex items-center gap-1 rounded-[6px] bg-[#165dfb]/10 hover:bg-[#165dfb]/20 px-2 py-1 text-[10px] font-bold text-[#165dfb] transition-all cursor-pointer border border-[#165dfb]/20 shadow-2xs"
+                          onClick={() => setInspectingAttemptId(student.attemptId!)}
+                          className="inline-flex items-center gap-1 rounded-[6px] border border-[#165dfb]/20 bg-[#165dfb]/10 px-2 py-1 text-[10px] font-bold text-[#165dfb] transition-colors hover:bg-[#165dfb]/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#165dfb]"
                         >
-                          <ShieldAlert className="h-3 w-3" /> Audit
+                          <ShieldAlert aria-hidden="true" className="h-3 w-3" />
+                          AI Audit
                         </button>
-                      </div>
+                      ) : null}
                     </li>
                   ))}
                 </ul>
@@ -1288,7 +1400,6 @@ export default function TeacherAssessmentPage({
           </section>
         </div>
       </div>
-
       <TeacherProctoringReportModal
         isOpen={inspectingAttemptId !== null}
         attemptId={inspectingAttemptId}
