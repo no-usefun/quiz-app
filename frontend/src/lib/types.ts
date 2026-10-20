@@ -284,6 +284,10 @@ export interface LeaderboardEntryResponse {
   totalMarks: number;
   percentage: number;
   totalTimeTaken: number;
+  attemptId?: number;
+  status?: string;
+  terminationReason?: string | null;
+  warningCount?: number;
 }
 
 /* -------------------------------------------------------------------------- */
