@@ -382,11 +382,11 @@ export default function TeacherAssessmentPage({
         allowReview: Boolean(matched.allowReview ?? settings.allowReview),
         allowResume: Boolean(matched.allowResume ?? settings.allowResume),
         aiProctoringEnabled: typeof (matched.aiProctoringEnabled ?? settings.aiProctoringEnabled) === "boolean"
-          ? Boolean(matched.aiProctoringEnabled ?? matched.settings?.aiProctoringEnabled)
+          ? Boolean(matched.aiProctoringEnabled ?? settings.aiProctoringEnabled)
           : undefined,
         maxTabSwitch: matched.maxTabSwitch == null && settings.maxTabSwitch == null
           ? undefined
-          : numericValue(matched.maxTabSwitch ?? matched.settings?.maxTabSwitch),
+          : numericValue(matched.maxTabSwitch ?? settings.maxTabSwitch),
         startTime,
         endTime,
         resultVisibility: matched.resultVisibility as
