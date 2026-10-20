@@ -1344,18 +1344,18 @@ export default function TeacherAssessmentPage({
                 { card: "border-[#ffd8df] bg-gradient-to-br from-[#fff7f8] to-[#ffe7eb]", icon: "bg-[#ffe0e6] text-[#e11d48]", decor: "text-[#ffc8d2]" },
               ][index];
               const decorativeIcon = [
-                <Users key="users" className="h-14 w-14" />,
-                <CheckCircle2 key="check" className="h-14 w-14" />,
-                <TrendingUp key="trend" className="h-14 w-14" />,
-                <FileText key="file" className="h-14 w-14" />,
-                <Clock key="clock" className="h-14 w-14" />,
+                <Users key="users" className="h-11 w-11" />,
+                <CheckCircle2 key="check" className="h-11 w-11" />,
+                <TrendingUp key="trend" className="h-11 w-11" />,
+                <FileText key="file" className="h-11 w-11" />,
+                <Clock key="clock" className="h-11 w-11" />,
               ][index];
               return (
               <div
                 key={stat.label}
                 className={`assessment-stat group relative isolate overflow-hidden flex items-center gap-3 rounded-[17px] border p-4 shadow-[0_4px_14px_rgba(71,100,180,0.05)] transition-all duration-200 hover:-translate-y-0.5 hover:shadow-[0_9px_22px_rgba(71,100,180,0.11)] ${palette.card}`}
               >
-                <div aria-hidden="true" className={`pointer-events-none absolute -bottom-3 -right-2 opacity-50 ${palette.decor}`}>{decorativeIcon}</div>
+                <div aria-hidden="true" className={`pointer-events-none absolute bottom-2 right-2 z-0 opacity-25 ${palette.decor}`}>{decorativeIcon}</div>
                 <div className={`relative z-10 flex h-12 w-12 shrink-0 items-center justify-center rounded-full shadow-sm ${palette.icon}`}>
                   {stat.icon}
                 </div>
@@ -1379,15 +1379,15 @@ export default function TeacherAssessmentPage({
                   <h2 className="flex items-center gap-2 text-xs font-extrabold uppercase tracking-wider text-midnight-navy"><BarChart3 className="h-4 w-4 text-[#8b5cf6]" />Class Performance</h2>
                   <p className="mt-1 text-xs text-steel-blue-gray">A quick breakdown of marks across all submitted attempts.</p>
                 </div>
-                <div className="flex items-center gap-3">
-                  <div className="rounded-[13px] border border-[#d5e5ff] bg-gradient-to-br from-[#edf5ff] to-[#dceaff] px-3.5 py-2.5 shadow-sm dark:border-blue-900/70 dark:from-slate-800 dark:to-blue-950/70">
+                <div className="flex items-center gap-2 sm:gap-3">
+                  <div className="min-w-[112px] rounded-[13px] border border-[#d5e5ff] bg-gradient-to-br from-[#edf5ff] to-[#dceaff] px-3.5 py-2.5 shadow-sm dark:border-blue-900/70 dark:from-slate-800 dark:to-blue-950/70">
                     <div className="flex items-center gap-2">
                       <TrendingUp className="h-4 w-4 text-[#2563eb] dark:text-blue-300" />
                       <p className="text-lg font-extrabold tabular-nums text-[#155eef] dark:text-blue-200">{formatMarks(averageMarks)}</p>
                     </div>
                     <p className="mt-0.5 text-[9px] font-extrabold uppercase tracking-wider text-[#3265b8] dark:text-blue-300">Average marks</p>
                   </div>
-                  <div className="rounded-[13px] border border-[#bdebd7] bg-gradient-to-br from-[#e9fbf3] to-[#d1f6e7] px-3.5 py-2.5 shadow-sm dark:border-emerald-900/70 dark:from-slate-800 dark:to-emerald-950/70">
+                  <div className="min-w-[100px] rounded-[13px] border border-[#bdebd7] bg-gradient-to-br from-[#e9fbf3] to-[#d1f6e7] px-3.5 py-2.5 shadow-sm dark:border-emerald-900/70 dark:from-slate-800 dark:to-emerald-950/70">
                     <div className="flex items-center gap-2">
                       <Users className="h-4 w-4 text-[#059669] dark:text-emerald-300" />
                       <p className="text-lg font-extrabold tabular-nums text-[#047857] dark:text-emerald-200">{submitted.length}</p>
