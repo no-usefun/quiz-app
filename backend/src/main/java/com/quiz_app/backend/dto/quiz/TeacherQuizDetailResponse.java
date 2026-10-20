@@ -53,7 +53,9 @@ public record TeacherQuizDetailResponse(
         QuizStatus status,
         ExamState examState,
 
-        List<QuestionDetail> questions
+        List<QuestionDetail> questions,
+
+        boolean aiProctoringEnabled
 
 ) {
 
