@@ -167,9 +167,9 @@ export default function StudentLeaderboardPage({
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-[#f5f5f4]">
+      <div className="min-h-screen bg-slate-50">
         <TopNav role="student" />
-        <main className="flex min-h-[70vh] items-center justify-center p-6 text-sm font-medium text-[#78716b]">
+        <main className="flex min-h-[70vh] items-center justify-center p-6 text-sm font-medium text-slate-500">
           Loading leaderboard...
         </main>
       </div>
@@ -177,15 +177,15 @@ export default function StudentLeaderboardPage({
   }
 
   return (
-    <div className="min-h-screen bg-[#f5f5f4] font-sans text-[#111111]">
+    <div className="min-h-screen bg-slate-50 font-sans text-slate-900">
       <TopNav role="student" />
 
       <main className="mx-auto max-w-6xl space-y-5 p-4 md:p-8">
-        <div className="flex items-center justify-between gap-3 border-b border-[#d1dee8]/60 pb-4">
+        <div className="flex items-center justify-between gap-3 border-b border-slate-200 pb-4">
           <div>
             <Link
               href="/dashboard/student"
-              className="mb-2 inline-flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wider text-[#78716b] hover:text-[#165dfb]"
+              className="mb-2 inline-flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wider text-slate-500 hover:text-[#165dfb]"
             >
               <ArrowLeft className="h-3.5 w-3.5" />
               Student Dashboard
@@ -193,7 +193,7 @@ export default function StudentLeaderboardPage({
             <h1 className="text-2xl font-extrabold tracking-tight">
               Assessment Leaderboard
             </h1>
-            <p className="mt-1 text-xs font-medium text-[#78716b]">
+            <p className="mt-1 text-xs font-medium text-slate-500">
               Rankings published by the instructor for quiz #{quizId}.
             </p>
           </div>
@@ -202,7 +202,7 @@ export default function StudentLeaderboardPage({
             type="button"
             onClick={() => void load(true)}
             disabled={refreshing}
-            className="inline-flex items-center gap-1.5 rounded-[10px] border border-[#d1dee8]/80 bg-white px-3.5 py-2 text-xs font-bold text-[#111111] shadow-xs transition-all hover:border-[#165dfb] hover:text-[#165dfb] disabled:cursor-not-allowed disabled:opacity-50"
+            className="inline-flex items-center gap-1.5 rounded-[10px] border border-slate-200 bg-white px-3.5 py-2 text-xs font-bold text-slate-900 shadow-xs transition-all hover:border-[#165dfb] hover:text-[#165dfb] disabled:cursor-not-allowed disabled:opacity-50"
           >
             <RefreshCw className={"h-3.5 w-3.5 " + (refreshing ? "animate-spin" : "")} />
             Refresh
@@ -210,12 +210,12 @@ export default function StudentLeaderboardPage({
         </div>
 
         {error && leaderboardLocked ? (
-          <div className="flex items-start gap-3 rounded-[12px] border border-[#d1dee8]/80 bg-white p-4 text-xs font-semibold text-[#78716b] shadow-xs">
-            <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-[#f5f5f4] border border-[#d1dee8]/70 text-[#78716b]">
+          <div className="flex items-start gap-3 rounded-[12px] border border-slate-200 bg-white p-4 text-xs font-semibold text-slate-500 shadow-xs">
+            <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-slate-50 border border-slate-200 text-slate-500">
               <Lock className="h-4 w-4" />
             </div>
             <div className="space-y-1">
-              <p className="font-bold text-[#111111]">Leaderboard Locked</p>
+              <p className="font-bold text-slate-900">Leaderboard Locked</p>
               <p className="font-medium leading-relaxed">{error}</p>
             </div>
           </div>
@@ -235,26 +235,26 @@ export default function StudentLeaderboardPage({
                 { label: "Highest score", value: `${scoreStats.highest.toFixed(1)}%`, hint: "Top performance", icon: Award, tone: "text-[#92400e]", surface: "bg-[#fff0d8]" },
                 { label: "Median score", value: `${scoreStats.median.toFixed(1)}%`, hint: "Middle participant score", icon: Trophy, tone: "text-[#6b21a8]", surface: "bg-[#f3e8ff]" },
               ].map((stat) => (
-                <div key={stat.label} className="rounded-[14px] border border-[#d1dee8]/70 bg-white p-4 shadow-sm">
+                <div key={stat.label} className="rounded-[14px] border border-slate-200 bg-white p-4 shadow-sm">
                   <div className="flex items-start justify-between gap-2">
-                    <span className="text-[10px] font-bold uppercase tracking-wider text-[#78716b]">{stat.label}</span>
+                    <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500">{stat.label}</span>
                     <span className={`flex h-8 w-8 items-center justify-center rounded-[10px] ${stat.surface} ${stat.tone}`}>
                       <stat.icon className="h-4 w-4" />
                     </span>
                   </div>
-                  <p className="mt-3 text-2xl font-extrabold tracking-tight text-[#111111]">{stat.value}</p>
-                  <p className="mt-1 text-[10px] font-medium text-[#78716b]">{stat.hint}</p>
+                  <p className="mt-3 text-2xl font-extrabold tracking-tight text-slate-900">{stat.value}</p>
+                  <p className="mt-1 text-[10px] font-medium text-slate-500">{stat.hint}</p>
                 </div>
               ))}
             </section>
 
-            <section className="rounded-[14px] border border-[#d1dee8]/70 bg-white p-5 shadow-sm">
+            <section className="rounded-[14px] border border-slate-200 bg-white p-5 shadow-sm">
               <div className="mb-5 flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">
                 <div>
-                  <h2 className="text-sm font-extrabold text-[#111111]">Score distribution</h2>
-                  <p className="mt-1 text-xs text-[#78716b]">How published participant scores are spread across percentage bands.</p>
+                  <h2 className="text-sm font-extrabold text-slate-900">Score distribution</h2>
+                  <p className="mt-1 text-xs text-slate-500">How published participant scores are spread across percentage bands.</p>
                 </div>
-                <span className="text-[10px] font-semibold text-[#78716b]">Based on {scoreStats.completed} ranked students</span>
+                <span className="text-[10px] font-semibold text-slate-500">Based on {scoreStats.completed} ranked students</span>
               </div>
               <div className="grid grid-cols-5 items-end gap-2 sm:gap-4">
                 {scoreStats.distribution.map((band) => {
@@ -263,10 +263,10 @@ export default function StudentLeaderboardPage({
                   return (
                     <div key={band.label} className="flex min-w-0 flex-col items-center gap-2">
                       <span className="text-xs font-bold tabular-nums text-[#44403c]">{band.count}</span>
-                      <div className="flex h-28 w-full items-end justify-center rounded-t-[8px] bg-[#f5f5f4]">
+                      <div className="flex h-28 w-full items-end justify-center rounded-t-[8px] bg-slate-50">
                         <div className={`w-full max-w-16 rounded-t-[7px] ${band.color} transition-[height] duration-500 ease-out`} style={{ height: `${height}px` }} />
                       </div>
-                      <span className="text-center text-[9px] font-bold text-[#78716b] sm:text-[10px]">{band.label}</span>
+                      <span className="text-center text-[9px] font-bold text-slate-500 sm:text-[10px]">{band.label}</span>
                     </div>
                   );
                 })}
@@ -276,12 +276,12 @@ export default function StudentLeaderboardPage({
         )}
 
         {entries.length === 0 ? (
-          <div className="rounded-[14px] border border-[#d1dee8]/70 bg-white p-10 text-center shadow-sm">
+          <div className="rounded-[14px] border border-slate-200 bg-white p-10 text-center shadow-sm">
             {leaderboardLocked ? (
               <>
                 <Lock className="mx-auto h-9 w-9 text-[#a8a29d]" />
                 <h2 className="mt-3 text-sm font-bold">Rankings Not Released</h2>
-                <p className="mt-1 text-xs font-medium text-[#78716b]">
+                <p className="mt-1 text-xs font-medium text-slate-500">
                   Your instructor has not released the leaderboard for this assessment yet.
                 </p>
               </>
@@ -289,7 +289,7 @@ export default function StudentLeaderboardPage({
               <>
                 <Trophy className="mx-auto h-9 w-9 text-[#a8a29d]" />
                 <h2 className="mt-3 text-sm font-bold">No rankings yet</h2>
-                <p className="mt-1 text-xs font-medium text-[#78716b]">
+                <p className="mt-1 text-xs font-medium text-slate-500">
                   The leaderboard is published, but there are no rankings to display yet.
                 </p>
               </>
@@ -301,7 +301,7 @@ export default function StudentLeaderboardPage({
               {podium.map((entry) => (
                 <div
                   key={entry.studentId}
-                  className="rounded-[14px] border border-[#d1dee8]/70 bg-white p-5 shadow-sm"
+                  className="rounded-[14px] border border-slate-200 bg-white p-5 shadow-sm"
                 >
                   <div className="flex items-center justify-between gap-3">
                     <span className="inline-flex h-8 w-8 items-center justify-center rounded-full bg-[#eef4ff] text-xs font-extrabold text-[#165dfb]">
@@ -312,14 +312,14 @@ export default function StudentLeaderboardPage({
                   <p className="mt-4 truncate text-sm font-extrabold">
                     {entry.studentName || "Student"}
                   </p>
-                  <p className="mt-1 text-xs font-medium text-[#78716b]">
+                  <p className="mt-1 text-xs font-medium text-slate-500">
                     {formatScore(entry.score)} / {formatScore(entry.totalMarks)}
                   </p>
                   <div className="mt-4 flex items-center justify-between">
                     <span className="rounded-full bg-[#e2ede8] px-2.5 py-1 text-[10px] font-bold text-[#1d5237]">
                       {formatScore(entry.percentage)}%
                     </span>
-                    <span className="flex items-center gap-1 text-[10px] font-bold text-[#78716b]">
+                    <span className="flex items-center gap-1 text-[10px] font-bold text-slate-500">
                       <Clock className="h-3 w-3" />
                       {formatTime(entry.totalTimeTaken)}
                     </span>
@@ -328,11 +328,11 @@ export default function StudentLeaderboardPage({
               ))}
             </section>
 
-            <section className="overflow-hidden rounded-[14px] border border-[#d1dee8]/70 bg-white shadow-sm">
+            <section className="overflow-hidden rounded-[14px] border border-slate-200 bg-white shadow-sm">
               <div className="flex flex-col gap-3 border-b border-[#d1dee8]/50 p-4 sm:flex-row sm:items-center sm:justify-between">
                 <div>
-                  <h2 className="text-sm font-extrabold text-[#111111]">Full rankings</h2>
-                  <p className="mt-1 text-[10px] text-[#78716b]">{filteredEntries.length} of {entries.length} students</p>
+                  <h2 className="text-sm font-extrabold text-slate-900">Full rankings</h2>
+                  <p className="mt-1 text-[10px] text-slate-500">{filteredEntries.length} of {entries.length} students</p>
                 </div>
                 <label className="relative block w-full sm:max-w-xs">
                   <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[#a8a29e]" />
@@ -341,7 +341,7 @@ export default function StudentLeaderboardPage({
               </div>
               <div className="overflow-x-auto">
               <div className="min-w-[620px]">
-              <div className="grid grid-cols-[4rem_1fr_8rem_8rem] gap-3 border-b border-[#d1dee8]/40 bg-[#fbfbfa] px-5 py-3 text-[10px] font-bold uppercase tracking-wider text-[#78716b]">
+              <div className="grid grid-cols-[4rem_1fr_8rem_8rem] gap-3 border-b border-[#d1dee8]/40 bg-[#fbfbfa] px-5 py-3 text-[10px] font-bold uppercase tracking-wider text-slate-500">
                 <span>Rank</span>
                 <span>Student</span>
                 <span className="text-center">Score</span>
@@ -354,7 +354,7 @@ export default function StudentLeaderboardPage({
                     key={entry.studentId}
                     className="grid grid-cols-[4rem_1fr_8rem_8rem] items-center gap-3 px-5 py-3.5 transition-colors hover:bg-[#f8fafc]"
                   >
-                    <span className="font-mono text-xs font-bold text-[#78716b]">
+                    <span className="font-mono text-xs font-bold text-slate-500">
                       #{entry.rank}
                     </span>
                     <div className="min-w-0">
@@ -366,7 +366,7 @@ export default function StudentLeaderboardPage({
                     <span className="text-center text-xs font-bold">
                       {formatScore(entry.score)} / {formatScore(entry.totalMarks)}
                     </span>
-                    <span className="flex items-center justify-center gap-1 text-[10px] font-mono font-semibold text-[#78716b]">
+                    <span className="flex items-center justify-center gap-1 text-[10px] font-mono font-semibold text-slate-500">
                       <Clock className="h-3 w-3" />
                       {formatTime(entry.totalTimeTaken)}
                     </span>
@@ -374,7 +374,7 @@ export default function StudentLeaderboardPage({
                 ))}
               </ul>
               {filteredEntries.length === 0 && (
-                <p className="px-5 py-10 text-center text-xs font-medium text-[#78716b]">No students match “{searchQuery}”.</p>
+                <p className="px-5 py-10 text-center text-xs font-medium text-slate-500">No students match “{searchQuery}”.</p>
               )}
               </div>
               </div>
