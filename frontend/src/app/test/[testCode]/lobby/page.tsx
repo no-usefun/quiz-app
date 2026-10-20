@@ -79,6 +79,7 @@ function LobbyInner({ testCode }: { testCode: string }) {
         quizCode: "",
         available: false,
         status: "NOT_FOUND",
+        aiProctoringEnabled: false,
         startTime: null,
         endTime: null,
       });
