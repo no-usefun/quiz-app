@@ -27,6 +27,7 @@ public record TeacherProctoringReportResponse(
     int tabSwitchesCount,
     LocalDateTime startedAt,
     LocalDateTime submittedAt,
+    String terminationReason,
     List<ProctoringEventDetail> events
 ) {
     public record ProctoringEventDetail(
