@@ -82,7 +82,7 @@ type StudentRecord = {
   attemptId?: number;
   attemptStatus?: string;
   terminationReason?: string | null;
-  warningCount: number;
+  warningCount?: number;
 };
 
 function numericValue(value: unknown, fallback = 0): number {
@@ -1378,9 +1378,9 @@ export default function TeacherAssessmentPage({
                             <span className="mt-0.5 inline-flex rounded-full bg-amber-100 px-1.5 py-0.5 text-[9px] font-extrabold text-amber-800">
                               Auto-submitted
                             </span>
-                          ) : student.warningCount > 0 ? (
+                          ) : (student.warningCount ?? 0) > 0 ? (
                             <span className="mt-0.5 inline-flex rounded-full bg-amber-50 px-1.5 py-0.5 text-[9px] font-bold text-amber-700">
-                              {student.warningCount} proctoring warning{student.warningCount === 1 ? "" : "s"}
+                              {student.warningCount ?? 0} proctoring warning{student.warningCount === 1 ? "" : "s"}
                             </span>
                           ) : null}
                         </div>
