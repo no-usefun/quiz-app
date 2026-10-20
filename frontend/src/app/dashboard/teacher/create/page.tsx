@@ -1507,16 +1507,26 @@ function CreateAssessmentContent() {
        */
       if (!isEditing) {
         try {
-          await fetch(ENDPOINTS.teacher.settings(numericQuizId), {
-            method: "PUT",
-            headers: {
-              "Content-Type": "application/json",
-              ...(token ? { Authorization: `Bearer ${token}` } : {}),
+          const followUpSettingsRes = await fetch(
+            ENDPOINTS.teacher.settings(numericQuizId),
+            {
+              method: "PUT",
+              headers: {
+                "Content-Type": "application/json",
+                ...(token ? { Authorization: `Bearer ${token}` } : {}),
+              },
+              body: JSON.stringify({
+                maxTabSwitch: Math.max(0, Number(maxTabSwitch) || 0),
+                aiProctoringEnabled,
+              }),
             },
-            body: JSON.stringify({
-              maxTabSwitch: Math.max(0, Number(maxTabSwitch) || 0),
-            }),
-          });
+          );
+
+          if (!followUpSettingsRes.ok) {
+            throw new Error(
+              `Settings update failed with status ${followUpSettingsRes.status}`,
+            );
+          }
         } catch (error) {
           console.warn(
             "[Quizly] Could not persist maxTabSwitch after quiz creation.",
@@ -1764,6 +1774,7 @@ function CreateAssessmentContent() {
             },
             body: JSON.stringify({
               maxTabSwitch: Math.max(0, Number(maxTabSwitch) || 0),
+              aiProctoringEnabled,
             }),
           },
         );
