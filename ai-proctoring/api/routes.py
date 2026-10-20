@@ -95,6 +95,8 @@ class AnalyzeFrameResponse(BaseModel):
     autoSubmitted: bool = False
     gazeValid: bool = True
     gazeConfidence: float = 1.0
+    identityHold: bool = False
+    identityHoldReason: Optional[str] = None
 
 class StopSessionRequest(BaseModel):
     sessionId: str
@@ -424,7 +426,21 @@ async def analyze_frame(
         eventMessage=eval_res["event_message"],
         autoSubmitted=eval_res["auto_submitted"],
         gazeValid=gaze_res.get("is_valid", True),
-        gazeConfidence=gaze_res.get("confidence", 1.0)
+        gazeConfidence=gaze_res.get("confidence", 1.0),
+        # Frontend should temporarily block assessment interaction whenever the live
+        # frame does not establish that exactly one face matches the registered identity.
+        # A hold is not itself a strike; mismatch warnings are still debounced and counted
+        # through the authoritative backend event flow.
+        identityHold=(
+            faces_count != 1
+            or (identity_check_valid and not identity_match)
+        ),
+        identityHoldReason=(
+            "NO_FACE" if faces_count == 0
+            else "MULTIPLE_FACES" if faces_count > 1
+            else "IDENTITY_MISMATCH" if identity_check_valid and not identity_match
+            else None
+        )
     )
 
 @router.post("/proctor/stop", response_model=StopSessionResponse)
