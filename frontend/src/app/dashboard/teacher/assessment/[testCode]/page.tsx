@@ -8,6 +8,7 @@ import {
   Users,
   TrendingUp,
   AlertTriangle,
+  ShieldAlert,
   Award,
   Download,
   Search,
