@@ -154,7 +154,11 @@ public class ProctoringService {
                 ? null : request.eventId().trim();
 
         {
-            if (attempt.getStatus() != AttemptStatus.IN_PROGRESS) {
+            boolean allowEvidenceAfterProctoringTermination =
+                    attempt.getStatus() == AttemptStatus.AUTO_SUBMITTED
+                    && "MALPRACTICE_WARNING_LIMIT".equals(attempt.getTerminationReason());
+
+            if (attempt.getStatus() != AttemptStatus.IN_PROGRESS && !allowEvidenceAfterProctoringTermination) {
                 return new ProctoringEventResponse(
                         false,
                         attempt.getWarningsCount() != null ? attempt.getWarningsCount() : 0,
@@ -226,6 +230,15 @@ public class ProctoringService {
             event.setOccurredAt(detectedAt);
             event.setMetadataJson(metadataJson);
             proctoringEventRepository.save(event);
+
+            if (allowEvidenceAfterProctoringTermination) {
+                return new ProctoringEventResponse(
+                        true,
+                        attempt.getWarningsCount() != null ? attempt.getWarningsCount() : 0,
+                        true,
+                        "Additional event evidence recorded"
+                );
+            }
 
             // Increment warning count
             int currentWarnings = (attempt.getWarningsCount() != null ? attempt.getWarningsCount() : 0) + 1;
