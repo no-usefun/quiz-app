@@ -79,6 +79,7 @@ type AssessmentData = {
 type StudentRecord = {
   id: number | string;
   name: string;
+  registrationNumber: string;
   avatar: string;
   score: number;
   finalScore: number;
@@ -155,8 +156,10 @@ function podiumRingColor(pos: number) {
 function exportCSV(testCode: string, data: StudentRecord[], title: string) {
   const headers = [
     "Rank",
+    "Registration Number",
     "Candidate Name",
     "Score (Marks)",
+    "Total Marks",
     "Percentage (%)",
     "Time Taken",
   ];
@@ -437,6 +440,14 @@ export default function TeacherAssessmentPage({
       const timeTakenSeconds = numericValue(entry.totalTimeTaken, 0);
 
       const name = String(entry.studentName ?? "").trim() || "Candidate";
+      const registrationNumber = String(
+        entry.registrationNumber ??
+        entry.registrationNo ??
+        entry.regNo ??
+        entry.regNumber ??
+        entry.studentRegistrationNumber ??
+        ""
+      ).trim();
 
       const avatar =
         name
@@ -463,6 +474,7 @@ export default function TeacherAssessmentPage({
         id,
         attemptId,
         name,
+        registrationNumber,
         avatar,
         score: percentage,
         finalScore: rawFinalScore,
@@ -1235,7 +1247,7 @@ export default function TeacherAssessmentPage({
               {
                 icon: <Award className="h-4 w-4 text-signal-green" />,
                 label: "High Score",
-                value: `${formatMarks(highScoreMarks)} / ${formatMarks(assessmentData.totalMarks)}`,
+                value: formatMarks(highScoreMarks),
               },
               {
                 icon: <ClipboardList className="h-4 w-4 text-signal-green" />,
@@ -1396,10 +1408,18 @@ export default function TeacherAssessmentPage({
             </div>
 
             <div className="flex-1 rounded-[14px] border border-[#d1dee8]/70 overflow-hidden bg-paper-white shadow-sm text-left">
-              <div className="grid grid-cols-[2.5rem_1fr_7rem_6rem] items-center gap-3 border-b border-[#d1dee8]/40 bg-paper-white px-5 py-2.5">
+              <div className="grid grid-cols-[2.5rem_1fr_1fr_7rem_6rem_auto] items-center gap-3 border-b border-[#d1dee8]/40 bg-paper-white px-5 py-2.5">
                 <Th
                   label="#"
                   col="rank"
+                  sortKey={sortKey}
+                  sortDir={sortDir}
+                  onSort={toggleSort}
+                />
+
+                <Th
+                  label="Registration No."
+                  col="name"
                   sortKey={sortKey}
                   sortDir={sortDir}
                   onSort={toggleSort}
@@ -1450,10 +1470,14 @@ export default function TeacherAssessmentPage({
                   {displayList.map((student) => (
                     <li
                       key={student.id}
-                      className="grid grid-cols-[2.5rem_1fr_7rem_6rem_auto] items-center gap-3 px-5 py-2.5 transition-colors hover:bg-frost-surface/40"
+                      className="grid grid-cols-[2.5rem_1fr_1fr_7rem_6rem_auto] items-center gap-3 px-5 py-2.5 transition-colors hover:bg-frost-surface/40"
                     >
                       <span className="text-xs font-bold font-mono text-steel-blue-gray">
                         {student.rank}
+                      </span>
+
+                      <span className="truncate text-xs font-medium text-steel-blue-gray">
+                        {student.registrationNumber || "—"}
                       </span>
 
                       <div className="flex min-w-0 items-center gap-2">
