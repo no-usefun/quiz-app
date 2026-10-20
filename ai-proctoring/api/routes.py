@@ -243,6 +243,15 @@ async def start_proctoring_session(
             detail="MULTIPLE_FACES_DETECTED: Multiple faces found in reference photo. Ensure only you are in frame."
         )
 
+    # Also reject additional people whose faces are not clearly visible to YuNet.
+    # Face-only validation can miss a person turned away from the camera or partially out of frame.
+    reference_person_count, _ = person_detector.detect_persons(img)
+    if reference_person_count > 1:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="MULTIPLE_PERSONS_DETECTED: More than one person was detected in the reference photo. Ensure only the test taker is in frame."
+        )
+
     # Extract 128-d biometric embedding
     ref_embedding = None
     if raw_faces is not None and len(raw_faces) > 0:
@@ -333,6 +342,7 @@ async def analyze_frame(
     gaze_res = {"gaze_direction": "CENTER", "yaw": 0.0, "pitch": 0.0, "is_looking_away": False}
     identity_match = False  # Strict: Never default to True
     similarity_score = 0.0  # Strict: Never default to 1.0
+    identity_check_valid = False
     phone_detected = False
 
     # 1. Image Frame Processing
@@ -358,10 +368,12 @@ async def analyze_frame(
                 live_emb = face_recognizer.extract_embedding(img, raw_faces[0])
                 if live_emb is not None:
                     identity_match, similarity_score = face_recognizer.match(session.reference_embedding, live_emb)
+                    identity_check_valid = True
                     session_manager.record_verification(session.session_id, identity_match)
                 else:
                     identity_match = False
                     similarity_score = 0.0
+                    identity_check_valid = False
             else:
                 identity_match = False
                 similarity_score = 0.0
@@ -382,6 +394,7 @@ async def analyze_frame(
         is_looking_away=gaze_res["is_looking_away"],
         identity_match=identity_match,
         similarity_score=similarity_score,
+        identity_check_valid=identity_check_valid,
         phone_detected=phone_detected,
         is_speech=audio_res["is_speech"],
         is_loud=audio_res["is_loud"],
