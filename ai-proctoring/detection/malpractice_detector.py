@@ -148,7 +148,10 @@ class MalpracticeDetector:
                 detection_timestamp=now,
                 event_id=event_id,
             )
-            persisted = dispatch_res is not None and dispatch_res.get("recorded", True)
+            persisted = dispatch_res is not None and (
+                dispatch_res.get("recorded", True)
+                or "duplicate event ignored" in str(dispatch_res.get("message", "")).lower()
+            )
             if not dispatch_res:
                 logger.error("PROCTORING_EVENT_NOT_PERSISTED attempt=%s event=%s eventId=%s", session.attempt_id, event_type, event_id)
                 dispatched_events.append({
@@ -237,7 +240,7 @@ class MalpracticeDetector:
                         "severity": severity,
                         "confidence": confidence,
                         "timestamp": detection_timestamp,
-                        "persisted": bool(data.get("recorded", True)),
+                        "persisted": bool(data.get("recorded", True)) or "duplicate event ignored" in str(data.get("message", "")).lower(),
                         "warningCount": data.get("warningCount")
                     })
                     return data
