@@ -797,9 +797,8 @@ export default function TeacherAssessmentPage({
   const questionWiseVisible =
     resultVisibility === "QUESTION_WISE" || resultVisibility === "BOTH";
 
-  // Result visibility can be configured before publishing or after the assessment ends.
-  // The backend remains authoritative and may reject updates if its policy disallows them.
-  const settingsEditable = status === "DRAFT" || status === "COMPLETED";
+  // Do not restrict result-visibility controls by assessment status in the frontend.
+  // The backend remains authoritative and may still reject an update.
 
   const submitted = students;
 
@@ -1104,12 +1103,6 @@ export default function TeacherAssessmentPage({
               Student Result Visibility
             </h3>
 
-            {!settingsEditable && (
-              <p className="text-[10px] font-medium text-steel-blue-gray">
-                Result visibility can be configured before publishing or after the assessment is completed.
-              </p>
-            )}
-
             {settingsError && (
               <div className="flex items-center gap-2 rounded-[10px] bg-pastel-pink/30 border border-pastel-pink text-pastel-pink-text px-3.5 py-2 text-xs font-bold shadow-xs">
                 <AlertTriangle className="h-3.5 w-3.5 shrink-0" />
@@ -1136,13 +1129,13 @@ export default function TeacherAssessmentPage({
                   key={item.label}
                   type="button"
                   onClick={item.onClick}
-                  disabled={!settingsEditable || settingsSaving}
+                  disabled={settingsSaving}
                   className={`flex items-start justify-between gap-3 rounded-[10px] border p-3 text-left transition-all duration-150 ${
                     item.active
                       ? "border-signal-green bg-frost-surface text-midnight-navy ring-2 ring-signal-green/20"
                       : "border-[#d1dee8]/80 bg-paper-white text-steel-blue-gray hover:border-[#b9cbd9]"
                   } ${
-                    !settingsEditable || settingsSaving
+                    settingsSaving
                       ? "cursor-not-allowed opacity-60"
                       : "cursor-pointer active:scale-[0.98] shadow-xs"
                   }`}
