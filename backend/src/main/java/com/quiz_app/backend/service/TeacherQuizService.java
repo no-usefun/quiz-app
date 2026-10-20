@@ -1453,7 +1453,11 @@ public class TeacherQuizService {
                                                         score,
                                                         quiz.getTotalMarks(),
                                                         percentage,
-                                                        attempt.getTotalTimeTaken()));
+                                                        attempt.getTotalTimeTaken(),
+                                                        attempt.getId(),
+                                                        attempt.getStatus() != null ? attempt.getStatus().name() : "UNKNOWN",
+                                                        attempt.getTerminationReason(),
+                                                        attempt.getWarningsCount() != null ? attempt.getWarningsCount() : 0));
                 }
 
                 return result;
