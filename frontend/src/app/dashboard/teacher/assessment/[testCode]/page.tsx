@@ -19,7 +19,7 @@ import {
   Trophy,
   Lock,
   ShieldAlert,
-} from "lucide-react";
+, ClipboardList} from "lucide-react";
 import { Logo } from "@/components/Logo";
 import { TeacherProctoringReportModal } from "@/components/TeacherProctoringReportModal";
 import { ENDPOINTS } from "@/lib/api/endpoints";
@@ -1219,7 +1219,7 @@ export default function TeacherAssessmentPage({
             </div>
           </section>
 
-          <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+          <div className="grid grid-cols-2 gap-3 lg:grid-cols-5">
             {[
               {
                 icon: <Users className="h-4 w-4 text-signal-green" />,
@@ -1235,6 +1235,11 @@ export default function TeacherAssessmentPage({
                 icon: <Award className="h-4 w-4 text-signal-green" />,
                 label: "High Score",
                 value: `${formatMarks(highScoreMarks)} / ${formatMarks(assessmentData.totalMarks)}`,
+              },
+              {
+                icon: <ClipboardList className="h-4 w-4 text-signal-green" />,
+                label: "Total Marks",
+                value: formatMarks(assessmentData.totalMarks),
               },
               {
                 icon: <Clock className="h-4 w-4 text-signal-green" />,
