@@ -4,6 +4,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useSession } from "@/hooks/useSession";
 import { LayoutDashboard, PlusCircle, Sun, Moon } from "lucide-react";
+import { useSyncExternalStore } from "react";
 import { useTheme } from "next-themes";
 import { AppWordmark } from "@/components/Logo";
 import { ProfileDropdown } from "@/components/ProfileDropdown";
@@ -12,11 +13,20 @@ interface TopNavbarProps {
   role?: string;
 }
 
+const subscribeToHydration = () => () => {};
+const getClientHydrationSnapshot = () => true;
+const getServerHydrationSnapshot = () => false;
+
 export function TopNavbar({ role: propRole }: TopNavbarProps = {}) {
   const { user } = useSession();
   const pathname = usePathname();
   const { resolvedTheme, setTheme } = useTheme();
-  const isDark = resolvedTheme === "dark";
+  const mounted = useSyncExternalStore(
+    subscribeToHydration,
+    getClientHydrationSnapshot,
+    getServerHydrationSnapshot,
+  );
+  const isDark = mounted && resolvedTheme === "dark";
 
   const currentRole = String(propRole || user?.role || "").toUpperCase();
   const isTeacher = currentRole === "TEACHER";
@@ -91,14 +101,9 @@ export function TopNavbar({ role: propRole }: TopNavbarProps = {}) {
             onClick={() => setTheme(isDark ? "light" : "dark")}
             aria-label={isDark ? "Switch to light mode" : "Switch to dark mode"}
             title={isDark ? "Switch to light mode" : "Switch to dark mode"}
-            className="group inline-flex h-10 items-center gap-1 rounded-full border border-[#dce7ff] bg-gradient-to-r from-[#fff7dc] to-[#fff0c2] p-1 shadow-sm transition-all hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#3984ff] dark:border-slate-700 dark:from-slate-800 dark:to-slate-900"
+            className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-[#dce7ff] bg-white text-[#d97706] shadow-sm transition-all hover:-translate-y-0.5 hover:bg-[#fff7dc] hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#3984ff] dark:border-slate-700 dark:bg-slate-900 dark:text-amber-300 dark:hover:bg-slate-800"
           >
-            <span className={`flex h-7 w-7 items-center justify-center rounded-full transition-all ${!isDark ? "bg-white text-amber-500 shadow-sm" : "text-slate-400"}`}>
-              <Sun className="h-4 w-4" />
-            </span>
-            <span className={`flex h-7 w-7 items-center justify-center rounded-full transition-all ${isDark ? "bg-[#2563eb] text-white shadow-sm" : "text-slate-500"}`}>
-              <Moon className="h-4 w-4" />
-            </span>
+            {isDark ? <Sun className="h-[18px] w-[18px]" /> : <Moon className="h-[18px] w-[18px]" />}
           </button>
           <div className="flex items-center gap-2 border-l border-[#d1dee8]/70 pl-2 sm:gap-3 sm:pl-3 dark:border-slate-700">
             <ProfileDropdown dashboardHref={isTeacher ? "/dashboard/teacher" : "/dashboard/student"} />
