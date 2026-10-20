@@ -683,7 +683,7 @@ export default function TeacherDashboard() {
             <div key={stat.label} className={`teacher-stat relative isolate overflow-hidden rounded-[18px] border p-4 sm:p-5 shadow-[0_4px_14px_rgba(71,100,180,0.05)] transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md ${stat.card}`}>
               <div className="flex items-center justify-between gap-2">
                 <span className="text-[10px] font-extrabold uppercase tracking-wider text-[#64748b] dark:text-slate-300">{stat.label}</span>
-                <span className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-full ${stat.iconStyle}`}><stat.icon className="h-4.5 w-4.5" /></span>
+                <span className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-full ${stat.iconStyle}`}><stat.icon className="h-5 w-5" /></span>
               </div>
               <p className={`mt-2 text-2xl font-black tabular-nums ${stat.valueStyle}`}>{stat.value}</p>
             </div>
