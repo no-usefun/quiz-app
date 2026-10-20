@@ -1,11 +1,15 @@
 // AI Proctoring Microservice HTTP & WebSocket Client
 
+const isDevelopment = process.env.NODE_ENV === "development";
+
 export const AI_PROCTORING_BASE_URL = (
-  process.env.NEXT_PUBLIC_AI_PROCTORING_URL || "http://localhost:8000"
+  process.env.NEXT_PUBLIC_AI_PROCTORING_URL?.trim() ||
+  (isDevelopment ? "http://localhost:8000" : "")
 ).replace(/\/+$/, "");
 
 export const AI_PROCTORING_WS_URL = (
-  process.env.NEXT_PUBLIC_AI_PROCTORING_WS_URL || "ws://localhost:8000"
+  process.env.NEXT_PUBLIC_AI_PROCTORING_WS_URL?.trim() ||
+  (isDevelopment ? "ws://localhost:8000" : "")
 ).replace(/\/+$/, "");
 
 export interface AIHealthResponse {
@@ -93,6 +97,12 @@ export interface StopSessionResult {
  * No fake fallbacks allowed.
  */
 export async function checkAIHealth(): Promise<{ isOnline: boolean; biometricReady: boolean; details?: AIHealthResponse }> {
+  // Never point a deployed browser at the student's own localhost by default.
+  // Production deployments must explicitly configure the AI service URL.
+  if (!AI_PROCTORING_BASE_URL) {
+    return { isOnline: false, biometricReady: false };
+  }
+
   try {
     const res = await fetch(`${AI_PROCTORING_BASE_URL}/health`, {
       method: "GET",
