@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState, useCallback } from "react";
+import { getAuthToken } from "@/lib/api/client";
 import {
   AI_PROCTORING_WS_URL,
   checkAIHealth,
@@ -18,7 +19,6 @@ interface UseProctoringOptions {
   testCode: string;
   referenceImage: string | null;
   authToken?: string;
-  springBootUrl?: string;
   onAutoSubmit?: () => void;
   enabled?: boolean;
 }
@@ -57,7 +57,6 @@ export function useAIProctoring({
   testCode,
   referenceImage,
   authToken,
-  springBootUrl,
   onAutoSubmit,
   enabled = true,
 }: UseProctoringOptions) {
@@ -104,11 +103,6 @@ export function useAIProctoring({
   useEffect(() => {
     testCodeRef.current = testCode;
   }, [testCode]);
-
-  const springBootUrlRef = useRef(springBootUrl);
-  useEffect(() => {
-    springBootUrlRef.current = springBootUrl;
-  }, [springBootUrl]);
 
   // Telemetry & Hardware State
   const [cameraActive, setCameraActive] = useState(false);
@@ -229,9 +223,6 @@ export function useAIProctoring({
             stopProctoringSession({
               sessionId: sid,
               ticket: ticket || undefined,
-              authToken: authTokenRef.current,
-              studentId: studentIdRef.current,
-              attemptId: attemptIdRef.current,
             }),
             new Promise<null>((resolve) => setTimeout(() => resolve(null), 3000)),
           ]);
@@ -544,16 +535,25 @@ export function useAIProctoring({
         console.warn("Web Audio API initialization failed:", audioErr);
       }
 
-      // 4. Start AI session with reference biometric photo
+      // 4. Start AI session with reference biometric photo. Reuse the single
+      // application token helper; never start proctoring without authentication.
+      const sessionToken = authTokenRef.current || getAuthToken();
+      if (!sessionToken) {
+        setCameraError("Your login session is missing or expired. Please sign in again before starting this assessment.");
+        await cleanup();
+        if (mounted) {
+          window.location.assign(`/login?role=student&redirect=${encodeURIComponent(`/test/${testCodeRef.current}/lobby`)}`);
+        }
+        return;
+      }
+
       let sessionRes: StartSessionResult;
       try {
         sessionRes = await startProctoringSession({
           attemptId,
-          studentId: studentIdRef.current,
           testCode: testCodeRef.current,
           referenceImage,
-          authToken: authTokenRef.current,
-          springBootUrl: springBootUrlRef.current,
+          authToken: sessionToken,
         });
       } catch (sessionErr: unknown) {
         if (!mounted) return;
@@ -595,9 +595,6 @@ export function useAIProctoring({
             JSON.stringify({
               type: "auth",
               ticket: sessionRes.wsTicket,
-              authToken: authTokenRef.current,
-              studentId: studentIdRef.current,
-              attemptId: attemptIdRef.current,
             })
           );
         };
@@ -692,7 +689,6 @@ export function useAIProctoring({
     testCode,
     referenceImage,
     authToken,
-    springBootUrl,
     cleanup,
     captureFrameBase64,
     handleTelemetryUpdate,
