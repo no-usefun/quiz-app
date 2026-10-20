@@ -2,7 +2,7 @@
 
 // src/app/test/[testCode]/lobby/page.tsx
 
-import { use, useEffect, useState, Suspense } from "react";
+import { use, useEffect, useRef, useState, Suspense } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { motion } from "framer-motion";
@@ -20,6 +20,7 @@ import { ApiClientError, api, getAuthToken } from "@/lib/api/client";
 import { ENDPOINTS } from "@/lib/api/endpoints";
 import type {
   AttemptResponse,
+  AttemptStateResponse,
   QuizAvailabilityResponse,
 } from "@/lib/types";
 
@@ -208,8 +209,10 @@ function LobbyInner({ testCode }: { testCode: string }) {
 
   useEffect(() => {
     if (!pendingStartAfterCapture || !referencePhoto || isStarting) return;
+    if (!freshPhotoForStartRef.current) return;
     setCaptureRequested(false);
     setPendingStartAfterCapture(false);
+    pendingStartAfterCaptureRef.current = false;
     void handleStartAssessment();
   }, [pendingStartAfterCapture, referencePhoto, isStarting]);
   // A missing policy is a configuration error, never an implicit standard-mode assessment.
@@ -236,17 +239,26 @@ function LobbyInner({ testCode }: { testCode: string }) {
       return;
     }
 
-    const existingPhoto =
-      referencePhoto ||
-      (typeof window !== "undefined"
-        ? sessionStorage.getItem("dynoquizz_reference_photo")
-        : null);
-    if (aiRequired && !existingPhoto) {
-      setStartError("Starting camera and automatically capturing your reference photo…");
+    // Every Start click for an AI-proctored assessment must capture a new
+    // frame. Never trust the previous preview or a sessionStorage reference.
+    if (aiRequired && !freshPhotoForStartRef.current) {
+      sessionStorage.removeItem("dynoquizz_reference_photo");
+      setReferencePhoto(null);
+      setStartError("Capturing a fresh reference photo. Keep only yourself in frame.");
+      pendingStartAfterCaptureRef.current = true;
       setPendingStartAfterCapture(true);
+      setCaptureRequested(false);
       setCaptureRequested(true);
       return;
     }
+
+    const freshReferencePhoto = aiRequired ? referencePhoto : null;
+    if (aiRequired && !freshReferencePhoto) {
+      freshPhotoForStartRef.current = false;
+      setStartError("A fresh reference photo could not be captured. Please try again.");
+      return;
+    }
+
     sessionStorage.setItem(`dynoquizz_ai_proctoring_${cleanCode}`, String(aiRequired));
 
     setIsStarting(true);
@@ -288,12 +300,70 @@ function LobbyInner({ testCode }: { testCode: string }) {
        * The backend derives student identity from the JWT.
        * No registration number or attempt ID is sent in the request.
        */
-      let attempt: AttemptResponse;
+      let attempt: AttemptResponse | null = null;
+      const pendingAttemptKey = `dynoquizz_pending_proctor_attempt_${cleanCode}`;
+      const pendingAttemptRaw = sessionStorage.getItem(pendingAttemptKey);
+
+      // If proctor startup rejected the previous photo, reuse the same active
+      // server attempt after verifying it is still IN_PROGRESS. This avoids
+      // creating a second attempt or relying on the assessment's resume policy.
+      if (pendingAttemptRaw) {
+        let pendingAttempt: AttemptResponse | null = null;
+        try {
+          const candidate = JSON.parse(pendingAttemptRaw) as Partial<AttemptResponse>;
+          if (
+            candidate.attemptId != null &&
+            candidate.quizId != null &&
+            candidate.effectiveDeadline &&
+            candidate.startedAt
+          ) {
+            pendingAttempt = candidate as AttemptResponse;
+          }
+        } catch {
+          pendingAttempt = null;
+        }
+
+        if (pendingAttempt) {
+          try {
+            const currentState = await api.get<AttemptStateResponse>(
+              ENDPOINTS.student.attemptState(pendingAttempt.attemptId),
+              { retry: 1, cache: "no-store" },
+            );
+            if (
+              currentState.status === "IN_PROGRESS" &&
+              Number(currentState.quizId) === Number(pendingAttempt.quizId)
+            ) {
+              attempt = {
+                ...pendingAttempt,
+                effectiveDeadline:
+                  currentState.effectiveDeadline || pendingAttempt.effectiveDeadline,
+              };
+            } else {
+              sessionStorage.removeItem(pendingAttemptKey);
+              throw new Error(
+                currentState.status === "AUTO_SUBMITTED"
+                  ? "The previous attempt was automatically submitted and cannot be restarted."
+                  : "The previous attempt is no longer active. Return to the dashboard to review its status.",
+              );
+            }
+          } catch (error) {
+            if (error instanceof ApiClientError && error.status === 404) {
+              sessionStorage.removeItem(pendingAttemptKey);
+            } else {
+              throw error;
+            }
+          }
+        } else {
+          sessionStorage.removeItem(pendingAttemptKey);
+        }
+      }
 
       try {
-        attempt = await api.post<AttemptResponse>(
-          ENDPOINTS.student.startAttempt(cleanCode),
-        );
+        if (!attempt) {
+          attempt = await api.post<AttemptResponse>(
+            ENDPOINTS.student.startAttempt(cleanCode),
+          );
+        }
       } catch (error) {
         if (error instanceof ApiClientError) {
           const code = String(error.errorCode || "").toUpperCase();
@@ -376,11 +446,22 @@ function LobbyInner({ testCode }: { testCode: string }) {
       localStorage.setItem("dynoquizz_attemptId", attemptId);
       localStorage.setItem(`dynoquizz_attemptId_${attempt.quizId}`, attemptId);
       localStorage.setItem(`dynoquizz_attemptId_${cleanCode}`, attemptId);
+      sessionStorage.setItem(pendingAttemptKey, JSON.stringify(attempt));
+
+      // The arena will call POST /proctor/start with this fresh image. Keep it
+      // only for this navigation; if validation fails, returning to the lobby
+      // always clears it and captures a new frame.
+      if (aiRequired && freshReferencePhoto) {
+        sessionStorage.setItem("dynoquizz_reference_photo", freshReferencePhoto);
+      } else {
+        sessionStorage.removeItem("dynoquizz_reference_photo");
+      }
+      freshPhotoForStartRef.current = false;
 
       /*
-       * Only enter the exam arena after the backend has created/resolved
-       * the authoritative attempt. The arena then restores attempt state
-       * and fetches the student-safe quiz package.
+       * Only enter the exam arena after a fresh frame has been captured and
+       * the server attempt is present. The arena remains locked until
+       * /proctor/start confirms referenceRegistered=true and returns telemetry.
        */
       router.push(`/test/${encodeURIComponent(cleanCode)}`);
     } catch (error) {
@@ -391,6 +472,12 @@ function LobbyInner({ testCode }: { testCode: string }) {
         return;
       }
 
+      freshPhotoForStartRef.current = false;
+      pendingStartAfterCaptureRef.current = false;
+      setPendingStartAfterCapture(false);
+      setCaptureRequested(false);
+      sessionStorage.removeItem("dynoquizz_reference_photo");
+      setReferencePhoto(null);
       setStartError(
         getApiErrorMessage(
           error,
@@ -530,13 +617,38 @@ We couldn’t verify this assessment’s security settings. Please contact your 
             </div>
           )}
 
-          {aiRequired && <CameraReferenceCapture captureRequested={captureRequested} onCapture={(photo) => { setReferencePhoto(photo); sessionStorage.setItem("dynoquizz_reference_photo", photo); localStorage.removeItem("dynoquizz_reference_photo"); setStartError(null); }} disabled={isStarting} />}
+          {aiRequired && (
+            <CameraReferenceCapture
+              captureRequested={captureRequested}
+              onCapture={(photo) => {
+                setReferencePhoto(photo);
+                // Only a capture requested by the Start button is eligible for
+                // this attempt. Manual previews are never trusted as a baseline.
+                if (pendingStartAfterCaptureRef.current) {
+                  freshPhotoForStartRef.current = true;
+                }
+                sessionStorage.removeItem("dynoquizz_reference_photo");
+                localStorage.removeItem("dynoquizz_reference_photo");
+                setStartError(null);
+              }}
+              onCaptureError={(message) => {
+                freshPhotoForStartRef.current = false;
+                pendingStartAfterCaptureRef.current = false;
+                setPendingStartAfterCapture(false);
+                setCaptureRequested(false);
+                setReferencePhoto(null);
+                sessionStorage.removeItem("dynoquizz_reference_photo");
+                setStartError(message);
+              }}
+              disabled={isStarting}
+            />
+          )}
 
            <div className="space-y-2">
             <button
               type="button"
               onClick={handleStartAssessment}
-              disabled={isStarting || !aiPolicyKnown}
+              disabled={isStarting || pendingStartAfterCapture || !aiPolicyKnown}
               className="w-full flex items-center justify-center gap-2 rounded-[10px] bg-[#111111] py-3.5 text-sm font-bold text-white hover:bg-[#222222] active:scale-[0.98] shadow-sm hover:shadow-md transition-all cursor-pointer border-0 disabled:opacity-70"
             >
               {isStarting ? (
@@ -546,8 +658,8 @@ We couldn’t verify this assessment’s security settings. Please contact your 
                 </>
               ) : (
                 <>
-                  Start assessment
-                  <ArrowRight className="h-4 w-4" />
+                  {pendingStartAfterCapture ? "Capturing fresh photo…" : "Start assessment"}
+                  {!pendingStartAfterCapture && <ArrowRight className="h-4 w-4" />}
                 </>
               )}
             </button>
