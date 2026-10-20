@@ -325,7 +325,6 @@ export function useAIProctoring({
     }
 
     const currentAttemptId = Number(attemptIdRef.current);
-    const isValidAttempt = Number.isSafeInteger(currentAttemptId) && currentAttemptId > 0;
     const isAutoSubmitted = telemetry.autoSubmitted === true;
     const rawEvent = typeof telemetry.malpracticeEvent === "string"
       ? telemetry.malpracticeEvent.trim()
@@ -520,6 +519,20 @@ export function useAIProctoring({
       }
 
       streamRef.current = stream;
+
+      const videoTrack = stream.getVideoTracks()[0];
+      videoTrack?.addEventListener(
+        "ended",
+        () => {
+          if (isCleaningUpRef.current || !mounted) return;
+          setCameraActive(false);
+          setIdentityHoldSnapshot(true, "CAMERA_UNAVAILABLE");
+          setCameraError(
+            "Camera access was interrupted during the assessment. Restore camera permission, then return to the lobby and restart with a fresh reference photo.",
+          );
+        },
+        { once: true },
+      );
 
       // Attach stream to video
       if (videoRef.current) {
@@ -791,6 +804,7 @@ export function useAIProctoring({
     telemetryReceived,
     identityHold,
     identityHoldReason,
+    identityHoldRef,
     referenceRegistered,
     serverAutoSubmitted,
     faceDetected,
