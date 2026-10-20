@@ -3,8 +3,6 @@ import uvicorn
 import logging
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from api import router, ws_router
-from api.routes import malpractice_detector
 from config import HOST, PORT, ensure_models_exist, PROCTOR_FRONTEND_ORIGINS
 
 # Configure logging
@@ -14,12 +12,23 @@ logging.basicConfig(
 )
 logger = logging.getLogger("ai-proctoring")
 
-# Pre-download & ensure models
+# Ensure model artifacts exist before importing modules that construct model-backed detectors.
+# This remains an import-time check for now; moving detector construction fully into lifespan
+# requires converting the route-level singletons to lazy/startup-managed resources.
+import time
+_model_check_started = time.perf_counter()
 ensure_models_exist()
+logger.info("Model artifact check completed in %.3fs", time.perf_counter() - _model_check_started)
+
+# Import model-backed routes only after model artifacts have been checked.
+from api import router, ws_router
+from api.routes import malpractice_detector
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    logger.info("AI Proctoring Microservice initialized.")
+    startup_started = time.perf_counter()
+    logger.info("AI Proctoring Microservice initialized; model artifact check already completed.")
+    logger.info("Startup diagnostics ready in %.3fs", time.perf_counter() - startup_started)
     yield
     logger.info("AI Proctoring Microservice shutting down... Closing resources.")
     await malpractice_detector.close()
