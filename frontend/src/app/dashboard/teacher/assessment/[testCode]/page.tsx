@@ -1392,25 +1392,38 @@ export default function TeacherAssessmentPage({
           </section>
 
           <section className="flex flex-1 flex-col">
-            <div className="mb-3 flex flex-col gap-2.5 sm:flex-row sm:items-center sm:justify-between">
-              <h2 className="text-xs font-bold text-midnight-navy uppercase tracking-wider text-left">
-                Submitted Students ({displayList.length} of {submitted.length})
-              </h2>
+            <div className="mb-4 flex flex-col gap-3 rounded-[14px] border border-[#d1dee8]/70 bg-frost-surface/40 p-4 sm:flex-row sm:items-center sm:justify-between">
+              <div className="text-left">
+                <div className="flex items-center gap-2">
+                  <div className="flex h-8 w-8 items-center justify-center rounded-[10px] border border-[#d1dee8]/70 bg-paper-white text-[#165dfb]">
+                    <Trophy className="h-4 w-4" />
+                  </div>
+                  <div>
+                    <h2 className="text-sm font-bold text-midnight-navy">Student Leaderboard</h2>
+                    <p className="mt-0.5 text-[11px] text-steel-blue-gray">
+                      Ranked by score, with completion time as the tie-breaker.
+                    </p>
+                  </div>
+                </div>
+                <p className="mt-2 text-[10px] font-semibold uppercase tracking-wider text-steel-blue-gray">
+                  Showing {displayList.length} of {submitted.length} submissions
+                </p>
+              </div>
 
-              <div className="relative">
-                <Search className="pointer-events-none absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-steel-blue-gray" />
+              <div className="relative w-full sm:max-w-xs">
+                <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-steel-blue-gray" />
                 <input
                   type="text"
-                  placeholder="Search by name…"
+                  placeholder="Search name or registration no."
                   value={query}
                   onChange={(event) => setQuery(event.target.value)}
-                  className="w-full rounded-[10px] border border-[#d1dee8]/80 bg-paper-white py-2 pl-9 pr-4 text-xs font-medium text-midnight-navy outline-none transition-all placeholder:text-steel-blue-gray/60 focus:border-signal-green focus:ring-2 focus:ring-signal-green/20 shadow-xs sm:w-64"
+                  className="w-full rounded-[10px] border border-[#d1dee8]/80 bg-paper-white py-2.5 pl-9 pr-4 text-xs font-medium text-midnight-navy outline-none transition-all placeholder:text-steel-blue-gray/70 focus:border-[#165dfb] focus:ring-2 focus:ring-[#165dfb]/15"
                 />
               </div>
             </div>
 
-            <div className="flex-1 rounded-[14px] border border-[#d1dee8]/70 overflow-hidden bg-paper-white shadow-sm text-left">
-              <div className="grid grid-cols-[2.5rem_1fr_1fr_7rem_6rem_auto] items-center gap-3 border-b border-[#d1dee8]/40 bg-paper-white px-5 py-2.5">
+            <div className="flex-1 overflow-hidden rounded-[14px] border border-[#d1dee8]/80 bg-paper-white text-left shadow-sm">
+              <div className="grid grid-cols-[2rem_minmax(100px,1fr)_minmax(110px,1fr)_90px_70px_auto] items-center gap-3 border-b border-[#d1dee8]/70 bg-frost-surface/70 px-4 py-3">
                 <Th
                   label="#"
                   col="rank"
@@ -1468,17 +1481,17 @@ export default function TeacherAssessmentPage({
                   </p>
                 </div>
               ) : (
-                <ul className="divide-y divide-[#d1dee8]/30 bg-paper-white">
+                <ul className="divide-y divide-[#d1dee8]/50 bg-paper-white">
                   {displayList.map((student) => (
                     <li
                       key={student.id}
-                      className="grid grid-cols-[2.5rem_1fr_1fr_7rem_6rem_auto] items-center gap-3 px-5 py-2.5 transition-colors hover:bg-frost-surface/40"
+                      className="grid grid-cols-[2rem_minmax(100px,1fr)_minmax(110px,1fr)_90px_70px_auto] items-center gap-3 px-4 py-3 transition-colors hover:bg-[#f5f8ff]"
                     >
-                      <span className="text-xs font-bold font-mono text-steel-blue-gray">
+                      <span className={`flex h-7 w-7 items-center justify-center rounded-full text-[11px] font-bold tabular-nums ${student.rank === 1 ? "bg-amber-100 text-amber-800" : student.rank === 2 ? "bg-slate-100 text-slate-700" : student.rank === 3 ? "bg-orange-100 text-orange-800" : "bg-frost-surface text-steel-blue-gray"}`}>
                         {student.rank}
                       </span>
 
-                      <span className="truncate text-xs font-medium text-steel-blue-gray">
+                      <span className="truncate font-mono text-[11px] font-medium text-steel-blue-gray" title={student.registrationNumber || "Registration number unavailable"}>
                         {student.registrationNumber || "—"}
                       </span>
 
@@ -1494,11 +1507,10 @@ export default function TeacherAssessmentPage({
 
                       <div className="flex flex-col items-center justify-center leading-tight">
                         <span className="text-xs font-bold tabular-nums text-midnight-navy">
-                          {formatMarks(student.finalScore)} /{" "}
-                          {formatMarks(student.totalMarks)}
+                          {formatMarks(student.finalScore)} / {formatMarks(student.totalMarks)}
                         </span>
 
-                        <span className="text-[9px] font-bold tabular-nums text-signal-green">
+                        <span className="mt-1 rounded-full bg-[#ecfdf3] px-1.5 py-0.5 text-[9px] font-bold tabular-nums text-[#15803d]">
                           {formatPercentage(student.percentage)}%
                         </span>
                       </div>
