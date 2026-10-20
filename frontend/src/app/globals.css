@@ -552,3 +552,49 @@ html.dark .assessment-governance [class*="border-[#dce7ff]"],
 html.dark .assessment-governance [class*="border-[#d1dee8]"] {
   border-color: #2e3d54 !important;
 }
+
+
+/* Teacher dashboard cards and roster */
+html.dark .teacher-dashboard {
+  background-color: #0b1120 !important;
+  color: #e5edf9 !important;
+}
+html.dark .teacher-dashboard .teacher-dashboard-hero {
+  background: linear-gradient(125deg, #172033 0%, #151d30 48%, #10243c 100%) !important;
+  border-color: #334765 !important;
+  box-shadow: 0 8px 30px rgba(0, 0, 0, 0.22) !important;
+}
+html.dark .teacher-dashboard .teacher-stat,
+html.dark .teacher-dashboard .teacher-assessment-card {
+  background: linear-gradient(135deg, #182337, #172033) !important;
+  border-color: #33445e !important;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.14) !important;
+}
+html.dark .teacher-dashboard [class*="bg-white"],
+html.dark .teacher-dashboard [class*="bg-[#f5f5f4]"] {
+  background-color: #151e2e !important;
+  border-color: #2c3b52 !important;
+}
+html.dark .teacher-dashboard [class*="text-[#111111]"] {
+  color: #e8eef9 !important;
+}
+html.dark .teacher-dashboard [class*="text-[#78716b]"],
+html.dark .teacher-dashboard [class*="text-[#64748b]"] {
+  color: #a7b4c8 !important;
+}
+html.dark .teacher-dashboard input,
+html.dark .teacher-dashboard select {
+  background-color: #111a2a !important;
+  border-color: #35465f !important;
+  color: #e5edf9 !important;
+}
+html.dark .teacher-dashboard input::placeholder {
+  color: #94a3b8 !important;
+}
+html.dark .teacher-dashboard [class*="border-[#d1dee8]"] {
+  border-color: #2e3d54 !important;
+}
+html.dark .teacher-dashboard [class*="hover:bg-[#f5f5f4]"]:hover,
+html.dark .teacher-dashboard [class*="hover:bg-[#eef4ff]"]:hover {
+  background-color: #1d2a40 !important;
+}
