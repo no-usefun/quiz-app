@@ -26,11 +26,10 @@ export interface AIHealthResponse {
 
 export interface StartSessionParams {
   attemptId: number;
-  studentId?: string;
   testCode: string;
   referenceImage: string; // base64 JPEG/PNG
-  authToken?: string;
-  springBootUrl?: string;
+  /** Session JWT is sent only as an Authorization header, never in JSON. */
+  authToken: string;
 }
 
 export interface StartSessionResult {
@@ -106,7 +105,13 @@ export async function checkAIHealth(): Promise<{ isOnline: boolean; biometricRea
   try {
     const res = await fetch(`${AI_PROCTORING_BASE_URL}/health`, {
       method: "GET",
-      headers: { Accept: "application/json" },
+      headers: {
+        Accept: "application/json",
+        // Required by browser requests when the configured service is an ngrok tunnel.
+        ...(AI_PROCTORING_BASE_URL.includes(".ngrok-free.dev")
+          ? { "ngrok-skip-browser-warning": "true" }
+          : {}),
+      },
       signal: AbortSignal.timeout(2500),
     });
     if (res.ok) {
@@ -144,9 +149,16 @@ export async function startProctoringSession(
     );
   }
 
+  if (!params.authToken?.trim()) {
+    throw new Error("AUTH_REQUIRED: Your session has expired. Please sign in again before starting AI proctoring.");
+  }
+
   const headers: Record<string, string> = {
     "Content-Type": "application/json",
     Accept: "application/json",
+    ...(AI_PROCTORING_BASE_URL.includes(".ngrok-free.dev")
+      ? { "ngrok-skip-browser-warning": "true" }
+      : {}),
   };
   if (params.authToken) {
     headers["Authorization"] = params.authToken.startsWith("Bearer ")
@@ -157,12 +169,23 @@ export async function startProctoringSession(
   const res = await fetch(`${AI_PROCTORING_BASE_URL}/proctor/start`, {
     method: "POST",
     headers,
-    body: JSON.stringify(params),
+    body: JSON.stringify({
+      attemptId: params.attemptId,
+      testCode: params.testCode,
+      referenceImage: params.referenceImage,
+    }),
   });
 
   if (!res.ok) {
     const err = await res.json().catch(() => ({ detail: "Registration failed." }));
-    throw new Error(err.detail || "Reference photo registration failed. Ensure your face is clearly visible.");
+    const detail = typeof err.detail === "string" ? err.detail : "";
+    if (res.status === 401 || res.status === 403) {
+      throw new Error(`AUTHORIZATION_FAILED: ${detail || "Your session is not authorized to start this proctoring session. Sign in again or contact your instructor."}`);
+    }
+    if (res.status === 503 || /BACKEND_UNAVAILABLE/i.test(detail)) {
+      throw new Error(`BACKEND_UNAVAILABLE: The AI proctoring service could not validate your session with the quiz backend. Your assessment remains locked. Please retry shortly. ${detail}`.trim());
+    }
+    throw new Error(detail || `Proctoring startup failed (HTTP ${res.status}). Please retry or contact your instructor.`);
   }
 
   const result = (await res.json()) as StartSessionResult;
