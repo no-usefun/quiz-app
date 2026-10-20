@@ -170,6 +170,13 @@ CREATE INDEX IF NOT EXISTS idx_proctoring_events_attempt_time
 CREATE INDEX IF NOT EXISTS idx_proctoring_events_attempt_type
     ON quiz_attempt_proctoring_events(attempt_id, event_type);
 
+-- Durable event idempotency: existing events remain valid with NULL client_event_id.
+ALTER TABLE public.quiz_attempt_proctoring_events
+    ADD COLUMN IF NOT EXISTS client_event_id VARCHAR(100);
+
+CREATE UNIQUE INDEX IF NOT EXISTS uq_proctoring_attempt_client_event
+    ON public.quiz_attempt_proctoring_events(attempt_id, client_event_id);
+
 -- =========================================================
 -- 10. QUIZ ATTEMPTS: add termination_reason if absent
 -- =========================================================
