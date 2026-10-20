@@ -309,6 +309,15 @@ export function useAIProctoring({
       setWarningCount(telemetry.warningCount);
     }
 
+    if (telemetry.eventPersistenceFailed) {
+      setActiveWarningModal({
+        isOpen: true,
+        reason: "AI detected a possible proctoring violation, but the backend did not confirm that every event was saved. Notify the invigilator and do not assume this event is present in the audit report.",
+        count: warningCountRef.current,
+        autoSubmitted: false,
+      });
+    }
+
     if (!telemetry.malpracticeEvent) {
       return;
     }
