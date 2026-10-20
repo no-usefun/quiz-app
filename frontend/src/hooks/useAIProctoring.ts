@@ -289,8 +289,11 @@ export function useAIProctoring({
 
     if (isFirstForAttempt) {
       onAutoSubmitRef.current?.();
+      // Stop frame streaming and release camera/audio resources immediately
+      // after the backend confirms the attempt is terminal.
+      void cleanup();
     }
-  }, [setIdentityHoldSnapshot]);
+  }, [cleanup, setIdentityHoldSnapshot]);
 
   const handleTelemetryUpdate = useCallback((telemetry: TelemetryResponse) => {
     setTelemetryReceived(true);
