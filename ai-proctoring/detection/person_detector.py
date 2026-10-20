@@ -21,13 +21,19 @@ class PersonDetector:
             logger.error("Failed to load YOLOv8 model for person detector: %s", e)
             self.model = None
 
-    def detect_persons(self, image: np.ndarray) -> tuple[int, list[dict]]:
+    def detect_persons(self, image: np.ndarray, *, strict: bool = False) -> tuple[int, list[dict]]:
         """
         Detects human persons in frame.
         Returns:
             (person_count: int, detections: list[dict])
         """
-        if self.model is None or image is None or image.size == 0:
+        if self.model is None:
+            if strict:
+                raise RuntimeError("Person detection model is unavailable; cannot safely register a reference photo.")
+            return 0, []
+        if image is None or image.size == 0:
+            if strict:
+                raise ValueError("Invalid image supplied for person detection.")
             return 0, []
 
         try:
@@ -76,4 +82,6 @@ class PersonDetector:
             return len(filtered_detections), filtered_detections
         except Exception as e:
             logger.error("Person detection inference error: %s", e)
+            if strict:
+                raise RuntimeError("Person detection failed; refusing to register a reference photo without validation.") from e
             return 0, []
