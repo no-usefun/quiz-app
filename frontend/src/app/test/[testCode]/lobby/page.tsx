@@ -68,6 +68,8 @@ function LobbyInner({ testCode }: { testCode: string }) {
   const [referencePhoto, setReferencePhoto] = useState<string | null>(null);
   const [captureRequested, setCaptureRequested] = useState(false);
   const [pendingStartAfterCapture, setPendingStartAfterCapture] = useState(false);
+  const freshPhotoForStartRef = useRef(false);
+  const pendingStartAfterCaptureRef = useRef(false);
 
   const [loading, setLoading] = useState(true);
   const [isStarting, setIsStarting] = useState(false);
@@ -447,7 +449,6 @@ function LobbyInner({ testCode }: { testCode: string }) {
       localStorage.setItem(`dynoquizz_attemptId_${attempt.quizId}`, attemptId);
       localStorage.setItem(`dynoquizz_attemptId_${cleanCode}`, attemptId);
 
-      const pendingAttemptKey = `dynoquizz_pending_proctor_attempt_${cleanCode}`;
       if (aiRequired) {
         sessionStorage.setItem(pendingAttemptKey, JSON.stringify(attempt));
       } else {
