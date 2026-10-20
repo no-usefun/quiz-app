@@ -342,7 +342,7 @@ export function useSession() {
       ...(payload.phone?.trim() ? { phone: payload.phone.trim() } : {}),
     };
 
-    const data = await api.post<Record<string, any>>(
+    const data = await api.post<Record<string, unknown>>(
       ENDPOINTS.auth.signup(backendRole),
       requestBody,
       { skipAuth: true, cache: "no-store" },
