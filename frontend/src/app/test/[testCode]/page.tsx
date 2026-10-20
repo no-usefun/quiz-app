@@ -841,10 +841,7 @@ export default function TestArenaPage({
 
         // The lobby is the only supported entry point for AI-proctored tests.
         // Direct navigation to /test/:code must not bypass reference-photo capture.
-        if (
-          resolvedAiPolicy &&
-          !sessionStorage.getItem("dynoquizz_reference_photo")
-        ) {
+        if (resolvedAiPolicy && !referencePhoto) {
           throw new Error(
             "A reference photo is required for this AI-proctored assessment. Return to the assessment lobby, capture your photo, and start again.",
           );
@@ -1036,7 +1033,7 @@ export default function TestArenaPage({
     return () => {
       cancelled = true;
     };
-  }, [cleanCode, activeAttemptId, router]);
+  }, [cleanCode, activeAttemptId, referencePhoto, router]);
 
   useEffect(() => {
     if (!currentQuestion || isSubmitted) {
@@ -1273,7 +1270,9 @@ export default function TestArenaPage({
       localStorage.removeItem(`dynoquizz_attemptId_${cleanCode}`);
       localStorage.removeItem("dynoquizz_attemptId");
       localStorage.removeItem(`dynoquizz_pending_submit_${attemptId}`);
-      // The reference image is needed only for this attempt/session.
+      sessionStorage.removeItem(`dynoquizz_pending_proctor_attempt_${cleanCode}`);
+      sessionStorage.removeItem(`dynoquizz_reference_photo_fresh_${attemptId}`);
+      // Reference bytes are never kept after this attempt has started.
       sessionStorage.removeItem("dynoquizz_reference_photo");
       localStorage.removeItem("dynoquizz_reference_photo");
 
@@ -1323,6 +1322,8 @@ export default function TestArenaPage({
             localStorage.removeItem(
               `dynoquizz_pending_submit_${attemptId}`,
             );
+            sessionStorage.removeItem(`dynoquizz_pending_proctor_attempt_${cleanCode}`);
+            sessionStorage.removeItem(`dynoquizz_reference_photo_fresh_${attemptId}`);
             sessionStorage.removeItem("dynoquizz_reference_photo");
             localStorage.removeItem("dynoquizz_reference_photo");
 
@@ -2120,6 +2121,9 @@ export default function TestArenaPage({
         onAcknowledge={() => {
           proctoring.dismissWarningModal();
           if (proctoring.activeWarningModal.autoSubmitted) {
+            sessionStorage.removeItem(`dynoquizz_pending_proctor_attempt_${cleanCode}`);
+            sessionStorage.removeItem(`dynoquizz_reference_photo_fresh_${activeAttemptId}`);
+            sessionStorage.removeItem("dynoquizz_reference_photo");
             router.push(`/dashboard/student/result/${cleanCode}`);
           }
         }}
