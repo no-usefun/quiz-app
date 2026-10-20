@@ -348,7 +348,9 @@ export function useAIProctoring({
       : "";
     const eventKey = rawEvent
       ? (normalizeAIEventType(rawEvent) || rawEvent.toUpperCase().replace(/[\\s-]+/g, "_"))
-      : "";
+      : eventMessage
+        ? `EVENT_MESSAGE:${eventMessage.toUpperCase().replace(/[\\s-]+/g, " ").slice(0, 180)}`
+        : "";
     const authoritativeCount = Math.max(
       warningCountRef.current,
       typeof telemetry.warningCount === "number" && Number.isFinite(telemetry.warningCount)
@@ -374,10 +376,10 @@ export function useAIProctoring({
       return;
     }
 
-    if (!rawEvent) return;
+    if (!rawEvent && !eventMessage) return;
 
     if (!eventKey) {
-      console.warn("[Proctoring] Empty AI malpractice event was ignored.");
+      console.warn("[Proctoring] Empty AI malpractice event and message were ignored.");
       return;
     }
 
