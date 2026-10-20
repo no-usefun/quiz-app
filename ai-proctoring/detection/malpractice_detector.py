@@ -1,3 +1,4 @@
+import asyncio
 import time
 import uuid
 import httpx
@@ -220,26 +221,39 @@ class MalpracticeDetector:
             "eventId": event_id,
         }
 
-        try:
-            resp = await self.http_client.post(url, json=payload, headers=headers)
-            if resp.status_code in (200, 201):
-                data = resp.json()
-                logger.info("Spring Boot recorded event %s. Warning count: %s", event_type, data.get("warningCount"))
-                session.events_log.append({
-                    "eventId": event_id,
-                    "type": event_type,
-                    "details": details,
-                    "severity": severity,
-                    "confidence": confidence,
-                    "timestamp": detection_timestamp,
-                    "persisted": bool(data.get("recorded", True)),
-                    "warningCount": data.get("warningCount")
-                })
-                return data
-            else:
-                logger.error("Spring Boot event dispatch failed status=%d attempt=%s event=%s eventId=%s body=%s", resp.status_code, session.attempt_id, event_type, event_id, resp.text[:500])
-        except Exception as e:
-            logger.error("Failed to dispatch event to Spring Boot attempt=%s event=%s eventId=%s error=%s", session.attempt_id, event_type, event_id, e)
+        for attempt_number in range(1, 4):
+            try:
+                resp = await self.http_client.post(url, json=payload, headers=headers)
+                if resp.status_code in (200, 201):
+                    data = resp.json()
+                    logger.info(
+                        "Spring Boot event response event=%s attempt=%s recorded=%s warningCount=%s",
+                        event_type, session.attempt_id, data.get("recorded"), data.get("warningCount")
+                    )
+                    session.events_log.append({
+                        "eventId": event_id,
+                        "type": event_type,
+                        "details": details,
+                        "severity": severity,
+                        "confidence": confidence,
+                        "timestamp": detection_timestamp,
+                        "persisted": bool(data.get("recorded", True)),
+                        "warningCount": data.get("warningCount")
+                    })
+                    return data
+                logger.error(
+                    "Spring Boot event dispatch failed status=%d attempt=%s event=%s eventId=%s body=%s",
+                    resp.status_code, session.attempt_id, event_type, event_id, resp.text[:500]
+                )
+                if resp.status_code < 500:
+                    return None
+            except Exception as e:
+                logger.error(
+                    "Spring Boot event dispatch attempt %d/3 failed attempt=%s event=%s eventId=%s error=%s",
+                    attempt_number, session.attempt_id, event_type, event_id, e
+                )
+            if attempt_number < 3:
+                await asyncio.sleep(0.25 * attempt_number)
 
         return None
 
