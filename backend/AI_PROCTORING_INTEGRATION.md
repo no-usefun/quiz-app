@@ -8,7 +8,7 @@ The Python AI proctoring service owns biometric inference and media-session life
 
 | Concern | Spring Boot file | Responsibility |
 |---|---|---|
-| AI service URL | `src/main/resources/application.properties` | Configures `app.ai-proctoring.base-url` via `AI_PROCTORING_BASE_URL`; defaults to `http://localhost:8000`. |
+| AI service URL | `src/main/resources/application.properties` | Configures `app.ai-proctoring.base-url` via `AI_PROCTORING_BASE_URL`; set it to the reachable Python service URL in each environment. |
 | AI service health client | `src/main/java/com/quiz_app/backend/service/AiProctoringClient.java` | Calls Python `GET /health`, parses status, biometric readiness and model status; returns DOWN/INVALID_RESPONSE rather than failing application startup. |
 | Health API response | `src/main/java/com/quiz_app/backend/dto/proctoring/AiProctoringHealthResponse.java` | Stable response contract for reachability, service status, biometric availability and models. |
 | Health endpoint | `src/main/java/com/quiz_app/backend/controller/AiProctoringHealthController.java` | Exposes `GET /api/v1/proctoring/ai-health`; returns 200 when Python reports UP/DEGRADED, otherwise 503. |
@@ -39,6 +39,10 @@ Supported event types are currently: `FACE_NOT_DETECTED`, `MULTIPLE_FACES`, `MUL
 - The new Spring Boot health endpoint checks service reachability only. It does not start/stop an AI session, proxy camera frames, or prove that inference works end-to-end.
 - The AI frontend currently talks directly to the Python service. Backend persistence of AI detections depends on the frontend explicitly sending confirmed detections to `POST /api/v1/attempts/{attemptId}/events`.
 - Send a stable `eventId` for retries. Without it, the backend cannot deduplicate retried events.
+- If supplied, `frameTimestamp` must be Unix epoch seconds from 2000-01-01 onward and no more than five minutes in the future. Omit it if the client has no epoch timestamp; the backend records the current server time.
+- `severity` may be omitted (the backend applies an event-based default), but a supplied severity must be `LOW`, `MEDIUM`, `HIGH`, or `CRITICAL`. Confidence must be between 0 and 1.
+- Summary counters must be non-negative, and `identityMatches + identityMismatches` cannot exceed `totalFaceChecks`.
+- Configure `CORS_ALLOWED_ORIGINS` as a comma-separated list of exact frontend origins (for example, `https://frontend.example.com`). If unset, the backend falls back to `FRONTEND_URL`; do not use a wildcard when credentials are enabled.
 - Keep the backend's persisted warning count and attempt status authoritative. A client-side warning count alone must not auto-submit an attempt.
 - Configure `AI_PROCTORING_BASE_URL` to the reachable Python service URL in each environment. For local development, the default is `http://localhost:8000`.
 - The health endpoint and Java changes have not been built or tested in this GitHub-only edit. Run the backend test suite and an integration test against the running Python service before marking the integration verified.
