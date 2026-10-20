@@ -504,7 +504,7 @@ function LobbyInner({ testCode }: { testCode: string }) {
 
   useEffect(() => {
     handleStartAssessmentRef.current = handleStartAssessment;
-  }, [handleStartAssessment]);
+  });
 
   if (loading) {
     return (
