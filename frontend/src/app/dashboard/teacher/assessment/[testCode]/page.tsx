@@ -19,7 +19,8 @@ import {
   Trophy,
   Lock,
   ShieldAlert,
-, ClipboardList} from "lucide-react";
+  ClipboardList,
+} from "lucide-react";
 import { Logo } from "@/components/Logo";
 import { TeacherProctoringReportModal } from "@/components/TeacherProctoringReportModal";
 import { ENDPOINTS } from "@/lib/api/endpoints";
