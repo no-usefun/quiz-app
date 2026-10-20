@@ -73,6 +73,10 @@ export interface TelemetryResponse {
   malpracticeEvent: string | null;
   eventMessage: string | null;
   autoSubmitted: boolean;
+  /** Explicit server decision to block the candidate until identity is restored. */
+  identityHold?: boolean;
+  /** Server-provided reason such as NO_FACE, MULTIPLE_FACES, or IDENTITY_MISMATCH. */
+  identityHoldReason?: string | null;
 }
 
 export interface StopSessionParams {
@@ -192,8 +196,16 @@ export async function startProctoringSession(
   }
 
   const result = (await res.json()) as StartSessionResult;
-  if (!result.referenceRegistered || !result.biometricReady) {
-    throw new Error("BIOMETRIC_REGISTRATION_FAILED: Could not establish biometric identity baseline.");
+  if (result.referenceRegistered !== true) {
+    throw new Error(
+      result.message ||
+        "BIOMETRIC_REGISTRATION_FAILED: The server did not confirm reference-photo registration. Retake the photo and try again.",
+    );
+  }
+  if (result.biometricReady !== true || !result.sessionId) {
+    throw new Error(
+      "BIOMETRIC_REGISTRATION_FAILED: The server did not confirm a ready proctoring session. Retake the photo and try again.",
+    );
   }
 
   return result;
