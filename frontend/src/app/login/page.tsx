@@ -251,7 +251,9 @@ function LoginContent() {
     } catch (requestError) {
       setError(
         requestError instanceof ApiClientError && requestError.status === 0
-          ? "The local exam server is unreachable. Verify the LAN connection and NEXT_PUBLIC_API_URL."
+          ? lanExamMode
+            ? "Unable to reach the local exam server. Check the LAN connection, backend status, and NEXT_PUBLIC_API_URL."
+            : "Unable to complete the request to the authentication server. Check your connection, NEXT_PUBLIC_API_URL, and backend CORS configuration."
           : requestError instanceof Error
             ? requestError.message
             : "Cannot connect to the authentication server.",
