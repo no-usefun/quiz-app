@@ -816,13 +816,21 @@ export default function TeacherAssessmentPage({
     .slice(0, 3);
 
   const scoreDistribution = useMemo(() => {
+    const totalMarks = Math.max(0, Number(assessmentData?.totalMarks) || 0);
     const bands = [
-      { label: "0–20%", min: 0, max: 20, color: "bg-[#fca5a5]" },
-      { label: "21–40%", min: 20, max: 40, color: "bg-[#fdba74]" },
-      { label: "41–60%", min: 40, max: 60, color: "bg-[#fcd34d]" },
-      { label: "61–80%", min: 60, max: 80, color: "bg-[#86b7ff]" },
-      { label: "81–100%", min: 80, max: 100, color: "bg-[#6ee7b7]" },
-    ];
+      { min: 0, max: 20, color: "bg-[#fca5a5]" },
+      { min: 20, max: 40, color: "bg-[#fdba74]" },
+      { min: 40, max: 60, color: "bg-[#fcd34d]" },
+      { min: 60, max: 80, color: "bg-[#86b7ff]" },
+      { min: 80, max: 100, color: "bg-[#6ee7b7]" },
+    ].map((band, index) => {
+      const upperMarks = totalMarks * (band.max / 100);
+      const lowerMarks = totalMarks * (band.min / 100);
+      const label = index === 0
+        ? `0–${formatMarks(upperMarks)} marks`
+        : `>${formatMarks(lowerMarks)}–${formatMarks(upperMarks)} marks`;
+      return { ...band, label };
+    });
 
     return bands.map((band, index) => ({
       ...band,
@@ -835,8 +843,8 @@ export default function TeacherAssessmentPage({
     }));
   }, [submitted]);
 
-  const averageScore = submitted.length
-    ? submitted.reduce((total, student) => total + (Number(student.percentage) || 0), 0) / submitted.length
+  const averageMarks = submitted.length
+    ? submitted.reduce((total, student) => total + (Number(student.finalScore) || 0), 0) / submitted.length
     : 0;
 
   const displayList = useMemo(() => {
@@ -1260,12 +1268,12 @@ export default function TeacherAssessmentPage({
               <div className="mb-4 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
                 <div>
                   <h2 className="text-xs font-bold uppercase tracking-wider text-midnight-navy">Class Performance</h2>
-                  <p className="mt-1 text-xs text-steel-blue-gray">A quick breakdown of scores across all submitted attempts.</p>
+                  <p className="mt-1 text-xs text-steel-blue-gray">A quick breakdown of marks across all submitted attempts.</p>
                 </div>
                 <div className="flex items-center gap-3">
                   <div className="rounded-[10px] bg-frost-surface px-3 py-2">
-                    <p className="text-lg font-bold tabular-nums text-midnight-navy">{formatPercentage(averageScore)}%</p>
-                    <p className="text-[9px] font-bold uppercase tracking-wider text-steel-blue-gray">Class average</p>
+                    <p className="text-lg font-bold tabular-nums text-midnight-navy">{formatMarks(averageMarks)} / {formatMarks(assessmentData.totalMarks)}</p>
+                    <p className="text-[9px] font-bold uppercase tracking-wider text-steel-blue-gray">Average marks</p>
                   </div>
                   <div className="rounded-[10px] bg-frost-surface px-3 py-2">
                     <p className="text-lg font-bold tabular-nums text-midnight-navy">{submitted.length}</p>
@@ -1275,7 +1283,7 @@ export default function TeacherAssessmentPage({
               </div>
 
               <div className="mb-4 flex items-center justify-between border-b border-[#d1dee8]/50 pb-2">
-                <p className="text-[10px] font-bold uppercase tracking-wider text-steel-blue-gray">Score range</p>
+                <p className="text-[10px] font-bold uppercase tracking-wider text-steel-blue-gray">Marks range</p>
                 <p className="text-[10px] font-bold uppercase tracking-wider text-steel-blue-gray">Students</p>
               </div>
 
@@ -1304,7 +1312,7 @@ export default function TeacherAssessmentPage({
                   );
                 })}
               </div>
-              <p className="mt-4 text-[10px] text-steel-blue-gray">Bars compare student counts across score ranges. Empty ranges remain visible.</p>
+              <p className="mt-4 text-[10px] text-steel-blue-gray">Bars compare student counts across marks ranges. Empty ranges remain visible.</p>
             </section>
           )}
 
