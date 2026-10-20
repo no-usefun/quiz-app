@@ -7,18 +7,15 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { motion } from "framer-motion";
 import {
-  ShieldCheck,
-  Clock,
-  FileQuestion,
   ArrowRight,
   Loader2,
   Lock,
   AlertCircle,
   ArrowLeft,
-  Check,
 } from "lucide-react";
 import { Logo } from "@/components/Logo";
 import { CameraReferenceCapture } from "@/components/CameraReferenceCapture";
+import { checkAIHealth } from "@/lib/proctoring/aiProctoringClient";
 
 import { ApiClientError, api, getAuthToken } from "@/lib/api/client";
 import { ENDPOINTS } from "@/lib/api/endpoints";
@@ -68,14 +65,16 @@ function LobbyInner({ testCode }: { testCode: string }) {
 
   const [availability, setAvailability] =
     useState<QuizAvailabilityResponse | null>(null);
-
   const [referencePhoto, setReferencePhoto] = useState<string | null>(null);
+
   const [loading, setLoading] = useState(true);
   const [isStarting, setIsStarting] = useState(false);
   const [startError, setStartError] = useState<string | null>(null);
 
   useEffect(() => {
     if (!cleanCode) {
+      // No code means there is no availability request to make; show the invalid-code state.
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- route validation reset
       setAvailability({
         quizCode: "",
         available: false,
@@ -113,7 +112,58 @@ function LobbyInner({ testCode }: { testCode: string }) {
 
         if (cancelled) return;
 
-        setAvailability(result);
+        // Different backend versions may expose the flag on availability or on
+        // the student-safe package. Read both so a false/missing availability
+        // default cannot hide AI that the teacher explicitly enabled.
+        const availabilityRecord = result as QuizAvailabilityResponse & Record<string, unknown>;
+        const readProctoringFlag = (value: unknown): boolean | undefined => {
+          if (!value || typeof value !== "object") return undefined;
+          const record = value as Record<string, unknown>;
+          const direct =
+            record.aiProctoringEnabled ??
+            record.ai_proctoring_enabled ??
+            record.proctoringEnabled;
+          if (typeof direct === "boolean") return direct;
+
+          const nested = record.settings;
+          if (nested && typeof nested === "object") {
+            const settings = nested as Record<string, unknown>;
+            const candidate =
+              settings.aiProctoringEnabled ??
+              settings.ai_proctoring_enabled ??
+              settings.proctoringEnabled;
+            if (typeof candidate === "boolean") return candidate;
+          }
+          return undefined;
+        };
+
+        let packageFlag: boolean | undefined;
+        try {
+          const packageResponse = await api.get<unknown>(
+            ENDPOINTS.student.quizPackageByCode(cleanCode),
+            { retry: 0, cache: "no-store" },
+          );
+          packageFlag = readProctoringFlag(packageResponse);
+        } catch {
+          // Some backends only expose the package after an attempt is created.
+        }
+
+        const availabilityFlag = readProctoringFlag(availabilityRecord);
+        // Enabling wins if either authoritative student endpoint says true.
+        // Explicit false is retained only when neither endpoint enables AI.
+        const aiProctoringEnabled =
+          availabilityFlag === true || packageFlag === true
+            ? true
+            : availabilityFlag === false || packageFlag === false
+              ? false
+              : undefined;
+
+        setAvailability({
+          ...result,
+          ...(typeof aiProctoringEnabled === "boolean"
+            ? { aiProctoringEnabled }
+            : {}),
+        });
       } catch (error) {
         if (cancelled) return;
 
@@ -146,6 +196,9 @@ function LobbyInner({ testCode }: { testCode: string }) {
 
   const status = availability?.status;
   const isLive = status === "LIVE" && availability?.available === true;
+  // Only render camera/biometric UI when the API explicitly says AI proctoring is enabled.
+  // This prevents the lobby from incorrectly requiring a camera when older API responses omit the flag.
+  const aiRequired = availability?.aiProctoringEnabled === true;
 
   const handleStartAssessment = async () => {
     if (!isLive) {
@@ -160,16 +213,27 @@ function LobbyInner({ testCode }: { testCode: string }) {
       return;
     }
 
-    const existingPhoto = referencePhoto || (typeof window !== "undefined" ? sessionStorage.getItem("dynoquizz_reference_photo") || localStorage.getItem("dynoquizz_reference_photo") : null);
-    if (!existingPhoto) {
-      setStartError("Please take your reference biometric photo before starting the assessment.");
+    const existingPhoto =
+      referencePhoto ||
+      (typeof window !== "undefined"
+        ? sessionStorage.getItem("dynoquizz_reference_photo")
+        : null);
+    if (aiRequired && !existingPhoto) {
+      setStartError("Capture your reference photo before starting this AI-proctored assessment.");
       return;
     }
+    sessionStorage.setItem(`dynoquizz_ai_proctoring_${cleanCode}`, String(aiRequired));
 
     setIsStarting(true);
     setStartError(null);
 
     try {
+      if (aiRequired) {
+        const aiHealth = await checkAIHealth();
+        if (!aiHealth.isOnline) throw new Error("AI proctoring is currently unavailable. Please retry in a moment or contact your instructor.");
+        if (!aiHealth.biometricReady) throw new Error("The biometric verification model is not ready. Please retry shortly.");
+      }
+
       // Fullscreen is required before the server creates the attempt.
       // Starting an attempt outside fullscreen would bypass the exam UI
       // protection, so a denied fullscreen request stops the flow here.
@@ -436,35 +500,7 @@ function LobbyInner({ testCode }: { testCode: string }) {
           animate={{ opacity: 1, y: 0 }}
           className="space-y-5"
         >
-          <div className="rounded-[12px] border border-[#d1dee8]/70 bg-[#f5f5f4]/60 p-4 text-xs text-[#78716b] space-y-2 shadow-xs">
-            <div className="flex items-center gap-2 font-bold text-[#111111]">
-              <ShieldCheck className="h-4 w-4 text-[#165dfb]" />
-              Secure Assessment Architecture
-            </div>
-
-            <p className="leading-relaxed font-medium">
-              The assessment is live. Starting the secure server session will
-              establish your attempt timing and load the authoritative
-              student-safe quiz package.
-            </p>
-          </div>
-
-          <div className="space-y-2 text-xs text-[#78716b] font-medium">
-            <div className="flex items-center gap-2">
-              <Check className="h-3.5 w-3.5 text-[#165dfb]" />
-              <span>Assessment availability verified by server</span>
-            </div>
-
-            <div className="flex items-center gap-2">
-              <Check className="h-3.5 w-3.5 text-[#165dfb]" />
-              <span>Server creates or resumes the student attempt</span>
-            </div>
-
-            <div className="flex items-center gap-2">
-              <Check className="h-3.5 w-3.5 text-[#165dfb]" />
-              <span>Authoritative deadline is stored before Arena entry</span>
-            </div>
-          </div>
+          {aiRequired && <p className="text-sm text-[#78716b]">Allow camera access and capture your reference photo to continue.</p>}
 
           {startError && (
             <div className="rounded-[10px] bg-[#fbeee8] border border-[#8c381c]/30 p-3 text-xs text-[#8c381c] font-semibold flex items-center gap-2 shadow-xs">
@@ -473,18 +509,7 @@ function LobbyInner({ testCode }: { testCode: string }) {
             </div>
           )}
 
-          {/* Biometric Reference Capture */}
-          <CameraReferenceCapture
-            onCapture={(photo) => {
-              setReferencePhoto(photo);
-              if (typeof window !== "undefined") {
-                sessionStorage.setItem("dynoquizz_reference_photo", photo);
-                localStorage.setItem("dynoquizz_reference_photo", photo);
-              }
-              setStartError(null);
-            }}
-            disabled={isStarting}
-          />
+          {aiRequired && <CameraReferenceCapture onCapture={(photo) => { setReferencePhoto(photo); sessionStorage.setItem("dynoquizz_reference_photo", photo); localStorage.removeItem("dynoquizz_reference_photo"); setStartError(null); }} disabled={isStarting} />}
 
           <div className="rounded-[12px] border border-[#d1dee8]/70 bg-[#f5f5f4]/60 p-5 space-y-3 text-left shadow-xs">
             <div className="flex items-center justify-between border-b border-[#d1dee8]/50 pb-3">
@@ -498,27 +523,7 @@ function LobbyInner({ testCode }: { testCode: string }) {
               </span>
             </div>
 
-            <div className="space-y-2 text-xs text-[#78716b]">
-              <p className="font-semibold text-[#111111]">Directives:</p>
-
-              <ul className="list-disc pl-4 space-y-1 font-medium">
-                <li>
-                  The server starts or resumes the attempt for the logged-in
-                  student.
-                </li>
-                <li>
-                  The authoritative assessment deadline comes from the server
-                  response.
-                </li>
-                <li>
-                  The exam package is loaded only after the attempt is ready.
-                </li>
-                <li>
-                  Fullscreen is requested before entering the assessment. Leaving
-                  fullscreen may be recorded as suspicious activity.
-                </li>
-              </ul>
-            </div>
+            <p className="text-sm text-[#78716b]">{aiRequired ? "Your camera and reference photo are required for this proctored assessment." : "Camera and AI identity checks are disabled for this assessment. Tab switching and copy/paste restrictions remain active."} The test opens in fullscreen.</p>
           </div>
 
           <div className="space-y-2">
@@ -531,7 +536,7 @@ function LobbyInner({ testCode }: { testCode: string }) {
               {isStarting ? (
                 <>
                   <Loader2 className="h-4 w-4 animate-spin" />
-                  Initializing Session &amp; Loading Package...
+                  Preparing your assessment...
                 </>
               ) : (
                 <>

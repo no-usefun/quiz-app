@@ -1,13 +1,12 @@
 "use client";
 
-import { useEffect, useState, useRef } from "react";
+import { useEffect, useState, useRef, useSyncExternalStore } from "react";
 import Link from "next/link";
 import {
   motion,
   useScroll,
   useTransform,
   AnimatePresence,
-  useInView,
 } from "framer-motion";
 import {
   ShieldCheck,
@@ -26,7 +25,6 @@ import {
   FileQuestion,
   Wifi,
   WifiOff,
-  Copy,
   MonitorStop,
   Clipboard,
   Fullscreen,
@@ -34,7 +32,6 @@ import {
   Brain,
   FileBarChart2,
   Layers,
-  Scan,
 } from "lucide-react";
 import { Logo, AppWordmark } from "@/components/Logo";
 import { useSession } from "@/hooks/useSession";
@@ -286,9 +283,13 @@ const PROCTOR_CHECKS = [
   { label: "Unusual head movement", ok: false },
 ];
 
+const subscribeToHydration = () => () => {};
+const getClientHydrationSnapshot = () => true;
+const getServerHydrationSnapshot = () => false;
+
 function ProctoringMonitor() {
   const [step, setStep] = useState(0);
-  const [integrity, setIntegrity] = useState(98);
+  const integrity = step === 4 || step === 5 ? 72 : 98;
 
   useEffect(() => {
     const t = setInterval(() => {
@@ -297,9 +298,6 @@ function ProctoringMonitor() {
     return () => clearInterval(t);
   }, []);
 
-  useEffect(() => {
-    setIntegrity(step === 4 || step === 5 ? 72 : 98);
-  }, [step]);
 
   return (
     <div className="rounded-[8.8px] border border-[#d1dee8] bg-white overflow-hidden">
@@ -468,6 +466,8 @@ function LiveTelemetry() {
 
   useEffect(() => {
     if (tick === 0) {
+      // The landing-page proctoring preview intentionally simulates external candidate activity.
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- demo simulation reset
       setCandidates([
         {
           id: "c1",
@@ -748,7 +748,11 @@ function JoinCodeWidget() {
 // ─── Main Page ────────────────────────────────────────────────────────────────
 export default function Home() {
   const { user } = useSession();
-  const [mounted, setMounted] = useState(false);
+  const mounted = useSyncExternalStore(
+    subscribeToHydration,
+    getClientHydrationSnapshot,
+    getServerHydrationSnapshot,
+  );
   const [activeSlide, setActiveSlide] = useState(0);
   const [autoplay, setAutoplay] = useState(true);
   const sliderTimer = useRef<NodeJS.Timeout | null>(null);
@@ -757,9 +761,7 @@ export default function Home() {
   const heroY = useTransform(scrollY, [0, 500], [0, -70]);
   const heroOpacity = useTransform(scrollY, [0, 350], [1, 0]);
 
-  useEffect(() => {
-    setMounted(true);
-  }, []);
+  
 
   useEffect(() => {
     if (!autoplay) return;

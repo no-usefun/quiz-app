@@ -110,6 +110,7 @@ export interface QuizPackageResponse {
   allowReview: boolean;
   allowResume: boolean;
   autoSubmit: boolean;
+  aiProctoringEnabled?: boolean;
   startTime?: string | null;
   endTime?: string | null;
   questions: QuestionResponse[];
@@ -293,6 +294,7 @@ export interface QuizAvailabilityResponse {
   quizCode: string;
   available: boolean;
   status: QuizAvailabilityStatus;
+  aiProctoringEnabled?: boolean;
   startTime?: string | null;
   endTime?: string | null;
 }

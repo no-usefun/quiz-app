@@ -17,7 +17,6 @@ import {
   EyeOff,
   CheckCircle2,
   AlertTriangle,
-  ChevronRight,
   LayoutDashboard,
   Settings as SettingsIcon,
 } from "lucide-react";
@@ -128,6 +127,8 @@ function Toggle({
 
   useEffect(() => {
     if (checked !== undefined) {
+      // Supports a controlled switch whose parent may change its value asynchronously.
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- controlled prop synchronization
       setOn(checked);
     }
   }, [checked]);
@@ -164,7 +165,7 @@ function ProfilePanel({
 }: {
   onSave: () => void;
   refreshSession: ReturnType<typeof useSession>["refreshSession"];
-  user: any;
+  user: ReturnType<typeof useSession>["user"];
   isProfileCompletionMode: boolean;
   onProfileCompleted: (role: string) => void;
 }) {
@@ -240,6 +241,8 @@ function ProfilePanel({
   useEffect(() => {
     if (!user) return;
 
+    // Populate the profile form when the session provider finishes loading the user.
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- session-to-form hydration
     setFullName(
       user.fullName ||
         user.name ||
@@ -335,9 +338,9 @@ function ProfilePanel({
           );
         }
       }
-    } catch (e: any) {
+    } catch (e: unknown) {
       console.error("Profile update failed:", e);
-      setError(e?.message || "Failed to update profile.");
+      setError((e instanceof Error ? e.message : null) || "Failed to update profile.");
     } finally {
       setSaving(false);
     }
@@ -551,7 +554,7 @@ function PreferencesPanel({
   user,
 }: {
   onSave: () => void;
-  user: any;
+  user: ReturnType<typeof useSession>["user"];
 }) {
   const [preferences, setPreferences] = useState({
     assessmentResults: true,
@@ -657,9 +660,9 @@ function PreferencesPanel({
       }
 
       onSave();
-    } catch (error: any) {
+    } catch (error: unknown) {
       setPreferenceError(
-        error?.message || "Unable to save notification preferences.",
+        (error instanceof Error ? error.message : null) || "Unable to save notification preferences.",
       );
     } finally {
       setSavingPreferences(false);
@@ -762,7 +765,7 @@ function SecurityPanel({
   user,
 }: {
   onSave: () => void;
-  user: any;
+  user: ReturnType<typeof useSession>["user"];
 }) {
   const [currentPassword, setCurrentPassword] = useState("");
   const [setPasswordValue, setSetPasswordValue] = useState("");
@@ -833,9 +836,9 @@ function SecurityPanel({
       setNewPassword("");
       setConfirmPassword("");
       onSave();
-    } catch (e: any) {
+    } catch (e: unknown) {
       console.error("Password change failed:", e);
-      setError(e?.message || "Failed to change password.");
+      setError((e instanceof Error ? e.message : null) || "Failed to change password.");
     } finally {
       setSaving(false);
     }
@@ -1012,9 +1015,9 @@ function DangerPanel({ logout }: { logout: () => void }) {
       }
 
       logout();
-    } catch (e: any) {
+    } catch (e: unknown) {
       console.error("Account deletion failed:", e);
-      setError(e?.message || "Failed to delete account.");
+      setError((e instanceof Error ? e.message : null) || "Failed to delete account.");
       setDeleting(false);
     }
   };
@@ -1132,6 +1135,8 @@ export default function SettingsPage() {
 
   useEffect(() => {
     if (typeof window !== "undefined") {
+      // The URL is read only after client hydration to avoid server/client URL mismatch.
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- client URL initialization
       setIsProfileCompletionMode(
         new URLSearchParams(window.location.search).get("profile") === "complete",
       );

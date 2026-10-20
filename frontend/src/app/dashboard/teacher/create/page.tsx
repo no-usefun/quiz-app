@@ -3,6 +3,7 @@
 import { useState, useEffect, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
+import Image from "next/image";
 import { motion, AnimatePresence } from "framer-motion";
 import Papa from "papaparse";
 import {
@@ -26,7 +27,7 @@ import { ENDPOINTS } from "@/lib/api/endpoints";
 
 
 // Local cache fallback replacing the removed quizCache module.
-function getCachedQuizzes(teacherId?: number | string | null): any[] {
+function getCachedQuizzes(teacherId?: number | string | null): LegacyRecord[] {
   if (typeof window === "undefined") return [];
 
   const keys = [
@@ -111,6 +112,11 @@ function computeEndTime(
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
 }
 
+// The backend and legacy local drafts currently expose several incompatible question shapes.
+// Keep this permissive type at the parsing/compatibility boundary; normalize before sending payloads.
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+type LegacyRecord = Record<string, any>;
+
 type EditableOption = {
   optionId: number | null;
   optionText: string;
@@ -124,8 +130,7 @@ function CreateAssessmentContent() {
   const searchParams = useSearchParams();
   const draftId = searchParams?.get("draftId") || null;
   const { user } = useSession();
-  const [mounted, setMounted] = useState(false);
-  const [loadingDraft, setLoadingDraft] = useState(false);
+  const [loadingDraft, setLoadingDraft] = useState(() => Boolean(draftId));
   const [submitting, setSubmitting] = useState(false);
   const [validationError, setValidationError] = useState<string | null>(null);
   const [draggedOption, setDraggedOption] = useState<{ qIdx: number; optIdx: number } | null>(null);
@@ -135,9 +140,6 @@ function CreateAssessmentContent() {
   } | null>(null);
   const [retryingPublish, setRetryingPublish] = useState(false);
 
-  useEffect(() => {
-    setMounted(true);
-  }, []);
 
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
@@ -148,11 +150,7 @@ function CreateAssessmentContent() {
   const [subjectCode, setSubjectCode] = useState("");
   const [allowedRollsText, setAllowedRollsText] = useState("");
   const [timeLimit, setTimeLimit] = useState(30);
-  const setOverallTimerSeconds = (secs: number) => {
-    if (secs > 0) {
-      setTimeLimit(Math.max(1, Math.round(secs / 60)));
-    }
-  };
+  const [aiProctoringEnabled, setAiProctoringEnabled] = useState(true);
 
   const [showAdvanced, setShowAdvanced] = useState(false);
   const [negativeMarking, setNegativeMarking] = useState(false);
@@ -175,10 +173,10 @@ function CreateAssessmentContent() {
   const [allowReview, setAllowReview] = useState(true);
   const [allowResume, setAllowResume] = useState(true);
 
-  const [parsedQuestions, setParsedQuestions] = useState<any[]>([]);
+  const [parsedQuestions, setParsedQuestions] = useState<LegacyRecord[]>([]);
 
   // ── State Hydration helper for editing drafts ─────────────────────────────
-  const hydrateFromQuizData = (data: any, questionsOverride?: any[]) => {
+  const hydrateFromQuizData = (data: LegacyRecord, questionsOverride?: LegacyRecord[]) => {
     if (!data) return;
 
     // Support nested or wrapped responses: data.data, data.quizPackage, etc.
@@ -202,6 +200,8 @@ function CreateAssessmentContent() {
     if (root.subjectCode) {
       setSubjectCode(root.subjectCode);
     }
+    const savedAiProctoring = root.aiProctoringEnabled ?? root.settings?.aiProctoringEnabled;
+    if (typeof savedAiProctoring === "boolean") setAiProctoringEnabled(savedAiProctoring);
 
     if (root.overallTimerSeconds || root.settings?.overallTimerSeconds) {
       const timerSecs =
@@ -279,7 +279,7 @@ function CreateAssessmentContent() {
     if (neg || root.acceptedEmailDomain || root.acceptedDomain)
       setShowAdvanced(true);
 
-    const findQuestions = (obj: any): any[] => {
+    const findQuestions = (obj: LegacyRecord): LegacyRecord[] => {
       if (!obj || typeof obj !== "object") return [];
       const candidates = [
         obj.questions,
@@ -305,13 +305,13 @@ function CreateAssessmentContent() {
           : findQuestions(data);
 
     if (rawQuestions.length > 0) {
-      const mappedQuestions = rawQuestions.map((q: any, i: number) => {
+      const mappedQuestions = rawQuestions.map((q: LegacyRecord, i: number) => {
         const rawType = String(q.questionType || "MCQ").toUpperCase();
         const questionType =
           rawType === "MULTIPLE_CHOICE" ? "MCQ" : rawType;
 
         let mappedOptions: EditableOption[] = (q.options || []).map(
-          (opt: any, oi: number): EditableOption => ({
+          (opt: LegacyRecord, oi: number): EditableOption => ({
             optionId: opt.optionId ?? opt.id ?? null,
             optionText: String(opt.optionText || opt.text || ""),
             optionImage: opt.optionImage || "",
@@ -408,21 +408,21 @@ function CreateAssessmentContent() {
     if (!draftId) return;
 
     let isMounted = true;
-    setLoadingDraft(true);
-    setValidationError(null);
 
     const cachedDraftRaw =
       typeof window !== "undefined"
         ? localStorage.getItem(`quiz_draft_${draftId}`)
         : null;
 
-    let cachedDraft: any = null;
+    let cachedDraft: LegacyRecord | null = null;
 
     if (cachedDraftRaw) {
       try {
         cachedDraft = JSON.parse(cachedDraftRaw);
 
         if (cachedDraft && typeof cachedDraft === "object") {
+          // Draft hydration intentionally initializes multiple form fields from persisted external data.
+          // eslint-disable-next-line react-hooks/set-state-in-effect -- state hydration from a cached draft
           hydrateFromQuizData(
             cachedDraft,
             Array.isArray(cachedDraft.questions) ? cachedDraft.questions : [],
@@ -544,7 +544,7 @@ function CreateAssessmentContent() {
             );
           }
 
-          const validated: any[] = rawList.map((q: any, idx: number) => {
+          const validated: LegacyRecord[] = rawList.map((q: LegacyRecord, idx: number) => {
             const qNum = idx + 1;
             const questionText = String(
               q?.questionText ?? q?.text ?? q?.prompt ?? "",
@@ -574,7 +574,7 @@ function CreateAssessmentContent() {
 
             const sourceOptions = Array.isArray(q?.options) ? q.options : [];
 
-            let options = sourceOptions.map((opt: any, optionIndex: number) => ({
+            let options = sourceOptions.map((opt: LegacyRecord, optionIndex: number) => ({
               optionText: String(opt?.optionText ?? opt?.text ?? "").trim(),
               optionImage: String(opt?.optionImage ?? "").trim(),
               optionOrder: optionIndex + 1,
@@ -720,7 +720,7 @@ function CreateAssessmentContent() {
               firstRow.includes("optiona");
 
             const contentRows = hasHeader ? rows.slice(1) : rows;
-            const validatedQuestions: any[] = [];
+            const validatedQuestions: LegacyRecord[] = [];
             const normalizedHeaderIndex = new Map(
               firstRow.map((name, index) => [name, index]),
             );
@@ -764,7 +764,7 @@ function CreateAssessmentContent() {
               }
 
               const optionLetters = ["A", "B", "C", "D", "E", "F"];
-              let rawOptionTexts = hasHeader
+              const rawOptionTexts = hasHeader
                 ? optionLetters.map((letter) =>
                     getField([`option${letter}`, `option${letter.toLowerCase()}`]),
                   )
@@ -970,7 +970,7 @@ function CreateAssessmentContent() {
   const handleUpdateQuestionField = (
     idx: number,
     field: string,
-    value: any,
+    value: unknown,
   ) => {
     setParsedQuestions((prev) =>
       prev.map((q, i) => (i === idx ? { ...q, [field]: value } : q)),
@@ -1040,7 +1040,7 @@ function CreateAssessmentContent() {
         // to exactly one correct answer. Preserve the first currently-correct
         // option; if none exists, make option A correct.
         if (questionType === "MCQ") {
-          const firstCorrectIndex = options.findIndex((opt: any) =>
+          const firstCorrectIndex = options.findIndex((opt: LegacyRecord) =>
             Boolean(opt.isCorrect),
           );
           const correctIndex = firstCorrectIndex >= 0 ? firstCorrectIndex : 0;
@@ -1048,7 +1048,7 @@ function CreateAssessmentContent() {
           return {
             ...q,
             questionType,
-            options: options.map((opt: any, oi: number) => ({
+            options: options.map((opt: LegacyRecord, oi: number) => ({
               ...opt,
               optionOrder: oi + 1,
               isCorrect: oi === correctIndex,
@@ -1059,11 +1059,11 @@ function CreateAssessmentContent() {
         // Switching to MSQ keeps any existing correct answers. If there are
         // none, make option A the initial correct answer so the state remains
         // valid and predictable.
-        const hasCorrect = options.some((opt: any) => Boolean(opt.isCorrect));
+        const hasCorrect = options.some((opt: LegacyRecord) => Boolean(opt.isCorrect));
         return {
           ...q,
           questionType,
-          options: options.map((opt: any, oi: number) => ({
+          options: options.map((opt: LegacyRecord, oi: number) => ({
             ...opt,
             optionOrder: oi + 1,
             isCorrect: hasCorrect ? Boolean(opt.isCorrect) : oi === 0,
@@ -1080,7 +1080,7 @@ function CreateAssessmentContent() {
 
         const type =
           q.questionType === "MULTIPLE_CHOICE" ? "MCQ" : q.questionType;
-        const newOpts = (q.options || []).map((opt: any, oi: number) => ({
+        const newOpts = (q.options || []).map((opt: LegacyRecord, oi: number) => ({
           ...opt,
           // MCQ/TRUE_FALSE: exactly one correct option.
           // MSQ: each option can be toggled independently.
@@ -1127,8 +1127,8 @@ function CreateAssessmentContent() {
         if (i !== qIdx || q.questionType === "TRUE_FALSE") return q;
 
         const options = (q.options || [])
-          .filter((_: any, oi: number) => oi !== optIdx)
-          .map((opt: any, oi: number) => ({
+          .filter((_: LegacyRecord, oi: number) => oi !== optIdx)
+          .map((opt: LegacyRecord, oi: number) => ({
             ...opt,
             optionOrder: oi + 1,
           }));
@@ -1153,7 +1153,7 @@ function CreateAssessmentContent() {
 
         return {
           ...q,
-          options: options.map((opt: any, oi: number) => ({
+          options: options.map((opt: LegacyRecord, oi: number) => ({
             ...opt,
             optionOrder: oi + 1,
           })),
@@ -1191,7 +1191,7 @@ function CreateAssessmentContent() {
 
       const type =
         q.questionType === "MULTIPLE_CHOICE" ? "MCQ" : q.questionType;
-      const correctCount = q.options.filter((opt: any) =>
+      const correctCount = q.options.filter((opt: LegacyRecord) =>
         Boolean(opt.isCorrect),
       ).length;
 
@@ -1238,7 +1238,7 @@ function CreateAssessmentContent() {
       .filter(Boolean);
 
   const buildQuestionPayload = (forPost: boolean) =>
-    parsedQuestions.map((q: any, index: number) => ({
+    parsedQuestions.map((q: LegacyRecord, index: number) => ({
       ...(forPost ? {} : { questionId: q.questionId ?? q.id ?? null }),
       questionText: String(q.questionText || "").trim(),
       imageUrl: q.imageUrl || "",
@@ -1252,7 +1252,7 @@ function CreateAssessmentContent() {
       questionTimerSeconds: Number(q.questionTimerSeconds || 60),
       difficulty: q.difficulty || "MEDIUM",
       displayOrder: Number(q.displayOrder || index + 1),
-      options: (q.options || []).map((opt: any, optIndex: number) => ({
+      options: (q.options || []).map((opt: LegacyRecord, optIndex: number) => ({
         optionText: String(opt.optionText || "").trim(),
         optionImage: opt.optionImage || "",
         optionOrder: Number(
@@ -1292,6 +1292,7 @@ function CreateAssessmentContent() {
       acceptedEmailDomain:
         acceptedDomain.trim() === "" ? null : acceptedDomain.trim(),
       allowedRegistrationNumbers: allowedRolls,
+      aiProctoringEnabled,
       questions: buildQuestionPayload(true),
     };
   };
@@ -1312,6 +1313,7 @@ function CreateAssessmentContent() {
       allowResume: Boolean(allowResume),
       autoSubmit: true,
       maxTabSwitch: Math.max(0, Number(maxTabSwitch) || 0),
+      aiProctoringEnabled,
       startTime: formatToLocalDateTime(startTime),
       endTime: formatToLocalDateTime(endTime),
       resultVisibility: getResultVisibility(),
@@ -1327,7 +1329,7 @@ function CreateAssessmentContent() {
   // If create fails: show error, do not navigate, do not publish.
   // If create succeeds but publish fails: show inline error with Retry button
   //   that only re-attempts the publish call (no duplicate quiz created).
-  const handleSave = async (e: React.FormEvent) => {
+  const handleSave = async (e: React.SyntheticEvent) => {
     e.preventDefault();
     const formErr = validateForm();
     if (formErr) return setValidationError(formErr);
@@ -1365,6 +1367,7 @@ function CreateAssessmentContent() {
           allowResume: Boolean(allowResume),
           autoSubmit: true,
           maxTabSwitch: Number(maxTabSwitch),
+          aiProctoringEnabled,
           startTime: formatToLocalDateTime(startTime) || null,
           endTime: formatToLocalDateTime(endTime) || null,
           publishScoresImmediately: Boolean(publishScoresImmediately),
@@ -1423,7 +1426,7 @@ function CreateAssessmentContent() {
 
         const cachedDraftRaw = localStorage.getItem(`quiz_draft_${draftId}`);
 
-        let cachedDraft: any = {};
+        let cachedDraft: LegacyRecord = {};
 
         try {
           cachedDraft = cachedDraftRaw ? JSON.parse(cachedDraftRaw) : {};
@@ -1436,7 +1439,7 @@ function CreateAssessmentContent() {
           settingsData.testCode ??
           cachedDraft.quizCode ??
           getCachedQuizzes(user?.id).find(
-            (q: any) => String(q.quizId ?? q.id) === String(draftId),
+            (q: LegacyRecord) => String(q.quizId ?? q.id) === String(draftId),
           )?.quizCode ??
           "";
 
@@ -1551,7 +1554,7 @@ function CreateAssessmentContent() {
 
         // Redirect to /dashboard/teacher/share/<quizCode> only AFTER publish succeeds
         router.push(`/dashboard/teacher/share/${quizCode}`);
-      } catch (pubErr: any) {
+      } catch (pubErr: unknown) {
         console.error(
           "Failed to publish quiz immediately after creation:",
           pubErr,
@@ -1561,12 +1564,12 @@ function CreateAssessmentContent() {
           quizCode: String(quizCode),
         });
         setValidationError(
-          `Quiz was created but could not be published. Retry${pubErr.message ? ` (${pubErr.message})` : ""}`,
+          `Quiz was created but could not be published. Retry${pubErr instanceof Error && pubErr.message ? ` (${pubErr.message})` : ""}`,
         );
       }
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error("Failed to create quiz:", err);
-      setValidationError(`Failed to create assessment: ${err.message}`);
+      setValidationError(`Failed to create assessment: ${err instanceof Error ? err.message : String(err)}`);
     } finally {
       setSubmitting(false);
     }
@@ -1612,6 +1615,7 @@ function CreateAssessmentContent() {
           allowResume: Boolean(allowResume),
           autoSubmit: true,
           maxTabSwitch: Number(maxTabSwitch),
+          aiProctoringEnabled,
           startTime: formatToLocalDateTime(startTime) || null,
           endTime: formatToLocalDateTime(endTime) || null,
           publishScoresImmediately: Boolean(publishScoresImmediately),
@@ -1673,7 +1677,7 @@ function CreateAssessmentContent() {
 
         const cachedDraftRaw = localStorage.getItem(`quiz_draft_${draftId}`);
 
-        let cachedDraft: any = {};
+        let cachedDraft: LegacyRecord = {};
 
         try {
           cachedDraft = cachedDraftRaw ? JSON.parse(cachedDraftRaw) : {};
@@ -1785,9 +1789,11 @@ function CreateAssessmentContent() {
 
       // Draft created or updated — redirect to dashboard where it will show a Draft badge
       router.push("/dashboard/teacher");
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error("Failed to save draft:", err);
-      setValidationError(`Failed to save draft: ${err.message}`);
+      const message =
+        err instanceof Error ? err.message : "An unexpected error occurred";
+      setValidationError(`Failed to save draft: ${message}`);
     } finally {
       setSavingDraft(false);
     }
@@ -1820,9 +1826,10 @@ function CreateAssessmentContent() {
       }
 
       router.push(`/dashboard/teacher/share/${publishRetryData.quizCode}`);
-    } catch (err: any) {
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : "";
       setValidationError(
-        `Quiz was created but could not be published. Retry${err.message ? ` (${err.message})` : ""}`,
+        `Quiz was created but could not be published. Retry${message ? ` (${message})` : ""}`,
       );
     } finally {
       setRetryingPublish(false);
@@ -2023,6 +2030,11 @@ function CreateAssessmentContent() {
             </div>
           </div>
 
+          <section className="rounded-[14px] border border-[#d1dee8]/70 bg-white p-5 shadow-sm" aria-labelledby="ai-proctoring-setting-title">
+            <div className="flex items-center justify-between gap-4"><div className="min-w-0 space-y-1"><h3 id="ai-proctoring-setting-title" className="text-sm font-bold text-[#111111]">AI Proctoring</h3><p className="text-xs leading-relaxed text-[#78716b]">{aiProctoringEnabled ? "Camera, reference photo, and AI identity checks are required for this assessment." : "Camera and AI identity checks are off. Tab switching and copy, cut, and paste restrictions remain active."}</p></div><AppleSwitch checked={aiProctoringEnabled} onChange={setAiProctoringEnabled} ariaLabel="Enable AI proctoring" /></div>
+            <div className="mt-3 flex items-center gap-2 text-[11px] font-semibold"><span className={`h-2 w-2 rounded-full ${aiProctoringEnabled ? "bg-emerald-500" : "bg-amber-500"}`} /><span className="text-[#57534e]">{aiProctoringEnabled ? "AI proctoring enabled" : "Standard assessment mode"}</span></div>
+          </section>
+
           <div className="space-y-4">
             <div className="flex items-center justify-between border-b border-[#d1dee8]/50 pb-2.5">
               <h3 className="flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-[#111111]">
@@ -2164,9 +2176,12 @@ function CreateAssessmentContent() {
                           className="w-full rounded-[10px] border border-[#d1dee8]/80 bg-white px-3.5 py-2.5 text-xs text-[#111111] outline-none transition-all placeholder:text-[#a8a29d] hover:border-[#b9cbd9] focus:border-[#165dfb] focus:ring-4 focus:ring-[#165dfb]/10"
                         />
                         {q.imageUrl && (
-                          <img
+                          <Image
                             src={q.imageUrl}
                             alt={`Question ${idx + 1}`}
+                            width={640}
+                            height={360}
+                            unoptimized
                             className="max-h-48 max-w-full rounded-[10px] border border-[#d1dee8]/70 object-contain bg-[#fbfbfa] p-1"
                             onError={(e) => {
                               e.currentTarget.style.display = "none";
@@ -2202,7 +2217,7 @@ function CreateAssessmentContent() {
                       </div>
 
                       <div className="grid gap-2.5 sm:grid-cols-2">
-                        {q.options.map((opt: any, oi: number) => (
+                        {q.options.map((opt: LegacyRecord, oi: number) => (
                           <div
                             key={opt.optionId ?? `${idx}-${oi}`}
                             draggable={q.questionType !== "TRUE_FALSE"}
@@ -2351,10 +2366,10 @@ function CreateAssessmentContent() {
                   <div className="overflow-x-auto rounded-[10px] border border-[#d1dee8]/70 bg-[#fbfbfa]">
                     <pre className="min-w-[980px] p-3 text-[9px] leading-relaxed text-[#111111] font-mono whitespace-pre-wrap">
 questionText,optionA,optionB,optionC,optionD,optionE,optionF,correctAnswer,marks,questionType,negativeMarks,questionTimerSeconds,difficulty,explanation,imageUrl,optionAImageUrl,optionBImageUrl,optionCImageUrl,optionDImageUrl,optionEImageUrl,optionFImageUrl
-"What is the time complexity of binary search?","O(n)","O(log n)","O(n^2)","O(1)","","","B","1","MCQ","0.25","60","EASY","Binary search halves the search space.","","","","","","",""
-"Which HTTP status indicates success?","200","301","404","500","204","","A|E","2","MSQ","0.5","90","MEDIUM","Both 200 and 204 indicate success.","","","","","","",""
-"Which number is prime?","4","6","7","8","9","","C","1","MCQ","0","60","EASY","Seven is prime.","","","","","","",""
-"Java is a programming language.","True","False","","","","","A","1","TRUE_FALSE","0","45","EASY","","","","","","","",""
+&quot;What is the time complexity of binary search?&quot;,&quot;O(n)&quot;,&quot;O(log n)&quot;,&quot;O(n^2)&quot;,&quot;O(1)&quot;,&quot;&quot;,&quot;&quot;,&quot;B&quot;,&quot;1&quot;,&quot;MCQ&quot;,&quot;0.25&quot;,&quot;60&quot;,&quot;EASY&quot;,&quot;Binary search halves the search space.&quot;,&quot;&quot;,&quot;&quot;,&quot;&quot;,&quot;&quot;,&quot;&quot;,&quot;&quot;,&quot;&quot;
+&quot;Which HTTP status indicates success?&quot;,&quot;200&quot;,&quot;301&quot;,&quot;404&quot;,&quot;500&quot;,&quot;204&quot;,&quot;&quot;,&quot;A|E&quot;,&quot;2&quot;,&quot;MSQ&quot;,&quot;0.5&quot;,&quot;90&quot;,&quot;MEDIUM&quot;,&quot;Both 200 and 204 indicate success.&quot;,&quot;&quot;,&quot;&quot;,&quot;&quot;,&quot;&quot;,&quot;&quot;,&quot;&quot;,&quot;&quot;
+&quot;Which number is prime?&quot;,&quot;4&quot;,&quot;6&quot;,&quot;7&quot;,&quot;8&quot;,&quot;9&quot;,&quot;&quot;,&quot;C&quot;,&quot;1&quot;,&quot;MCQ&quot;,&quot;0&quot;,&quot;60&quot;,&quot;EASY&quot;,&quot;Seven is prime.&quot;,&quot;&quot;,&quot;&quot;,&quot;&quot;,&quot;&quot;,&quot;&quot;,&quot;&quot;,&quot;&quot;
+&quot;Java is a programming language.&quot;,&quot;True&quot;,&quot;False&quot;,&quot;&quot;,&quot;&quot;,&quot;&quot;,&quot;&quot;,&quot;A&quot;,&quot;1&quot;,&quot;TRUE_FALSE&quot;,&quot;0&quot;,&quot;45&quot;,&quot;EASY&quot;,&quot;&quot;,&quot;&quot;,&quot;&quot;,&quot;&quot;,&quot;&quot;,&quot;&quot;,&quot;&quot;,&quot;&quot;
                     </pre>
                   </div>
 
@@ -2538,7 +2553,7 @@ questionText,optionA,optionB,optionC,optionD,optionE,optionF,correctAnswer,marks
           </button>
           <button
             type="button"
-            onClick={(e) => handleSave(e as any)}
+            onClick={handleSave}
             disabled={submitting || savingDraft}
             className="inline-flex items-center gap-2 rounded-[10px] bg-[#165dfb] px-5 py-2.5 text-xs font-bold text-white shadow-sm shadow-[#165dfb]/25 transition-all hover:bg-[#0f4fd8] hover:shadow-md active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-40"
           >

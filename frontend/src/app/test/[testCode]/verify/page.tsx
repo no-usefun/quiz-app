@@ -1,6 +1,6 @@
 "use client";
 
-import { use, useEffect, useState } from "react";
+import { use, useEffect, useState, useSyncExternalStore } from "react";
 import { useRouter } from "next/navigation";
 import { motion } from "framer-motion";
 import { api } from "@/lib/api/client";
@@ -13,6 +13,10 @@ import {
   Loader2,
 } from "lucide-react";
 import { ENDPOINTS } from "@/lib/api/endpoints";
+
+const subscribeToHydration = () => () => {};
+const getClientHydrationSnapshot = () => true;
+const getServerHydrationSnapshot = () => false;
 
 type AvailabilityStatus =
   | "NOT_FOUND"
@@ -64,19 +68,24 @@ export default function IdentityVerificationPage({
 
   const [registrationNo, setRegistrationNo] = useState("");
   const [sessionCode, setSessionCode] = useState(testCode || "");
-  const [mounted, setMounted] = useState(false);
+  const mounted = useSyncExternalStore(
+    subscribeToHydration,
+    getClientHydrationSnapshot,
+    getServerHydrationSnapshot,
+  );
   const [submitting, setSubmitting] = useState(false);
   const [loadingSession, setLoadingSession] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    setMounted(true);
 
     const cleanCode = String(testCode || "")
       .trim()
       .toUpperCase();
 
     if (!cleanCode) {
+      // Invalid route params must render the explicit verification error.
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- route validation state
       setError("Assessment access code is missing.");
       setLoadingSession(false);
       return;
@@ -163,12 +172,12 @@ export default function IdentityVerificationPage({
         }
 
         setSessionCode(cleanCode);
-      } catch (err: any) {
+      } catch (err: unknown) {
         if (cancelled) return;
 
         console.error("Assessment verification failed:", err);
         setError(
-          err?.message ||
+          (err instanceof Error ? err.message : null) ||
             "Could not verify the assessment. Please check your connection and try again.",
         );
       } finally {
@@ -251,11 +260,11 @@ export default function IdentityVerificationPage({
        * -> store server attempt/deadline -> enter assessment.
        */
       router.push(`/test/${cleanCode}/lobby`);
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error("Identity verification error:", err);
 
       setError(
-        err?.message ||
+        (err instanceof Error ? err.message : null) ||
           "Could not verify your examination credentials. Please try again.",
       );
     } finally {

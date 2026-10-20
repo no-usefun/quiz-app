@@ -3,11 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useSession } from "@/hooks/useSession";
-import {
-  LogOut,
-  LayoutDashboard,
-  PlusCircle,
-} from "lucide-react";
+import { LayoutDashboard, PlusCircle } from "lucide-react";
 import { AppWordmark } from "@/components/Logo";
 import { ProfileDropdown } from "@/components/ProfileDropdown";
 
@@ -16,7 +12,7 @@ interface TopNavbarProps {
 }
 
 export function TopNavbar({ role: propRole }: TopNavbarProps = {}) {
-  const { user, logout } = useSession();
+  const { user } = useSession();
   const pathname = usePathname();
 
   const currentRole = String(propRole || user?.role || "").toUpperCase();
@@ -99,15 +95,6 @@ export function TopNavbar({ role: propRole }: TopNavbarProps = {}) {
             </div>
           </div>
 
-          <button
-            type="button"
-            onClick={() => logout()}
-            title="Sign out"
-            className="flex min-h-10 cursor-pointer items-center gap-1.5 rounded-[10px] border border-[#8c381c]/25 bg-white px-2.5 py-2 text-xs font-bold text-[#8c381c] shadow-xs transition-all duration-150 hover:bg-[#fbeee8] hover:shadow-sm active:scale-[0.98] sm:px-3"
-          >
-            <LogOut className="h-3.5 w-3.5" />
-            <span className="hidden sm:inline">Sign Out</span>
-          </button>
         </div>
       </div>
     </header>

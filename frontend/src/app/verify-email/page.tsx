@@ -17,6 +17,8 @@ function VerifyEmailContent() {
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
+    // Query parameters are read after hydration to keep server/client rendering consistent.
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- client URL initialization
     setToken(params.get("token") || "");
     setLoading(false);
   }, []);

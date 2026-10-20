@@ -17,6 +17,7 @@ import {
   UserCheck,
 } from "lucide-react";
 import { api, getAuthToken } from "@/lib/api/client";
+import { ENDPOINTS } from "@/lib/api/endpoints";
 
 interface ProctoringEventDetail {
   id: number;
@@ -71,6 +72,8 @@ export function TeacherProctoringReportModal({
 
   useEffect(() => {
     if (!isOpen || !attemptId) {
+      // Clear data when the modal closes or loses its attempt context.
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- modal lifecycle reset
       setReport(null);
       setError(null);
       return;
@@ -83,7 +86,7 @@ export function TeacherProctoringReportModal({
       try {
         const token = getAuthToken();
         const data = await api.get<ProctoringReportData>(
-          `/api/v1/teacher/proctoring/attempts/${attemptId}`,
+          ENDPOINTS.proctoring.teacherAttemptReport(attemptId),
           {
             headers: token ? { Authorization: `Bearer ${token}` } : {},
           }

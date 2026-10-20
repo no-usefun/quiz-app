@@ -79,12 +79,17 @@ export const ENDPOINTS = {
   },
 
   proctoring: {
+    // Unified event contract expected from the backend AI-proctoring integration.
     recordEvent: (attemptId: number | string) =>
       `${API_BASE}/api/v1/attempts/${attemptId}/events`,
     verifyAccess: (attemptId: number | string) =>
       `${API_BASE}/api/v1/attempts/${attemptId}/verify-access`,
     summary: (attemptId: number | string) =>
       `${API_BASE}/api/v1/attempts/${attemptId}/proctoring-summary`,
+    teacherQuizReport: (quizCode: string) =>
+      `${API_BASE}/api/v1/teacher/proctoring/quizzes/${encodeURIComponent(quizCode)}/report`,
+    teacherAttemptReport: (attemptId: number | string) =>
+      `${API_BASE}/api/v1/teacher/proctoring/attempts/${attemptId}`,
   },
 
   teacher: {

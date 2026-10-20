@@ -255,6 +255,8 @@ export function useSession() {
   }, []);
 
   useEffect(() => {
+    // The session request synchronizes the client session with the auth provider.
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- async session initialization
     void fetchSession();
   }, [fetchSession]);
 

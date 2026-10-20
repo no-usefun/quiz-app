@@ -2,7 +2,7 @@
 
 // join/page.tsx
 
-import { useState, useEffect, Suspense } from "react";
+import { useState, useEffect, Suspense, useSyncExternalStore } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { motion } from "framer-motion";
@@ -20,6 +20,10 @@ import { ApiClientError, api, getAuthToken } from "@/lib/api/client";
 import { ENDPOINTS } from "@/lib/api/endpoints";
 import type { QuizAvailabilityResponse } from "@/lib/types";
 
+const subscribeToHydration = () => () => {};
+const getClientHydrationSnapshot = () => true;
+const getServerHydrationSnapshot = () => false;
+
 function JoinForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -32,6 +36,8 @@ function JoinForm() {
 
   useEffect(() => {
     if (queryCode) {
+      // Keep the editable field in sync when the query parameter changes during navigation.
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- URL-to-form synchronization
       setTestCode(queryCode.toUpperCase());
     }
 
@@ -303,11 +309,13 @@ function formatStartTime(value: string): string {
 }
 
 export default function JoinPage() {
-  const [mounted, setMounted] = useState(false);
+  const mounted = useSyncExternalStore(
+    subscribeToHydration,
+    getClientHydrationSnapshot,
+    getServerHydrationSnapshot,
+  );
 
-  useEffect(() => {
-    setMounted(true);
-  }, []);
+  
 
   return (
     <>

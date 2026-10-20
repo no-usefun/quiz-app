@@ -28,20 +28,36 @@ type QuizData = {
   examState?: string;
 };
 
-function normalizeQuiz(raw: any): QuizData | null {
-  if (!raw || typeof raw !== "object") return null;
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function normalizeQuiz(raw: unknown): QuizData | null {
+  if (!isRecord(raw)) return null;
 
   return {
     ...raw,
-    quizId: raw.quizId ?? raw.id,
-    quizCode: raw.quizCode ?? raw.testCode ?? "",
-    title: raw.title ?? raw.quizName ?? raw.quizTitle ?? "Assessment Session",
-    subject: raw.subject ?? raw.subjectName ?? "",
+    quizId:
+      typeof (raw.quizId ?? raw.id) === "string" ||
+      typeof (raw.quizId ?? raw.id) === "number"
+        ? (raw.quizId ?? raw.id) as string | number
+        : undefined,
+    quizCode: String(raw.quizCode ?? raw.testCode ?? ""),
+    title: String(raw.title ?? raw.quizName ?? raw.quizTitle ?? "Assessment Session"),
+    subject: String(raw.subject ?? raw.subjectName ?? ""),
     totalStudents: Number(raw.totalStudents ?? 0),
-    totalQuestions:
-      raw.totalQuestions ??
-      (Array.isArray(raw.questions) ? raw.questions.length : 0),
+    totalQuestions: (() => {
+      const value = raw.totalQuestions;
+      if (typeof value === "number" && Number.isFinite(value)) return value;
+      if (typeof value === "string" && value.trim() !== "") {
+        const parsed = Number(value);
+        if (Number.isFinite(parsed)) return parsed;
+      }
+      return Array.isArray(raw.questions) ? raw.questions.length : 0;
+    })(),
     overallTimerSeconds: Number(raw.overallTimerSeconds ?? 0),
+    status: typeof raw.status === "string" ? raw.status : undefined,
+    examState: typeof raw.examState === "string" ? raw.examState : undefined,
   };
 }
 
@@ -101,13 +117,14 @@ export default function ShareAssessmentPage({
 
         const rosterData = await rosterRes.json();
 
-        const list: any[] = Array.isArray(rosterData)
+        const rawList: unknown[] = Array.isArray(rosterData)
           ? rosterData
-          : Array.isArray(rosterData?.content)
+          : isRecord(rosterData) && Array.isArray(rosterData.content)
             ? rosterData.content
-            : Array.isArray(rosterData?.data)
+            : isRecord(rosterData) && Array.isArray(rosterData.data)
               ? rosterData.data
               : [];
+        const list = rawList.filter(isRecord);
 
         let matched = list.find(
           (q) =>
@@ -152,13 +169,13 @@ export default function ShareAssessmentPage({
 
         setResolvedCode(code);
         setQuizData(normalized);
-      } catch (e: any) {
+      } catch (e: unknown) {
         if (cancelled) return;
 
         console.error("Failed to load quiz for sharing:", e);
         setQuizData(null);
         setError(
-          e?.message ||
+          (e instanceof Error ? e.message : null) ||
             "We couldn't retrieve the assessment details from the server.",
         );
       } finally {

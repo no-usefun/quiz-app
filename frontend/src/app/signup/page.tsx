@@ -12,7 +12,35 @@ import {
   ArrowRight,
 } from "lucide-react";
 import { ENDPOINTS } from "@/lib/api/endpoints";
-import { PublicNavbar } from "@/components/PublicNavbar";
+
+async function readSignupResponse(response: Response): Promise<Record<string, unknown>> {
+  const contentType = response.headers.get("content-type") || "";
+  const text = await response.text();
+
+  if (contentType.toLowerCase().includes("text/html") || /^\\s*<(?:!doctype\\s+html|html|head|body)\\b/i.test(text)) {
+    throw new Error(
+      `The API returned an HTML page instead of JSON (HTTP ${response.status}). Check NEXT_PUBLIC_API_URL and the backend signup/login endpoints. Request: ${response.url}`,
+    );
+  }
+
+  if (!text.trim()) return {};
+  try {
+    const data: unknown = JSON.parse(text);
+    return data && typeof data === "object" ? data as Record<string, unknown> : {};
+  } catch {
+    if (!response.ok) {
+      throw new Error(`The API returned an unreadable response (HTTP ${response.status}). Request: ${response.url}`);
+    }
+    throw new Error("The API returned an invalid JSON response.");
+  }
+}
+
+
+function getResponseMessage(data: Record<string, unknown>, fallback: string): string {
+  const message = typeof data.message === "string" ? data.message.trim() : "";
+  const error = typeof data.error === "string" ? data.error.trim() : "";
+  return message || error || fallback;
+}import { PublicNavbar } from "@/components/PublicNavbar";
 import { isLanExamMode } from "@/lib/examMode";
 
 function GoogleIcon() {
@@ -203,7 +231,7 @@ function SignupContent() {
         }),
       });
 
-      const data = await res.json().catch(() => ({}));
+      const data = await readSignupResponse(res);
 
       if (res.ok) {
         const verificationRequired = data?.verificationRequired === true;
@@ -212,8 +240,10 @@ function SignupContent() {
 
         if (verificationRequired) {
           setSuccess(
-            data?.message ||
+            getResponseMessage(
+              data,
               "Account created. Please verify your email before signing in.",
+            ),
           );
 
           if (typeof window !== "undefined") {
@@ -234,7 +264,7 @@ function SignupContent() {
           return;
         }
 
-        setSuccess("Account created. Signing you in...");
+        setSuccess("Account created successfully.");
 
         const loginRes = await fetch(ENDPOINTS.auth.login, {
           method: "POST",
@@ -249,13 +279,14 @@ function SignupContent() {
           cache: "no-store",
         });
 
-        const loginData = await loginRes.json().catch(() => ({}));
+        const loginData = await readSignupResponse(loginRes);
 
         if (!loginRes.ok) {
           throw new Error(
-            loginData?.message ||
-              loginData?.error ||
+            getResponseMessage(
+              loginData,
               "Account was created, but automatic sign-in failed. Please try logging in.",
+            ),
           );
         }
 
@@ -277,13 +308,14 @@ function SignupContent() {
           cache: "no-store",
         });
 
-        const meData = await meRes.json().catch(() => ({}));
+        const meData = await readSignupResponse(meRes);
 
         if (!meRes.ok) {
           throw new Error(
-            meData?.message ||
-              meData?.error ||
+            getResponseMessage(
+              meData,
               "Account was created, but the authenticated session could not be verified.",
+            ),
           );
         }
 
@@ -330,7 +362,7 @@ function SignupContent() {
             "; samesite=lax";
         }
 
-        setSuccess("Account created. Redirecting to your dashboard...");
+        setSuccess("Account created successfully.");
 
         const redirectTarget = searchParams?.get("redirect");
         const destination =
@@ -339,20 +371,23 @@ function SignupContent() {
             ? "/dashboard/teacher"
             : "/dashboard/student");
 
-        router.replace(destination);
+        window.setTimeout(() => router.replace(destination), 900);
       } else {
         setSuccess("");
         setError(
-          data.message ||
-            data.error ||
+          getResponseMessage(
+            data,
             "Signup failed. Please check your details and try again.",
+          ),
         );
       }
     } catch (err) {
       console.error("Signup connection error:", err);
       setSuccess("");
       setError(
-        "Cannot connect to the authentication server. Please ensure the backend is running.",
+        err instanceof Error
+          ? err.message
+          : "Cannot connect to the authentication server. Please ensure the backend is running.",
       );
     } finally {
       setLoading(false);
@@ -530,7 +565,7 @@ function SignupContent() {
         {success && (
           <div
             role="status"
-            className="rounded-lg bg-green-50 p-3.5 text-sm text-green-700 font-medium border border-green-200/70"
+            className="fixed right-4 top-4 z-[100] max-w-sm rounded-xl border border-emerald-200 bg-white px-4 py-3 text-sm font-medium text-emerald-800 shadow-lg"
           >
             {success}
           </div>
@@ -563,12 +598,6 @@ function SignupContent() {
               <GoogleIcon />
               {googleLoading ? "Connecting to Google..." : "Continue with Google"}
             </button>
-            <p className="text-center text-xs leading-relaxed text-neutral-500">
-              Google verifies your sign-in. Students will complete their
-              registration number and academic details in Quizly before using
-              exam features.
-            </p>
-
             <div className="my-5 flex items-center gap-3">
               <div className="h-px flex-1 bg-neutral-100" />
               <span className="text-[10px] font-bold uppercase tracking-wider text-neutral-400">
@@ -852,8 +881,6 @@ function SignupContent() {
                 <span className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-white/30 border-t-white" />
                 Creating account...
               </span>
-            ) : success ? (
-              "Account Created"
             ) : (
               "Create Account"
             )}
