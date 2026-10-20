@@ -68,6 +68,8 @@ function LobbyInner({ testCode }: { testCode: string }) {
   const [referencePhoto, setReferencePhoto] = useState<string | null>(null);
   const [captureRequested, setCaptureRequested] = useState(false);
   const [pendingStartAfterCapture, setPendingStartAfterCapture] = useState(false);
+  const referencePhotoRef = useRef<string | null>(null);
+  const handleStartAssessmentRef = useRef<(() => Promise<void>) | null>(null);
   const freshPhotoForStartRef = useRef(false);
   const pendingStartAfterCaptureRef = useRef(false);
 
@@ -215,7 +217,7 @@ function LobbyInner({ testCode }: { testCode: string }) {
     setCaptureRequested(false);
     setPendingStartAfterCapture(false);
     pendingStartAfterCaptureRef.current = false;
-    void handleStartAssessment();
+    void handleStartAssessmentRef.current?.();
   }, [pendingStartAfterCapture, referencePhoto, isStarting]);
   // A missing policy is a configuration error, never an implicit standard-mode assessment.
   const aiPolicyKnown = typeof availability?.aiProctoringEnabled === "boolean";
@@ -245,6 +247,7 @@ function LobbyInner({ testCode }: { testCode: string }) {
     // frame. Never trust the previous preview or a sessionStorage reference.
     if (aiRequired && !freshPhotoForStartRef.current) {
       sessionStorage.removeItem("dynoquizz_reference_photo");
+      referencePhotoRef.current = null;
       setReferencePhoto(null);
       setStartError("Capturing a fresh reference photo. Keep only yourself in frame.");
       pendingStartAfterCaptureRef.current = true;
@@ -254,7 +257,7 @@ function LobbyInner({ testCode }: { testCode: string }) {
       return;
     }
 
-    const freshReferencePhoto = aiRequired ? referencePhoto : null;
+    const freshReferencePhoto = aiRequired ? referencePhotoRef.current : null;
     if (aiRequired && !freshReferencePhoto) {
       freshPhotoForStartRef.current = false;
       setStartError("A fresh reference photo could not be captured. Please try again.");
@@ -486,6 +489,7 @@ function LobbyInner({ testCode }: { testCode: string }) {
       setPendingStartAfterCapture(false);
       setCaptureRequested(false);
       sessionStorage.removeItem("dynoquizz_reference_photo");
+      referencePhotoRef.current = null;
       setReferencePhoto(null);
       setStartError(
         getApiErrorMessage(
@@ -497,6 +501,10 @@ function LobbyInner({ testCode }: { testCode: string }) {
       setIsStarting(false);
     }
   };
+
+  useEffect(() => {
+    handleStartAssessmentRef.current = handleStartAssessment;
+  }, [handleStartAssessment]);
 
   if (loading) {
     return (
@@ -630,6 +638,7 @@ We couldn’t verify this assessment’s security settings. Please contact your 
             <CameraReferenceCapture
               captureRequested={captureRequested}
               onCapture={(photo) => {
+                referencePhotoRef.current = photo;
                 setReferencePhoto(photo);
                 // Only a capture requested by the Start button is eligible for
                 // this attempt. Manual previews are never trusted as a baseline.
@@ -645,6 +654,7 @@ We couldn’t verify this assessment’s security settings. Please contact your 
                 pendingStartAfterCaptureRef.current = false;
                 setPendingStartAfterCapture(false);
                 setCaptureRequested(false);
+                referencePhotoRef.current = null;
                 setReferencePhoto(null);
                 sessionStorage.removeItem("dynoquizz_reference_photo");
                 setStartError(message);
