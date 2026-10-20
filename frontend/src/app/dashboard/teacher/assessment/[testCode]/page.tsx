@@ -166,8 +166,10 @@ function exportCSV(testCode: string, data: StudentRecord[], title: string) {
 
   const rows = data.map((student, index) => [
     index + 1,
+    student.registrationNumber,
     student.name,
-    `${student.finalScore} / ${student.totalMarks}`,
+    student.finalScore,
+    student.totalMarks,
     student.percentage,
     student.timeTaken,
   ]);
