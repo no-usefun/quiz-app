@@ -1536,8 +1536,11 @@ function CreateAssessmentContent() {
             "[Quizly] Could not persist quiz settings after creation.",
             error,
           );
+          // Keep the created, unpublished assessment recoverable if the
+          // follow-up settings request fails.
+          saveFullDraftBundle(numericQuizId, quizCode);
           throw new Error(
-            "The assessment was created, but its security settings could not be saved. It has not been published. Please reopen the draft, verify AI proctoring and other settings, then retry.",
+            "The assessment was created, but its security settings could not be saved. It has not been published. Reopen the saved draft, verify AI proctoring and other settings, then retry.",
           );
         }
       }
