@@ -7,11 +7,13 @@ import { checkAIHealth } from "@/lib/proctoring/aiProctoringClient";
 interface CameraReferenceCaptureProps {
   onCapture: (base64Image: string) => void;
   disabled?: boolean;
+  captureRequested?: boolean;
 }
 
 export function CameraReferenceCapture({
   onCapture,
   disabled = false,
+  captureRequested = false,
 }: CameraReferenceCaptureProps) {
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
@@ -111,8 +113,8 @@ export function CameraReferenceCapture({
     };
   }, [startCamera, stopCamera]);
 
-  const handleCapture = () => {
-    if (!videoRef.current || !cameraActive) return;
+  const handleCapture = useCallback(() => {
+    if (!videoRef.current || !cameraActive || disabled) return;
 
     setIsProcessing(true);
     try {
@@ -137,7 +139,25 @@ export function CameraReferenceCapture({
     } finally {
       setIsProcessing(false);
     }
-  };
+  }, [cameraActive, disabled, onCapture, stopCamera]);
+
+  const autoCaptureHandledRef = useRef(false);
+  useEffect(() => {
+    if (!captureRequested) {
+      autoCaptureHandledRef.current = false;
+      return;
+    }
+    if (
+      !cameraActive ||
+      !videoRef.current ||
+      videoRef.current.readyState < 2 ||
+      autoCaptureHandledRef.current
+    ) {
+      return;
+    }
+    autoCaptureHandledRef.current = true;
+    handleCapture();
+  }, [captureRequested, cameraActive, handleCapture]);
 
   const handleRetake = () => {
     setCapturedPhoto(null);
