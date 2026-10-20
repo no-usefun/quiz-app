@@ -1,6 +1,7 @@
 package com.quiz_app.backend.service;
 
 import java.time.LocalDateTime;
+import java.time.Instant;
 import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.List;
@@ -149,7 +150,11 @@ public class ProctoringService {
                 ? null : request.eventId().trim();
 
         {
-            if (attempt.getStatus() != AttemptStatus.IN_PROGRESS) {
+            boolean allowEvidenceAfterProctoringTermination =
+                    attempt.getStatus() == AttemptStatus.AUTO_SUBMITTED
+                    && "MALPRACTICE_WARNING_LIMIT".equals(attempt.getTerminationReason());
+
+            if (attempt.getStatus() != AttemptStatus.IN_PROGRESS && !allowEvidenceAfterProctoringTermination) {
                 return new ProctoringEventResponse(
                         false,
                         attempt.getWarningsCount() != null ? attempt.getWarningsCount() : 0,
@@ -186,7 +191,9 @@ public class ProctoringService {
                 Map<String, Object> metaMap = Map.of(
                         "details", request.details() != null ? request.details() : formatEventTitle(eventType),
                         "severity", severity,
-                        "confidence", confidence
+                        "confidence", confidence,
+                        "probabilityScore", confidence,
+                        "detectionTimestamp", request.frameTimestamp() != null ? request.frameTimestamp() : 0.0
                 );
                 metadataJson = objectMapper.writeValueAsString(metaMap);
             } catch (Exception e) {
@@ -198,9 +205,23 @@ public class ProctoringService {
             event.setAttempt(attempt);
             event.setEventType(eventType);
             event.setClientEventId(clientEventId);
-            event.setOccurredAt(LocalDateTime.now(QUIZ_TIMEZONE));
+            LocalDateTime detectedAt = request.frameTimestamp() != null && request.frameTimestamp() > 0
+                    ? LocalDateTime.ofInstant(
+                            Instant.ofEpochMilli(Math.round(request.frameTimestamp() * 1000.0)),
+                            QUIZ_TIMEZONE)
+                    : LocalDateTime.now(QUIZ_TIMEZONE);
+            event.setOccurredAt(detectedAt);
             event.setMetadataJson(metadataJson);
             proctoringEventRepository.save(event);
+
+            if (allowEvidenceAfterProctoringTermination) {
+                return new ProctoringEventResponse(
+                        true,
+                        attempt.getWarningsCount() != null ? attempt.getWarningsCount() : 0,
+                        true,
+                        "Additional event evidence recorded"
+                );
+            }
 
             // Increment warning count
             int currentWarnings = (attempt.getWarningsCount() != null ? attempt.getWarningsCount() : 0) + 1;
@@ -470,6 +491,7 @@ public class ProctoringService {
                 tabSwitches,
                 attempt.getStartedAt(),
                 attempt.getSubmittedAt(),
+                attempt.getTerminationReason(),
                 eventDetails
         );
     }

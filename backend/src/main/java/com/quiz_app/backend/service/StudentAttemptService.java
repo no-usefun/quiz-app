@@ -1231,10 +1231,15 @@ public class StudentAttemptService {
                                                         rank++,
                                                         attempt.getStudent().getId(),
                                                         attempt.getStudent().getFullName(),
+                                                        attempt.getStudent().getRegistrationNo(),
                                                         score,
                                                         quiz.getTotalMarks(),
                                                         percentage,
-                                                        attempt.getTotalTimeTaken()));
+                                                        attempt.getTotalTimeTaken(),
+                                                        attempt.getId(),
+                                                        attempt.getStatus() != null ? attempt.getStatus().name() : null,
+                                                        attempt.getTerminationReason(),
+                                                        attempt.getWarningsCount()));
                 }
 
                 return result;

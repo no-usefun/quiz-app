@@ -6,8 +6,13 @@ public record LeaderboardEntryResponse(
         Integer rank,
         Long studentId,
         String studentName,
+        String registrationNumber,
         BigDecimal score,
         BigDecimal totalMarks,
         BigDecimal percentage,
-        Integer totalTimeTaken) {
+        Integer totalTimeTaken,
+        Long attemptId,
+        String status,
+        String terminationReason,
+        Integer warningCount) {
 }
