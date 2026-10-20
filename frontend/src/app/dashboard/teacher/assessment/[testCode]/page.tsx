@@ -93,6 +93,81 @@ type StudentRecord = {
   status?: string | null;
 };
 
+type ProctoringEvent = {
+  id?: number | string;
+  eventType?: string;
+  details?: string;
+  severity?: string;
+  confidence?: number | null;
+  timestamp?: string | null;
+};
+
+type ProctoringStudentReport = {
+  attemptId?: number | string;
+  studentId?: number | string;
+  studentName?: string | null;
+  studentEmail?: string | null;
+  quizCode?: string;
+  quizTitle?: string;
+  status?: string | null;
+  warningCount?: number;
+  totalViolationsCount?: number;
+  riskScore?: number;
+  riskLevel?: string | null;
+  totalFaceChecks?: number;
+  identityMatches?: number;
+  identityMismatches?: number;
+  faceAbsenceCount?: number;
+  multipleFacesCount?: number;
+  multiplePersonsCount?: number;
+  lookingAwayCount?: number;
+  phoneDetectionsCount?: number;
+  voiceDetectionsCount?: number;
+  tabSwitchesCount?: number;
+  startedAt?: string | null;
+  submittedAt?: string | null;
+  terminationReason?: string | null;
+  events?: ProctoringEvent[] | null;
+};
+
+type ProctoringOverview = {
+  quizCode?: string;
+  quizTitle?: string;
+  totalAttempts?: number;
+  flaggedAttempts?: number;
+  autoSubmittedAttempts?: number;
+  averageRiskScore?: number;
+  studentReports: ProctoringStudentReport[];
+};
+
+function toProctoringOverview(payload: unknown): ProctoringOverview {
+  const root = isApiRecord(payload) ? payload : {};
+  const nested = isApiRecord(root.data) ? root.data : root;
+  const rawReports = nested.studentReports;
+  return {
+    quizCode: typeof nested.quizCode === "string" ? nested.quizCode : undefined,
+    quizTitle: typeof nested.quizTitle === "string" ? nested.quizTitle : undefined,
+    totalAttempts: numericValue(nested.totalAttempts),
+    flaggedAttempts: numericValue(nested.flaggedAttempts),
+    autoSubmittedAttempts: numericValue(nested.autoSubmittedAttempts),
+    averageRiskScore: numericValue(nested.averageRiskScore),
+    studentReports: Array.isArray(rawReports)
+      ? rawReports.filter(isApiRecord) as ProctoringStudentReport[]
+      : [],
+  };
+}
+
+function displayMetric(value: unknown): string {
+  return value == null || value === "" ? "—" : String(value);
+}
+
+function humanizeEvent(value?: string | null): string {
+  return String(value || "UNKNOWN")
+    .replaceAll("_", " ")
+    .toLowerCase()
+    .replace(/\b\w/g, (character) => character.toUpperCase());
+}
+
 function numericValue(value: unknown, fallback = 0): number {
   const number = Number(value);
   return Number.isFinite(number) ? number : fallback;
@@ -279,6 +354,9 @@ export default function TeacherAssessmentPage({
   const [confirmCompleteOpen, setConfirmCompleteOpen] = useState(false);
 
   const [leaderboardUnavailable, setLeaderboardUnavailable] = useState(false);
+  const [proctoringOverview, setProctoringOverview] = useState<ProctoringOverview | null>(null);
+  const [proctoringLoading, setProctoringLoading] = useState(false);
+  const [proctoringError, setProctoringError] = useState<string | null>(null);
 
   const getToken = () => {
     const token = localStorage.getItem("dynoquizz_token");
@@ -417,6 +495,28 @@ export default function TeacherAssessmentPage({
     };
   };
 
+  const loadProctoringOverview = async (quizCode: string) => {
+    const token = getToken();
+    const response = await fetch(
+      ENDPOINTS.proctoring.teacherQuizReport(quizCode),
+      {
+        method: "GET",
+        headers: authHeaders(token),
+        cache: "no-store",
+      },
+    );
+
+    const payload: unknown = await response.json().catch(() => null);
+    if (!response.ok) {
+      const body = isApiRecord(payload) ? payload : {};
+      throw new Error(
+        String(body.message || body.error || `Unable to load proctoring report (${response.status}).`),
+      );
+    }
+
+    return toProctoringOverview(payload);
+  };
+
   const loadLeaderboard = async (
     quizId: number | string,
     totalMarks: number,
@@ -511,6 +611,25 @@ export default function TeacherAssessmentPage({
 
         setAssessmentData(quiz);
         setResultVisibility(quiz.resultVisibility ?? "BOTH");
+
+        setProctoringLoading(true);
+        setProctoringError(null);
+        try {
+          const report = await loadProctoringOverview(quiz.quizCode);
+          if (cancelled) return;
+          setProctoringOverview(report);
+        } catch (reportError) {
+          if (cancelled) return;
+          setProctoringOverview(null);
+          setProctoringError(
+            getErrorMessage(
+              reportError,
+              "The backend proctoring report could not be loaded.",
+            ),
+          );
+        } finally {
+          if (!cancelled) setProctoringLoading(false);
+        }
 
         try {
           const leaderboard = await loadLeaderboard(
@@ -1392,6 +1511,197 @@ export default function TeacherAssessmentPage({
               <p className="mt-4 text-[10px] text-steel-blue-gray">Bars compare student counts across marks ranges. Empty ranges remain visible.</p>
             </section>
           )}
+
+          <section className="space-y-4 rounded-[18px] border border-amber-200 bg-gradient-to-br from-amber-50 via-white to-rose-50 p-4 sm:p-5 text-left">
+            <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+              <div>
+                <h2 className="flex items-center gap-2 text-sm font-extrabold uppercase tracking-wider text-midnight-navy">
+                  <ShieldAlert className="h-5 w-5 text-amber-700" />
+                  Proctoring &amp; Auto-Submission Audit
+                </h2>
+                <p className="mt-1 text-xs text-steel-blue-gray">
+                  Backend-recorded flags, warning counts, risk scores, termination reasons, and event timeline for every reported attempt.
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={async () => {
+                  if (!assessmentData) return;
+                  setProctoringLoading(true);
+                  setProctoringError(null);
+                  try {
+                    setProctoringOverview(await loadProctoringOverview(assessmentData.quizCode));
+                  } catch (reportError) {
+                    setProctoringError(getErrorMessage(reportError, "Unable to refresh the proctoring report."));
+                  } finally {
+                    setProctoringLoading(false);
+                  }
+                }}
+                disabled={proctoringLoading}
+                className="shrink-0 rounded-[9px] border border-amber-200 bg-white px-3 py-2 text-[10px] font-bold text-amber-900 transition hover:bg-amber-100 disabled:opacity-50"
+              >
+                {proctoringLoading ? "Refreshing…" : "Refresh proctoring"}
+              </button>
+            </div>
+
+            {proctoringError && (
+              <div className="rounded-[10px] border border-rose-200 bg-rose-50 p-3 text-xs font-semibold text-rose-800">
+                {proctoringError}
+              </div>
+            )}
+
+            {proctoringLoading && !proctoringOverview ? (
+              <p className="rounded-[10px] border border-amber-100 bg-white p-4 text-xs text-steel-blue-gray">
+                Loading backend proctoring report…
+              </p>
+            ) : proctoringOverview ? (
+              <>
+                <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+                  {[
+                    ["Attempts monitored", proctoringOverview.totalAttempts ?? 0],
+                    ["Flagged attempts", proctoringOverview.flaggedAttempts ?? 0],
+                    ["Auto-submitted", proctoringOverview.autoSubmittedAttempts ?? 0],
+                    ["Average risk score", proctoringOverview.averageRiskScore ?? 0],
+                  ].map(([label, value]) => (
+                    <div key={String(label)} className="rounded-[12px] border border-amber-100 bg-white p-3">
+                      <p className="text-[9px] font-bold uppercase tracking-wider text-steel-blue-gray">{label}</p>
+                      <p className="mt-1 text-xl font-extrabold tabular-nums text-midnight-navy">{value}</p>
+                    </div>
+                  ))}
+                </div>
+
+                {proctoringOverview.studentReports.length === 0 ? (
+                  <div className="rounded-[10px] border border-amber-100 bg-white p-4 text-xs text-steel-blue-gray">
+                    The backend returned no per-student proctoring reports for this assessment. The section will not infer flags or termination causes from the leaderboard status alone.
+                  </div>
+                ) : (
+                  <div className="space-y-3">
+                    {proctoringOverview.studentReports.map((report, index) => {
+                      const statusValue = String(report.status || "UNKNOWN").toUpperCase();
+                      const autoSubmitted = statusValue === "AUTO_SUBMITTED";
+                      const events = Array.isArray(report.events) ? report.events : [];
+                      const flagMetrics: Array<[string, unknown]> = [
+                        ["Face checks", report.totalFaceChecks],
+                        ["Identity matches", report.identityMatches],
+                        ["Identity mismatches", report.identityMismatches],
+                        ["Face absent", report.faceAbsenceCount],
+                        ["Multiple faces", report.multipleFacesCount],
+                        ["Multiple people", report.multiplePersonsCount],
+                        ["Looking away", report.lookingAwayCount],
+                        ["Phone detections", report.phoneDetectionsCount],
+                        ["Voice detections", report.voiceDetectionsCount],
+                        ["Tab switches", report.tabSwitchesCount],
+                        ["Total violations", report.totalViolationsCount],
+                      ];
+
+                      return (
+                        <details
+                          key={String(report.attemptId ?? report.studentId ?? index)}
+                          className="overflow-hidden rounded-[12px] border border-amber-100 bg-white"
+                          open={index === 0}
+                        >
+                          <summary className="flex cursor-pointer list-none flex-wrap items-center justify-between gap-3 px-3 py-3 hover:bg-amber-50/50 sm:px-4">
+                            <div className="min-w-0">
+                              <p className="truncate text-xs font-extrabold text-midnight-navy">
+                                {report.studentName || `Student ${report.studentId ?? index + 1}`}
+                              </p>
+                              <p className="mt-0.5 text-[10px] text-steel-blue-gray">
+                                Attempt #{displayMetric(report.attemptId)} · Student ID {displayMetric(report.studentId)}
+                              </p>
+                            </div>
+                            <div className="flex flex-wrap items-center gap-2">
+                              <span className="rounded-full bg-slate-100 px-2.5 py-1 text-[9px] font-bold text-slate-700">
+                                {humanizeEvent(statusValue)}
+                              </span>
+                              <span className={`rounded-full px-2.5 py-1 text-[9px] font-bold ${autoSubmitted ? "bg-rose-100 text-rose-800" : Number(report.warningCount || 0) > 0 ? "bg-amber-100 text-amber-800" : "bg-emerald-100 text-emerald-800"}`}>
+                                {autoSubmitted ? "AUTO-SUBMITTED" : `${report.warningCount ?? 0} warnings`}
+                              </span>
+                              <span className="rounded-full border border-amber-200 px-2.5 py-1 text-[9px] font-bold text-amber-900">
+                                Risk {displayMetric(report.riskScore)} · {humanizeEvent(report.riskLevel)}
+                              </span>
+                            </div>
+                          </summary>
+
+                          <div className="space-y-3 border-t border-amber-100 p-3 sm:p-4">
+                            <div className={`rounded-[10px] border p-3 ${autoSubmitted ? "border-rose-200 bg-rose-50" : "border-slate-200 bg-slate-50"}`}>
+                              <p className="text-[9px] font-bold uppercase tracking-wider text-steel-blue-gray">Auto-submission / termination reason</p>
+                              <p className={`mt-1 text-xs font-bold ${autoSubmitted ? "text-rose-800" : "text-midnight-navy"}`}>
+                                {report.terminationReason
+                                  ? humanizeEvent(report.terminationReason)
+                                  : autoSubmitted
+                                    ? "Backend status is AUTO_SUBMITTED, but no terminationReason was supplied in this report."
+                                    : "No termination reason reported by the backend."}
+                              </p>
+                            </div>
+
+                            <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-4">
+                              {flagMetrics.map(([label, rawValue]) => (
+                                <div key={label} className="rounded-[9px] border border-slate-200 bg-slate-50 p-2.5">
+                                  <p className="text-[9px] font-semibold uppercase tracking-wide text-steel-blue-gray">{label}</p>
+                                  <p className="mt-1 text-sm font-extrabold tabular-nums text-midnight-navy">{displayMetric(rawValue ?? 0)}</p>
+                                </div>
+                              ))}
+                            </div>
+
+                            <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+                              <div className="rounded-[9px] border border-slate-200 bg-slate-50 p-3">
+                                <p className="text-[9px] font-bold uppercase tracking-wider text-steel-blue-gray">Started at</p>
+                                <p className="mt-1 text-xs font-semibold text-midnight-navy">{formatDateTime(report.startedAt)}</p>
+                              </div>
+                              <div className="rounded-[9px] border border-slate-200 bg-slate-50 p-3">
+                                <p className="text-[9px] font-bold uppercase tracking-wider text-steel-blue-gray">Submitted at</p>
+                                <p className="mt-1 text-xs font-semibold text-midnight-navy">{formatDateTime(report.submittedAt)}</p>
+                              </div>
+                            </div>
+
+                            <div>
+                              <h3 className="mb-2 text-[10px] font-extrabold uppercase tracking-wider text-midnight-navy">
+                                Recorded event timeline ({events.length})
+                              </h3>
+                              {events.length === 0 ? (
+                                <p className="rounded-[9px] bg-slate-50 p-3 text-xs text-steel-blue-gray">
+                                  No event details were included in the backend report. Counts above are shown as returned.
+                                </p>
+                              ) : (
+                                <div className="overflow-x-auto rounded-[9px] border border-slate-200">
+                                  <table className="w-full min-w-[640px] text-left">
+                                    <thead className="bg-slate-50">
+                                      <tr>
+                                        <th className="px-3 py-2 text-[9px] font-bold uppercase text-steel-blue-gray">Time</th>
+                                        <th className="px-3 py-2 text-[9px] font-bold uppercase text-steel-blue-gray">Event</th>
+                                        <th className="px-3 py-2 text-[9px] font-bold uppercase text-steel-blue-gray">Severity</th>
+                                        <th className="px-3 py-2 text-[9px] font-bold uppercase text-steel-blue-gray">Confidence</th>
+                                        <th className="px-3 py-2 text-[9px] font-bold uppercase text-steel-blue-gray">Details</th>
+                                      </tr>
+                                    </thead>
+                                    <tbody className="divide-y divide-slate-100">
+                                      {events.map((event, eventIndex) => (
+                                        <tr key={String(event.id ?? eventIndex)}>
+                                          <td className="whitespace-nowrap px-3 py-2 text-[10px] text-steel-blue-gray">{formatDateTime(event.timestamp)}</td>
+                                          <td className="px-3 py-2 text-[10px] font-bold text-midnight-navy">{humanizeEvent(event.eventType)}</td>
+                                          <td className="px-3 py-2 text-[10px] text-midnight-navy">{displayMetric(event.severity)}</td>
+                                          <td className="px-3 py-2 text-[10px] text-midnight-navy">{event.confidence == null ? "—" : `${Math.round(event.confidence * (event.confidence <= 1 ? 100 : 1))}%`}</td>
+                                          <td className="max-w-sm px-3 py-2 text-[10px] leading-relaxed text-steel-blue-gray">{event.details || "—"}</td>
+                                        </tr>
+                                      ))}
+                                    </tbody>
+                                  </table>
+                                </div>
+                              )}
+                            </div>
+                          </div>
+                        </details>
+                      );
+                    })}
+                  </div>
+                )}
+              </>
+            ) : !proctoringLoading ? (
+              <div className="rounded-[10px] border border-amber-100 bg-white p-4 text-xs text-steel-blue-gray">
+                No proctoring report is available. The frontend does not infer whether a flag caused auto-submission; that cause must be returned by the backend report.
+              </div>
+            ) : null}
+          </section>
 
           <section className="text-left">
             <div className="mb-3 flex items-center gap-3">
