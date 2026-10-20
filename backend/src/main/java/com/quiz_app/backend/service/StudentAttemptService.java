@@ -1333,7 +1333,8 @@ public class StudentAttemptService {
                                         false,
                                         QuizAvailabilityStatus.NOT_FOUND,
                                         null,
-                                        null);
+                                        null,
+                                        false);
                 }
 
                 Quiz quiz = quizOptional.get();
@@ -1377,6 +1378,7 @@ public class StudentAttemptService {
                                 available,
                                 status,
                                 quiz.getStartTime(),
-                                quiz.getEndTime());
+                                quiz.getEndTime(),
+                                quiz.isAiProctoringEnabled());
         }
 }
