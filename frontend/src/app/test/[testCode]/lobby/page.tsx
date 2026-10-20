@@ -9,7 +9,7 @@ import { motion } from "framer-motion";
 import {
   ArrowRight,
   Loader2,
-   AlertCircle,
+  AlertCircle,
   ArrowLeft,
 } from "lucide-react";
 import { Logo } from "@/components/Logo";
