@@ -60,6 +60,13 @@ type AssessmentData = {
   totalMarks: number;
   allowedRegistrationNumbers?: string[] | null;
   overallTimerSeconds: number;
+  negativeMarking: boolean;
+  negativeMarks: number;
+  timeBonusEnabled: boolean;
+  allowReview: boolean;
+  allowResume: boolean;
+  aiProctoringEnabled?: boolean;
+  maxTabSwitch?: number;
   startTime?: string | null;
   endTime?: string | null;
   resultVisibility?: ResultVisibility;
@@ -368,6 +375,17 @@ export default function TeacherAssessmentPage({
             )
           : undefined,
         overallTimerSeconds: numericValue(matched.overallTimerSeconds),
+        negativeMarking: Boolean(matched.negativeMarking ?? matched.settings?.negativeMarking),
+        negativeMarks: numericValue(matched.negativeMarks ?? matched.settings?.negativeMarks),
+        timeBonusEnabled: Boolean(matched.timeBonusEnabled ?? matched.settings?.timeBonusEnabled),
+        allowReview: Boolean(matched.allowReview ?? matched.settings?.allowReview),
+        allowResume: Boolean(matched.allowResume ?? matched.settings?.allowResume),
+        aiProctoringEnabled: typeof (matched.aiProctoringEnabled ?? matched.settings?.aiProctoringEnabled) === "boolean"
+          ? Boolean(matched.aiProctoringEnabled ?? matched.settings?.aiProctoringEnabled)
+          : undefined,
+        maxTabSwitch: matched.maxTabSwitch == null && matched.settings?.maxTabSwitch == null
+          ? undefined
+          : numericValue(matched.maxTabSwitch ?? matched.settings?.maxTabSwitch),
         startTime,
         endTime,
         resultVisibility: matched.resultVisibility as
@@ -776,7 +794,9 @@ export default function TeacherAssessmentPage({
   const questionWiseVisible =
     resultVisibility === "QUESTION_WISE" || resultVisibility === "BOTH";
 
-  const settingsLocked = status !== "DRAFT";
+  // Result visibility can be configured before publishing or after the assessment ends.
+  // The backend remains authoritative and may reject updates if its policy disallows them.
+  const settingsEditable = status === "DRAFT" || status === "COMPLETED";
 
   const submitted = students;
 
@@ -1081,10 +1101,9 @@ export default function TeacherAssessmentPage({
               Student Result Visibility
             </h3>
 
-            {settingsLocked && (
+            {!settingsEditable && (
               <p className="text-[10px] font-medium text-steel-blue-gray">
-                Result visibility can only be changed while the assessment is in
-                DRAFT status.
+                Result visibility can be configured before publishing or after the assessment is completed.
               </p>
             )}
 
@@ -1114,13 +1133,13 @@ export default function TeacherAssessmentPage({
                   key={item.label}
                   type="button"
                   onClick={item.onClick}
-                  disabled={settingsLocked || settingsSaving}
+                  disabled={!settingsEditable || settingsSaving}
                   className={`flex items-start justify-between gap-3 rounded-[10px] border p-3 text-left transition-all duration-150 ${
                     item.active
                       ? "border-signal-green bg-frost-surface text-midnight-navy ring-2 ring-signal-green/20"
                       : "border-[#d1dee8]/80 bg-paper-white text-steel-blue-gray hover:border-[#b9cbd9]"
                   } ${
-                    settingsLocked || settingsSaving
+                    !settingsEditable || settingsSaving
                       ? "cursor-not-allowed opacity-60"
                       : "cursor-pointer active:scale-[0.98] shadow-xs"
                   }`}
@@ -1146,6 +1165,52 @@ export default function TeacherAssessmentPage({
                     />
                   </div>
                 </button>
+              ))}
+            </div>
+          </section>
+
+          <section className="rounded-[14px] border border-[#d1dee8]/70 bg-paper-white p-4 space-y-3 shadow-sm">
+            <div className="border-b border-[#d1dee8]/40 pb-2">
+              <h3 className="text-xs font-bold uppercase tracking-wider text-midnight-navy">Student Result Details</h3>
+              <p className="mt-1 text-[10px] font-medium text-steel-blue-gray">Relevant scoring and review rules from the assessment settings. These are displayed for clarity; changing them here does not alter the completed attempt scores.</p>
+            </div>
+            <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-3">
+              {[
+                {
+                  label: "Scoring method",
+                  value: assessmentData.negativeMarking
+                    ? `Negative marking (${formatMarks(assessmentData.negativeMarks)} marks deducted per incorrect answer)`
+                    : "No negative marking",
+                },
+                {
+                  label: "Time bonus",
+                  value: assessmentData.timeBonusEnabled ? "Enabled" : "Not enabled",
+                },
+                {
+                  label: "Question review",
+                  value: assessmentData.allowReview ? "Allowed by assessment settings" : "Not allowed by assessment settings",
+                },
+                {
+                  label: "Resume attempt",
+                  value: assessmentData.allowResume ? "Allowed by assessment settings" : "Not allowed by assessment settings",
+                },
+                {
+                  label: "AI proctoring",
+                  value: assessmentData.aiProctoringEnabled === undefined
+                    ? "Not confirmed by server"
+                    : assessmentData.aiProctoringEnabled ? "Enabled" : "Disabled",
+                },
+                {
+                  label: "Tab-switch limit",
+                  value: assessmentData.maxTabSwitch === undefined
+                    ? "Not provided by server"
+                    : String(assessmentData.maxTabSwitch),
+                },
+              ].map((item) => (
+                <div key={item.label} className="rounded-[10px] border border-[#d1dee8]/70 bg-frost-surface/40 p-3">
+                  <p className="text-[9px] font-bold uppercase tracking-wider text-steel-blue-gray">{item.label}</p>
+                  <p className="mt-1 text-xs font-semibold text-midnight-navy">{item.value}</p>
+                </div>
               ))}
             </div>
           </section>
