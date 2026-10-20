@@ -1231,6 +1231,7 @@ public class StudentAttemptService {
                                                         rank++,
                                                         attempt.getStudent().getId(),
                                                         attempt.getStudent().getFullName(),
+                                                        attempt.getStudent().getRegistrationNo(),
                                                         score,
                                                         quiz.getTotalMarks(),
                                                         percentage,
