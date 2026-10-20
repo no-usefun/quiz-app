@@ -1272,7 +1272,7 @@ export default function TeacherAssessmentPage({
                 </div>
                 <div className="flex items-center gap-3">
                   <div className="rounded-[10px] bg-frost-surface px-3 py-2">
-                    <p className="text-lg font-bold tabular-nums text-midnight-navy">{formatMarks(averageMarks)} / {formatMarks(assessmentData.totalMarks)}</p>
+                    <p className="text-lg font-bold tabular-nums text-midnight-navy">{formatMarks(averageMarks)}</p>
                     <p className="text-[9px] font-bold uppercase tracking-wider text-steel-blue-gray">Average marks</p>
                   </div>
                   <div className="rounded-[10px] bg-frost-surface px-3 py-2">
