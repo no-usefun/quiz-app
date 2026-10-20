@@ -7,10 +7,6 @@ import { motion, useReducedMotion } from "framer-motion";
 import {
   Plus,
   Users,
-  ClipboardList,
-  Activity,
-  FileEdit,
-  Trophy,
   Copy,
   CheckCircle2,
   FileQuestion,
@@ -648,7 +644,7 @@ export default function TeacherDashboard() {
       <TopNav role="teacher" />
 
       <main className="flex-1 p-4 md:p-8 space-y-6 max-w-7xl mx-auto w-full">
-        <motion.section initial={reduceMotion ? false : { opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.32, ease: "easeOut" }} className="teacher-dashboard-hero relative isolate overflow-hidden rounded-[24px] border border-[#dce7ff] bg-gradient-to-br from-[#f8f6ff] via-white to-[#eaf5ff] p-5 sm:px-7 sm:py-6 shadow-[0_8px_30px_rgba(71,100,180,0.07)] flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+        <motion.section initial={reduceMotion ? false : { opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.32, ease: "easeOut" }} className="teacher-dashboard-hero relative overflow-hidden rounded-2xl border border-slate-200 bg-white p-5 sm:px-7 sm:py-6 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
           <div>
             <span className="text-xs font-bold uppercase tracking-widest text-[#78716b]">
               Educator Control Center
@@ -675,17 +671,14 @@ export default function TeacherDashboard() {
 
         <motion.section initial={reduceMotion ? false : { opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.32, delay: 0.07, ease: "easeOut" }} className="grid grid-cols-2 sm:grid-cols-4 gap-3.5">
           {[
-            { label: "Total Assessments", value: loading ? "..." : tests.length, icon: ClipboardList, card: "border-[#d9e8ff] bg-gradient-to-br from-[#f4f8ff] to-[#e8f2ff]", iconStyle: "bg-[#d9ebff] text-[#1685e8]", valueStyle: "text-[#155eef]" },
-            { label: "Live Sessions", value: loading ? "..." : liveCount, icon: Activity, card: "border-[#ccefe3] bg-gradient-to-br from-[#f2fcf8] to-[#dff8ef]", iconStyle: "bg-[#d1f5e6] text-[#059669]", valueStyle: "text-[#047857]" },
-            { label: "Draft Assessments", value: loading ? "..." : draftCount, icon: FileEdit, card: "border-[#fde7b1] bg-gradient-to-br from-[#fffaf0] to-[#fff1ce]", iconStyle: "bg-[#ffedbd] text-[#d97706]", valueStyle: "text-[#b45309]" },
-            { label: "Completed", value: loading ? "..." : completedCount, icon: Trophy, card: "border-[#e3d9ff] bg-gradient-to-br from-[#faf7ff] to-[#eee7ff]", iconStyle: "bg-[#e8ddff] text-[#8b5cf6]", valueStyle: "text-[#7c3aed]" },
+            { label: "Total Assessments", value: loading ? "..." : tests.length },
+            { label: "Live Sessions", value: loading ? "..." : liveCount },
+            { label: "Draft Assessments", value: loading ? "..." : draftCount },
+            { label: "Completed", value: loading ? "..." : completedCount },
           ].map((stat) => (
-            <div key={stat.label} className={`teacher-stat relative isolate overflow-hidden rounded-[18px] border p-4 sm:p-5 shadow-[0_4px_14px_rgba(71,100,180,0.05)] transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md ${stat.card}`}>
-              <div className="flex items-center justify-between gap-2">
-                <span className="text-[10px] font-extrabold uppercase tracking-wider text-[#64748b] dark:text-slate-300">{stat.label}</span>
-                <span className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-full ${stat.iconStyle}`}><stat.icon className="h-5 w-5" /></span>
-              </div>
-              <p className={`mt-2 text-2xl font-black tabular-nums ${stat.valueStyle}`}>{stat.value}</p>
+            <div key={stat.label} className="teacher-stat rounded-xl border border-slate-200 bg-white p-4 sm:p-5 transition-colors duration-150 hover:border-slate-300">
+              <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500">{stat.label}</span>
+              <p className="mt-2 text-2xl font-bold tabular-nums text-slate-900">{stat.value}</p>
             </div>
           ))}
         </motion.section>
