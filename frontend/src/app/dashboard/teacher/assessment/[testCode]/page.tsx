@@ -802,9 +802,9 @@ export default function TeacherAssessmentPage({
 
   const submitted = students;
 
-  const highScore = Math.max(
+  const highScoreMarks = Math.max(
     ...(submitted.length > 0
-      ? submitted.map((student) => student.percentage)
+      ? submitted.map((student) => Number(student.finalScore) || 0)
       : [0]),
   );
 
@@ -1234,7 +1234,7 @@ export default function TeacherAssessmentPage({
               {
                 icon: <Award className="h-4 w-4 text-signal-green" />,
                 label: "High Score",
-                value: `${formatPercentage(highScore)}%`,
+                value: `${formatMarks(highScoreMarks)} / ${formatMarks(assessmentData.totalMarks)}`,
               },
               {
                 icon: <Clock className="h-4 w-4 text-signal-green" />,
