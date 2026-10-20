@@ -1456,6 +1456,10 @@ function CreateAssessmentContent() {
             settingsData.overallTimerSeconds ?? Math.floor(timeLimit * 60),
           startTime: settingsData.startTime ?? formatToLocalDateTime(startTime),
           endTime: settingsData.endTime ?? formatToLocalDateTime(endTime),
+          aiProctoringEnabled:
+            typeof settingsData.aiProctoringEnabled === "boolean"
+              ? settingsData.aiProctoringEnabled
+              : aiProctoringEnabled,
           acceptedEmailDomain:
             settingsData.acceptedEmailDomain ?? (acceptedDomain.trim() || null),
           questions: parsedQuestions,
@@ -1716,6 +1720,10 @@ function CreateAssessmentContent() {
             settingsData.overallTimerSeconds ?? Math.floor(timeLimit * 60),
           startTime: settingsData.startTime ?? formatToLocalDateTime(startTime),
           endTime: settingsData.endTime ?? formatToLocalDateTime(endTime),
+          aiProctoringEnabled:
+            typeof settingsData.aiProctoringEnabled === "boolean"
+              ? settingsData.aiProctoringEnabled
+              : aiProctoringEnabled,
           acceptedEmailDomain:
             settingsData.acceptedEmailDomain ?? (acceptedDomain.trim() || null),
           questions: parsedQuestions, // Ensures we keep the frontend's answer key intact
