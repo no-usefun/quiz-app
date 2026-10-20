@@ -453,7 +453,6 @@ export function useAIProctoring({
       // reuse any old image from session storage.
       sessionStorage.removeItem("dynoquizz_reference_photo");
       sessionStorage.removeItem(`dynoquizz_reference_photo_fresh_${attemptId}`);
-      setIdentityHoldSnapshot(true, "REFERENCE_PHOTO_REQUIRED");
       return;
     }
 
