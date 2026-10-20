@@ -1510,6 +1510,7 @@ public class TeacherQuizService {
                                                         rank++,
                                                         attempt.getStudent().getId(),
                                                         attempt.getStudent().getFullName(),
+                                                        attempt.getStudent().getRegistrationNo(),
                                                         score,
                                                         quiz.getTotalMarks(),
                                                         percentage,
