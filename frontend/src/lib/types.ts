@@ -110,7 +110,8 @@ export interface QuizPackageResponse {
   allowReview: boolean;
   allowResume: boolean;
   autoSubmit: boolean;
-  aiProctoringEnabled?: boolean;
+  /** Required by the student API; missing policy must block exam entry. */
+  aiProctoringEnabled: boolean;
   startTime?: string | null;
   endTime?: string | null;
   questions: QuestionResponse[];
@@ -296,7 +297,8 @@ export interface QuizAvailabilityResponse {
   quizCode: string;
   available: boolean;
   status: QuizAvailabilityStatus;
-  aiProctoringEnabled?: boolean;
+  /** Required by the student API; missing policy must block exam entry. */
+  aiProctoringEnabled: boolean;
   startTime?: string | null;
   endTime?: string | null;
 }
