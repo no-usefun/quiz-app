@@ -250,7 +250,7 @@ export function useSession() {
       throw new Error("Role must be STUDENT or TEACHER.");
     }
 
-    const data = await api.post<Record<string, any>>(
+    const data = await api.post<Record<string, unknown>>(
       ENDPOINTS.auth.login,
       {
         email: credentials.email.trim(),
@@ -348,18 +348,22 @@ export function useSession() {
       { skipAuth: true, cache: "no-store" },
     );
 
-    const returnedUser = data?.user
-      ? normalizeUser(data.user)
-      : normalizeUser({
-          email: payload.email.trim(),
-          firstName: payload.firstName.trim(),
-          lastName: payload.lastName?.trim() || "",
-          role: backendRole,
-          registrationNo:
-            backendRole === "STUDENT"
-              ? payload.registrationNo?.trim().toUpperCase()
-              : undefined,
-        });
+    const returnedUserData = data.user;
+    const returnedUser =
+      returnedUserData &&
+      typeof returnedUserData === "object" &&
+      !Array.isArray(returnedUserData)
+        ? normalizeUser(returnedUserData as SessionUser)
+        : normalizeUser({
+            email: payload.email.trim(),
+            firstName: payload.firstName.trim(),
+            lastName: payload.lastName?.trim() || "",
+            role: backendRole,
+            registrationNo:
+              backendRole === "STUDENT"
+                ? payload.registrationNo?.trim().toUpperCase()
+                : undefined,
+          });
 
     /*
      * Signup returns SignupResponse, not AuthResponse.
@@ -370,9 +374,11 @@ export function useSession() {
 
     return {
       user: returnedUser,
-      verificationRequired: data?.verificationRequired === true,
+      verificationRequired: data.verificationRequired === true,
       message:
-        data?.message || "Account created successfully. You can now log in.",
+        typeof data.message === "string"
+          ? data.message
+          : "Account created successfully. You can now log in.",
     };
   }, []);
 
