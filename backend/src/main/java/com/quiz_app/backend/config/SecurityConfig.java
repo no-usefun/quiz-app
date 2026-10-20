@@ -37,19 +37,16 @@ public class SecurityConfig {
     private final AccessDeniedHandlerJwt accessDeniedHandlerJwt;
     private final boolean oauth2Enabled;
     private final boolean emailFeaturesEnabled;
-    private final String configuredCorsOrigins;
 
     public SecurityConfig(JwtAuthenticationFilter jwtAuthenticationFilter, AuthEntryPointJwt authEntryPointJwt,
             AccessDeniedHandlerJwt accessDeniedHandlerJwt,
             @Value("${app.auth.oauth2-enabled:false}") boolean oauth2Enabled,
-            @Value("${app.auth.email-features-enabled:true}") boolean emailFeaturesEnabled,
-            @Value("${CORS_ALLOWED_ORIGINS:${FRONTEND_URL:}}") String configuredCorsOrigins) {
+            @Value("${app.auth.email-features-enabled:true}") boolean emailFeaturesEnabled) {
         this.jwtAuthenticationFilter = jwtAuthenticationFilter;
         this.authEntryPointJwt = authEntryPointJwt;
         this.accessDeniedHandlerJwt = accessDeniedHandlerJwt;
         this.oauth2Enabled = oauth2Enabled;
         this.emailFeaturesEnabled = emailFeaturesEnabled;
-        this.configuredCorsOrigins = configuredCorsOrigins;
     }
 
     @Bean
@@ -63,13 +60,9 @@ public class SecurityConfig {
     @Bean
     public CorsConfigurationSource corsConfigurationSource() {
         CorsConfiguration configuration = new CorsConfiguration();
-        List<String> allowedOrigins = configuredCorsOrigins == null || configuredCorsOrigins.isBlank()
-                ? List.of()
-                : Arrays.stream(configuredCorsOrigins.split(","))
-                        .map(String::trim)
-                        .filter(origin -> !origin.isEmpty())
-                        .toList();
-        configuration.setAllowedOrigins(allowedOrigins);
+        // LAN exam clients may use different IPs/ports; allow any origin pattern.
+        // Keep credentials enabled for the existing authentication flow.
+        configuration.setAllowedOriginPatterns(List.of("*"));
         configuration.setAllowedMethods(Arrays.asList("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"));
         configuration.setAllowedHeaders(Arrays.asList("Authorization", "Content-Type", "X-Requested-With", "Accept",
                 "Origin", "Access-Control-Request-Method", "Access-Control-Request-Headers"));
