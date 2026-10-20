@@ -284,10 +284,9 @@ export default function TestArenaPage({
     typeof window !== "undefined"
       ? sessionStorage.getItem("dynoquizz_reference_photo")
       : null;
-  const [aiProctoringEnabled] = useState(() => {
-    if (typeof window === "undefined") return true;
-    return sessionStorage.getItem(`dynoquizz_ai_proctoring_${cleanCode}`) !== "false";
-  });
+  // The backend package is authoritative. Do not use browser storage as the
+  // source of truth for a policy that determines whether proctoring is required.
+  const [aiProctoringEnabled, setAiProctoringEnabled] = useState<boolean | null>(null);
 
   const studentUser =
     typeof window !== "undefined"
@@ -342,16 +341,19 @@ export default function TestArenaPage({
       );
       void finishAssessmentRef.current?.(answersRef.current, timeTakenRef.current);
     },
-    enabled: aiProctoringEnabled && !isSubmitted && Boolean(activeAttemptId),
+    enabled: aiProctoringEnabled === true && !isSubmitted && Boolean(activeAttemptId),
   });
 
-  const isAIProctoringReady = !aiProctoringEnabled || (Boolean(activeAttemptId) &&
-    proctoring.isOnline &&
-    proctoring.cameraActive &&
-    proctoring.telemetryReceived &&
-    proctoring.faceDetected &&
-    proctoring.identityVerified &&
-    !proctoring.cameraError);
+  const isAIProctoringReady =
+    aiProctoringEnabled === false ||
+    (aiProctoringEnabled === true &&
+      Boolean(activeAttemptId) &&
+      proctoring.isOnline &&
+      proctoring.cameraActive &&
+      proctoring.telemetryReceived &&
+      proctoring.faceDetected &&
+      proctoring.identityVerified &&
+      !proctoring.cameraError);
 
   const requestFullscreen = useCallback(async () => {
     if (typeof document === "undefined") return false;
@@ -719,6 +721,18 @@ export default function TestArenaPage({
             retryDelayMs: 300,
             cache: "no-store",
           },
+        );
+
+        if (typeof packageData?.aiProctoringEnabled !== "boolean") {
+          throw new Error(
+            "The backend did not return an explicit AI proctoring policy for this assessment. The exam is locked until the backend returns aiProctoringEnabled as true or false.",
+          );
+        }
+
+        setAiProctoringEnabled(packageData.aiProctoringEnabled);
+        sessionStorage.setItem(
+          `dynoquizz_ai_proctoring_${cleanCode}`,
+          String(packageData.aiProctoringEnabled),
         );
 
         if (
