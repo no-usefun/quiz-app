@@ -1222,8 +1222,8 @@ export default function TeacherAssessmentPage({
                   disabled={settingsSaving}
                   className={`flex items-center justify-between gap-3 rounded-[15px] border p-3.5 text-left transition-all duration-200 ${
                     item.active
-                      ? "border-signal-green bg-frost-surface text-midnight-navy ring-2 ring-signal-green/20"
-                      : "border-[#d1dee8]/80 bg-paper-white text-steel-blue-gray hover:border-[#b9cbd9]"
+                      ? "border-[#b8ccf5] bg-[#f8fbff] text-midnight-navy ring-1 ring-[#dce8ff]"
+                      : "border-[#e2e8f0] bg-white text-steel-blue-gray hover:border-[#cbd5e1] hover:bg-slate-50"
                   } ${
                     settingsSaving
                       ? "cursor-not-allowed opacity-60"
@@ -1231,7 +1231,7 @@ export default function TeacherAssessmentPage({
                   }`}
                 >
                   <div className="flex min-w-0 items-center gap-3">
-                    <span className={`flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl ${item.label === "Show Leaderboard" ? "bg-gradient-to-br from-[#fff1bf] to-[#ffdf80] text-[#d97706]" : "bg-gradient-to-br from-[#dff3ff] to-[#bfe8ff] text-[#0284c7]"}`}>
+                    <span className={`flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl ${"bg-[#eef4ff] text-[#315fba]"}`}>
                       {item.label === "Show Leaderboard" ? <Trophy className="h-5 w-5" /> : <BarChart3 className="h-5 w-5" />}
                     </span>
                     <span className="min-w-0 text-left">
@@ -1246,7 +1246,7 @@ export default function TeacherAssessmentPage({
 
                   <div
                     className={`relative inline-flex h-5 w-9 shrink-0 rounded-full border-2 border-transparent transition-colors duration-150 ${
-                      item.active ? "bg-signal-green" : "bg-mist-blue"
+                      item.active ? "bg-[#2563eb]" : "bg-slate-300"
                     }`}
                   >
                     <span
@@ -1260,7 +1260,7 @@ export default function TeacherAssessmentPage({
             </div>
           </section>
 
-          <section className="rounded-[14px] border border-[#d1dee8]/70 bg-paper-white p-4 space-y-3 shadow-sm">
+          <section className="rounded-[14px] border border-slate-200 bg-white p-4 space-y-3 shadow-sm">
             <div className="border-b border-[#d1dee8]/40 pb-2">
               <h3 className="text-xs font-bold uppercase tracking-wider text-midnight-navy">Student Result Details</h3>
               <p className="mt-1 text-[10px] font-medium text-steel-blue-gray">Relevant scoring and review rules from the assessment settings. These are displayed for clarity; changing them here does not alter the completed attempt scores.</p>
@@ -1298,7 +1298,7 @@ export default function TeacherAssessmentPage({
                     : String(assessmentData.maxTabSwitch),
                 },
               ].map((item) => (
-                <div key={item.label} className="rounded-[10px] border border-[#d1dee8]/70 bg-frost-surface/40 p-3">
+                <div key={item.label} className="rounded-[10px] border border-slate-200 bg-white p-3">
                   <p className="text-[9px] font-bold uppercase tracking-wider text-steel-blue-gray">{item.label}</p>
                   <p className="mt-1 text-xs font-semibold text-midnight-navy">{item.value}</p>
                 </div>
@@ -1337,11 +1337,11 @@ export default function TeacherAssessmentPage({
               },
             ].map((stat, index) => {
               const palette = [
-                { card: "border-[#d9e8ff] bg-gradient-to-br from-[#f4f8ff] to-[#e8f2ff]", icon: "bg-[#d9ebff] text-[#1685e8]", decor: "text-[#b9d7ff]" },
-                { card: "border-[#ccefe3] bg-gradient-to-br from-[#f2fcf8] to-[#dff8ef]", icon: "bg-[#d1f5e6] text-[#059669]", decor: "text-[#bdebd9]" },
-                { card: "border-[#fde7b1] bg-gradient-to-br from-[#fffaf0] to-[#fff1ce]", icon: "bg-[#ffedbd] text-[#d97706]", decor: "text-[#f9df9b]" },
-                { card: "border-[#e3d9ff] bg-gradient-to-br from-[#faf7ff] to-[#eee7ff]", icon: "bg-[#e8ddff] text-[#8b5cf6]", decor: "text-[#d7c8ff]" },
-                { card: "border-[#ffd8df] bg-gradient-to-br from-[#fff7f8] to-[#ffe7eb]", icon: "bg-[#ffe0e6] text-[#e11d48]", decor: "text-[#ffc8d2]" },
+                { card: "border-slate-200 bg-white", icon: "bg-slate-100 text-slate-600", decor: "text-slate-200" },
+                { card: "border-slate-200 bg-white", icon: "bg-slate-100 text-slate-600", decor: "text-slate-200" },
+                { card: "border-slate-200 bg-white", icon: "bg-slate-100 text-slate-600", decor: "text-slate-200" },
+                { card: "border-slate-200 bg-white", icon: "bg-slate-100 text-slate-600", decor: "text-slate-200" },
+                { card: "border-slate-200 bg-white", icon: "bg-slate-100 text-slate-600", decor: "text-slate-200" },
               ][index];
               const decorativeIcon = [
                 <Users key="users" className="h-11 w-11" />,
@@ -1353,9 +1353,9 @@ export default function TeacherAssessmentPage({
               return (
               <div
                 key={stat.label}
-                className={`assessment-stat group relative isolate overflow-hidden flex items-center gap-3 rounded-[17px] border p-4 shadow-[0_4px_14px_rgba(71,100,180,0.05)] transition-all duration-200 hover:-translate-y-0.5 hover:shadow-[0_9px_22px_rgba(71,100,180,0.11)] ${palette.card}`}
+                className={`assessment-stat group relative isolate overflow-hidden flex items-center gap-3 rounded-[14px] border p-4 shadow-sm transition-colors duration-200 hover:border-slate-300 hover:shadow-md ${palette.card}`}
               >
-                <div aria-hidden="true" className={`pointer-events-none absolute bottom-2 right-2 z-0 opacity-25 ${palette.decor}`}>{decorativeIcon}</div>
+                <div aria-hidden="true" className={`pointer-events-none absolute bottom-2 right-2 z-0 opacity-10 ${palette.decor}`}>{decorativeIcon}</div>
                 <div className={`relative z-10 flex h-12 w-12 shrink-0 items-center justify-center rounded-full shadow-sm ${palette.icon}`}>
                   {stat.icon}
                 </div>
@@ -1373,21 +1373,21 @@ export default function TeacherAssessmentPage({
           </div>
 
           {submitted.length > 0 && (
-            <section className="rounded-[20px] border border-[#dce7ff] bg-white/95 p-4 sm:p-6 shadow-[0_6px_22px_rgba(71,100,180,0.06)] text-left">
+            <section className="rounded-[16px] border border-slate-200 bg-white p-4 sm:p-6 shadow-sm text-left">
               <div className="mb-4 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
                 <div>
                   <h2 className="flex items-center gap-2 text-xs font-extrabold uppercase tracking-wider text-midnight-navy"><BarChart3 className="h-4 w-4 text-[#8b5cf6]" />Class Performance</h2>
                   <p className="mt-1 text-xs text-steel-blue-gray">A quick breakdown of marks across all submitted attempts.</p>
                 </div>
                 <div className="flex items-center gap-2 sm:gap-3">
-                  <div className="min-w-[112px] rounded-[13px] border border-[#d5e5ff] bg-gradient-to-br from-[#edf5ff] to-[#dceaff] px-3.5 py-2.5 shadow-sm dark:border-blue-900/70 dark:from-slate-800 dark:to-blue-950/70">
+                  <div className="min-w-[112px] rounded-[12px] border border-slate-200 bg-white px-3.5 py-2.5 shadow-sm dark:border-slate-700 dark:bg-slate-900">
                     <div className="flex items-center gap-2">
                       <TrendingUp className="h-4 w-4 text-[#2563eb] dark:text-blue-300" />
                       <p className="text-lg font-extrabold tabular-nums text-[#155eef] dark:text-blue-200">{formatMarks(averageMarks)}</p>
                     </div>
                     <p className="mt-0.5 text-[9px] font-extrabold uppercase tracking-wider text-[#3265b8] dark:text-blue-300">Average marks</p>
                   </div>
-                  <div className="min-w-[100px] rounded-[13px] border border-[#bdebd7] bg-gradient-to-br from-[#e9fbf3] to-[#d1f6e7] px-3.5 py-2.5 shadow-sm dark:border-emerald-900/70 dark:from-slate-800 dark:to-emerald-950/70">
+                  <div className="min-w-[100px] rounded-[12px] border border-slate-200 bg-white px-3.5 py-2.5 shadow-sm dark:border-slate-700 dark:bg-slate-900">
                     <div className="flex items-center gap-2">
                       <Users className="h-4 w-4 text-[#059669] dark:text-emerald-300" />
                       <p className="text-lg font-extrabold tabular-nums text-[#047857] dark:text-emerald-200">{submitted.length}</p>
