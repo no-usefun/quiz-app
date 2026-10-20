@@ -423,7 +423,7 @@ export function useAIProctoring({
       setIsOnline(health.isOnline);
 
       if (!health.isOnline) {
-        setCameraError("The AI Proctoring microservice is currently offline. Please ensure it is running on port 8000.");
+        setCameraError("The AI Proctoring service is unavailable. Verify the configured service URL and that the service is healthy.");
         return;
       }
       if (!health.biometricReady) {
