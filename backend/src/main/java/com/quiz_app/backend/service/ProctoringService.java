@@ -1,6 +1,7 @@
 package com.quiz_app.backend.service;
 
 import java.time.LocalDateTime;
+import java.time.Instant;
 import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.List;
@@ -203,7 +204,9 @@ public class ProctoringService {
                 Map<String, Object> metaMap = Map.of(
                         "details", request.details() != null ? request.details() : formatEventTitle(eventType),
                         "severity", severity,
-                        "confidence", confidence
+                        "confidence", confidence,
+                        "probabilityScore", confidence,
+                        "detectionTimestamp", request.frameTimestamp() != null ? request.frameTimestamp() : 0.0
                 );
                 metadataJson = objectMapper.writeValueAsString(metaMap);
             } catch (Exception e) {
@@ -215,7 +218,12 @@ public class ProctoringService {
             event.setAttempt(attempt);
             event.setEventType(eventType);
             event.setClientEventId(clientEventId);
-            event.setOccurredAt(LocalDateTime.now(QUIZ_TIMEZONE));
+            LocalDateTime detectedAt = request.frameTimestamp() != null && request.frameTimestamp() > 0
+                    ? LocalDateTime.ofInstant(
+                            Instant.ofEpochMilli(Math.round(request.frameTimestamp() * 1000.0)),
+                            QUIZ_TIMEZONE)
+                    : LocalDateTime.now(QUIZ_TIMEZONE);
+            event.setOccurredAt(detectedAt);
             event.setMetadataJson(metadataJson);
             proctoringEventRepository.save(event);
 
@@ -414,6 +422,8 @@ public class ProctoringService {
                     }
                     if (node.has("confidence") && !node.get("confidence").isNull()) {
                         confidence = node.get("confidence").asDouble();
+                    } else if (node.has("probabilityScore") && !node.get("probabilityScore").isNull()) {
+                        confidence = node.get("probabilityScore").asDouble();
                     }
                 } catch (Exception ignored) {
                 }
@@ -487,6 +497,7 @@ public class ProctoringService {
                 tabSwitches,
                 attempt.getStartedAt(),
                 attempt.getSubmittedAt(),
+                attempt.getTerminationReason(),
                 eventDetails
         );
     }
