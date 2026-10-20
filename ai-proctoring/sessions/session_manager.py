@@ -23,6 +23,7 @@ class ProctoringSession:
     auth_token_hash: Optional[str] = None
     summary_dispatched: bool = False
     is_active: bool = True
+    attempt_terminated: bool = False
     created_at: float = field(default_factory=time.time)
     last_seen_at: float = field(default_factory=time.time)
     total_verifications: int = 0

@@ -1,4 +1,6 @@
+import asyncio
 import time
+import uuid
 import httpx
 import logging
 from typing import Optional, Dict
@@ -35,7 +37,8 @@ class MalpracticeDetector:
         is_loud: bool,
         mic_level: float,
         gaze_valid: bool = True,
-        gaze_confidence: float = 1.0
+        gaze_confidence: float = 1.0,
+        frame_timestamp: Optional[float] = None
     ) -> dict:
         """
         Evaluates detection metrics over temporal sliding windows.
@@ -156,23 +159,30 @@ class MalpracticeDetector:
         dispatched_event = None
         dispatched_message = None
 
-        if confirmed_event:
+        if confirmed_event and not session.attempt_terminated:
             last_time = session.last_dispatched.get(confirmed_event, 0.0)
             if (now - last_time) >= 4.0:  # Debounce per event type
                 session.last_dispatched[confirmed_event] = now
                 logger.warning("Confirmed malpractice %s for attempt %d: %s", confirmed_event, session.attempt_id, event_message)
                 
-                # Direct Authoritative Dispatch to Spring Boot
+                # Create one durable ID per logical event. The exact payload (including this ID)
+                # is reused for every retry in _dispatch_to_spring_boot.
+                event_id = f"{session.attempt_id}:{confirmed_event}:{uuid.uuid4().hex}"
                 dispatch_res = await self._dispatch_to_spring_boot(
                     session=session,
                     event_type=confirmed_event,
                     details=event_message,
                     severity=severity,
-                    confidence=confidence
+                    confidence=confidence,
+                    event_id=event_id,
+                    frame_timestamp=frame_timestamp
                 )
-                if dispatch_res:
+                if dispatch_res is not None:
                     session.warning_count = dispatch_res.get("warningCount", session.warning_count + 1)
                     auto_submitted = dispatch_res.get("autoSubmitted", False)
+                    if auto_submitted:
+                        # Backend is authoritative: stop creating further violations for this attempt.
+                        session.attempt_terminated = True
                 else:
                     session.warning_count += 1
                     if session.warning_count >= 3:
@@ -211,7 +221,9 @@ class MalpracticeDetector:
         event_type: str,
         details: str,
         severity: str,
-        confidence: float
+        confidence: float,
+        event_id: str,
+        frame_timestamp: Optional[float] = None
     ) -> dict | None:
         """
         Sends the confirmed malpractice event directly to Spring Boot backend.
@@ -229,26 +241,68 @@ class MalpracticeDetector:
             "eventType": event_type,
             "details": details,
             "severity": severity,
-            "confidence": confidence
+            "confidence": max(0.0, min(1.0, float(confidence))),
+            "eventId": event_id
         }
 
-        try:
-            resp = await self.http_client.post(url, json=payload, headers=headers)
-            if resp.status_code in (200, 201):
-                data = resp.json()
-                logger.info("Spring Boot recorded event %s. Warning count: %s", event_type, data.get("warningCount"))
-                session.events_log.append({
-                    "type": event_type,
-                    "details": details,
-                    "timestamp": time.time(),
-                    "warningCount": data.get("warningCount")
-                })
-                return data
-            else:
-                logger.warning("Spring Boot event dispatch returned status %d: %s", resp.status_code, resp.text)
-        except Exception as e:
-            logger.error("Failed to dispatch event to Spring Boot: %s", e)
+        # Only forward a real source timestamp supplied with the frame. Never manufacture one
+        # or accidentally send millisecond timestamps to the backend.
+        if frame_timestamp is not None:
+            try:
+                source_timestamp = float(frame_timestamp)
+                if 0 < source_timestamp < 100_000_000_000 and source_timestamp <= time.time() + 60:
+                    payload["frameTimestamp"] = source_timestamp
+                else:
+                    logger.warning("Ignoring invalid frame timestamp for event %s", event_id)
+            except (TypeError, ValueError):
+                logger.warning("Ignoring invalid frame timestamp for event %s", event_id)
 
+        # Retry only transient HTTP/network failures. Payload and eventId stay identical.
+        max_attempts = 3
+        transient_statuses = {408, 425, 429}
+        for attempt in range(max_attempts):
+            try:
+                resp = await self.http_client.post(url, json=payload, headers=headers)
+                if resp.status_code in (200, 201):
+                    try:
+                        data = resp.json()
+                    except (ValueError, TypeError):
+                        data = {}
+                    logger.info(
+                        "Spring Boot event dispatch completed for type %s (status %d)",
+                        event_type, resp.status_code
+                    )
+                    session.events_log.append({
+                        "type": event_type,
+                        "details": details,
+                        "timestamp": payload.get("frameTimestamp", time.time()),
+                        "eventId": event_id,
+                        "warningCount": data.get("warningCount")
+                    })
+                    return data
+
+                is_transient = resp.status_code in transient_statuses or 500 <= resp.status_code <= 599
+                if not is_transient:
+                    # Do not log response bodies or request headers: they may contain sensitive data.
+                    logger.warning(
+                        "Permanent backend event rejection for type %s (status %d)",
+                        event_type, resp.status_code
+                    )
+                    return None
+                logger.warning(
+                    "Transient backend event failure for type %s (status %d, attempt %d/%d)",
+                    event_type, resp.status_code, attempt + 1, max_attempts
+                )
+            except httpx.RequestError as exc:
+                logger.warning(
+                    "Transient backend network failure for event type %s (%s, attempt %d/%d)",
+                    event_type, type(exc).__name__, attempt + 1, max_attempts
+                )
+
+            if attempt < max_attempts - 1:
+                await asyncio.sleep(0.25 * (2 ** attempt))
+
+        logger.error("Backend event delivery exhausted retries for type %s", event_type)
         return None
 
     async def verify_backend_attempt_access(

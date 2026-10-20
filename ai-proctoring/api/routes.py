@@ -72,6 +72,7 @@ class AnalyzeFrameRequest(BaseModel):
     studentId: Optional[str] = None
     attemptId: Optional[int] = None
     warningCount: Optional[int] = None
+    frameTimestamp: Optional[float] = None
 
 class AnalyzeFrameResponse(BaseModel):
     status: str
@@ -366,7 +367,8 @@ async def analyze_frame(
         is_loud=audio_res["is_loud"],
         mic_level=audio_res["mic_level"],
         gaze_valid=gaze_res.get("is_valid", True),
-        gaze_confidence=gaze_res.get("confidence", 1.0)
+        gaze_confidence=gaze_res.get("confidence", 1.0),
+        frame_timestamp=req.frameTimestamp
     )
 
     return AnalyzeFrameResponse(
