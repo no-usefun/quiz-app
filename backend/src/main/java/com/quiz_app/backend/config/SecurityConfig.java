@@ -60,17 +60,9 @@ public class SecurityConfig {
     @Bean
     public CorsConfigurationSource corsConfigurationSource() {
         CorsConfiguration configuration = new CorsConfiguration();
-        String configuredOrigins = System.getenv("CORS_ALLOWED_ORIGINS");
-        if (configuredOrigins == null || configuredOrigins.isBlank()) {
-            configuredOrigins = System.getenv("FRONTEND_URL");
-        }
-        List<String> allowedOrigins = configuredOrigins == null || configuredOrigins.isBlank()
-                ? List.of()
-                : Arrays.stream(configuredOrigins.split(","))
-                        .map(String::trim)
-                        .filter(origin -> !origin.isEmpty())
-                        .toList();
-        configuration.setAllowedOrigins(allowedOrigins);
+        // LAN exam clients may use different IPs/ports; allow any origin pattern.
+        // Keep credentials enabled for the existing authentication flow.
+        configuration.setAllowedOriginPatterns(List.of("*"));
         configuration.setAllowedMethods(Arrays.asList("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"));
         configuration.setAllowedHeaders(Arrays.asList("Authorization", "Content-Type", "X-Requested-With", "Accept",
                 "Origin", "Access-Control-Request-Method", "Access-Control-Request-Headers"));
