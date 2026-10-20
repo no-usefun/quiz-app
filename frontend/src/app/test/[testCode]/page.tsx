@@ -1571,7 +1571,7 @@ export default function TestArenaPage({
                     { ...timeTakenRef.current },
                   );
                 }}
-                disabled={isSubmitting}
+                disabled={isSubmitting || examInteractionBlocked}
                 className="w-full rounded-[10px] bg-[#165dfb] py-2.5 text-xs font-bold text-white disabled:opacity-50"
               >
                 Retry Submission
@@ -1773,6 +1773,7 @@ export default function TestArenaPage({
                   onClick={() => goToQuestion(index)}
                   disabled={
                     isSubmitted ||
+                    examInteractionBlocked ||
                     (test?.allowReview === false && index < currentIndex)
                   }
                   className={`relative flex h-8 min-w-8 items-center justify-center rounded-lg border px-2 text-[10px] font-bold transition-all ${
@@ -1888,6 +1889,7 @@ export default function TestArenaPage({
                       onClick={() => handleSelectOption(optionId)}
                       disabled={
                         isSubmitted ||
+                        examInteractionBlocked ||
                         timeLeft <= 0
                       }
                       className={`w-full rounded-[10px] border p-3.5 text-left text-xs font-bold transition-all duration-150 cursor-pointer disabled:cursor-not-allowed disabled:opacity-50 ${
@@ -1925,6 +1927,7 @@ export default function TestArenaPage({
                 onClick={() => goToQuestion(currentIndex - 1)}
                 disabled={
                   isSubmitted ||
+                  examInteractionBlocked ||
                   currentIndex === 0 ||
                   test?.allowReview === false
                 }
@@ -1937,7 +1940,7 @@ export default function TestArenaPage({
               <button
                 type="button"
                 onClick={toggleReview}
-                disabled={isSubmitted || test?.allowReview === false}
+                disabled={isSubmitted || examInteractionBlocked || test?.allowReview === false}
                 className={`inline-flex items-center gap-1 rounded-lg border px-3 py-2 text-[10px] font-bold transition-all disabled:opacity-40 ${
                   markedForReview[Number(currentQuestion?.questionId)]
                     ? "border-[#73561a]/30 bg-[#f6efe1] text-[#73561a]"
@@ -1955,6 +1958,7 @@ export default function TestArenaPage({
                 onClick={clearCurrentAnswer}
                 disabled={
                   isSubmitted ||
+                  examInteractionBlocked ||
                   (answers[Number(currentQuestion?.questionId)] ?? []).length === 0
                 }
                 className="inline-flex items-center gap-1 rounded-lg border border-[#d1dee8]/80 bg-white px-3 py-2 text-[10px] font-bold text-[#78716b] transition-all hover:bg-[#f5f5f4] disabled:cursor-not-allowed disabled:opacity-40"
@@ -1973,7 +1977,7 @@ export default function TestArenaPage({
                   void finishAssessment(answersRef.current, timeTakenRef.current);
                 }
               }}
-              disabled={isSubmitted || isSubmitting}
+              disabled={isSubmitted || isSubmitting || examInteractionBlocked}
               className="inline-flex items-center gap-1 rounded-lg bg-[#165dfb] px-4 py-2.5 text-xs font-bold text-white shadow-xs transition-all hover:bg-[#0f4fd8] active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-40"
             >
               {currentIndex === questions.length - 1 ? (
@@ -2016,26 +2020,88 @@ export default function TestArenaPage({
         />}
       </aside>
 
-      {aiProctoringEnabled && !isSubmitted && activeAttemptId && !isAIProctoringReady && !proctoring.cameraError && (
-        <div className="fixed right-4 top-4 z-[80] flex max-w-xs items-center gap-2 rounded-lg border border-[#d1dee8] bg-white/95 px-3 py-2 text-xs text-[#57534e] shadow-sm" role="status" aria-live="polite">
-          <span className="h-2 w-2 shrink-0 animate-pulse rounded-full bg-[#165dfb]" />
-          Preparing secure proctoring…
-        </div>
-      )}
+      {aiProctoringEnabled &&
+        !isSubmitted &&
+        activeAttemptId &&
+        !isAIProctoringReady &&
+        !proctoring.cameraError &&
+        !proctoring.identityHold &&
+        !proctoring.serverAutoSubmitted && (
+          <div className="fixed right-4 top-4 z-[80] flex max-w-xs items-center gap-2 rounded-lg border border-[#d1dee8] bg-white/95 px-3 py-2 text-xs text-[#57534e] shadow-sm" role="status" aria-live="polite">
+            <span className="h-2 w-2 shrink-0 animate-pulse rounded-full bg-[#165dfb]" />
+            Preparing secure proctoring…
+          </div>
+        )}
 
       {aiProctoringEnabled && !isSubmitted && activeAttemptId && !isAIProctoringReady && proctoring.cameraError && (
-        <div role="dialog" aria-modal="true" aria-live="polite" aria-label="AI proctoring connection error" className="fixed inset-0 z-[90] flex items-center justify-center bg-[#111111]/70 p-4 backdrop-blur-sm">
+        <div role="dialog" aria-modal="true" aria-live="assertive" aria-label="AI proctoring validation failed" className="fixed inset-0 z-[90] flex items-center justify-center bg-[#111111]/80 p-4 backdrop-blur-sm">
           <div className="w-full max-w-md space-y-4 rounded-[16px] border border-[#d1dee8] bg-white p-6 text-center shadow-2xl">
             <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-[#fbeee8] text-[#8c381c]"><AlertTriangle className="h-6 w-6" /></div>
-            <h2 className="text-lg font-extrabold text-[#111111]">AI Proctoring Needs Attention</h2>
-            <p className="text-xs leading-relaxed text-[#78716b]">{proctoring.cameraError}</p>
-            <div className="flex flex-col gap-2 sm:flex-row">
-              <button type="button" onClick={() => void proctoring.retryInitialization()} className="flex-1 rounded-[10px] bg-[#165dfb] px-4 py-2.5 text-xs font-bold text-white transition hover:bg-[#0f4fd8]">Retry Connection</button>
-              <button type="button" onClick={() => { void proctoring.cleanup(); void exitFullscreen(); router.push(`/test/${encodeURIComponent(cleanCode)}/lobby`); }} className="flex-1 rounded-[10px] border border-[#d1dee8] bg-white px-4 py-2.5 text-xs font-bold text-[#111111] transition hover:bg-[#f5f5f4]">Return to Lobby</button>
-            </div>
+            <h2 className="text-lg font-extrabold text-[#111111]">AI Proctoring Could Not Validate You</h2>
+            <p className="text-xs leading-relaxed text-[#8c381c]">{proctoring.cameraError}</p>
+            <p className="text-xs leading-relaxed text-[#78716b]">
+              The assessment remains locked. Return to the lobby to capture a fresh reference photo. The previously rejected image will not be reused.
+            </p>
+            <button
+              type="button"
+              onClick={() => {
+                void proctoring.cleanup();
+                sessionStorage.removeItem("dynoquizz_reference_photo");
+                void exitFullscreen();
+                router.replace(`/test/${encodeURIComponent(cleanCode)}/lobby`);
+              }}
+              className="w-full rounded-[10px] bg-[#165dfb] px-4 py-2.5 text-xs font-bold text-white transition hover:bg-[#0f4fd8]"
+            >
+              Return to Lobby &amp; Capture Fresh Photo
+            </button>
           </div>
         </div>
       )}
+
+      {aiProctoringEnabled &&
+        !isSubmitted &&
+        activeAttemptId &&
+        proctoring.identityHold &&
+        !proctoring.cameraError &&
+        !proctoring.serverAutoSubmitted && (
+          <div
+            role="alertdialog"
+            aria-modal="true"
+            aria-live="assertive"
+            aria-label="Identity verification hold"
+            className="fixed inset-0 z-[90] flex items-center justify-center bg-[#111111]/80 p-4 backdrop-blur-sm"
+          >
+            <div className="w-full max-w-lg space-y-4 rounded-[16px] border border-amber-200 bg-white p-6 text-center shadow-2xl">
+              <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-amber-100 text-amber-700">
+                <ShieldAlert className="h-6 w-6" />
+              </div>
+              <h2 className="text-lg font-extrabold text-[#111111]">
+                {proctoring.telemetryReceived
+                  ? "Identity Verification On Hold"
+                  : "Verifying Registered Student"}
+              </h2>
+              <p className="text-sm font-semibold leading-relaxed text-amber-800">
+                {describeIdentityHoldReason(proctoring.identityHoldReason)}
+              </p>
+              <div className="rounded-[12px] border border-amber-100 bg-amber-50 p-4 text-left text-xs leading-relaxed text-amber-950">
+                Your answers cannot be changed, questions cannot be navigated, and you cannot submit while identity verification is on hold. Keep the camera active; frames continue to be sent so the backend can re-check the registered student.
+              </div>
+              <div className="grid grid-cols-2 gap-2 text-left sm:grid-cols-4">
+                {[
+                  ["Camera", proctoring.cameraActive ? "Active" : "Waiting"],
+                  ["Faces", String(proctoring.numFaces)],
+                  ["People", String(proctoring.numPersons)],
+                  ["Warnings", String(proctoring.warningCount)],
+                ].map(([label, value]) => (
+                  <div key={label} className="rounded-[9px] border border-slate-200 bg-slate-50 p-2">
+                    <p className="text-[9px] font-bold uppercase tracking-wide text-[#78716b]">{label}</p>
+                    <p className="mt-1 text-xs font-extrabold text-[#111111]">{value}</p>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        )}
 
       <ProctoringWarningModal
         isOpen={proctoring.activeWarningModal.isOpen}
