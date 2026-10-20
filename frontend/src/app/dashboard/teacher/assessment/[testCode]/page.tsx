@@ -18,20 +18,16 @@ import {
   Clock,
   CheckCircle2,
   Trophy,
-  Lock,
-  ShieldAlert,
   ClipboardList,
   Eye,
   BarChart3,
   Star,
   FileText,
-  Medal,
   Sparkles,
   Sun,
   Moon,
 } from "lucide-react";
 import { Logo } from "@/components/Logo";
-import { TeacherProctoringReportModal } from "@/components/TeacherProctoringReportModal";
 import { ENDPOINTS } from "@/lib/api/endpoints";
 import LanExamPreflight from "@/components/LanExamPreflight";
 import { isLanExamMode } from "@/lib/examMode";
@@ -75,8 +71,6 @@ type AssessmentData = {
   timeBonusEnabled: boolean;
   allowReview: boolean;
   allowResume: boolean;
-  aiProctoringEnabled?: boolean;
-  maxTabSwitch?: number;
   startTime?: string | null;
   endTime?: string | null;
   resultVisibility?: ResultVisibility;
@@ -96,11 +90,7 @@ type StudentRecord = {
   percentage: number;
   timeTaken: string;
   timeTakenSeconds: number;
-  // Proctoring fields are backend-authoritative and may be absent during rollout.
-  attemptId?: number;
   status?: string | null;
-  terminationReason?: string | null;
-  warningCount?: number | null;
 };
 
 function numericValue(value: unknown, fallback = 0): number {
@@ -175,8 +165,6 @@ function exportCSV(testCode: string, data: StudentRecord[], title: string) {
     "Percentage (%)",
     "Time Taken",
     "Attempt Status",
-    "Warning Count",
-    "Termination Reason",
   ];
 
   const rows = data.map((student, index) => [
@@ -188,8 +176,6 @@ function exportCSV(testCode: string, data: StudentRecord[], title: string) {
     student.percentage,
     student.timeTaken,
     student.status ?? "",
-    student.warningCount ?? "",
-    student.terminationReason ?? "",
   ]);
 
   const escapeCSV = (value: unknown) =>
@@ -293,7 +279,6 @@ export default function TeacherAssessmentPage({
   const [confirmCompleteOpen, setConfirmCompleteOpen] = useState(false);
 
   const [leaderboardUnavailable, setLeaderboardUnavailable] = useState(false);
-  const [inspectingAttemptId, setInspectingAttemptId] = useState<number | null>(null);
 
   const getToken = () => {
     const token = localStorage.getItem("dynoquizz_token");
@@ -407,12 +392,6 @@ export default function TeacherAssessmentPage({
         timeBonusEnabled: Boolean(matched.timeBonusEnabled ?? settings.timeBonusEnabled),
         allowReview: Boolean(matched.allowReview ?? settings.allowReview),
         allowResume: Boolean(matched.allowResume ?? settings.allowResume),
-        aiProctoringEnabled: typeof (matched.aiProctoringEnabled ?? settings.aiProctoringEnabled) === "boolean"
-          ? Boolean(matched.aiProctoringEnabled ?? settings.aiProctoringEnabled)
-          : undefined,
-        maxTabSwitch: matched.maxTabSwitch == null && settings.maxTabSwitch == null
-          ? undefined
-          : numericValue(matched.maxTabSwitch ?? settings.maxTabSwitch),
         startTime,
         endTime,
         resultVisibility: matched.resultVisibility as
@@ -471,15 +450,6 @@ export default function TeacherAssessmentPage({
         ""
       ).trim();
       const status = typeof entry.status === "string" ? entry.status : null;
-      const terminationReason =
-        typeof entry.terminationReason === "string"
-          ? entry.terminationReason
-          : null;
-      const warningCount =
-        entry.warningCount === null || entry.warningCount === undefined
-          ? null
-          : Math.max(0, Math.trunc(numericValue(entry.warningCount, 0)));
-
       const avatar =
         name
           .split(/\s+/)
@@ -489,12 +459,6 @@ export default function TeacherAssessmentPage({
           .join("")
           .toUpperCase() || "ST";
 
-      const rawAttemptId = Number(entry.attemptId);
-      const attemptId =
-        Number.isSafeInteger(rawAttemptId) && rawAttemptId > 0
-          ? rawAttemptId
-          : undefined;
-
       const rawStudentId = entry.studentId ?? entry.rank;
       const id =
         typeof rawStudentId === "string" || typeof rawStudentId === "number"
@@ -503,13 +467,10 @@ export default function TeacherAssessmentPage({
 
       return {
         id,
-        attemptId,
         name,
         registrationNumber,
         avatar,
         status,
-        terminationReason,
-        warningCount,
         score: percentage,
         finalScore: rawFinalScore,
         totalMarks: rawTotalMarks,
@@ -1285,18 +1246,6 @@ export default function TeacherAssessmentPage({
                   label: "Resume attempt",
                   value: assessmentData.allowResume ? "Allowed by assessment settings" : "Not allowed by assessment settings",
                 },
-                {
-                  label: "AI proctoring",
-                  value: assessmentData.aiProctoringEnabled === undefined
-                    ? "Not confirmed by server"
-                    : assessmentData.aiProctoringEnabled ? "Enabled" : "Disabled",
-                },
-                {
-                  label: "Tab-switch limit",
-                  value: assessmentData.maxTabSwitch === undefined
-                    ? "Not provided by server"
-                    : String(assessmentData.maxTabSwitch),
-                },
               ].map((item) => (
                 <div key={item.label} className="rounded-[10px] border border-slate-200 bg-white p-3">
                   <p className="text-[9px] font-bold uppercase tracking-wider text-steel-blue-gray">{item.label}</p>
@@ -1522,7 +1471,7 @@ export default function TeacherAssessmentPage({
 
             <div className="flex-1 overflow-x-auto rounded-[18px] border border-[#dce7ff] bg-white text-left shadow-[0_6px_22px_rgba(71,100,180,0.06)]">
               <div className="min-w-[1000px]">
-              <div className="grid grid-cols-[32px_minmax(140px,1.2fr)_minmax(120px,1fr)_80px_90px_80px_110px_80px_100px] items-center gap-3 border-b border-[#dce7ff] bg-gradient-to-r from-[#f4f8ff] to-[#faf7ff] px-4 py-3">
+              <div className="grid grid-cols-[32px_minmax(140px,1.2fr)_minmax(120px,1fr)_80px_90px_80px_110px] items-center gap-3 border-b border-[#dce7ff] bg-gradient-to-r from-[#f4f8ff] to-[#faf7ff] px-4 py-3">
                 <Th
                   label="#"
                   col="rank"
@@ -1575,8 +1524,6 @@ export default function TeacherAssessmentPage({
                 />
 
                 <span className="text-[9px] font-bold uppercase tracking-wider text-steel-blue-gray">Status</span>
-                <span className="text-[9px] font-bold uppercase tracking-wider text-steel-blue-gray text-center">Warnings</span>
-                <span className="text-[9px] font-bold uppercase tracking-wider text-steel-blue-gray text-center">Actions</span>
               </div>
 
               {leaderboardUnavailable ? (
@@ -1597,7 +1544,7 @@ export default function TeacherAssessmentPage({
                   {displayList.map((student) => (
                     <li
                       key={student.id}
-                      className="grid grid-cols-[32px_minmax(140px,1.2fr)_minmax(120px,1fr)_80px_90px_80px_110px_80px_100px] items-center gap-3 px-4 py-3 transition-colors hover:bg-[#f6f9ff]"
+                      className="grid grid-cols-[32px_minmax(140px,1.2fr)_minmax(120px,1fr)_80px_90px_80px_110px] items-center gap-3 px-4 py-3 transition-colors hover:bg-[#f6f9ff]"
                     >
                       <span className={`flex h-7 w-7 items-center justify-center rounded-full text-[11px] font-bold tabular-nums ${student.rank === 1 ? "bg-amber-100 text-amber-800" : student.rank === 2 ? "bg-slate-100 text-slate-700" : student.rank === 3 ? "bg-orange-100 text-orange-800" : "bg-frost-surface text-steel-blue-gray"}`}>
                         {student.rank}
@@ -1612,24 +1559,11 @@ export default function TeacherAssessmentPage({
                           <p className="truncate text-xs font-bold text-midnight-navy">
                             {student.name}
                           </p>
-                          <div className="mt-1 flex flex-wrap items-center gap-1">
-                            {student.terminationReason === "MALPRACTICE_WARNING_LIMIT" && (
-                              <span className="inline-flex items-center gap-1 rounded-full border border-rose-200 bg-rose-50 px-1.5 py-0.5 text-[9px] font-bold text-rose-700">
-                                <ShieldAlert className="h-3 w-3" />
-                                Auto-terminated: malpractice limit
-                              </span>
-                            )}
-                            {student.warningCount !== null && student.warningCount !== undefined && student.warningCount > 0 && (
-                              <span className="rounded-full border border-amber-200 bg-amber-50 px-1.5 py-0.5 text-[9px] font-bold text-amber-800">
-                                {student.warningCount} {student.warningCount === 1 ? "warning" : "warnings"}
-                              </span>
-                            )}
-                            {student.status && (
-                              <span className="text-[9px] font-medium text-steel-blue-gray">
-                                {student.status.replaceAll("_", " ")}
-                              </span>
-                            )}
-                          </div>
+                          {student.status && (
+                            <p className="mt-1 text-[9px] font-medium text-steel-blue-gray">
+                              {student.status.replaceAll("_", " ")}
+                            </p>
+                          )}
                         </div>
                       </div>
 
@@ -1657,30 +1591,13 @@ export default function TeacherAssessmentPage({
                       </div>
 
                       <div className="flex justify-center">
-                        <span className={`inline-flex items-center gap-1 rounded-full px-2 py-1 text-[9px] font-bold ${student.terminationReason === "MALPRACTICE_WARNING_LIMIT" ? "bg-rose-100 text-rose-700" : student.status === "SUBMITTED" ? "bg-emerald-100 text-emerald-700" : "bg-slate-100 text-slate-600"}`}>
-                          <span className={`h-1.5 w-1.5 rounded-full ${student.terminationReason === "MALPRACTICE_WARNING_LIMIT" ? "bg-rose-500" : student.status === "SUBMITTED" ? "bg-emerald-500" : "bg-slate-400"}`} />
-                          {student.terminationReason === "MALPRACTICE_WARNING_LIMIT" ? "FLAGGED" : (student.status || "UNKNOWN").replaceAll("_", " ")}
+                        <span className={`inline-flex items-center gap-1 rounded-full px-2 py-1 text-[9px] font-bold ${student.status === "SUBMITTED" ? "bg-emerald-100 text-emerald-700" : "bg-slate-100 text-slate-600"}`}>
+                          <span className={`h-1.5 w-1.5 rounded-full ${student.status === "SUBMITTED" ? "bg-emerald-500" : "bg-slate-400"}`} />
+                          {(student.status || "UNKNOWN").replaceAll("_", " ")}
                         </span>
                       </div>
 
-                      <div className="text-center">
-                        <span className={`inline-flex min-w-8 items-center justify-center rounded-full px-2 py-1 text-[10px] font-bold ${(student.warningCount ?? 0) > 0 ? "bg-amber-100 text-amber-800" : "bg-slate-100 text-slate-600"}`}>
-                          {student.warningCount ?? "—"}
-                        </span>
-                      </div>
 
-                      {student.attemptId ? (
-                        <button
-                          type="button"
-                          onClick={() => setInspectingAttemptId(student.attemptId!)}
-                          className="inline-flex items-center gap-1 rounded-[6px] border border-[#165dfb]/20 bg-[#165dfb]/10 px-2 py-1 text-[10px] font-bold text-[#165dfb] transition-colors hover:bg-[#165dfb]/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#165dfb]"
-                        >
-                          <ShieldAlert aria-hidden="true" className="h-3 w-3" />
-                          AI Audit
-                        </button>
-                      ) : (
-                        <span className="text-[10px] text-steel-blue-gray">—</span>
-                      )}
                     </li>
                   ))}
                 </ul>
@@ -1690,11 +1607,6 @@ export default function TeacherAssessmentPage({
           </section>
         </div>
       </div>
-      <TeacherProctoringReportModal
-        isOpen={inspectingAttemptId !== null}
-        attemptId={inspectingAttemptId}
-        onClose={() => setInspectingAttemptId(null)}
-      />
     </main>
   );
 }
