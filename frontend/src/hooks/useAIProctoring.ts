@@ -66,7 +66,6 @@ export function useAIProctoring({
   const wsTicketRef = useRef<string | null>(null);
   const isCleaningUpRef = useRef(false);
   const cleanupPromiseRef = useRef<Promise<void> | null>(null);
-  const summarySubmittedAttemptsRef = useRef<Set<number>>(new Set());
   const autoSubmitHandledAttemptRef = useRef<number | null>(null);
   const isWsAuthenticatedRef = useRef(false);
   const inFlightRestRef = useRef(false);
