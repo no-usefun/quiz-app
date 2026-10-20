@@ -972,7 +972,7 @@ export default function TeacherAssessmentPage({
   }
 
   return (
-    <main className="min-h-screen bg-frost-surface text-midnight-navy p-4 md:p-6 lg:p-8 font-sans selection:bg-frost-surface selection:text-signal-green">
+    <main className="assessment-governance min-h-screen bg-frost-surface text-midnight-navy p-4 md:p-6 lg:p-8 font-sans selection:bg-frost-surface selection:text-signal-green">
       <div className="mx-auto flex min-h-[90vh] max-w-[1400px] flex-col rounded-cards bg-paper-white shadow-xl border border-mist-blue overflow-hidden text-left">
         <header className="flex w-full flex-wrap items-center justify-between gap-3 border-b border-mist-blue/30 px-4 py-4 bg-paper-white sm:px-6">
           <div className="flex items-center gap-3">
@@ -1027,7 +1027,7 @@ export default function TeacherAssessmentPage({
         )}
 
         <div className="flex flex-1 flex-col gap-5 p-5 md:p-6 bg-paper-white">
-          <div className="relative isolate overflow-hidden rounded-[24px] border border-[#dce7ff] bg-gradient-to-br from-[#f8f6ff] via-white to-[#eaf5ff] px-5 py-5 sm:px-7 sm:py-6 shadow-[0_8px_30px_rgba(71,100,180,0.08)]">
+          <div className="assessment-hero relative isolate overflow-hidden rounded-[24px] border border-[#dce7ff] bg-gradient-to-br from-[#f8f6ff] via-white to-[#eaf5ff] px-5 py-5 sm:px-7 sm:py-6 shadow-[0_8px_30px_rgba(71,100,180,0.08)]">
             <div aria-hidden="true" className="pointer-events-none absolute -right-5 -top-12 h-48 w-48 rounded-full bg-[#dceaff]/60 blur-2xl" />
             <div aria-hidden="true" className="pointer-events-none absolute right-24 top-10 h-28 w-28 rounded-full bg-[#fce7f3]/60 blur-2xl" />
             <div className="relative z-10 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between sm:pr-44">
@@ -1302,7 +1302,7 @@ export default function TeacherAssessmentPage({
               {
                 icon: <Award className="h-4 w-4 text-signal-green" />,
                 label: "High Score",
-                value: formatMarks(highScoreMarks),
+                value: String(formatMarks(highScoreMarks)),
               },
               {
                 icon: <ClipboardList className="h-4 w-4 text-signal-green" />,
@@ -1334,7 +1334,7 @@ export default function TeacherAssessmentPage({
               return (
               <div
                 key={stat.label}
-                className={`group relative isolate overflow-hidden flex items-center gap-3 rounded-[17px] border p-4 shadow-[0_4px_14px_rgba(71,100,180,0.05)] transition-all duration-200 hover:-translate-y-0.5 hover:shadow-[0_9px_22px_rgba(71,100,180,0.11)] ${palette.card}`}
+                className={`assessment-stat group relative isolate overflow-hidden flex items-center gap-3 rounded-[17px] border p-4 shadow-[0_4px_14px_rgba(71,100,180,0.05)] transition-all duration-200 hover:-translate-y-0.5 hover:shadow-[0_9px_22px_rgba(71,100,180,0.11)] ${palette.card}`}
               >
                 <div aria-hidden="true" className={`pointer-events-none absolute -bottom-3 -right-2 opacity-50 ${palette.decor}`}>{decorativeIcon}</div>
                 <div className={`relative z-10 flex h-12 w-12 shrink-0 items-center justify-center rounded-full shadow-sm ${palette.icon}`}>
@@ -1361,13 +1361,19 @@ export default function TeacherAssessmentPage({
                   <p className="mt-1 text-xs text-steel-blue-gray">A quick breakdown of marks across all submitted attempts.</p>
                 </div>
                 <div className="flex items-center gap-3">
-                  <div className="rounded-[10px] bg-frost-surface px-3 py-2">
-                    <p className="text-lg font-bold tabular-nums text-midnight-navy">{formatMarks(averageMarks)}</p>
-                    <p className="text-[9px] font-bold uppercase tracking-wider text-steel-blue-gray">Average marks</p>
+                  <div className="rounded-[13px] border border-[#d5e5ff] bg-gradient-to-br from-[#edf5ff] to-[#dceaff] px-3.5 py-2.5 shadow-sm dark:border-blue-900/70 dark:from-slate-800 dark:to-blue-950/70">
+                    <div className="flex items-center gap-2">
+                      <TrendingUp className="h-4 w-4 text-[#2563eb] dark:text-blue-300" />
+                      <p className="text-lg font-extrabold tabular-nums text-[#155eef] dark:text-blue-200">{formatMarks(averageMarks)}</p>
+                    </div>
+                    <p className="mt-0.5 text-[9px] font-extrabold uppercase tracking-wider text-[#3265b8] dark:text-blue-300">Average marks</p>
                   </div>
-                  <div className="rounded-[10px] bg-frost-surface px-3 py-2">
-                    <p className="text-lg font-bold tabular-nums text-midnight-navy">{submitted.length}</p>
-                    <p className="text-[9px] font-bold uppercase tracking-wider text-steel-blue-gray">Submitted</p>
+                  <div className="rounded-[13px] border border-[#bdebd7] bg-gradient-to-br from-[#e9fbf3] to-[#d1f6e7] px-3.5 py-2.5 shadow-sm dark:border-emerald-900/70 dark:from-slate-800 dark:to-emerald-950/70">
+                    <div className="flex items-center gap-2">
+                      <Users className="h-4 w-4 text-[#059669] dark:text-emerald-300" />
+                      <p className="text-lg font-extrabold tabular-nums text-[#047857] dark:text-emerald-200">{submitted.length}</p>
+                    </div>
+                    <p className="mt-0.5 text-[9px] font-extrabold uppercase tracking-wider text-[#087f5b] dark:text-emerald-300">Submitted</p>
                   </div>
                 </div>
               </div>
