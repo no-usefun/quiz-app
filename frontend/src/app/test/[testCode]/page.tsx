@@ -117,6 +117,31 @@ function getErrorMessage(error: unknown, fallback: string): string {
   return fallback;
 }
 
+function describeIdentityHoldReason(reason?: string | null): string {
+  const key = String(reason || "IDENTITY_VERIFICATION_PENDING")
+    .trim()
+    .toUpperCase()
+    .replace(/[\\s-]+/g, "_");
+
+  const messages: Record<string, string> = {
+    INITIALIZING: "Initializing the verified identity session. Keep your face visible.",
+    IDENTITY_VERIFICATION_PENDING: "Waiting for the proctoring service to verify the registered student.",
+    IDENTITY_HOLD_STATUS_UNAVAILABLE: "The service did not return the required identity-hold status. The assessment is locked for safety.",
+    PROCTORING_TELEMETRY_UNAVAILABLE: "Live identity telemetry was interrupted. The assessment will remain locked until the service responds again.",
+    CAMERA_UNAVAILABLE: "Camera access was interrupted. Restore camera access and restart the reference-photo validation.",
+    NO_FACE: "No face is visible. Return your face to the camera so identity can be re-verified.",
+    FACE_NOT_DETECTED: "No face is visible. Return your face to the camera so identity can be re-verified.",
+    MULTIPLE_FACES: "Multiple faces are visible. Ensure only the registered student is in camera view.",
+    MULTIPLE_FACES_DETECTED: "Multiple faces are visible. Ensure only the registered student is in camera view.",
+    MULTIPLE_PERSONS: "More than one person is in view. Ensure only the registered student remains in the camera view.",
+    MULTIPLE_PERSONS_DETECTED: "More than one person is in view. Ensure only the registered student remains in the camera view.",
+    IDENTITY_MISMATCH: "The person in the camera does not match the registered student. The registered student must return.",
+    AUTO_SUBMITTED: "The backend has confirmed that this assessment was automatically submitted.",
+  };
+
+  return messages[key] || `Identity verification is on hold (${String(reason || "reason not supplied").replaceAll("_", " ")}). Keep the camera active while the service re-checks your identity.`;
+}
+
 function normalizeAnswers(raw: unknown): ActiveAnswerState {
   if (!raw || typeof raw !== "object") return {};
 
@@ -300,7 +325,11 @@ export default function TestArenaPage({
   const effectiveStudentId = studentUser?.id ? String(studentUser.id) : undefined;
 
   const finishAssessmentRef = useRef<
-    ((latestAnswers?: ActiveAnswerState, latestTimeTaken?: Record<number, number>) => Promise<void>) | null
+    ((
+      latestAnswers?: ActiveAnswerState,
+      latestTimeTaken?: Record<number, number>,
+      allowWhileProctoringBlocked?: boolean,
+    ) => Promise<void>) | null
   >(null);
 
   const [isFullscreen, setIsFullscreen] = useState(() => {
@@ -334,10 +363,11 @@ export default function TestArenaPage({
     referenceImage: referencePhoto,
     authToken: getAuthToken() || undefined,
     onAutoSubmit: () => {
+      // The AI service/backend has already confirmed submission. Never issue a
+      // second client-side submit request for the same attempt.
       setDeadlineNotice(
-        "Assessment automatically submitted due to reaching the configured proctoring warning limit.",
+        "The proctoring backend confirmed that this assessment was automatically submitted. Further interaction is disabled.",
       );
-      void finishAssessmentRef.current?.(answersRef.current, timeTakenRef.current);
     },
     enabled: aiProctoringEnabled === true && !isSubmitted && Boolean(activeAttemptId),
   });
@@ -348,10 +378,33 @@ export default function TestArenaPage({
       Boolean(activeAttemptId) &&
       proctoring.isOnline &&
       proctoring.cameraActive &&
+      proctoring.referenceRegistered &&
       proctoring.telemetryReceived &&
-      proctoring.faceDetected &&
-      proctoring.identityVerified &&
+      !proctoring.identityHold &&
+      !proctoring.serverAutoSubmitted &&
       !proctoring.cameraError);
+
+  // State controls rendering, while the ref is checked inside event handlers
+  // to close the small window before React commits a hold-state update.
+  const examInteractionBlocked =
+    aiProctoringEnabled &&
+    (!isAIProctoringReady ||
+      proctoring.identityHold ||
+      proctoring.serverAutoSubmitted);
+
+  const isInteractionLockedNow = useCallback(
+    () =>
+      aiProctoringEnabled &&
+      (!isAIProctoringReady ||
+        proctoring.identityHoldRef.current ||
+        proctoring.serverAutoSubmitted),
+    [
+      aiProctoringEnabled,
+      isAIProctoringReady,
+      proctoring.identityHoldRef,
+      proctoring.serverAutoSubmitted,
+    ],
+  );
 
   const requestFullscreen = useCallback(async () => {
     if (typeof document === "undefined") return false;
@@ -499,8 +552,9 @@ export default function TestArenaPage({
               isAutoSubmitted,
             );
             if (isAutoSubmitted) {
+              // Spring Boot has already accepted the authoritative auto-submit.
+              // Tear down capture, but never send a duplicate student submission.
               void proctoringCleanupRef.current();
-              void finishAssessmentRef.current?.(answersRef.current, timeTakenRef.current);
             }
           }
         } else {
@@ -1018,7 +1072,7 @@ export default function TestArenaPage({
   };
 
   const handleSelectOption = (optionId: number) => {
-    if (!currentQuestion || isSubmitted || timeLeft <= 0) {
+    if (!currentQuestion || isSubmitted || timeLeft <= 0 || isInteractionLockedNow()) {
       return;
     }
 
@@ -1058,7 +1112,7 @@ export default function TestArenaPage({
   };
 
   const toggleReview = () => {
-    if (!currentQuestion || isSubmitted) {
+    if (!currentQuestion || isSubmitted || isInteractionLockedNow()) {
       return;
     }
 
@@ -1086,7 +1140,7 @@ export default function TestArenaPage({
   };
 
   const clearCurrentAnswer = () => {
-    if (!currentQuestion || isSubmitted || timeLeft <= 0) {
+    if (!currentQuestion || isSubmitted || timeLeft <= 0 || isInteractionLockedNow()) {
       return;
     }
 
@@ -1105,7 +1159,12 @@ export default function TestArenaPage({
   };
 
   const goToQuestion = (nextIndex: number) => {
-    if (nextIndex < 0 || nextIndex >= questions.length || isSubmitted) {
+    if (
+      nextIndex < 0 ||
+      nextIndex >= questions.length ||
+      isSubmitted ||
+      isInteractionLockedNow()
+    ) {
       return;
     }
 
@@ -1121,8 +1180,26 @@ export default function TestArenaPage({
   const finishAssessment = useCallback(async (
     latestAnswers: ActiveAnswerState = answersRef.current,
     latestTimeTaken: Record<number, number> = timeTakenRef.current,
+    allowWhileProctoringBlocked = false,
   ) => {
     const attemptId = activeAttemptId;
+
+    if (proctoring.serverAutoSubmitted) {
+      return;
+    }
+
+    if (
+      aiProctoringEnabled &&
+      isInteractionLockedNow() &&
+      !allowWhileProctoringBlocked
+    ) {
+      setSubmissionNotice(
+        proctoring.identityHold
+          ? "Submission is paused while the proctoring service re-verifies your identity."
+          : "Submission is paused until secure proctoring is ready.",
+      );
+      return;
+    }
 
     if (
       submissionInFlightRef.current ||
@@ -1282,7 +1359,18 @@ export default function TestArenaPage({
       submissionInFlightRef.current = false;
       setIsSubmitting(false);
     }
-  }, [activeAttemptId, cleanCode, isSubmitted, isSubmitting, questions, test]);
+  }, [
+    activeAttemptId,
+    aiProctoringEnabled,
+    cleanCode,
+    isInteractionLockedNow,
+    isSubmitted,
+    isSubmitting,
+    proctoring.identityHold,
+    proctoring.serverAutoSubmitted,
+    questions,
+    test,
+  ]);
 
   // Keep the latest submission callback available to asynchronous AI warning handlers.
   useEffect(() => {
@@ -1311,6 +1399,7 @@ export default function TestArenaPage({
     void finishAssessment(
       { ...answersRef.current },
       { ...timeTakenRef.current },
+      true,
     );
   }, [activeAttemptId, finishAssessment, isSubmitted, test]);
 
