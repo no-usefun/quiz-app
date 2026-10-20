@@ -1,4 +1,5 @@
 import time
+import uuid
 import httpx
 import logging
 from typing import Optional, Dict
@@ -43,10 +44,7 @@ class MalpracticeDetector:
         """
         now = time.time()
         session.last_seen_at = now
-        confirmed_event = None
-        event_message = None
-        severity = "MEDIUM"
-        confidence = 0.90
+        confirmed_events = []
 
         # 1. Evaluate Face Absence
         if faces_count == 0:
@@ -55,10 +53,7 @@ class MalpracticeDetector:
             session.streaks["looking_away"] = 0
             session.streaks["identity_mismatch"] = 0
             if session.streaks["no_face"] >= STREAK_NO_FACE:
-                confirmed_event = "FACE_NOT_DETECTED"
-                event_message = "No face detected in camera feed"
-                severity = "HIGH"
-                confidence = 0.95
+                confirmed_events.append({"event_type": "FACE_NOT_DETECTED", "details": "No face detected in camera feed", "severity": "HIGH", "confidence": 0.95})
         else:
             session.streaks["no_face"] = 0
 
@@ -68,10 +63,7 @@ class MalpracticeDetector:
             session.streaks["looking_away"] = 0
             session.streaks["identity_mismatch"] = 0
             if session.streaks["multiple_faces"] >= STREAK_MULTIPLE_FACES:
-                confirmed_event = "MULTIPLE_FACES"
-                event_message = f"Multiple faces ({faces_count}) detected in camera feed"
-                severity = "HIGH"
-                confidence = 0.98
+                confirmed_events.append({"event_type": "MULTIPLE_FACES", "details": f"Multiple faces ({faces_count}) detected in camera feed", "severity": "HIGH", "confidence": 0.98})
         else:
             session.streaks["multiple_faces"] = 0
 
@@ -79,10 +71,7 @@ class MalpracticeDetector:
         if persons_count > 1:
             session.streaks["multiple_persons"] += 1
             if session.streaks["multiple_persons"] >= STREAK_MULTIPLE_PERSONS:
-                confirmed_event = "MULTIPLE_PERSONS"
-                event_message = f"Multiple persons ({persons_count}) detected in room"
-                severity = "HIGH"
-                confidence = 0.95
+                confirmed_events.append({"event_type": "MULTIPLE_PERSONS", "details": f"Multiple persons ({persons_count}) detected in room", "severity": "HIGH", "confidence": 0.95})
         else:
             session.streaks["multiple_persons"] = 0
 
@@ -101,10 +90,7 @@ class MalpracticeDetector:
                 gaze_confidence
             )
             if session.streaks["looking_away"] >= STREAK_LOOKING_AWAY:
-                confirmed_event = "LOOKING_AWAY"
-                event_message = f"Sustained gaze deviation: Looking {gaze_direction} (yaw: {yaw}°, pitch: {pitch}°)"
-                severity = "HIGH"
-                confidence = max(0.85, min(0.95, gaze_confidence))
+                confirmed_events.append({"event_type": "LOOKING_AWAY", "details": f"Sustained gaze deviation: Looking {gaze_direction} (yaw: {yaw}°, pitch: {pitch}°)", "severity": "HIGH", "confidence": max(0.85, min(0.95, gaze_confidence))})
         else:
             session.streaks["looking_away"] = 0
 
@@ -112,10 +98,7 @@ class MalpracticeDetector:
         if phone_detected:
             session.streaks["phone"] += 1
             if session.streaks["phone"] >= STREAK_PHONE:
-                confirmed_event = "PHONE_DETECTED"
-                event_message = "Mobile phone or electronic device detected"
-                severity = "CRITICAL"
-                confidence = 0.95
+                confirmed_events.append({"event_type": "PHONE_DETECTED", "details": "Mobile phone or electronic device detected", "severity": "CRITICAL", "confidence": 0.95})
         else:
             session.streaks["phone"] = 0
 
@@ -126,10 +109,7 @@ class MalpracticeDetector:
             if not identity_match and similarity_score > 0.0:
                 session.streaks["identity_mismatch"] += 1
                 if session.streaks["identity_mismatch"] >= STREAK_IDENTITY_MISMATCH:
-                    confirmed_event = "IDENTITY_MISMATCH"
-                    event_message = f"Biometric identity mismatch (similarity: {similarity_score:.2f})"
-                    severity = "CRITICAL"
-                    confidence = 0.92
+                    confirmed_events.append({"event_type": "IDENTITY_MISMATCH", "details": f"Biometric identity mismatch (similarity: {similarity_score:.2f})", "severity": "CRITICAL", "confidence": 0.92})
             else:
                 session.streaks["identity_mismatch"] = 0
         else:
@@ -137,69 +117,73 @@ class MalpracticeDetector:
 
         # 7. Evaluate Voice Activity
         if is_loud:
-            confirmed_event = "LOUD_VOICE"
-            event_message = f"Loud voice detected (level: {mic_level:.2f})"
-            severity = "HIGH"
-            confidence = 0.90
+            confirmed_events.append({"event_type": "LOUD_VOICE", "details": f"Loud voice detected (level: {mic_level:.2f})", "severity": "HIGH", "confidence": 0.90})
         elif is_speech:
             session.streaks["voice"] += 1
             if session.streaks["voice"] >= STREAK_VOICE:
-                confirmed_event = "VOICE_ACTIVITY"
-                event_message = "Continuous speech / voice detected"
-                severity = "MEDIUM"
-                confidence = 0.85
+                confirmed_events.append({"event_type": "VOICE_ACTIVITY", "details": "Continuous speech / voice detected", "severity": "MEDIUM", "confidence": 0.85})
         else:
             session.streaks["voice"] = 0
 
-        # If an event is confirmed, dispatch authoritatively to Spring Boot
+        # Persist every independently confirmed signal; never overwrite one event with another.
         auto_submitted = False
-        dispatched_event = None
-        dispatched_message = None
+        dispatched_events = []
+        for event in confirmed_events:
+            event_type = event["event_type"]
+            event_details = event["details"]
+            last_time = session.last_dispatched.get(event_type, 0.0)
+            if (now - last_time) < 4.0:
+                continue
 
-        if confirmed_event:
-            last_time = session.last_dispatched.get(confirmed_event, 0.0)
-            if (now - last_time) >= 4.0:  # Debounce per event type
-                session.last_dispatched[confirmed_event] = now
-                logger.warning("Confirmed malpractice %s for attempt %d: %s", confirmed_event, session.attempt_id, event_message)
-                
-                # Direct Authoritative Dispatch to Spring Boot
-                dispatch_res = await self._dispatch_to_spring_boot(
-                    session=session,
-                    event_type=confirmed_event,
-                    details=event_message,
-                    severity=severity,
-                    confidence=confidence
-                )
-                if dispatch_res:
-                    session.warning_count = dispatch_res.get("warningCount", session.warning_count + 1)
-                    auto_submitted = dispatch_res.get("autoSubmitted", False)
-                else:
-                    session.warning_count += 1
-                    if session.warning_count >= 3:
-                        auto_submitted = True
+            session.last_dispatched[event_type] = now
+            event_id = f"{session.attempt_id}:{event_type}:{uuid.uuid4().hex}"
+            logger.warning("Confirmed malpractice %s for attempt %d: %s", event_type, session.attempt_id, event_details)
+            dispatch_res = await self._dispatch_to_spring_boot(
+                session=session,
+                event_type=event_type,
+                details=event_details,
+                severity=event["severity"],
+                confidence=event["confidence"],
+                detection_timestamp=now,
+                event_id=event_id,
+            )
+            persisted = dispatch_res is not None and dispatch_res.get("recorded", True)
+            if not dispatch_res:
+                logger.error("PROCTORING_EVENT_NOT_PERSISTED attempt=%s event=%s eventId=%s", session.attempt_id, event_type, event_id)
+                dispatched_events.append({
+                    "eventType": event_type, "details": event_details,
+                    "severity": event["severity"], "confidence": event["confidence"],
+                    "timestamp": now, "persisted": False, "eventId": event_id,
+                })
+                continue
 
-                dispatched_event = confirmed_event
-                dispatched_message = event_message
+            session.warning_count = int(dispatch_res.get("warningCount", session.warning_count))
+            auto_submitted = auto_submitted or bool(dispatch_res.get("autoSubmitted", False))
+            dispatched_events.append({
+                "eventType": event_type, "details": event_details,
+                "severity": event["severity"], "confidence": event["confidence"],
+                "timestamp": now, "persisted": persisted,
+                "warningCount": session.warning_count,
+                "autoSubmitted": bool(dispatch_res.get("autoSubmitted", False)),
+                "eventId": event_id,
+            })
 
-                # Immediately reset the streak that triggered this strike so it does not repeat every frame
-                if confirmed_event == "FACE_NOT_DETECTED":
-                    session.streaks["no_face"] = 0
-                elif confirmed_event == "MULTIPLE_FACES":
-                    session.streaks["multiple_faces"] = 0
-                elif confirmed_event == "MULTIPLE_PERSONS":
-                    session.streaks["multiple_persons"] = 0
-                elif confirmed_event == "LOOKING_AWAY":
-                    session.streaks["looking_away"] = 0
-                elif confirmed_event == "PHONE_DETECTED":
-                    session.streaks["phone"] = 0
-                elif confirmed_event == "IDENTITY_MISMATCH":
-                    session.streaks["identity_mismatch"] = 0
-                elif confirmed_event in ("VOICE_ACTIVITY", "LOUD_VOICE"):
-                    session.streaks["voice"] = 0
+            streak_by_event = {
+                "FACE_NOT_DETECTED": "no_face", "MULTIPLE_FACES": "multiple_faces",
+                "MULTIPLE_PERSONS": "multiple_persons", "LOOKING_AWAY": "looking_away",
+                "PHONE_DETECTED": "phone", "IDENTITY_MISMATCH": "identity_mismatch",
+                "VOICE_ACTIVITY": "voice", "LOUD_VOICE": "voice",
+            }
+            streak_name = streak_by_event.get(event_type)
+            if streak_name:
+                session.streaks[streak_name] = 0
 
+        first_event = dispatched_events[0] if dispatched_events else None
         return {
-            "confirmed_event": dispatched_event,
-            "event_message": dispatched_message,
+            "confirmed_event": first_event.get("eventType") if first_event else None,
+            "event_message": first_event.get("details") if first_event else None,
+            "confirmed_events": dispatched_events,
+            "event_persistence_failed": any(not event.get("persisted", False) for event in dispatched_events),
             "warning_count": session.warning_count,
             "auto_submitted": auto_submitted,
             "looking_away_streak": session.streaks.get("looking_away", 0)
@@ -211,7 +195,9 @@ class MalpracticeDetector:
         event_type: str,
         details: str,
         severity: str,
-        confidence: float
+        confidence: float,
+        detection_timestamp: float,
+        event_id: str,
     ) -> dict | None:
         """
         Sends the confirmed malpractice event directly to Spring Boot backend.
@@ -229,7 +215,9 @@ class MalpracticeDetector:
             "eventType": event_type,
             "details": details,
             "severity": severity,
-            "confidence": confidence
+            "confidence": confidence,
+            "frameTimestamp": detection_timestamp,
+            "eventId": event_id,
         }
 
         try:
@@ -238,16 +226,20 @@ class MalpracticeDetector:
                 data = resp.json()
                 logger.info("Spring Boot recorded event %s. Warning count: %s", event_type, data.get("warningCount"))
                 session.events_log.append({
+                    "eventId": event_id,
                     "type": event_type,
                     "details": details,
-                    "timestamp": time.time(),
+                    "severity": severity,
+                    "confidence": confidence,
+                    "timestamp": detection_timestamp,
+                    "persisted": bool(data.get("recorded", True)),
                     "warningCount": data.get("warningCount")
                 })
                 return data
             else:
-                logger.warning("Spring Boot event dispatch returned status %d: %s", resp.status_code, resp.text)
+                logger.error("Spring Boot event dispatch failed status=%d attempt=%s event=%s eventId=%s body=%s", resp.status_code, session.attempt_id, event_type, event_id, resp.text[:500])
         except Exception as e:
-            logger.error("Failed to dispatch event to Spring Boot: %s", e)
+            logger.error("Failed to dispatch event to Spring Boot attempt=%s event=%s eventId=%s error=%s", session.attempt_id, event_type, event_id, e)
 
         return None
 
