@@ -1011,6 +1011,7 @@ class TeacherQuizServiceTest {
                                 null,
                                 null,
                                 null,
+                                null,
                                 null);
         }
 
@@ -1120,6 +1121,7 @@ class TeacherQuizServiceTest {
                                 null,
                                 null,
                                 null,
+                                null,
                                 null);
 
                 var response = teacherQuizService.updateQuizSettings(
@@ -1151,6 +1153,7 @@ class TeacherQuizServiceTest {
 
                 UpdateQuizSettingsRequest request = new UpdateQuizSettingsRequest(
                                 0,
+                                null,
                                 null,
                                 null,
                                 null,
@@ -1197,6 +1200,7 @@ class TeacherQuizServiceTest {
                                 null,
                                 null,
                                 null,
+                                null,
                                 null);
 
                 assertThrows(
@@ -1224,6 +1228,7 @@ class TeacherQuizServiceTest {
                                 null,
                                 null,
                                 -1,
+                                null,
                                 null,
                                 null,
                                 null,
@@ -1267,6 +1272,7 @@ class TeacherQuizServiceTest {
                                 null,
                                 null,
                                 null,
+                                null,
                                 null);
 
                 assertThrows(
@@ -1298,6 +1304,7 @@ class TeacherQuizServiceTest {
                                 null,
                                 null,
                                 "vit.ac.in",
+                                null,
                                 null,
                                 null);
 
@@ -1334,6 +1341,7 @@ class TeacherQuizServiceTest {
                                 null,
                                 " @VIT.AC.IN ",
                                 null,
+                                null,
                                 null);
 
                 teacherQuizService.updateQuizSettings(
@@ -1368,6 +1376,7 @@ class TeacherQuizServiceTest {
                                 null,
                                 null,
                                 "   ",
+                                null,
                                 null,
                                 null);
 
