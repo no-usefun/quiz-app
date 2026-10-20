@@ -66,8 +66,6 @@ export default function TestLandingPage({ params }: TestLandingPageProps) {
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  
-
   useEffect(() => {
     if (!cleanCode) {
       // Reset the view when the route has no usable code.
@@ -76,6 +74,7 @@ export default function TestLandingPage({ params }: TestLandingPageProps) {
         quizCode: "",
         available: false,
         status: "NOT_FOUND",
+        aiProctoringEnabled: false,
         startTime: null,
         endTime: null,
       });
