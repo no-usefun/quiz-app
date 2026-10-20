@@ -87,14 +87,15 @@ export function CameraReferenceCapture({
         await videoRef.current.play().catch(() => {});
       }
       setCameraActive(true);
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error("Camera access failed:", err);
+      const errorName = err instanceof Error ? err.name : "";
       let msg = "Could not access camera. Please enable camera access.";
-      if (err?.name === "NotAllowedError" || err?.name === "PermissionDeniedError") {
+      if (errorName === "NotAllowedError" || errorName === "PermissionDeniedError") {
         msg = "Camera permission was denied. Please allow camera permissions in browser site settings.";
-      } else if (err?.name === "NotFoundError" || err?.name === "DevicesNotFoundError") {
+      } else if (errorName === "NotFoundError" || errorName === "DevicesNotFoundError") {
         msg = "No camera device was found on your computer.";
-      } else if (err?.name === "NotReadableError" || err?.name === "TrackStartError") {
+      } else if (errorName === "NotReadableError" || errorName === "TrackStartError") {
         msg = "Camera is currently in use by another application. Please close other software and retry.";
       }
       setCameraError(msg);
@@ -102,6 +103,8 @@ export function CameraReferenceCapture({
   }, [stopCamera]);
 
   useEffect(() => {
+    // Camera acquisition is an external browser side effect; its async result updates UI state.
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- camera lifecycle setup
     void startCamera();
     return () => {
       stopCamera();
