@@ -936,7 +936,7 @@ export default function TeacherDashboard() {
                       duration: 0.2,
                       ease: "easeOut",
                     }}
-                    className={`teacher-assessment-card flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4 rounded-[18px] border p-4 sm:p-5 shadow-[0_4px_16px_rgba(71,100,180,0.05)] hover:border-[#165dfb]/40 hover:shadow-md hover:-translate-y-[1px] transition-all duration-200 cursor-pointer ${displayState === "Completed" ? "border-[#e3d9ff] bg-gradient-to-r from-[#faf7ff] via-white to-[#f1ebff]" : displayState === "Live" ? "border-[#bdebd7] bg-gradient-to-r from-[#f0fcf6] via-white to-[#e2f9ed]" : displayState === "Draft" ? "border-[#fde7b1] bg-gradient-to-r from-[#fffaf0] via-white to-[#fff4d8]" : "border-[#d9e8ff] bg-gradient-to-r from-[#f4f8ff] via-white to-[#edf4ff]"}`}
+                    className="teacher-assessment-card flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4 rounded-xl border border-slate-200 bg-white p-4 sm:p-5 transition-colors duration-150 hover:border-slate-300 hover:bg-slate-50/40 cursor-pointer dark:border-slate-700 dark:bg-slate-900 dark:hover:bg-slate-800/60"
                   >
                     <div className="min-w-0 flex-1 space-y-1.5">
                       <div className="flex items-center gap-2">
