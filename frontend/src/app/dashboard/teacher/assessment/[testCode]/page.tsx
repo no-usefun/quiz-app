@@ -1507,7 +1507,7 @@ export default function TeacherAssessmentPage({
                 />
 
                 <Th
-                  label="Registration No."
+                  label="Student"
                   col="name"
                   sortKey={sortKey}
                   sortDir={sortDir}
@@ -1515,7 +1515,7 @@ export default function TeacherAssessmentPage({
                 />
 
                 <Th
-                  label="Student"
+                  label="Registration No."
                   col="name"
                   sortKey={sortKey}
                   sortDir={sortDir}
