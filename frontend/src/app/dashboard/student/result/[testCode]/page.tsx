@@ -449,7 +449,7 @@ export default function StudentResultPage({
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-[#f5f5f4] flex items-center justify-center text-xs font-semibold text-[#78716b]">
+      <div className="min-h-screen bg-slate-50 flex items-center justify-center text-xs font-semibold text-slate-500">
         Loading assessment results...
       </div>
     );
@@ -457,26 +457,26 @@ export default function StudentResultPage({
 
   if (error && !result && !pendingRelease) {
     return (
-      <main className="flex min-h-screen items-center justify-center bg-[#f5f5f4] text-[#111111] p-4 font-sans">
+      <main className="flex min-h-screen items-center justify-center bg-slate-50 text-slate-900 p-4 font-sans">
         <motion.div
           initial={mounted ? { opacity: 0, y: 8 } : false}
           animate={mounted ? { opacity: 1, y: 0 } : false}
-          className="w-full max-w-md rounded-[14px] bg-white p-8 text-center border border-[#d1dee8]/70 shadow-sm space-y-4"
+          className="w-full max-w-md rounded-[14px] bg-white p-8 text-center border border-slate-200 shadow-sm space-y-4"
         >
-          <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-[12px] bg-[#f5f5f4] border border-[#d1dee8]/80 text-[#78716b] shadow-xs">
+          <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-[12px] bg-slate-50 border border-slate-200 text-slate-500 shadow-xs">
             <FileQuestion className="h-6 w-6" />
           </div>
 
           <div className="space-y-1">
-            <span className="text-[10px] font-bold uppercase tracking-wider text-[#78716b]">
+            <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500">
               Result unavailable
             </span>
 
-            <h1 className="text-xl font-black text-[#111111]">
+            <h1 className="text-xl font-black text-slate-900">
               Unable to Load Result
             </h1>
 
-            <p className="text-xs text-[#78716b] leading-relaxed font-medium">
+            <p className="text-xs text-slate-500 leading-relaxed font-medium">
               {error}
             </p>
           </div>
@@ -497,7 +497,7 @@ export default function StudentResultPage({
 
   if (pendingRelease) {
     return (
-      <main className="flex min-h-screen items-center justify-center bg-[#f5f5f4] text-[#111111] p-4 font-sans selection:bg-[#e6e3e2] selection:text-[#165dfb]">
+      <main className="flex min-h-screen items-center justify-center bg-slate-50 text-slate-900 p-4 font-sans selection:bg-[#e6e3e2] selection:text-[#165dfb]">
         <motion.div
           initial={mounted ? { opacity: 0, y: 8 } : false}
           animate={mounted ? { opacity: 1, y: 0 } : false}
@@ -505,32 +505,32 @@ export default function StudentResultPage({
             duration: 0.25,
             ease: "easeOut",
           }}
-          className="w-full max-w-md rounded-[14px] bg-white p-8 text-center border border-[#d1dee8]/70 shadow-sm space-y-5"
+          className="w-full max-w-md rounded-[14px] bg-white p-8 text-center border border-slate-200 shadow-sm space-y-5"
         >
           <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-[#fbeee8] border border-[#8c381c]/30 text-[#8c381c] shadow-xs">
             <Lock className="h-6 w-6" />
           </div>
 
           <div className="text-center space-y-1.5">
-            <span className="inline-flex items-center gap-1 rounded-full bg-[#f5f5f4] border border-[#d1dee8]/80 px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wider text-[#78716b] shadow-xs">
+            <span className="inline-flex items-center gap-1 rounded-full bg-slate-50 border border-slate-200 px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wider text-slate-500 shadow-xs">
               Pending Instructor Release
             </span>
 
-            <h1 className="text-xl font-black text-[#111111]">
+            <h1 className="text-xl font-black text-slate-900">
               Assessment Submitted Successfully
             </h1>
 
-            <p className="text-xs text-[#78716b] leading-relaxed font-medium">
+            <p className="text-xs text-slate-500 leading-relaxed font-medium">
               Your result is recorded, but the instructor has not published the
               results yet.
             </p>
           </div>
 
-          <div className="rounded-[10px] bg-[#f5f5f4] border border-[#d1dee8]/80 p-3.5 text-xs space-y-1.5 font-medium text-[#78716b] shadow-xs">
+          <div className="rounded-[10px] bg-slate-50 border border-slate-200 p-3.5 text-xs space-y-1.5 font-medium text-slate-500 shadow-xs">
             <div className="flex justify-between gap-3">
               <span>Attempt ID:</span>
 
-              <strong className="font-mono text-[#111111]">{testCode}</strong>
+              <strong className="font-mono text-slate-900">{testCode}</strong>
             </div>
           </div>
 
@@ -560,12 +560,12 @@ export default function StudentResultPage({
   };
 
   return (
-    <div className="min-h-screen bg-[#f5f5f4] font-sans text-[#111111] selection:bg-[#e6e3e2] selection:text-[#165dfb]">
-      <nav className="sticky top-0 z-20 flex flex-wrap items-center justify-between gap-3 bg-white border-b border-[#d1dee8]/70 px-4 py-3 sm:px-6 sm:py-4">
+    <div className="min-h-screen bg-slate-50 font-sans text-slate-900 selection:bg-[#e6e3e2] selection:text-[#165dfb]">
+      <nav className="sticky top-0 z-20 flex flex-wrap items-center justify-between gap-3 bg-white border-b border-slate-200 px-4 py-3 sm:px-6 sm:py-4">
         <div className="flex items-center gap-3">
           <Link
             href="/dashboard/student"
-            className="flex items-center gap-2 text-xs font-bold text-[#78716b] hover:text-[#111111] transition-colors"
+            className="flex items-center gap-2 text-xs font-bold text-slate-500 hover:text-slate-900 transition-colors"
           >
             <ArrowLeft className="h-3.5 w-3.5" />
             Dashboard
@@ -577,7 +577,7 @@ export default function StudentResultPage({
         </div>
 
         <div className="flex items-center gap-2">
-          <span className="rounded-full bg-[#f5f5f4] border border-[#d1dee8]/80 px-3 py-1 font-mono text-xs font-bold text-[#111111] shadow-xs">
+          <span className="rounded-full bg-slate-50 border border-slate-200 px-3 py-1 font-mono text-xs font-bold text-slate-900 shadow-xs">
             Attempt #{result.attemptId}
           </span>
         </div>
@@ -585,29 +585,29 @@ export default function StudentResultPage({
 
       <main className="mx-auto max-w-3xl space-y-5 px-4 py-6 text-left">
         <section>
-          <span className="text-xs font-bold uppercase tracking-widest text-[#78716b]">
+          <span className="text-xs font-bold uppercase tracking-widest text-slate-500">
             Verified Assessment Performance
           </span>
 
-          <h1 className="mt-0.5 text-2xl font-extrabold tracking-tight text-[#111111]">
+          <h1 className="mt-0.5 text-2xl font-extrabold tracking-tight text-slate-900">
             {result.quizTitle}
           </h1>
 
-          <p className="mt-0.5 text-xs text-[#78716b] font-medium flex items-center gap-2">
-            <CalendarDays className="h-3.5 w-3.5 text-[#78716b]" />
+          <p className="mt-0.5 text-xs text-slate-500 font-medium flex items-center gap-2">
+            <CalendarDays className="h-3.5 w-3.5 text-slate-500" />
             Submitted: {formatDateTime(result.submittedAt)}
           </p>
 
           <Link
             href={"/dashboard/student/leaderboard/" + result.quizId}
-            className="mt-3 inline-flex items-center gap-1.5 rounded-[10px] border border-[#d1dee8]/80 bg-white px-3.5 py-2 text-xs font-bold text-[#111111] shadow-xs transition-all hover:border-[#165dfb] hover:text-[#165dfb]"
+            className="mt-3 inline-flex items-center gap-1.5 rounded-[10px] border border-slate-200 bg-white px-3.5 py-2 text-xs font-bold text-slate-900 shadow-xs transition-all hover:border-[#165dfb] hover:text-[#165dfb]"
           >
             <Trophy className="h-3.5 w-3.5" />
             View Leaderboard
           </Link>
         </section>
 
-        <section className="rounded-[14px] bg-white p-6 border border-[#d1dee8]/70 shadow-sm">
+        <section className="rounded-[14px] bg-white p-6 border border-slate-200 shadow-sm">
           <div className="flex flex-col items-center gap-5 sm:flex-row sm:items-start">
             <div className="relative shrink-0">
               <ScoreRing score={percentage} />
@@ -619,7 +619,7 @@ export default function StudentResultPage({
                   {formatDisplayNumber(percentage)}%
                 </span>
 
-                <span className="text-[9px] font-bold text-[#78716b] uppercase tracking-wider mt-0.5">
+                <span className="text-[9px] font-bold text-slate-500 uppercase tracking-wider mt-0.5">
                   Percentage
                 </span>
               </div>
@@ -627,7 +627,7 @@ export default function StudentResultPage({
 
             <div className="flex-1 space-y-3.5 w-full">
               <div>
-                <p className="text-xs text-[#111111] font-medium">
+                <p className="text-xs text-slate-900 font-medium">
                   {totalQuestions > 0 ? (
                     <>
                       You answered{" "}
@@ -650,45 +650,45 @@ export default function StudentResultPage({
               </div>
 
               <div className="grid grid-cols-2 sm:grid-cols-3 gap-2.5">
-                <div className="rounded-[12px] border border-[#d1dee8]/70 bg-white p-3 text-center shadow-xs">
-                  <div className="mx-auto mb-1 inline-flex h-6 w-6 items-center justify-center rounded-[8px] bg-[#f5f5f4] border border-[#d1dee8]/70 text-[#165dfb] shadow-xs">
+                <div className="rounded-[12px] border border-slate-200 bg-white p-3 text-center shadow-xs">
+                  <div className="mx-auto mb-1 inline-flex h-6 w-6 items-center justify-center rounded-[8px] bg-slate-50 border border-slate-200 text-[#165dfb] shadow-xs">
                     <CheckCircle2 className="h-3.5 w-3.5" />
                   </div>
 
-                  <p className="text-base font-black text-[#111111]">
+                  <p className="text-base font-black text-slate-900">
                     {accuracy != null ? `${accuracy}%` : "—"}
                   </p>
 
-                  <p className="text-[9px] text-[#78716b] font-bold uppercase tracking-wider">
+                  <p className="text-[9px] text-slate-500 font-bold uppercase tracking-wider">
                     Accuracy
                   </p>
                 </div>
 
-                <div className="rounded-[12px] border border-[#d1dee8]/70 bg-white p-3 text-center shadow-xs">
-                  <div className="mx-auto mb-1 inline-flex h-6 w-6 items-center justify-center rounded-[8px] bg-[#f5f5f4] border border-[#d1dee8]/70 text-[#1d5237] shadow-xs">
+                <div className="rounded-[12px] border border-slate-200 bg-white p-3 text-center shadow-xs">
+                  <div className="mx-auto mb-1 inline-flex h-6 w-6 items-center justify-center rounded-[8px] bg-slate-50 border border-slate-200 text-[#1d5237] shadow-xs">
                     <Award className="h-3.5 w-3.5" />
                   </div>
 
-                  <p className="text-base font-black text-[#111111]">
+                  <p className="text-base font-black text-slate-900">
                     {formatDisplayNumber(result.finalScore)} /{" "}
                     {formatDisplayNumber(result.totalMarks)}
                   </p>
 
-                  <p className="text-[9px] text-[#78716b] font-bold uppercase tracking-wider">
+                  <p className="text-[9px] text-slate-500 font-bold uppercase tracking-wider">
                     Score
                   </p>
                 </div>
 
-                <div className="rounded-[12px] border border-[#d1dee8]/70 bg-white p-3 text-center shadow-xs">
-                  <div className="mx-auto mb-1 inline-flex h-6 w-6 items-center justify-center rounded-[8px] bg-[#f5f5f4] border border-[#d1dee8]/70 text-[#111111] shadow-xs">
+                <div className="rounded-[12px] border border-slate-200 bg-white p-3 text-center shadow-xs">
+                  <div className="mx-auto mb-1 inline-flex h-6 w-6 items-center justify-center rounded-[8px] bg-slate-50 border border-slate-200 text-slate-900 shadow-xs">
                     <Clock className="h-3.5 w-3.5" />
                   </div>
 
-                  <p className="text-base font-black text-[#111111]">
+                  <p className="text-base font-black text-slate-900">
                     {formatTime(result.totalTimeTaken)}
                   </p>
 
-                  <p className="text-[9px] text-[#78716b] font-bold uppercase tracking-wider">
+                  <p className="text-[9px] text-slate-500 font-bold uppercase tracking-wider">
                     Total Time
                   </p>
                 </div>
@@ -700,11 +700,11 @@ export default function StudentResultPage({
 
         {canRevealSolutions && details.length > 0 ? (
           <section className="space-y-2.5">
-            <h2 className="text-xs font-bold text-[#111111] uppercase tracking-wider">
+            <h2 className="text-xs font-bold text-slate-900 uppercase tracking-wider">
               Question Breakdown &amp; Solutions
             </h2>
 
-            <div className="rounded-[14px] bg-white border border-[#d1dee8]/70 overflow-hidden divide-y divide-[#d1dee8]/40 shadow-sm">
+            <div className="rounded-[14px] bg-white border border-slate-200 overflow-hidden divide-y divide-slate-100 shadow-sm">
               {[...details]
                 .sort((a, b) => a.displayOrder - b.displayOrder)
                 .map((detail, idx) => {
@@ -728,7 +728,7 @@ export default function StudentResultPage({
                       className="p-4 sm:p-5 space-y-2.5 text-xs"
                     >
                     <div className="flex items-start justify-between gap-2">
-                      <p className="font-bold text-[#111111] leading-snug">
+                      <p className="font-bold text-slate-900 leading-snug">
                         {idx + 1}. {detail.questionText || "Question"}
                       </p>
 
@@ -746,8 +746,8 @@ export default function StudentResultPage({
                     </div>
 
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-[11px]">
-                      <div className="rounded-[10px] bg-[#f5f5f4] p-2.5 border border-[#d1dee8]/80 shadow-xs">
-                        <span className="text-[#78716b] block text-[9px] uppercase font-bold">
+                      <div className="rounded-[10px] bg-slate-50 p-2.5 border border-slate-200 shadow-xs">
+                        <span className="text-slate-500 block text-[9px] uppercase font-bold">
                           Your Answer:
                         </span>
 
@@ -756,13 +756,13 @@ export default function StudentResultPage({
                             selectedOptionTexts.map((optionText, optionIndex) => (
                               <span
                                 key={`selected-${detail.questionId}-${optionIndex}`}
-                                className="rounded-[8px] border border-[#d1dee8]/70 bg-white px-2.5 py-1.5 font-semibold text-[#111111]"
+                                className="rounded-[8px] border border-slate-200 bg-white px-2.5 py-1.5 font-semibold text-slate-900"
                               >
                                 {optionText}
                               </span>
                             ))
                           ) : (
-                            <span className="text-[#78716b] font-medium">
+                            <span className="text-slate-500 font-medium">
                               Not answered
                             </span>
                           )}
@@ -785,7 +785,7 @@ export default function StudentResultPage({
                               </span>
                             ))
                           ) : (
-                            <span className="text-[#78716b] font-medium">
+                            <span className="text-slate-500 font-medium">
                               No correct option returned.
                             </span>
                           )}
@@ -793,10 +793,10 @@ export default function StudentResultPage({
                       </div>
                     </div>
 
-                    <div className="flex flex-wrap gap-3 text-[10px] text-[#78716b] font-medium">
+                    <div className="flex flex-wrap gap-3 text-[10px] text-slate-500 font-medium">
                       <span>
                         Marks:{" "}
-                        <strong className="text-[#111111]">
+                        <strong className="text-slate-900">
                           {formatDisplayNumber(detail.marksAwarded)} /{" "}
                           {formatDisplayNumber(detail.questionMarks)}
                         </strong>
@@ -805,7 +805,7 @@ export default function StudentResultPage({
                       {detail.responseTimeSeconds != null && (
                         <span>
                           Response time:{" "}
-                          <strong className="text-[#111111]">
+                          <strong className="text-slate-900">
                             {formatTime(detail.responseTimeSeconds)}
                           </strong>
                         </span>
@@ -814,7 +814,7 @@ export default function StudentResultPage({
                       {detail.answerStatus && (
                         <span>
                           Status:{" "}
-                          <strong className="text-[#111111]">
+                          <strong className="text-slate-900">
                             {detail.answerStatus}
                           </strong>
                         </span>
@@ -822,8 +822,8 @@ export default function StudentResultPage({
                     </div>
 
                     {detail.explanation && (
-                      <div className="rounded-[10px] border border-[#d1dee8]/80 bg-[#f5f5f4] p-3 text-[11px] text-[#111111]">
-                        <p className="mb-1 text-[9px] font-bold uppercase tracking-wider text-[#78716b]">
+                      <div className="rounded-[10px] border border-slate-200 bg-slate-50 p-3 text-[11px] text-slate-900">
+                        <p className="mb-1 text-[9px] font-bold uppercase tracking-wider text-slate-500">
                           Explanation
                         </p>
                         <p className="leading-relaxed font-medium">
@@ -837,18 +837,18 @@ export default function StudentResultPage({
             </div>
           </section>
         ) : (
-          <section className="rounded-[14px] bg-white border border-[#d1dee8]/70 p-5 shadow-sm flex items-center justify-between">
+          <section className="rounded-[14px] bg-white border border-slate-200 p-5 shadow-sm flex items-center justify-between">
             <div className="flex items-center gap-3">
-              <div className="flex h-10 w-10 items-center justify-center rounded-[10px] bg-[#f5f5f4] border border-[#d1dee8]/70 text-[#78716b] shadow-xs">
+              <div className="flex h-10 w-10 items-center justify-center rounded-[10px] bg-slate-50 border border-slate-200 text-slate-500 shadow-xs">
                 <FileQuestion className="h-5 w-5" />
               </div>
 
               <div>
-                <h3 className="text-xs font-bold text-[#111111]">
+                <h3 className="text-xs font-bold text-slate-900">
                   Question Solutions Locked
                 </h3>
 
-                <p className="text-[10px] text-[#78716b] font-medium">
+                <p className="text-[10px] text-slate-500 font-medium">
                   Detailed question-wise results have not been released for this
                   assessment.
                 </p>
