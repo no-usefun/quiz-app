@@ -725,16 +725,56 @@ export default function TestArenaPage({
           },
         );
 
-        if (typeof packageData?.aiProctoringEnabled !== "boolean") {
+        // The lobby resolves the policy from both availability and package
+        // endpoints. Do not let a stale/default false from one endpoint disable
+        // AI when the other endpoint explicitly requires it.
+        const readProctoringFlag = (value: unknown): boolean | undefined => {
+          if (!value || typeof value !== "object") return undefined;
+          const record = value as Record<string, unknown>;
+          const direct =
+            record.aiProctoringEnabled ??
+            record.ai_proctoring_enabled ??
+            record.proctoringEnabled;
+          if (typeof direct === "boolean") return direct;
+
+          const nested = record.settings;
+          if (nested && typeof nested === "object") {
+            const settings = nested as Record<string, unknown>;
+            const candidate =
+              settings.aiProctoringEnabled ??
+              settings.ai_proctoring_enabled ??
+              settings.proctoringEnabled;
+            if (typeof candidate === "boolean") return candidate;
+          }
+          return undefined;
+        };
+
+        const packageFlag = readProctoringFlag(packageData);
+        const lobbyFlagRaw = sessionStorage.getItem(
+          `dynoquizz_ai_proctoring_${cleanCode}`,
+        );
+        const lobbyFlag =
+          lobbyFlagRaw === "true" ? true : lobbyFlagRaw === "false" ? false : undefined;
+
+        // Enabling wins across the two student-safe sources. An explicit false
+        // is accepted only when no source says that AI proctoring is required.
+        const resolvedAiPolicy =
+          packageFlag === true || lobbyFlag === true
+            ? true
+            : packageFlag === false || lobbyFlag === false
+              ? false
+              : undefined;
+
+        if (typeof resolvedAiPolicy !== "boolean") {
           throw new Error(
-            "The backend did not return an explicit AI proctoring policy for this assessment. The exam is locked until the backend returns aiProctoringEnabled as true or false.",
+            "The server did not confirm whether AI proctoring is required. Return to the assessment lobby and retry; if this persists, the quiz settings API must expose aiProctoringEnabled.",
           );
         }
 
-        setAiProctoringEnabled(packageData.aiProctoringEnabled);
+        setAiProctoringEnabled(resolvedAiPolicy);
         sessionStorage.setItem(
           `dynoquizz_ai_proctoring_${cleanCode}`,
-          String(packageData.aiProctoringEnabled),
+          String(resolvedAiPolicy),
         );
 
         if (
