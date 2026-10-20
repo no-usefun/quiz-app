@@ -16,7 +16,6 @@ import {
   Maximize2,
   ShieldAlert,
   Trash2,
-  ShieldCheck,
 } from "lucide-react";
 
 import { useAIProctoring } from "@/hooks/useAIProctoring";
@@ -1529,7 +1528,7 @@ export default function TestArenaPage({
             </p>
             {violationCount > 0 && (
               <p className="mt-2 text-[10px] font-bold text-[#8c381c]">
-                Suspicious activity events recorded: {violationCount}
+                Activity flags: {violationCount}
               </p>
             )}
             <button
