@@ -33,5 +33,6 @@ public record CreateQuizRequest(
         String acceptedEmailDomain,
         List<String> allowedRegistrationNumbers,
 
-        List<QuestionRequest> questions) {
+        List<QuestionRequest> questions,
+        boolean aiProctoringEnabled) {
 }
