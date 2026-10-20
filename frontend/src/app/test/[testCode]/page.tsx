@@ -1900,58 +1900,22 @@ export default function TestArenaPage({
         />}
       </aside>
 
-      {aiProctoringEnabled && !isSubmitted && activeAttemptId && !isAIProctoringReady && (
-        <div
-          role="dialog"
-          aria-modal="true"
-          aria-live="polite"
-          aria-label="AI proctoring initialization"
-          className="fixed inset-0 z-[90] flex items-center justify-center bg-[#111111]/75 p-4 backdrop-blur-sm"
-        >
+      {aiProctoringEnabled && !isSubmitted && activeAttemptId && !isAIProctoringReady && !proctoring.cameraError && (
+        <div className="fixed right-4 top-4 z-[80] flex max-w-xs items-center gap-2 rounded-lg border border-[#d1dee8] bg-white/95 px-3 py-2 text-xs text-[#57534e] shadow-sm" role="status" aria-live="polite">
+          <span className="h-2 w-2 shrink-0 animate-pulse rounded-full bg-[#165dfb]" />
+          Preparing secure proctoring…
+        </div>
+      )}
+
+      {aiProctoringEnabled && !isSubmitted && activeAttemptId && !isAIProctoringReady && proctoring.cameraError && (
+        <div role="dialog" aria-modal="true" aria-live="polite" aria-label="AI proctoring connection error" className="fixed inset-0 z-[90] flex items-center justify-center bg-[#111111]/70 p-4 backdrop-blur-sm">
           <div className="w-full max-w-md space-y-4 rounded-[16px] border border-[#d1dee8] bg-white p-6 text-center shadow-2xl">
-            <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-[#e8f0ff] text-[#165dfb]">
-              {proctoring.cameraError ? (
-                <AlertTriangle className="h-6 w-6" />
-              ) : (
-                <Clock className="h-6 w-6 animate-pulse" />
-              )}
-            </div>
-            <h2 className="text-lg font-extrabold text-[#111111]">
-              {proctoring.cameraError
-                ? "AI Proctoring Could Not Start"
-                : "Verifying AI Proctoring"}
-            </h2>
-            <p className="text-xs leading-relaxed text-[#78716b]">
-              {proctoring.cameraError
-                ? proctoring.cameraError
-                : !proctoring.cameraActive
-                  ? "Connecting to the camera, microphone, and AI proctoring service. The assessment stays locked until initialization succeeds."
-                  : !proctoring.telemetryReceived
-                    ? "Camera is active. Waiting for the first verified AI telemetry response."
-                    : !proctoring.faceDetected
-                      ? "Keep your face clearly visible and centered in the camera."
-                      : "Confirming your face matches the reference photo captured in the lobby."}
-            </p>
+            <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-[#fbeee8] text-[#8c381c]"><AlertTriangle className="h-6 w-6" /></div>
+            <h2 className="text-lg font-extrabold text-[#111111]">AI Proctoring Needs Attention</h2>
+            <p className="text-xs leading-relaxed text-[#78716b]">{proctoring.cameraError}</p>
             <div className="flex flex-col gap-2 sm:flex-row">
-              <button
-                type="button"
-                onClick={() => void proctoring.retryInitialization()}
-                disabled={!proctoring.cameraError}
-                className="flex-1 rounded-[10px] bg-[#165dfb] px-4 py-2.5 text-xs font-bold text-white transition hover:bg-[#0f4fd8] disabled:cursor-not-allowed disabled:opacity-40"
-              >
-                Retry AI Connection
-              </button>
-              <button
-                type="button"
-                onClick={() => {
-                  void proctoring.cleanup();
-                  void exitFullscreen();
-                  router.push(`/test/${encodeURIComponent(cleanCode)}/lobby`);
-                }}
-                className="flex-1 rounded-[10px] border border-[#d1dee8] bg-white px-4 py-2.5 text-xs font-bold text-[#111111] transition hover:bg-[#f5f5f4]"
-              >
-                Return to Lobby
-              </button>
+              <button type="button" onClick={() => void proctoring.retryInitialization()} className="flex-1 rounded-[10px] bg-[#165dfb] px-4 py-2.5 text-xs font-bold text-white transition hover:bg-[#0f4fd8]">Retry Connection</button>
+              <button type="button" onClick={() => { void proctoring.cleanup(); void exitFullscreen(); router.push(`/test/${encodeURIComponent(cleanCode)}/lobby`); }} className="flex-1 rounded-[10px] border border-[#d1dee8] bg-white px-4 py-2.5 text-xs font-bold text-[#111111] transition hover:bg-[#f5f5f4]">Return to Lobby</button>
             </div>
           </div>
         </div>
