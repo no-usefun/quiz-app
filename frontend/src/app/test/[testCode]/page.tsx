@@ -443,6 +443,10 @@ export default function TestArenaPage({
     const VIOLATION_COOLDOWN_MS = 3500;
 
     const reportEvent = async (type: BrowserProctoringFlag, details: string) => {
+      // Once submission begins, do not send additional browser events for an
+      // attempt that may already have become inactive on the server.
+      if (submissionInFlightRef.current || isSubmitted) return;
+
       const now = Date.now();
       const isCountableViolation = type === "tab_switch" || type === "fullscreen_exit";
 
@@ -512,6 +516,10 @@ export default function TestArenaPage({
           );
         }
       } catch (error) {
+        // A 409 here usually means the server has already closed/submitted the
+        // attempt. That is expected during finalization; avoid noisy console
+        // errors and keep the student assessment flow uninterrupted.
+        if (error instanceof ApiClientError && error.status === 409) return;
         console.warn("[Proctoring] Browser event sync failed:", error);
       }
     };
@@ -1193,7 +1201,6 @@ export default function TestArenaPage({
         );
       }
     } catch (error) {
-      console.error("[Assessment Submission] Failed:", error);
       setIsSubmitted(false);
 
       if (error instanceof ApiClientError && error.status === 409) {
@@ -1239,6 +1246,15 @@ export default function TestArenaPage({
             reconcileError,
           );
         }
+      }
+
+      if (error instanceof ApiClientError && error.status === 409) {
+        // We tried to submit an attempt that the server still reports as
+        // active. Surface a recoverable message without triggering Next's
+        // development error overlay for an expected API conflict.
+        console.warn("[Assessment Submission] Server rejected a duplicate/stale submission (409).");
+      } else {
+        console.error("[Assessment Submission] Failed:", error);
       }
 
       if (error instanceof ApiClientError && error.status === 401) {
