@@ -43,25 +43,34 @@ textarea {
   --pastel-pink: #fbeee8; --pastel-pink-text: #8c381c;
   --pastel-lavender: #ece9f3; --pastel-lavender-text: #4c3d73;
 
-  /* Enforce exactly 8.8px border radius for all components */
-  --radius-cards: 8.8px;
-  --radius-inputs: 8.8px;
-  --radius-buttons: 8.8px;
-  --radius-pills: 8.8px;
+  /* Option A: consistent, softly rounded cards and controls */
+  --radius-cards: 14px;
+  --radius-inputs: 10px;
+  --radius-buttons: 10px;
+  --radius-pills: 9999px;
 }
 
 .dark {
-  /* Pastel theme uses consistent light paper-stone canvas. Dark mode adjusts contrast slightly */
-  --color-paper-stone: #f5f5f4;
-  --color-chalk: #e6e3e2;
-  --color-ink-black: #111111;
-  --color-fog-gray: #78716b;
-  --color-ice-line: #d1dee8;
-  --color-cobalt-stamp: #165dfb;
-  --color-soft-blue: #eef4ff;
-  --color-soft-lavender: #f1efff;
-  --color-soft-mint: #eef8f3;
-  --color-soft-peach: #fff1eb;
+  /* Actual dark theme tokens. Keep the Quizly blue accent distinct from dark surfaces. */
+  --color-paper-stone: #111827;
+  --color-chalk: #202938;
+  --color-ink-black: #f3f4f6;
+  --color-fog-gray: #a7b0c0;
+  --color-ice-line: #3a4659;
+  --color-cobalt-stamp: #8eaeff;
+  --color-soft-blue: #202f4a;
+  --color-soft-lavender: #302b46;
+  --color-soft-mint: #18382d;
+  --color-soft-peach: #402b25;
+
+  --pastel-mint: #18382d;
+  --pastel-mint-text: #b9e8cd;
+  --pastel-yellow: #3b321f;
+  --pastel-yellow-text: #f0d58e;
+  --pastel-pink: #402b25;
+  --pastel-pink-text: #ffc2a8;
+  --pastel-lavender: #302b46;
+  --pastel-lavender-text: #d9ceff;
 }
 
 @theme {
@@ -135,8 +144,14 @@ textarea {
 
 /* App background default */
 html {
+  color-scheme: light;
   background-color: var(--color-paper-stone);
   color: var(--color-ink-black);
+  transition: background-color 180ms ease, color 180ms ease;
+}
+
+body {
+  transition: background-color 180ms ease, color 180ms ease;
 }
 
 /* Clean custom scrollbar */
@@ -201,3 +216,273 @@ html {
 .animate-float {
   animation: float 5s ease-in-out infinite;
 }
+
+
+/* Dark-mode compatibility layer for existing screens that still use literal pastel colors.
+   This lets the theme work consistently while pages gradually migrate to semantic tokens. */
+html.dark {
+  color-scheme: dark;
+  background-color: var(--color-paper-stone);
+  color: var(--color-ink-black);
+}
+html.dark body {
+  background-color: var(--color-paper-stone);
+  color: var(--color-ink-black);
+}
+html.dark [class*="bg-[#f5f5f4]"] {
+  background-color: var(--color-paper-stone) !important;
+}
+html.dark [class*="bg-[#e6e3e2]"] {
+  background-color: var(--color-chalk) !important;
+}
+html.dark [class~="bg-white/90"],
+html.dark [class~="bg-white/95"],
+html.dark [class~="bg-white/80"],
+html.dark [class~="bg-white/60"] {
+  background-color: color-mix(in srgb, #1b2432 92%, transparent) !important;
+}
+html.dark [class~="bg-white"],
+html.dark [class*="bg-white "] {
+  background-color: #1b2432 !important;
+}
+html.dark [class*="bg-[#d1dee8]"] {
+  background-color: #303c4f !important;
+}
+html.dark [class*="bg-[#e2ede8]"] {
+  background-color: var(--pastel-mint) !important;
+}
+html.dark [class*="bg-[#f6efe1]"] {
+  background-color: var(--pastel-yellow) !important;
+}
+html.dark [class*="bg-[#fbeee8]"],
+html.dark [class*="bg-[#fff0e8]"],
+html.dark [class*="bg-[#fff1eb]"] {
+  background-color: var(--pastel-pink) !important;
+}
+html.dark [class*="bg-[#ece9f3]"] {
+  background-color: var(--pastel-lavender) !important;
+}
+html.dark [class*="text-[#111111]"] {
+  color: var(--color-ink-black) !important;
+}
+html.dark [class*="text-[#78716b]"] {
+  color: var(--color-fog-gray) !important;
+}
+html.dark [class*="text-[#1d5237]"] {
+  color: var(--pastel-mint-text) !important;
+}
+html.dark [class*="text-[#73561a]"] {
+  color: var(--pastel-yellow-text) !important;
+}
+html.dark [class*="text-[#8c381c]"] {
+  color: var(--pastel-pink-text) !important;
+}
+html.dark [class*="text-[#4c3d73]"] {
+  color: var(--pastel-lavender-text) !important;
+}
+html.dark [class*="border-[#d1dee8]"] {
+  border-color: var(--color-ice-line) !important;
+}
+html.dark [class*="border-[#1d5237]"] {
+  border-color: #426d59 !important;
+}
+html.dark [class*="border-[#8c381c]"] {
+  border-color: #86503e !important;
+}
+html.dark [class*="hover:bg-[#f5f5f4]"]:hover {
+  background-color: #293446 !important;
+}
+html.dark [class*="hover:bg-[#e6e3e2]"]:hover {
+  background-color: #303c4f !important;
+}
+html.dark input,
+html.dark textarea,
+html.dark select {
+  color: var(--color-ink-black);
+  border-color: var(--color-ice-line);
+}
+html.dark input::placeholder,
+html.dark textarea::placeholder {
+  color: #8995a8;
+}
+html.dark input:disabled,
+html.dark textarea:disabled {
+  background-color: #202938 !important;
+  color: #8995a8;
+}
+html.dark ::selection {
+  background: #344b77;
+  color: #ffffff;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    scroll-behavior: auto !important;
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+
+/* Semantic utility classes used by legacy dashboard screens need separate
+   surface/background mappings from their text-color counterparts. */
+html.dark [class~="bg-midnight-navy"],
+html.dark [class~="bg-slate-navy"],
+html.dark [class~="bg-carbon"],
+html.dark [class~="bg-ink"] {
+  background-color: #293446 !important;
+}
+html.dark [class~="bg-paper-white"] {
+  background-color: #1b2432 !important;
+}
+html.dark [class~="bg-signal-green"],
+html.dark [class~="bg-blue-600"],
+html.dark [class~="bg-blue-700"],
+html.dark [class~="bg-link-blue"] {
+  background-color: #165dfb !important;
+}
+html.dark [class*="text-[#165dfb]"] {
+  color: #8eaeff !important;
+}
+html.dark [class*="border-[#165dfb]"] {
+  border-color: #6689d6 !important;
+}
+html.dark [class~="bg-slate-50"],
+html.dark [class~="bg-slate-100"] {
+  background-color: #202938 !important;
+}
+
+
+/* Extra light-surface mappings for views that predate semantic theme tokens.
+   These keep Dark mode dark on student dashboards, scorecards and forms. */
+html.dark [class*="bg-[#eef4ff]"],
+html.dark [class*="bg-[#e8f0ff]"],
+html.dark [class*="bg-[#f0f6ff]"] {
+  background-color: #202f4a !important;
+}
+html.dark [class*="bg-[#f8fafc]"],
+html.dark [class*="bg-[#fbfbfa]"],
+html.dark [class*="bg-[#fbfbfb]"],
+html.dark [class*="bg-[#fafaf9]"],
+html.dark [class*="bg-[#fdfdfc]"] {
+  background-color: #202938 !important;
+}
+html.dark [class*="bg-[#e7e5e4]"],
+html.dark [class*="bg-[#f5f5f5]"],
+html.dark [class*="bg-[#f3f4f6]"] {
+  background-color: #30394a !important;
+}
+html.dark [class*="text-[#a8a29d]"],
+html.dark [class*="text-[#c9c5c2]"] {
+  color: #8e9bb0 !important;
+}
+html.dark [class*="border-[#b9cbd9]"] {
+  border-color: #465670 !important;
+}
+html.dark [class*="hover:bg-[#f8fafc]"]:hover {
+  background-color: #263246 !important;
+}
+
+
+/* Consistent keyboard focus treatment across both appearance modes. */
+:where(a, button, input, textarea, select, [role="button"], [role="switch"]):focus-visible {
+  outline: 2px solid #165dfb;
+  outline-offset: 2px;
+}
+
+.dark :where(a, button, input, textarea, select, [role="button"], [role="switch"]):focus-visible {
+  outline-color: #8eaeff;
+}
+
+
+
+/* Scoped dark-mode compatibility for the landing page's inline palette. */
+html.dark .public-landing {
+  background-color: #111827 !important;
+  color: #f3f4f6 !important;
+}
+
+html.dark .public-landing [style*="color: #111111"],
+html.dark .public-landing [style*="color:#111111"],
+html.dark .public-landing [style*="color: rgb(17, 17, 17)"],
+html.dark .public-landing [style*="color:rgb(17, 17, 17)"] {
+  color: #f3f4f6 !important;
+}
+
+html.dark .public-landing [style*="color: #78716b"],
+html.dark .public-landing [style*="color:#78716b"],
+html.dark .public-landing [style*="color: rgb(120, 113, 107)"],
+html.dark .public-landing [style*="color:rgb(120, 113, 107)"] {
+  color: #a7b0c0 !important;
+}
+
+html.dark .public-landing [style*="color: #1d6b42"],
+html.dark .public-landing [style*="color:#1d6b42"] { color: #86d9a5 !important; }
+
+html.dark .public-landing [style*="color: #9c3535"],
+html.dark .public-landing [style*="color:#9c3535"] { color: #fca5a5 !important; }
+
+html.dark .public-landing [style*="color: #7c5cbf"],
+html.dark .public-landing [style*="color:#7c5cbf"] { color: #c4b5fd !important; }
+
+html.dark .public-landing [style*="color: #b05430"],
+html.dark .public-landing [style*="color:#b05430"] { color: #fdba74 !important; }
+
+html.dark .public-landing [style*="color: #8a6a10"],
+html.dark .public-landing [style*="color:#8a6a10"] { color: #fcd34d !important; }
+
+html.dark .public-landing [style*="background: white"],
+html.dark .public-landing [style*="background:white"],
+html.dark .public-landing [style*="background: #ffffff"],
+html.dark .public-landing [style*="background:#ffffff"],
+html.dark .public-landing [style*="background: rgb(255, 255, 255)"],
+html.dark .public-landing [style*="background:rgb(255, 255, 255)"] {
+  background-color: #1b2432 !important;
+}
+
+html.dark .public-landing [style*="background: #f5f5f4"],
+html.dark .public-landing [style*="background:#f5f5f4"],
+html.dark .public-landing [style*="background: rgb(245, 245, 244)"],
+html.dark .public-landing [style*="background:rgb(245, 245, 244)"] { background-color: #111827 !important; }
+
+html.dark .public-landing [style*="background: #e6e3e2"],
+html.dark .public-landing [style*="background:#e6e3e2"],
+html.dark .public-landing [style*="background: rgb(230, 227, 226)"],
+html.dark .public-landing [style*="background:rgb(230, 227, 226)"] { background-color: #202938 !important; }
+
+html.dark .public-landing [style*="background: #e8f0ff"],
+html.dark .public-landing [style*="background:#e8f0ff"] { background-color: #202f49 !important; }
+
+html.dark .public-landing [style*="background: #eee9ff"],
+html.dark .public-landing [style*="background:#eee9ff"] { background-color: #302949 !important; }
+
+html.dark .public-landing [style*="background: #e7f7ef"],
+html.dark .public-landing [style*="background:#e7f7ef"] { background-color: #1c3a31 !important; }
+
+html.dark .public-landing [style*="background: #fff0e8"],
+html.dark .public-landing [style*="background:#fff0e8"] { background-color: #3d2925 !important; }
+
+html.dark .public-landing [style*="background: #fff8d9"],
+html.dark .public-landing [style*="background:#fff8d9"] { background-color: #3c3521 !important; }
+
+html.dark .public-landing [style*="background: #fdebec"],
+html.dark .public-landing [style*="background:#fdebec"] { background-color: #3a252b !important; }
+
+html.dark .public-landing [style*="background: rgba(245,245,244,0.88)"],
+html.dark .public-landing [style*="background: rgba(245, 245, 244, 0.88)"] { background-color: rgba(17, 24, 39, 0.92) !important; }
+
+html.dark .public-landing [style*="background: rgba(230,227,226,0.5)"],
+html.dark .public-landing [style*="background: rgba(230, 227, 226, 0.5)"] { background-color: rgba(48, 60, 79, 0.5) !important; }
+
+html.dark .public-landing [style*="border-color: #d1dee8"],
+html.dark .public-landing [style*="border-color:#d1dee8"],
+html.dark .public-landing [style*="border-color: rgb(209, 222, 232)"] { border-color: #303c4f !important; }
+
+html.dark .public-landing [style*="border-color: #c5d8f7"],
+html.dark .public-landing [style*="border-color:#c5d8f7"] { border-color: #334a76 !important; }
+
+html.dark .public-landing [style*="border-color: #f5c6c6"],
+html.dark .public-landing [style*="border-color:#f5c6c6"] { border-color: #5a3640 !important; }

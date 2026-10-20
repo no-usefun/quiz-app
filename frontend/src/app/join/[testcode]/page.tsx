@@ -1,6 +1,6 @@
 "use client";
 
-import { use, useEffect, useState } from "react";
+import { use, useEffect, useState, useSyncExternalStore } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { motion } from "framer-motion";
@@ -19,6 +19,10 @@ import {
 import { ApiClientError, api, getAuthToken } from "@/lib/api/client";
 import { ENDPOINTS } from "@/lib/api/endpoints";
 import type { QuizAvailabilityResponse } from "@/lib/types";
+
+const subscribeToHydration = () => () => {};
+const getClientHydrationSnapshot = () => true;
+const getServerHydrationSnapshot = () => false;
 
 function formatDateTime(value?: string | null): string {
   if (!value) return "";
@@ -53,17 +57,21 @@ export default function TestLandingPage({ params }: TestLandingPageProps) {
 
   const [registrationNo, setRegistrationNo] = useState("");
 
-  const [mounted, setMounted] = useState(false);
+  const mounted = useSyncExternalStore(
+    subscribeToHydration,
+    getClientHydrationSnapshot,
+    getServerHydrationSnapshot,
+  );
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  useEffect(() => {
-    setMounted(true);
-  }, []);
+  
 
   useEffect(() => {
     if (!cleanCode) {
+      // Reset the view when the route has no usable code.
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- route validation reset
       setAvailability({
         quizCode: "",
         available: false,

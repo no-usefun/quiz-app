@@ -1,8 +1,9 @@
 "use client";
 
-import { use, useEffect, useState } from "react";
+import { use, useEffect, useState, useSyncExternalStore } from "react";
 import { useRouter } from "next/navigation";
 import { motion } from "framer-motion";
+import { api } from "@/lib/api/client";
 import {
   ShieldCheck,
   ArrowRight,
@@ -12,6 +13,10 @@ import {
   Loader2,
 } from "lucide-react";
 import { ENDPOINTS } from "@/lib/api/endpoints";
+
+const subscribeToHydration = () => () => {};
+const getClientHydrationSnapshot = () => true;
+const getServerHydrationSnapshot = () => false;
 
 type AvailabilityStatus =
   | "NOT_FOUND"
@@ -63,19 +68,24 @@ export default function IdentityVerificationPage({
 
   const [registrationNo, setRegistrationNo] = useState("");
   const [sessionCode, setSessionCode] = useState(testCode || "");
-  const [mounted, setMounted] = useState(false);
+  const mounted = useSyncExternalStore(
+    subscribeToHydration,
+    getClientHydrationSnapshot,
+    getServerHydrationSnapshot,
+  );
   const [submitting, setSubmitting] = useState(false);
   const [loadingSession, setLoadingSession] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    setMounted(true);
 
     const cleanCode = String(testCode || "")
       .trim()
       .toUpperCase();
 
     if (!cleanCode) {
+      // Invalid route params must render the explicit verification error.
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- route validation state
       setError("Assessment access code is missing.");
       setLoadingSession(false);
       return;
@@ -117,27 +127,15 @@ export default function IdentityVerificationPage({
         setLoadingSession(true);
         setError(null);
 
-        const availabilityRes = await fetch(
+        const data = await api.get<AvailabilityResponse>(
           ENDPOINTS.student.availability(cleanCode),
           {
-            method: "GET",
-            headers: {
-              Authorization: `Bearer ${token}`,
-              "Content-Type": "application/json",
-            },
+            token,
+            retry: 2,
+            retryDelayMs: 300,
             cache: "no-store",
           },
         );
-
-        const data: AvailabilityResponse = await availabilityRes
-          .json()
-          .catch(() => ({}));
-
-        if (!availabilityRes.ok) {
-          throw new Error(
-            `Unable to verify assessment (${availabilityRes.status}).`,
-          );
-        }
 
         if (cancelled) return;
 
@@ -174,12 +172,12 @@ export default function IdentityVerificationPage({
         }
 
         setSessionCode(cleanCode);
-      } catch (err: any) {
+      } catch (err: unknown) {
         if (cancelled) return;
 
         console.error("Assessment verification failed:", err);
         setError(
-          err?.message ||
+          (err instanceof Error ? err.message : null) ||
             "Could not verify the assessment. Please check your connection and try again.",
         );
       } finally {
@@ -262,11 +260,11 @@ export default function IdentityVerificationPage({
        * -> store server attempt/deadline -> enter assessment.
        */
       router.push(`/test/${cleanCode}/lobby`);
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error("Identity verification error:", err);
 
       setError(
-        err?.message ||
+        (err instanceof Error ? err.message : null) ||
           "Could not verify your examination credentials. Please try again.",
       );
     } finally {
@@ -296,7 +294,7 @@ export default function IdentityVerificationPage({
         transition={{ duration: 0.25, ease: "easeOut" }}
         className="w-full max-w-md rounded-[16px] bg-paper-white p-6 md:p-8 text-center border border-mist-blue/70 shadow-xl relative overflow-hidden text-left"
       >
-        <div className="mb-5 flex items-center justify-between border-b border-mist-blue/30 pb-3">
+        <div className="mb-5 flex flex-wrap items-center justify-between gap-2 border-b border-mist-blue/30 pb-3">
           <div className="flex items-center gap-2">
             <div className="flex h-8 w-8 items-center justify-center rounded-[8px] bg-signal-green text-white shadow-xs">
               {error ? (
@@ -311,9 +309,11 @@ export default function IdentityVerificationPage({
             </span>
           </div>
 
-          <span className="text-[10px] font-bold text-steel-blue-gray bg-frost-surface px-2.5 py-0.5 rounded-full border border-mist-blue/30 font-mono shadow-xs">
-            {sessionCode.toUpperCase()}
-          </span>
+          <div className="flex items-center gap-2">
+            <span className="text-[10px] font-bold text-steel-blue-gray bg-frost-surface px-2.5 py-1 rounded-full border border-mist-blue/30 font-mono shadow-xs">
+              {sessionCode.toUpperCase()}
+            </span>
+          </div>
         </div>
 
         {error ? (

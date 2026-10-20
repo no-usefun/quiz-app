@@ -13,6 +13,36 @@ import {
 } from "lucide-react";
 import { ENDPOINTS } from "@/lib/api/endpoints";
 
+async function readSignupResponse(response: Response): Promise<Record<string, unknown>> {
+  const contentType = response.headers.get("content-type") || "";
+  const text = await response.text();
+
+  if (contentType.toLowerCase().includes("text/html") || /^\\s*<(?:!doctype\\s+html|html|head|body)\\b/i.test(text)) {
+    throw new Error(
+      `The API returned an HTML page instead of JSON (HTTP ${response.status}). Check NEXT_PUBLIC_API_URL and the backend signup/login endpoints. Request: ${response.url}`,
+    );
+  }
+
+  if (!text.trim()) return {};
+  try {
+    const data: unknown = JSON.parse(text);
+    return data && typeof data === "object" ? data as Record<string, unknown> : {};
+  } catch {
+    if (!response.ok) {
+      throw new Error(`The API returned an unreadable response (HTTP ${response.status}). Request: ${response.url}`);
+    }
+    throw new Error("The API returned an invalid JSON response.");
+  }
+}
+
+
+function getResponseMessage(data: Record<string, unknown>, fallback: string): string {
+  const message = typeof data.message === "string" ? data.message.trim() : "";
+  const error = typeof data.error === "string" ? data.error.trim() : "";
+  return message || error || fallback;
+}import { PublicNavbar } from "@/components/PublicNavbar";
+import { isLanExamMode } from "@/lib/examMode";
+
 function GoogleIcon() {
   return (
     <svg className="h-5 w-5" viewBox="0 0 24 24" aria-hidden="true">
@@ -55,13 +85,13 @@ function SignupContent() {
   const searchParams = useSearchParams();
 
   const qRole = searchParams?.get("role");
-
   const activeRole: "teacher" | "student" | null =
     qRole === "teacher" || qRole === "instructor" || qRole === "educator"
       ? "teacher"
       : qRole === "student" || qRole === "candidate"
         ? "student"
         : null;
+  const lanExamMode = isLanExamMode();
 
   // Form Fields
   const [firstName, setFirstName] = useState("");
@@ -77,6 +107,7 @@ function SignupContent() {
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [googleLoading, setGoogleLoading] = useState(false);
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
 
@@ -200,48 +231,163 @@ function SignupContent() {
         }),
       });
 
-      const data = await res.json().catch(() => ({}));
+      const data = await readSignupResponse(res);
 
       if (res.ok) {
         const verificationRequired = data?.verificationRequired === true;
 
-        setSuccess(
-          verificationRequired
-            ? data?.message ||
-                "Account created. Please verify your email before logging in."
-            : data?.message ||
-                "Account created successfully. You can now log in.",
-        );
         setError("");
 
-        // Signup does not return an authenticated JWT.
-        if (typeof window !== "undefined") {
-          localStorage.removeItem("dynoquizz_token");
-          localStorage.removeItem("token");
-          localStorage.removeItem("dynoquizz_user");
-          localStorage.removeItem("dynoquizz_role");
+        if (verificationRequired) {
+          setSuccess(
+            getResponseMessage(
+              data,
+              "Account created. Please verify your email before signing in.",
+            ),
+          );
 
-          const normalizedRegistrationNo = registrationNo.trim().toUpperCase();
+          if (typeof window !== "undefined") {
+            localStorage.removeItem("dynoquizz_token");
+            localStorage.removeItem("token");
+            localStorage.removeItem("dynoquizz_user");
+            localStorage.removeItem("dynoquizz_role");
+
+            const normalizedRegistrationNo = registrationNo.trim().toUpperCase();
+
+            if (normalizedRegistrationNo) {
+              localStorage.setItem("dynoquizz_regNo", normalizedRegistrationNo);
+            } else {
+              localStorage.removeItem("dynoquizz_regNo");
+            }
+          }
+
+          return;
+        }
+
+        setSuccess("Account created successfully.");
+
+        const loginRes = await fetch(ENDPOINTS.auth.login, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Accept: "application/json",
+          },
+          body: JSON.stringify({
+            email: email.trim(),
+            password,
+          }),
+          cache: "no-store",
+        });
+
+        const loginData = await readSignupResponse(loginRes);
+
+        if (!loginRes.ok) {
+          throw new Error(
+            getResponseMessage(
+              loginData,
+              "Account was created, but automatic sign-in failed. Please try logging in.",
+            ),
+          );
+        }
+
+        const token =
+          typeof loginData?.token === "string" ? loginData.token.trim() : "";
+
+        if (!token) {
+          throw new Error(
+            "Account was created, but the authentication token was not returned.",
+          );
+        }
+
+        const meRes = await fetch(ENDPOINTS.auth.me, {
+          method: "GET",
+          headers: {
+            Authorization: "Bearer " + token,
+            Accept: "application/json",
+          },
+          cache: "no-store",
+        });
+
+        const meData = await readSignupResponse(meRes);
+
+        if (!meRes.ok) {
+          throw new Error(
+            getResponseMessage(
+              meData,
+              "Account was created, but the authenticated session could not be verified.",
+            ),
+          );
+        }
+
+        const backendRole = String(meData?.role || "").trim().toUpperCase();
+
+        if (
+          backendRole !== "TEACHER" &&
+          backendRole !== "STUDENT"
+        ) {
+          throw new Error(
+            "Account was created, but the backend returned an invalid account role.",
+          );
+        }
+
+        const normalizedRegistrationNo = String(
+          meData?.registrationNo || registrationNo || "",
+        )
+          .trim()
+          .toUpperCase();
+
+        if (typeof window !== "undefined") {
+          localStorage.setItem("dynoquizz_token", token);
+          localStorage.removeItem("token");
+          localStorage.setItem("dynoquizz_user", JSON.stringify(meData));
+          localStorage.setItem("dynoquizz_role", backendRole);
 
           if (normalizedRegistrationNo) {
             localStorage.setItem("dynoquizz_regNo", normalizedRegistrationNo);
           } else {
             localStorage.removeItem("dynoquizz_regNo");
           }
+
+          const expiresInMs = Number(loginData?.expiresIn);
+          const maxAgeSeconds =
+            Number.isFinite(expiresInMs) && expiresInMs > 0
+              ? Math.max(1, Math.floor(expiresInMs / 1000))
+              : 86400;
+
+          document.cookie =
+            "dynoquizz_token=" +
+            encodeURIComponent(token) +
+            "; path=/; max-age=" +
+            maxAgeSeconds +
+            "; samesite=lax";
         }
+
+        setSuccess("Account created successfully.");
+
+        const redirectTarget = searchParams?.get("redirect");
+        const destination =
+          redirectTarget ||
+          (backendRole === "TEACHER"
+            ? "/dashboard/teacher"
+            : "/dashboard/student");
+
+        window.setTimeout(() => router.replace(destination), 900);
       } else {
         setSuccess("");
         setError(
-          data.message ||
-            data.error ||
+          getResponseMessage(
+            data,
             "Signup failed. Please check your details and try again.",
+          ),
         );
       }
     } catch (err) {
       console.error("Signup connection error:", err);
       setSuccess("");
       setError(
-        "Cannot connect to the authentication server. Please ensure the backend is running.",
+        err instanceof Error
+          ? err.message
+          : "Cannot connect to the authentication server. Please ensure the backend is running.",
       );
     } finally {
       setLoading(false);
@@ -258,10 +404,9 @@ function SignupContent() {
 
   if (!activeRole) {
     return (
-      <main className="relative min-h-screen w-full grid grid-cols-1 md:grid-cols-2 font-sans">
-        <span className="absolute left-1/2 top-6 z-20 -translate-x-1/2 rounded-full bg-white/90 px-4 py-1.5 text-sm font-bold tracking-tight text-[#111827] shadow-sm ring-1 ring-black/5 backdrop-blur">
-          Quizly
-        </span>
+      <>
+      <PublicNavbar redirectTarget={searchParams?.get("redirect") || undefined} />
+      <main className="relative min-h-[calc(100vh-4rem)] w-full grid grid-cols-1 md:grid-cols-2 font-sans">
 
         <section className="group relative flex flex-col items-center justify-center p-8 sm:p-16 bg-[#F9FAFB] text-center transition-colors duration-300 hover:bg-white">
           <div
@@ -292,7 +437,7 @@ function SignupContent() {
               type="button"
               onClick={() => {
                 setError("");
-                router.push("/signup?role=student");
+                router.push("/signup?role=student" + (searchParams.get("redirect") ? "&redirect=" + encodeURIComponent(searchParams.get("redirect") || "") : ""));
               }}
               className="group/btn inline-flex w-full items-center justify-center gap-2 rounded-lg bg-[#111827] text-white py-3 px-5 text-sm font-medium shadow-sm ring-offset-2 transition-all hover:bg-black hover:shadow-md active:scale-[0.99] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#111827] cursor-pointer border-0"
             >
@@ -331,7 +476,7 @@ function SignupContent() {
               type="button"
               onClick={() => {
                 setError("");
-                router.push("/signup?role=teacher");
+                router.push("/signup?role=teacher" + (searchParams.get("redirect") ? "&redirect=" + encodeURIComponent(searchParams.get("redirect") || "") : ""));
               }}
               className="group/btn inline-flex w-full items-center justify-center gap-2 rounded-lg bg-white text-[#0F172A] py-3 px-5 text-sm font-medium shadow-sm ring-offset-2 ring-offset-[#0F172A] transition-all hover:bg-neutral-100 hover:shadow-md active:scale-[0.99] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white cursor-pointer border-0"
             >
@@ -341,11 +486,14 @@ function SignupContent() {
           </div>
         </section>
       </main>
+      </>
     );
   }
 
   return (
-    <main className="relative min-h-screen flex flex-col items-center justify-center p-6 sm:p-12 bg-neutral-50 text-[#111827] font-sans">
+    <>
+    <PublicNavbar redirectTarget={searchParams?.get("redirect") || undefined} />
+    <main className="relative min-h-[calc(100vh-4rem)] flex flex-col items-center justify-center p-6 sm:p-12 bg-neutral-50 text-[#111827] font-sans">
       <div
         aria-hidden
         className="pointer-events-none absolute inset-0"
@@ -362,7 +510,7 @@ function SignupContent() {
               type="button"
               onClick={() => {
                 setError("");
-                router.push("/signup");
+                router.push("/signup" + (searchParams.get("redirect") ? "?redirect=" + encodeURIComponent(searchParams.get("redirect") || "") : ""));
               }}
               className="group text-xs font-medium text-neutral-400 hover:text-neutral-700 transition-colors cursor-pointer bg-transparent border-0 p-0 inline-flex items-center gap-1.5"
             >
@@ -392,9 +540,11 @@ function SignupContent() {
           </h1>
 
           <p className="text-sm text-neutral-500 mt-1.5 leading-relaxed">
-            {activeRole === "teacher"
-              ? "Create your instructor account to manage assessments."
-              : "Create your student account to take assessments."}
+            {lanExamMode
+              ? "Create an account on the local exam server using email and password."
+              : activeRole === "teacher"
+                ? "Create your instructor account to manage assessments."
+                : "Create your student account to take assessments."}
           </p>
         </div>
 
@@ -415,42 +565,48 @@ function SignupContent() {
         {success && (
           <div
             role="status"
-            className="rounded-lg bg-green-50 p-3.5 text-sm text-green-700 font-medium border border-green-200/70"
+            className="fixed right-4 top-4 z-[100] max-w-sm rounded-xl border border-emerald-200 bg-white px-4 py-3 text-sm font-medium text-emerald-800 shadow-lg"
           >
             {success}
           </div>
         )}
 
-        <button
-          type="button"
-          onClick={() => {
-            const backendRole = activeRole === "teacher" ? "TEACHER" : "STUDENT";
-            sessionStorage.setItem("dynoquizz_google_role", backendRole);
+        {!lanExamMode && (
+          <>
+            <button
+              type="button"
+              onClick={() => {
+                const backendRole = activeRole === "teacher" ? "TEACHER" : "STUDENT";
+                setGoogleLoading(true);
+                setError("");
+                sessionStorage.setItem("dynoquizz_google_role", backendRole);
 
-            const redirect = searchParams.get("redirect") || "";
-            if (redirect) {
-              sessionStorage.setItem("dynoquizz_post_login_redirect", redirect);
-            }
+                const redirect = searchParams.get("redirect") || "";
+                if (redirect) {
+                  sessionStorage.setItem("dynoquizz_post_login_redirect", redirect);
+                }
 
-            window.location.href =
-              ENDPOINTS.auth.googleLogin +
-              "?role=" +
-              encodeURIComponent(backendRole);
-          }}
-          disabled={loading}
-          className="flex w-full items-center justify-center gap-2.5 rounded-lg border border-neutral-200 bg-white px-4 py-3 text-sm font-semibold text-neutral-900 transition-all hover:border-neutral-300 hover:bg-neutral-50 active:scale-[0.99] disabled:cursor-not-allowed disabled:opacity-60"
-        >
-          <GoogleIcon />
-          Sign up with Google
-        </button>
-
-        <div className="my-5 flex items-center gap-3">
-          <div className="h-px flex-1 bg-neutral-100" />
-          <span className="text-[10px] font-bold uppercase tracking-wider text-neutral-400">
-            or continue with email
-          </span>
-          <div className="h-px flex-1 bg-neutral-100" />
-        </div>
+                window.location.href =
+                  ENDPOINTS.auth.googleLogin +
+                  "?role=" +
+                  encodeURIComponent(backendRole);
+              }}
+              disabled={loading || googleLoading}
+              aria-busy={googleLoading}
+              className="flex w-full items-center justify-center gap-2.5 rounded-lg border border-neutral-200 bg-white px-4 py-3 text-sm font-semibold text-neutral-900 transition-all hover:border-neutral-300 hover:bg-neutral-50 active:scale-[0.99] disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              <GoogleIcon />
+              {googleLoading ? "Connecting to Google..." : "Continue with Google"}
+            </button>
+            <div className="my-5 flex items-center gap-3">
+              <div className="h-px flex-1 bg-neutral-100" />
+              <span className="text-[10px] font-bold uppercase tracking-wider text-neutral-400">
+                or continue with email
+              </span>
+              <div className="h-px flex-1 bg-neutral-100" />
+            </div>
+          </>
+        )}
 
         <form onSubmit={handleSignupSubmit} className="space-y-4">
           <div className="grid grid-cols-2 gap-3">
@@ -464,6 +620,7 @@ function SignupContent() {
                 value={firstName}
                 onChange={(e) => setFirstName(e.target.value)}
                 placeholder="Jane"
+                autoComplete="given-name"
                 required
                 autoFocus
                 className={fieldClass}
@@ -480,6 +637,7 @@ function SignupContent() {
                 value={lastName}
                 onChange={(e) => setLastName(e.target.value)}
                 placeholder="Doe"
+                autoComplete="family-name"
                 required
                 className={fieldClass}
               />
@@ -496,6 +654,10 @@ function SignupContent() {
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               placeholder="name@example.com"
+              autoComplete="email"
+              inputMode="email"
+              autoCapitalize="none"
+              spellCheck={false}
               required
               className={fieldClass}
             />
@@ -512,6 +674,7 @@ function SignupContent() {
                 value={registrationNo}
                 onChange={(e) => setRegistrationNo(e.target.value)}
                 placeholder="e.g. 21BCE1024"
+                autoComplete="off"
                 required
                 maxLength={30}
                 className={fieldClass}
@@ -570,6 +733,7 @@ function SignupContent() {
               value={phone}
               onChange={(e) => setPhone(e.target.value)}
               placeholder="9876543210"
+              autoComplete="tel"
               inputMode="tel"
               maxLength={15}
               className={fieldClass}
@@ -593,6 +757,7 @@ function SignupContent() {
                   }
                 }}
                 placeholder="••••••••"
+                autoComplete="new-password"
                 required
                 aria-describedby="password-requirements"
                 className={`${fieldClass} pr-10`}
@@ -670,6 +835,7 @@ function SignupContent() {
                   }
                 }}
                 placeholder="••••••••"
+                autoComplete="new-password"
                 required
                 className={`${fieldClass} pr-10`}
               />
@@ -715,8 +881,6 @@ function SignupContent() {
                 <span className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-white/30 border-t-white" />
                 Creating account...
               </span>
-            ) : success ? (
-              "Account Created"
             ) : (
               "Create Account"
             )}
@@ -729,7 +893,7 @@ function SignupContent() {
           <p className="text-center text-sm text-neutral-500 pt-4">
             Already have an account?{" "}
             <Link
-              href={`/login?role=${activeRole}`}
+              href={"/login?role=" + activeRole + (searchParams.get("redirect") ? "&redirect=" + encodeURIComponent(searchParams.get("redirect") || "") : "")}
               className="font-semibold text-neutral-900 underline-offset-4 hover:underline"
             >
               Log in
@@ -738,6 +902,7 @@ function SignupContent() {
         </div>
       </div>
     </main>
+    </>
   );
 }
 

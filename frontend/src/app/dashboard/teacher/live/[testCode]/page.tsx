@@ -1,6 +1,6 @@
 "use client";
 
-import { use, useEffect, useMemo, useState } from "react";
+import { use, useEffect, useMemo, useState, useSyncExternalStore } from "react";
 import Link from "next/link";
 import { motion } from "framer-motion";
 import {
@@ -11,11 +11,14 @@ import {
   Activity,
   AlertTriangle,
   TrendingUp,
-  StopCircle,
   RefreshCw,
 } from "lucide-react";
 import { Logo } from "@/components/Logo";
 import { ENDPOINTS } from "@/lib/api/endpoints";
+
+const subscribeToHydration = () => () => {};
+const getClientHydrationSnapshot = () => true;
+const getServerHydrationSnapshot = () => false;
 
 type QuizSummary = {
   quizId: number | string;
@@ -44,7 +47,7 @@ type StudentRow = {
   id: number | string;
   name: string;
   avatar: string;
-  answered: number;
+  answered: number | null;
   total: number;
   score: number;
   timeTaken: string;
@@ -67,24 +70,31 @@ function formatTimeTaken(seconds: number | null | undefined): string {
   return `${String(minutes).padStart(2, "0")}:${String(secs).padStart(2, "0")}`;
 }
 
-function normalizeQuiz(raw: any): QuizSummary | null {
-  if (!raw || typeof raw !== "object") return null;
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function normalizeQuiz(raw: unknown): QuizSummary | null {
+  if (!isRecord(raw)) return null;
 
   const quizId = raw.quizId ?? raw.id;
   const quizCode = String(raw.quizCode ?? raw.testCode ?? "").trim();
 
-  if (quizId == null || !quizCode) return null;
+  if (
+    (typeof quizId !== "string" && typeof quizId !== "number") ||
+    !quizCode
+  ) return null;
 
   return {
     quizId,
     quizCode,
-    title: raw.title ?? "Assessment Session",
+    title: String(raw.title ?? "Assessment Session"),
     totalStudents: Number(raw.totalStudents ?? 0),
     totalQuestions: Number(raw.totalQuestions ?? 0),
     totalMarks: Number(raw.totalMarks ?? 0),
     overallTimerSeconds: Number(raw.overallTimerSeconds ?? 0),
-    status: raw.status,
-    examState: raw.examState,
+    status: typeof raw.status === "string" ? raw.status : undefined,
+    examState: typeof raw.examState === "string" ? raw.examState : undefined,
     resultsPublished: Boolean(raw.resultsPublished),
   };
 }
@@ -109,7 +119,8 @@ function mapLeaderboardEntry(
         .map((part) => part[0])
         .join("")
         .toUpperCase() || "ST",
-    answered: total,
+    // The leaderboard API only returns submitted-result data, not per-question progress.
+    answered: null,
     total,
     score: percentage,
     timeTaken: formatTimeTaken(entry.totalTimeTaken),
@@ -126,17 +137,18 @@ export default function LiveLeaderboard({
   const [quiz, setQuiz] = useState<QuizSummary | null>(null);
   const [students, setStudents] = useState<StudentRow[]>([]);
   const [lastSync, setLastSync] = useState("--:--:--");
-  const [refreshElapsed, setRefreshElapsed] = useState(0);
-  const [autoRefresh, setAutoRefresh] = useState(false);
-  const [mounted, setMounted] = useState(false);
+  const [refreshKey, setRefreshKey] = useState(0);
+  const mounted = useSyncExternalStore(
+    subscribeToHydration,
+    getClientHydrationSnapshot,
+    getServerHydrationSnapshot,
+  );
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   const displayCode = quiz?.quizCode || testCode;
 
-  useEffect(() => {
-    setMounted(true);
-  }, []);
+  
 
   useEffect(() => {
     let cancelled = false;
@@ -172,13 +184,14 @@ export default function LiveLeaderboard({
 
       const payload = await listRes.json();
 
-      const list: any[] = Array.isArray(payload)
+      const rawList: unknown[] = Array.isArray(payload)
         ? payload
-        : Array.isArray(payload?.content)
+        : isRecord(payload) && Array.isArray(payload.content)
           ? payload.content
-          : Array.isArray(payload?.data)
+          : isRecord(payload) && Array.isArray(payload.data)
             ? payload.data
             : [];
+      const list = rawList.filter(isRecord);
 
       let matched = list.find(
         (item) =>
@@ -270,19 +283,18 @@ export default function LiveLeaderboard({
 
         const resolvedQuiz = await fetchQuiz();
         await fetchLeaderboard(resolvedQuiz.quizId, resolvedQuiz.totalQuestions);
-      } catch (err: any) {
+      } catch (err: unknown) {
         if (cancelled) return;
 
         console.error("Failed to load teacher live leaderboard:", err);
         setStudents([]);
         setError(
-          err?.message ||
+          (err instanceof Error ? err.message : null) ||
             "We couldn't retrieve the assessment leaderboard from the server.",
         );
       } finally {
         if (!cancelled) {
           setLoading(false);
-          setLastSync(nowTime());
         }
       }
     };
@@ -292,7 +304,7 @@ export default function LiveLeaderboard({
     return () => {
       cancelled = true;
     };
-  }, [testCode]);
+  }, [testCode, refreshKey]);
 
   // Live-attempt telemetry is deferred by the backend contract.
   // This route shows the latest persisted leaderboard snapshot only.
@@ -316,10 +328,6 @@ export default function LiveLeaderboard({
       : 0;
 
   const examDurationMins = Math.floor((quiz?.overallTimerSeconds ?? 0) / 60);
-
-  const refreshElapsedLabel = `${String(
-    Math.floor(refreshElapsed / 60),
-  ).padStart(2, "0")}:${String(refreshElapsed % 60).padStart(2, "0")}`;
 
   if (loading) {
     return (
@@ -352,7 +360,7 @@ export default function LiveLeaderboard({
 
   return (
     <div className="min-h-screen bg-frost-surface font-sans text-midnight-navy selection:bg-frost-surface selection:text-signal-green">
-      <header className="sticky top-0 z-20 flex items-center justify-between bg-paper-white border-b border-mist-blue/60 px-6 py-3.5 shadow-none">
+      <header className="sticky top-0 z-20 flex flex-wrap items-center justify-between gap-2 bg-paper-white border-b border-mist-blue/60 px-3 py-3.5 shadow-none sm:px-6">
         <div className="flex items-center gap-3">
           <Link
             href="/dashboard/teacher"
@@ -365,37 +373,18 @@ export default function LiveLeaderboard({
           <Logo />
         </div>
 
-        <div className="flex items-center gap-2.5">
-          {autoRefresh && (
-            <span className="flex items-center gap-1.5 rounded-full bg-pastel-mint px-3 py-1 text-xs font-bold text-pastel-mint-text shadow-xs">
-              <span className="relative flex h-2 w-2">
-                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-pastel-mint-text opacity-75" />
-                <span className="relative inline-flex h-2 w-2 rounded-full bg-pastel-mint-text" />
-              </span>
-              MANUAL SNAPSHOT
-            </span>
-          )}
-
+        <div className="flex items-center gap-2">
+          <span className="hidden sm:flex items-center gap-1.5 rounded-full bg-pastel-yellow px-3 py-1 text-xs font-bold text-pastel-yellow-text shadow-xs">
+            PERSISTED SNAPSHOT
+          </span>
           <button
             type="button"
-            onClick={() => setAutoRefresh((value) => !value)}
-            className={`flex items-center gap-2 rounded-[10px] px-3.5 py-1.5 text-xs font-bold transition-all duration-200 border cursor-pointer shadow-xs active:scale-[0.98] ${
-              autoRefresh
-                ? "bg-pastel-pink border-transparent text-pastel-pink-text hover:bg-pastel-pink/90"
-                : "bg-pastel-mint border-transparent text-pastel-mint-text hover:bg-pastel-mint/90"
-            }`}
+            onClick={() => setRefreshKey((value) => value + 1)}
+            disabled={loading}
+            className="flex items-center gap-2 rounded-[10px] bg-pastel-mint px-3.5 py-1.5 text-xs font-bold text-pastel-mint-text transition-all duration-200 border border-transparent cursor-pointer shadow-xs active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-60"
           >
-            {autoRefresh ? (
-              <>
-                <StopCircle className="h-3.5 w-3.5" />
-                Live monitoring deferred
-              </>
-            ) : (
-              <>
-                <RefreshCw className="h-3.5 w-3.5" />
-                Refresh from the assessment page
-              </>
-            )}
+            <RefreshCw className="h-3.5 w-3.5" />
+            <span className="hidden sm:inline">Refresh Snapshot</span>
           </button>
         </div>
       </header>
@@ -425,9 +414,9 @@ export default function LiveLeaderboard({
             <span className="text-mist-blue/30">·</span>
             <span className="flex items-center gap-1">
               <Clock className="h-3.5 w-3.5 text-signal-green" />
-              Refresh:
+              Mode:
               <strong className="text-midnight-navy font-bold">
-                {refreshElapsedLabel}
+                Persisted results
               </strong>
             </span>
           </div>
@@ -518,15 +507,28 @@ export default function LiveLeaderboard({
                   </div>
 
                   <div className="flex flex-col items-center gap-0.5">
-                    <div className="h-1.5 w-full rounded-full bg-frost-surface border border-mist-blue/20 overflow-hidden">
-                      <div
-                        className="h-full bg-signal-green transition-all duration-500"
-                        style={{ width: "100%" }}
-                      />
-                    </div>
-                    <span className="text-[10px] text-steel-blue-gray font-medium">
-                      {student.answered}/{student.total || 0} Q
-                    </span>
+                    {student.answered == null ? (
+                      <span
+                        className="text-[10px] text-steel-blue-gray font-medium"
+                        title="Per-question progress is not returned by the leaderboard endpoint."
+                      >
+                        Unavailable
+                      </span>
+                    ) : (
+                      <>
+                        <div className="h-1.5 w-full rounded-full bg-frost-surface border border-mist-blue/20 overflow-hidden">
+                          <div
+                            className="h-full bg-signal-green transition-all duration-500"
+                            style={{
+                              width: `${student.total > 0 ? Math.min(100, Math.round((student.answered / student.total) * 100)) : 0}%`,
+                            }}
+                          />
+                        </div>
+                        <span className="text-[10px] text-steel-blue-gray font-medium">
+                          {student.answered}/{student.total || 0} Q
+                        </span>
+                      </>
+                    )}
                   </div>
 
                   <div className="flex items-center justify-center">

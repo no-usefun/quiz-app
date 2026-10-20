@@ -3,6 +3,7 @@
 import { useState, useEffect, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
+import Image from "next/image";
 import { motion, AnimatePresence } from "framer-motion";
 import Papa from "papaparse";
 import {
@@ -21,11 +22,12 @@ import {
   GripVertical,
 } from "lucide-react";
 import { useSession } from "@/hooks/useSession";
+import { AppleSwitch } from "@/components/AppleSwitch";
 import { ENDPOINTS } from "@/lib/api/endpoints";
 
 
 // Local cache fallback replacing the removed quizCache module.
-function getCachedQuizzes(teacherId?: number | string | null): any[] {
+function getCachedQuizzes(teacherId?: number | string | null): LegacyRecord[] {
   if (typeof window === "undefined") return [];
 
   const keys = [
@@ -110,6 +112,11 @@ function computeEndTime(
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
 }
 
+// The backend and legacy local drafts currently expose several incompatible question shapes.
+// Keep this permissive type at the parsing/compatibility boundary; normalize before sending payloads.
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+type LegacyRecord = Record<string, any>;
+
 type EditableOption = {
   optionId: number | null;
   optionText: string;
@@ -123,8 +130,7 @@ function CreateAssessmentContent() {
   const searchParams = useSearchParams();
   const draftId = searchParams?.get("draftId") || null;
   const { user } = useSession();
-  const [mounted, setMounted] = useState(false);
-  const [loadingDraft, setLoadingDraft] = useState(false);
+  const [loadingDraft, setLoadingDraft] = useState(() => Boolean(draftId));
   const [submitting, setSubmitting] = useState(false);
   const [validationError, setValidationError] = useState<string | null>(null);
   const [draggedOption, setDraggedOption] = useState<{ qIdx: number; optIdx: number } | null>(null);
@@ -134,9 +140,6 @@ function CreateAssessmentContent() {
   } | null>(null);
   const [retryingPublish, setRetryingPublish] = useState(false);
 
-  useEffect(() => {
-    setMounted(true);
-  }, []);
 
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
@@ -147,11 +150,7 @@ function CreateAssessmentContent() {
   const [subjectCode, setSubjectCode] = useState("");
   const [allowedRollsText, setAllowedRollsText] = useState("");
   const [timeLimit, setTimeLimit] = useState(30);
-  const setOverallTimerSeconds = (secs: number) => {
-    if (secs > 0) {
-      setTimeLimit(Math.max(1, Math.round(secs / 60)));
-    }
-  };
+  const [aiProctoringEnabled, setAiProctoringEnabled] = useState(true);
 
   const [showAdvanced, setShowAdvanced] = useState(false);
   const [negativeMarking, setNegativeMarking] = useState(false);
@@ -173,12 +172,11 @@ function CreateAssessmentContent() {
   const [randomOptionOrder, setRandomOptionOrder] = useState(true);
   const [allowReview, setAllowReview] = useState(true);
   const [allowResume, setAllowResume] = useState(true);
-  const [autoSubmit, setAutoSubmit] = useState(true);
 
-  const [parsedQuestions, setParsedQuestions] = useState<any[]>([]);
+  const [parsedQuestions, setParsedQuestions] = useState<LegacyRecord[]>([]);
 
   // ── State Hydration helper for editing drafts ─────────────────────────────
-  const hydrateFromQuizData = (data: any, questionsOverride?: any[]) => {
+  const hydrateFromQuizData = (data: LegacyRecord, questionsOverride?: LegacyRecord[]) => {
     if (!data) return;
 
     // Support nested or wrapped responses: data.data, data.quizPackage, etc.
@@ -202,6 +200,8 @@ function CreateAssessmentContent() {
     if (root.subjectCode) {
       setSubjectCode(root.subjectCode);
     }
+    const savedAiProctoring = root.aiProctoringEnabled ?? root.settings?.aiProctoringEnabled;
+    if (typeof savedAiProctoring === "boolean") setAiProctoringEnabled(savedAiProctoring);
 
     if (root.overallTimerSeconds || root.settings?.overallTimerSeconds) {
       const timerSecs =
@@ -276,14 +276,10 @@ function CreateAssessmentContent() {
     if (settings.allowResume !== undefined) {
       setAllowResume(Boolean(settings.allowResume));
     }
-    if (settings.autoSubmit !== undefined) {
-      setAutoSubmit(Boolean(settings.autoSubmit));
-    }
-
     if (neg || root.acceptedEmailDomain || root.acceptedDomain)
       setShowAdvanced(true);
 
-    const findQuestions = (obj: any): any[] => {
+    const findQuestions = (obj: LegacyRecord): LegacyRecord[] => {
       if (!obj || typeof obj !== "object") return [];
       const candidates = [
         obj.questions,
@@ -309,13 +305,13 @@ function CreateAssessmentContent() {
           : findQuestions(data);
 
     if (rawQuestions.length > 0) {
-      const mappedQuestions = rawQuestions.map((q: any, i: number) => {
+      const mappedQuestions = rawQuestions.map((q: LegacyRecord, i: number) => {
         const rawType = String(q.questionType || "MCQ").toUpperCase();
         const questionType =
           rawType === "MULTIPLE_CHOICE" ? "MCQ" : rawType;
 
         let mappedOptions: EditableOption[] = (q.options || []).map(
-          (opt: any, oi: number): EditableOption => ({
+          (opt: LegacyRecord, oi: number): EditableOption => ({
             optionId: opt.optionId ?? opt.id ?? null,
             optionText: String(opt.optionText || opt.text || ""),
             optionImage: opt.optionImage || "",
@@ -412,21 +408,21 @@ function CreateAssessmentContent() {
     if (!draftId) return;
 
     let isMounted = true;
-    setLoadingDraft(true);
-    setValidationError(null);
 
     const cachedDraftRaw =
       typeof window !== "undefined"
         ? localStorage.getItem(`quiz_draft_${draftId}`)
         : null;
 
-    let cachedDraft: any = null;
+    let cachedDraft: LegacyRecord | null = null;
 
     if (cachedDraftRaw) {
       try {
         cachedDraft = JSON.parse(cachedDraftRaw);
 
         if (cachedDraft && typeof cachedDraft === "object") {
+          // Draft hydration intentionally initializes multiple form fields from persisted external data.
+          // eslint-disable-next-line react-hooks/set-state-in-effect -- state hydration from a cached draft
           hydrateFromQuizData(
             cachedDraft,
             Array.isArray(cachedDraft.questions) ? cachedDraft.questions : [],
@@ -548,7 +544,7 @@ function CreateAssessmentContent() {
             );
           }
 
-          const validated: any[] = rawList.map((q: any, idx: number) => {
+          const validated: LegacyRecord[] = rawList.map((q: LegacyRecord, idx: number) => {
             const qNum = idx + 1;
             const questionText = String(
               q?.questionText ?? q?.text ?? q?.prompt ?? "",
@@ -578,7 +574,7 @@ function CreateAssessmentContent() {
 
             const sourceOptions = Array.isArray(q?.options) ? q.options : [];
 
-            let options = sourceOptions.map((opt: any, optionIndex: number) => ({
+            let options = sourceOptions.map((opt: LegacyRecord, optionIndex: number) => ({
               optionText: String(opt?.optionText ?? opt?.text ?? "").trim(),
               optionImage: String(opt?.optionImage ?? "").trim(),
               optionOrder: optionIndex + 1,
@@ -715,43 +711,51 @@ function CreateAssessmentContent() {
               return;
             }
 
-            const firstRow = rows[0].map((value) => value.trim().toLowerCase());
+            const firstRow = rows[0].map((value) =>
+              value.trim().toLowerCase().replace(/[\s_-]/g, ""),
+            );
             const hasHeader =
               firstRow.includes("questiontext") ||
               firstRow.includes("question") ||
               firstRow.includes("optiona");
 
             const contentRows = hasHeader ? rows.slice(1) : rows;
-
-            const validatedQuestions: any[] = [];
+            const validatedQuestions: LegacyRecord[] = [];
+            const normalizedHeaderIndex = new Map(
+              firstRow.map((name, index) => [name, index]),
+            );
 
             for (let index = 0; index < contentRows.length; index++) {
               const rowNumber = index + (hasHeader ? 2 : 1);
               const parts = contentRows[index].map((value) => value.trim());
 
-              if (parts.every((value) => value === "")) {
-                continue;
-              }
+              if (parts.every((value) => value === "")) continue;
 
-              if (parts.length < 6) {
-                throw new Error(
-                  `CSV row ${rowNumber}: expected at least 6 columns.`,
-                );
-              }
+              const getField = (names: string[], legacyIndex?: number) => {
+                if (hasHeader) {
+                  for (const name of names) {
+                    const columnIndex = normalizedHeaderIndex.get(
+                      name.toLowerCase().replace(/[\s_-]/g, ""),
+                    );
+                    if (columnIndex !== undefined) return parts[columnIndex] ?? "";
+                  }
+                  return "";
+                }
+                return legacyIndex === undefined ? "" : (parts[legacyIndex] ?? "");
+              };
 
-              const questionText = parts[0];
-
+              const questionText = getField(["questionText", "question"], 0);
               if (!questionText) {
                 throw new Error(
                   `CSV row ${rowNumber}: questionText is required.`,
                 );
               }
 
-              const questionTypeRaw = String(parts[7] || "MCQ").toUpperCase();
+              const questionTypeRaw = String(
+                getField(["questionType", "type"], 7) || "MCQ",
+              ).toUpperCase();
               const questionType =
-                questionTypeRaw === "MULTIPLE_CHOICE"
-                  ? "MCQ"
-                  : questionTypeRaw;
+                questionTypeRaw === "MULTIPLE_CHOICE" ? "MCQ" : questionTypeRaw;
 
               if (!["MCQ", "MSQ", "TRUE_FALSE"].includes(questionType)) {
                 throw new Error(
@@ -759,29 +763,38 @@ function CreateAssessmentContent() {
                 );
               }
 
-              let optionTexts = [parts[1], parts[2], parts[3], parts[4]]
-                .map((value) => value.trim())
-                .filter(Boolean);
+              const optionLetters = ["A", "B", "C", "D", "E", "F"];
+              const rawOptionTexts = hasHeader
+                ? optionLetters.map((letter) =>
+                    getField([`option${letter}`, `option${letter.toLowerCase()}`]),
+                  )
+                : [parts[1] ?? "", parts[2] ?? "", parts[3] ?? "", parts[4] ?? ""];
 
-              if (
-                questionType === "TRUE_FALSE" &&
-                optionTexts.length === 0
-              ) {
-                optionTexts = ["True", "False"];
-              }
-
-              if (optionTexts.length < 2) {
-                throw new Error(
-                  `CSV row ${rowNumber}: at least two options are required.`,
-                );
-              }
-
+              let optionTexts: string[] = [];
               if (questionType === "TRUE_FALSE") {
                 optionTexts = ["True", "False"];
+              } else {
+                let lastFilledIndex = -1;
+                rawOptionTexts.forEach((value, optionIndex) => {
+                  if (value.trim()) lastFilledIndex = optionIndex;
+                });
+                optionTexts = rawOptionTexts
+                  .slice(0, lastFilledIndex + 1)
+                  .map((value) => value.trim());
+
+                if (optionTexts.some((value) => !value)) {
+                  throw new Error(
+                    `CSV row ${rowNumber}: fill options consecutively from optionA with no gaps.`,
+                  );
+                }
+                if (optionTexts.length < 2) {
+                  throw new Error(
+                    `CSV row ${rowNumber}: at least two options are required.`,
+                  );
+                }
               }
 
-              const correctIdentifier = (parts[5] || "").trim();
-
+              const correctIdentifier = getField(["correctAnswer", "answer"], 5).trim();
               if (!correctIdentifier) {
                 throw new Error(
                   `CSV row ${rowNumber}: correctAnswer is required.`,
@@ -790,114 +803,100 @@ function CreateAssessmentContent() {
 
               const correctIdentifiers =
                 questionType === "MSQ"
-                  ? correctIdentifier
-                      .split(/[|;]/)
-                      .map((value) => value.trim())
-                      .filter(Boolean)
+                  ? correctIdentifier.split(/[|;]/).map((value) => value.trim()).filter(Boolean)
                   : [correctIdentifier];
 
               const resolveCorrect = (identifier: string) => {
                 const upperIdentifier = identifier.toUpperCase();
-
                 if (
                   questionType === "TRUE_FALSE" &&
-                  (upperIdentifier === "TRUE" || upperIdentifier === "FALSE")
+                  ["TRUE", "FALSE"].includes(upperIdentifier)
                 ) {
                   return upperIdentifier === "TRUE" ? 0 : 1;
                 }
-
                 return optionTexts.findIndex(
                   (optionText, optionIndex) =>
-                    String.fromCharCode(65 + optionIndex) === upperIdentifier ||
+                    optionLetters[optionIndex] === upperIdentifier ||
                     optionText.toLowerCase() === identifier.toLowerCase(),
                 );
               };
 
               const correctIndexes = [
                 ...new Set(
-                  correctIdentifiers
-                    .map(resolveCorrect)
-                    .filter((value) => value >= 0),
+                  correctIdentifiers.map(resolveCorrect).filter((value) => value >= 0),
                 ),
               ];
 
               if (correctIndexes.length === 0) {
                 throw new Error(
-                  `CSV row ${rowNumber}: correctAnswer must match an option letter (A-D) or option text.`,
+                  `CSV row ${rowNumber}: correctAnswer must match an option letter (A-F) or option text.`,
                 );
               }
-
               if (questionType === "MCQ" && correctIndexes.length !== 1) {
                 throw new Error(
                   `CSV row ${rowNumber}: MCQ requires exactly one correct answer.`,
                 );
               }
-
-              if (
-                questionType === "TRUE_FALSE" &&
-                (optionTexts.length !== 2 || correctIndexes.length !== 1)
-              ) {
+              if (questionType === "TRUE_FALSE" && correctIndexes.length !== 1) {
                 throw new Error(
-                  `CSV row ${rowNumber}: TRUE_FALSE requires exactly two options and one correct answer.`,
+                  `CSV row ${rowNumber}: TRUE_FALSE requires exactly one correct answer.`,
                 );
               }
 
-              const marks = Number(parts[6] || 1);
+              const marks = Number(getField(["marks", "points"], 6) || 1);
+              const negativeMarksValue = getField(["negativeMarks", "negativeMark"], 8);
               const negativeMarks =
-                parts[8] !== undefined && parts[8] !== ""
-                  ? Number(parts[8])
+                negativeMarksValue !== ""
+                  ? Number(negativeMarksValue)
                   : negativeMarking
                     ? 0.25
                     : 0;
-              const questionTimerSeconds = Number(parts[9] || 60);
-              const difficulty = String(parts[10] || "MEDIUM").toUpperCase();
+              const timerValue = getField(["questionTimerSeconds", "timerSeconds"], 9);
+              const questionTimerSeconds = Number(timerValue || 60);
+              const difficulty = String(
+                getField(["difficulty"], 10) || "MEDIUM",
+              ).toUpperCase();
 
               if (!Number.isFinite(marks) || marks <= 0) {
-                throw new Error(
-                  `CSV row ${rowNumber}: marks must be a positive number.`,
-                );
+                throw new Error(`CSV row ${rowNumber}: marks must be a positive number.`);
               }
-
-              if (
-                !Number.isFinite(negativeMarks) ||
-                negativeMarks < 0
-              ) {
+              if (!Number.isFinite(negativeMarks) || negativeMarks < 0) {
                 throw new Error(
                   `CSV row ${rowNumber}: negativeMarks must be zero or greater.`,
                 );
               }
-
-              if (
-                !Number.isFinite(questionTimerSeconds) ||
-                questionTimerSeconds <= 0
-              ) {
+              if (!Number.isFinite(questionTimerSeconds) || questionTimerSeconds <= 0) {
                 throw new Error(
                   `CSV row ${rowNumber}: questionTimerSeconds must be positive.`,
                 );
               }
-
               if (!["EASY", "MEDIUM", "HARD"].includes(difficulty)) {
                 throw new Error(
                   `CSV row ${rowNumber}: difficulty must be EASY, MEDIUM or HARD.`,
                 );
               }
 
+              const options = optionTexts.map((optionText, optionIndex) => ({
+                optionText,
+                optionImage: getField([
+                  `option${optionLetters[optionIndex]}ImageUrl`,
+                  `option${optionLetters[optionIndex]}Image`,
+                ]),
+                optionOrder: optionIndex + 1,
+                isCorrect: correctIndexes.includes(optionIndex),
+              }));
+
               validatedQuestions.push({
                 questionText,
-                imageUrl: "",
-                explanation: parts[11] || "",
+                imageUrl: getField(["imageUrl", "questionImageUrl"]),
+                explanation: getField(["explanation"], 11),
                 questionType,
                 marks,
                 negativeMarks,
                 questionTimerSeconds,
                 difficulty,
                 displayOrder: index + 1,
-                options: optionTexts.map((optionText, optionIndex) => ({
-                  optionText,
-                  optionImage: "",
-                  optionOrder: optionIndex + 1,
-                  isCorrect: correctIndexes.includes(optionIndex),
-                })),
+                options,
               });
             }
 
@@ -922,10 +921,11 @@ function CreateAssessmentContent() {
 
   const downloadCsvTemplate = () => {
     const csv = [
-      "questionText,optionA,optionB,optionC,optionD,correctAnswer,marks,questionType,negativeMarks,questionTimerSeconds,difficulty,explanation",
-      '\"What is the time complexity of binary search?\",\"O(n)\",\"O(log n)\",\"O(n^2)\",\"O(1)\",\"B\",\"1\",\"MCQ\",\"0.25\",\"60\",\"EASY\",\"Binary search halves the search space.\"',
-      '\"Which are linear data structures?\",\"Array\",\"Linked List\",\"Tree\",\"Graph\",\"A|B\",\"2\",\"MSQ\",\"0.5\",\"90\",\"MEDIUM\",\"Array and linked list are linear data structures.\"',
-      '\"Java is a programming language.\",\"True\",\"False\",\"\",\"\",\"A\",\"1\",\"TRUE_FALSE\",\"0\",\"45\",\"EASY\",\"\"',
+      "questionText,optionA,optionB,optionC,optionD,optionE,optionF,correctAnswer,marks,questionType,negativeMarks,questionTimerSeconds,difficulty,explanation,imageUrl,optionAImageUrl,optionBImageUrl,optionCImageUrl,optionDImageUrl,optionEImageUrl,optionFImageUrl",
+      '"What is the time complexity of binary search?","O(n)","O(log n)","O(n^2)","O(1)","","","B","1","MCQ","0.25","60","EASY","Binary search halves the search space.","","","","","","",""',
+      '"Which HTTP status indicates success?","200","301","404","500","204","","A|E","2","MSQ","0.5","90","MEDIUM","Both 200 and 204 indicate success.","","","","","","",""',
+      '"Which number is prime?","4","6","7","8","9","","C","1","MCQ","0","60","EASY","Seven is prime.","","","","","","",""',
+      '"Java is a programming language.","True","False","","","","","A","1","TRUE_FALSE","0","45","EASY","","","","","","","",""',
       "",
     ].join("\n");
 
@@ -970,7 +970,7 @@ function CreateAssessmentContent() {
   const handleUpdateQuestionField = (
     idx: number,
     field: string,
-    value: any,
+    value: unknown,
   ) => {
     setParsedQuestions((prev) =>
       prev.map((q, i) => (i === idx ? { ...q, [field]: value } : q)),
@@ -1040,7 +1040,7 @@ function CreateAssessmentContent() {
         // to exactly one correct answer. Preserve the first currently-correct
         // option; if none exists, make option A correct.
         if (questionType === "MCQ") {
-          const firstCorrectIndex = options.findIndex((opt: any) =>
+          const firstCorrectIndex = options.findIndex((opt: LegacyRecord) =>
             Boolean(opt.isCorrect),
           );
           const correctIndex = firstCorrectIndex >= 0 ? firstCorrectIndex : 0;
@@ -1048,7 +1048,7 @@ function CreateAssessmentContent() {
           return {
             ...q,
             questionType,
-            options: options.map((opt: any, oi: number) => ({
+            options: options.map((opt: LegacyRecord, oi: number) => ({
               ...opt,
               optionOrder: oi + 1,
               isCorrect: oi === correctIndex,
@@ -1059,11 +1059,11 @@ function CreateAssessmentContent() {
         // Switching to MSQ keeps any existing correct answers. If there are
         // none, make option A the initial correct answer so the state remains
         // valid and predictable.
-        const hasCorrect = options.some((opt: any) => Boolean(opt.isCorrect));
+        const hasCorrect = options.some((opt: LegacyRecord) => Boolean(opt.isCorrect));
         return {
           ...q,
           questionType,
-          options: options.map((opt: any, oi: number) => ({
+          options: options.map((opt: LegacyRecord, oi: number) => ({
             ...opt,
             optionOrder: oi + 1,
             isCorrect: hasCorrect ? Boolean(opt.isCorrect) : oi === 0,
@@ -1080,7 +1080,7 @@ function CreateAssessmentContent() {
 
         const type =
           q.questionType === "MULTIPLE_CHOICE" ? "MCQ" : q.questionType;
-        const newOpts = (q.options || []).map((opt: any, oi: number) => ({
+        const newOpts = (q.options || []).map((opt: LegacyRecord, oi: number) => ({
           ...opt,
           // MCQ/TRUE_FALSE: exactly one correct option.
           // MSQ: each option can be toggled independently.
@@ -1127,8 +1127,8 @@ function CreateAssessmentContent() {
         if (i !== qIdx || q.questionType === "TRUE_FALSE") return q;
 
         const options = (q.options || [])
-          .filter((_: any, oi: number) => oi !== optIdx)
-          .map((opt: any, oi: number) => ({
+          .filter((_: LegacyRecord, oi: number) => oi !== optIdx)
+          .map((opt: LegacyRecord, oi: number) => ({
             ...opt,
             optionOrder: oi + 1,
           }));
@@ -1153,7 +1153,7 @@ function CreateAssessmentContent() {
 
         return {
           ...q,
-          options: options.map((opt: any, oi: number) => ({
+          options: options.map((opt: LegacyRecord, oi: number) => ({
             ...opt,
             optionOrder: oi + 1,
           })),
@@ -1191,7 +1191,7 @@ function CreateAssessmentContent() {
 
       const type =
         q.questionType === "MULTIPLE_CHOICE" ? "MCQ" : q.questionType;
-      const correctCount = q.options.filter((opt: any) =>
+      const correctCount = q.options.filter((opt: LegacyRecord) =>
         Boolean(opt.isCorrect),
       ).length;
 
@@ -1238,7 +1238,7 @@ function CreateAssessmentContent() {
       .filter(Boolean);
 
   const buildQuestionPayload = (forPost: boolean) =>
-    parsedQuestions.map((q: any, index: number) => ({
+    parsedQuestions.map((q: LegacyRecord, index: number) => ({
       ...(forPost ? {} : { questionId: q.questionId ?? q.id ?? null }),
       questionText: String(q.questionText || "").trim(),
       imageUrl: q.imageUrl || "",
@@ -1252,7 +1252,7 @@ function CreateAssessmentContent() {
       questionTimerSeconds: Number(q.questionTimerSeconds || 60),
       difficulty: q.difficulty || "MEDIUM",
       displayOrder: Number(q.displayOrder || index + 1),
-      options: (q.options || []).map((opt: any, optIndex: number) => ({
+      options: (q.options || []).map((opt: LegacyRecord, optIndex: number) => ({
         optionText: String(opt.optionText || "").trim(),
         optionImage: opt.optionImage || "",
         optionOrder: Number(
@@ -1285,13 +1285,14 @@ function CreateAssessmentContent() {
       randomOptionOrder: Boolean(randomOptionOrder),
       allowReview: Boolean(allowReview),
       allowResume: Boolean(allowResume),
-      autoSubmit: Boolean(autoSubmit),
+      autoSubmit: true,
       startTime: formatToLocalDateTime(startTime),
       endTime: formatToLocalDateTime(endTime),
       resultVisibility: getResultVisibility(),
       acceptedEmailDomain:
         acceptedDomain.trim() === "" ? null : acceptedDomain.trim(),
       allowedRegistrationNumbers: allowedRolls,
+      aiProctoringEnabled,
       questions: buildQuestionPayload(true),
     };
   };
@@ -1310,8 +1311,9 @@ function CreateAssessmentContent() {
       randomOptionOrder: Boolean(randomOptionOrder),
       allowReview: Boolean(allowReview),
       allowResume: Boolean(allowResume),
-      autoSubmit: Boolean(autoSubmit),
+      autoSubmit: true,
       maxTabSwitch: Math.max(0, Number(maxTabSwitch) || 0),
+      aiProctoringEnabled,
       startTime: formatToLocalDateTime(startTime),
       endTime: formatToLocalDateTime(endTime),
       resultVisibility: getResultVisibility(),
@@ -1327,7 +1329,7 @@ function CreateAssessmentContent() {
   // If create fails: show error, do not navigate, do not publish.
   // If create succeeds but publish fails: show inline error with Retry button
   //   that only re-attempts the publish call (no duplicate quiz created).
-  const handleSave = async (e: React.FormEvent) => {
+  const handleSave = async (e: React.SyntheticEvent) => {
     e.preventDefault();
     const formErr = validateForm();
     if (formErr) return setValidationError(formErr);
@@ -1363,8 +1365,9 @@ function CreateAssessmentContent() {
           randomOptionOrder: Boolean(randomOptionOrder),
           allowReview: Boolean(allowReview),
           allowResume: Boolean(allowResume),
-          autoSubmit: Boolean(autoSubmit),
+          autoSubmit: true,
           maxTabSwitch: Number(maxTabSwitch),
+          aiProctoringEnabled,
           startTime: formatToLocalDateTime(startTime) || null,
           endTime: formatToLocalDateTime(endTime) || null,
           publishScoresImmediately: Boolean(publishScoresImmediately),
@@ -1423,7 +1426,7 @@ function CreateAssessmentContent() {
 
         const cachedDraftRaw = localStorage.getItem(`quiz_draft_${draftId}`);
 
-        let cachedDraft: any = {};
+        let cachedDraft: LegacyRecord = {};
 
         try {
           cachedDraft = cachedDraftRaw ? JSON.parse(cachedDraftRaw) : {};
@@ -1436,7 +1439,7 @@ function CreateAssessmentContent() {
           settingsData.testCode ??
           cachedDraft.quizCode ??
           getCachedQuizzes(user?.id).find(
-            (q: any) => String(q.quizId ?? q.id) === String(draftId),
+            (q: LegacyRecord) => String(q.quizId ?? q.id) === String(draftId),
           )?.quizCode ??
           "";
 
@@ -1551,7 +1554,7 @@ function CreateAssessmentContent() {
 
         // Redirect to /dashboard/teacher/share/<quizCode> only AFTER publish succeeds
         router.push(`/dashboard/teacher/share/${quizCode}`);
-      } catch (pubErr: any) {
+      } catch (pubErr: unknown) {
         console.error(
           "Failed to publish quiz immediately after creation:",
           pubErr,
@@ -1561,12 +1564,12 @@ function CreateAssessmentContent() {
           quizCode: String(quizCode),
         });
         setValidationError(
-          `Quiz was created but could not be published. Retry${pubErr.message ? ` (${pubErr.message})` : ""}`,
+          `Quiz was created but could not be published. Retry${pubErr instanceof Error && pubErr.message ? ` (${pubErr.message})` : ""}`,
         );
       }
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error("Failed to create quiz:", err);
-      setValidationError(`Failed to create assessment: ${err.message}`);
+      setValidationError(`Failed to create assessment: ${err instanceof Error ? err.message : String(err)}`);
     } finally {
       setSubmitting(false);
     }
@@ -1610,8 +1613,9 @@ function CreateAssessmentContent() {
           randomOptionOrder: Boolean(randomOptionOrder),
           allowReview: Boolean(allowReview),
           allowResume: Boolean(allowResume),
-          autoSubmit: Boolean(autoSubmit),
+          autoSubmit: true,
           maxTabSwitch: Number(maxTabSwitch),
+          aiProctoringEnabled,
           startTime: formatToLocalDateTime(startTime) || null,
           endTime: formatToLocalDateTime(endTime) || null,
           publishScoresImmediately: Boolean(publishScoresImmediately),
@@ -1673,7 +1677,7 @@ function CreateAssessmentContent() {
 
         const cachedDraftRaw = localStorage.getItem(`quiz_draft_${draftId}`);
 
-        let cachedDraft: any = {};
+        let cachedDraft: LegacyRecord = {};
 
         try {
           cachedDraft = cachedDraftRaw ? JSON.parse(cachedDraftRaw) : {};
@@ -1741,6 +1745,39 @@ function CreateAssessmentContent() {
         returnedQuizCode = createData.quizCode ?? createData.testCode ?? "";
       }
 
+      /*
+       * CreateQuizRequest does not expose maxTabSwitch. New drafts therefore
+       * start with the backend default (3) unless this setting is persisted
+       * through the settings endpoint before the edit page reloads from the
+       * authoritative teacher-detail response.
+       *
+       * Existing drafts already send maxTabSwitch through buildUpdatePayload.
+       */
+      if (!isEditing && returnedQuizId) {
+        const maxTabSwitchRes = await fetch(
+          ENDPOINTS.teacher.settings(returnedQuizId),
+          {
+            method: "PUT",
+            headers: {
+              "Content-Type": "application/json",
+              ...(token ? { Authorization: `Bearer ${token}` } : {}),
+            },
+            body: JSON.stringify({
+              maxTabSwitch: Math.max(0, Number(maxTabSwitch) || 0),
+            }),
+          },
+        );
+
+        if (!maxTabSwitchRes.ok) {
+          const errorData = await maxTabSwitchRes.json().catch(() => ({}));
+          throw new Error(
+            errorData?.message ||
+              errorData?.error ||
+              `Draft was created, but the max tab-switch limit could not be saved (HTTP ${maxTabSwitchRes.status}).`,
+          );
+        }
+      }
+
       // Persist full state bundle (metadata + questions with isCorrect)
       if (returnedQuizId) {
         saveFullDraftBundle(returnedQuizId, returnedQuizCode);
@@ -1752,9 +1789,11 @@ function CreateAssessmentContent() {
 
       // Draft created or updated — redirect to dashboard where it will show a Draft badge
       router.push("/dashboard/teacher");
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error("Failed to save draft:", err);
-      setValidationError(`Failed to save draft: ${err.message}`);
+      const message =
+        err instanceof Error ? err.message : "An unexpected error occurred";
+      setValidationError(`Failed to save draft: ${message}`);
     } finally {
       setSavingDraft(false);
     }
@@ -1787,9 +1826,10 @@ function CreateAssessmentContent() {
       }
 
       router.push(`/dashboard/teacher/share/${publishRetryData.quizCode}`);
-    } catch (err: any) {
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : "";
       setValidationError(
-        `Quiz was created but could not be published. Retry${err.message ? ` (${err.message})` : ""}`,
+        `Quiz was created but could not be published. Retry${message ? ` (${message})` : ""}`,
       );
     } finally {
       setRetryingPublish(false);
@@ -1818,7 +1858,7 @@ function CreateAssessmentContent() {
   return (
     <div className="min-h-screen bg-[#f5f5f4] font-sans text-[#111111] p-4 md:p-6 lg:p-8 text-left">
       <div className="mx-auto max-w-4xl space-y-6">
-        <header className="sticky top-0 z-20 -mx-4 flex items-center justify-between gap-4 border-b border-[#d1dee8]/60 bg-[#f5f5f4]/85 px-4 py-4 backdrop-blur-md md:-mx-6 md:px-6">
+        <header className="sticky top-0 z-20 -mx-4 flex flex-wrap items-center justify-between gap-3 border-b border-[#d1dee8]/60 bg-[#f5f5f4]/85 px-4 py-4 backdrop-blur-md md:-mx-6 md:px-6">
           <div className="flex items-center gap-3">
             <Link
               href="/dashboard/teacher"
@@ -1835,7 +1875,7 @@ function CreateAssessmentContent() {
               </h1>
             </div>
           </div>
-          <div className="flex items-center gap-3">
+          <div className="flex flex-wrap items-center justify-end gap-2 sm:gap-3">
             <span className="hidden rounded-full border border-[#d1dee8]/80 bg-white px-3 py-1 text-[10px] font-bold text-[#78716b] shadow-xs sm:inline-flex">
               {parsedQuestions.length}{" "}
               {parsedQuestions.length === 1 ? "question" : "questions"}
@@ -1897,7 +1937,7 @@ function CreateAssessmentContent() {
                 />
               </div>
               <div className="text-left">
-                <label className={labelClass}>Description</label>
+                <label className={labelClass}>Description <span className="font-medium normal-case text-[#78716b]">(Optional)</span></label>
                 <textarea
                   value={description}
                   onChange={(e) => setDescription(e.target.value)}
@@ -1989,6 +2029,11 @@ function CreateAssessmentContent() {
               </div>
             </div>
           </div>
+
+          <section className="rounded-[14px] border border-[#d1dee8]/70 bg-white p-5 shadow-sm" aria-labelledby="ai-proctoring-setting-title">
+            <div className="flex items-center justify-between gap-4"><div className="min-w-0 space-y-1"><h3 id="ai-proctoring-setting-title" className="text-sm font-bold text-[#111111]">AI Proctoring</h3><p className="text-xs leading-relaxed text-[#78716b]">{aiProctoringEnabled ? "Camera, reference photo, and AI identity checks are required for this assessment." : "Camera and AI identity checks are off. Tab switching and copy, cut, and paste restrictions remain active."}</p></div><AppleSwitch checked={aiProctoringEnabled} onChange={setAiProctoringEnabled} ariaLabel="Enable AI proctoring" /></div>
+            <div className="mt-3 flex items-center gap-2 text-[11px] font-semibold"><span className={`h-2 w-2 rounded-full ${aiProctoringEnabled ? "bg-emerald-500" : "bg-amber-500"}`} /><span className="text-[#57534e]">{aiProctoringEnabled ? "AI proctoring enabled" : "Standard assessment mode"}</span></div>
+          </section>
 
           <div className="space-y-4">
             <div className="flex items-center justify-between border-b border-[#d1dee8]/50 pb-2.5">
@@ -2131,9 +2176,12 @@ function CreateAssessmentContent() {
                           className="w-full rounded-[10px] border border-[#d1dee8]/80 bg-white px-3.5 py-2.5 text-xs text-[#111111] outline-none transition-all placeholder:text-[#a8a29d] hover:border-[#b9cbd9] focus:border-[#165dfb] focus:ring-4 focus:ring-[#165dfb]/10"
                         />
                         {q.imageUrl && (
-                          <img
+                          <Image
                             src={q.imageUrl}
                             alt={`Question ${idx + 1}`}
+                            width={640}
+                            height={360}
+                            unoptimized
                             className="max-h-48 max-w-full rounded-[10px] border border-[#d1dee8]/70 object-contain bg-[#fbfbfa] p-1"
                             onError={(e) => {
                               e.currentTarget.style.display = "none";
@@ -2169,7 +2217,7 @@ function CreateAssessmentContent() {
                       </div>
 
                       <div className="grid gap-2.5 sm:grid-cols-2">
-                        {q.options.map((opt: any, oi: number) => (
+                        {q.options.map((opt: LegacyRecord, oi: number) => (
                           <div
                             key={opt.optionId ?? `${idx}-${oi}`}
                             draggable={q.questionType !== "TRUE_FALSE"}
@@ -2312,27 +2360,27 @@ function CreateAssessmentContent() {
 
                 <div className="border-t border-[#d1dee8]/50 p-4 space-y-3">
                   <p className="text-[10px] leading-relaxed text-[#78716b]">
-                    Use one question per row. The first row should contain the
-                    headers below. Keep the order exactly as shown.
+                    Use one question per row and keep the header row. The importer maps columns by header name, so older 12-column templates still work. Leave unused options and image URLs blank.
                   </p>
 
                   <div className="overflow-x-auto rounded-[10px] border border-[#d1dee8]/70 bg-[#fbfbfa]">
                     <pre className="min-w-[980px] p-3 text-[9px] leading-relaxed text-[#111111] font-mono whitespace-pre-wrap">
-questionText,optionA,optionB,optionC,optionD,correctAnswer,marks,questionType,negativeMarks,questionTimerSeconds,difficulty,explanation
-"What is the time complexity of binary search?","O(n)","O(log n)","O(n^2)","O(1)","B","1","MCQ","0.25","60","EASY","Binary search halves the search space."
-"Which are linear data structures?","Array","Linked List","Tree","Graph","A|B","2","MSQ","0.5","90","MEDIUM","Array and linked list are linear."
-"Java is a programming language.","True","False","","","A","1","TRUE_FALSE","0","45","EASY",""
+questionText,optionA,optionB,optionC,optionD,optionE,optionF,correctAnswer,marks,questionType,negativeMarks,questionTimerSeconds,difficulty,explanation,imageUrl,optionAImageUrl,optionBImageUrl,optionCImageUrl,optionDImageUrl,optionEImageUrl,optionFImageUrl
+&quot;What is the time complexity of binary search?&quot;,&quot;O(n)&quot;,&quot;O(log n)&quot;,&quot;O(n^2)&quot;,&quot;O(1)&quot;,&quot;&quot;,&quot;&quot;,&quot;B&quot;,&quot;1&quot;,&quot;MCQ&quot;,&quot;0.25&quot;,&quot;60&quot;,&quot;EASY&quot;,&quot;Binary search halves the search space.&quot;,&quot;&quot;,&quot;&quot;,&quot;&quot;,&quot;&quot;,&quot;&quot;,&quot;&quot;,&quot;&quot;
+&quot;Which HTTP status indicates success?&quot;,&quot;200&quot;,&quot;301&quot;,&quot;404&quot;,&quot;500&quot;,&quot;204&quot;,&quot;&quot;,&quot;A|E&quot;,&quot;2&quot;,&quot;MSQ&quot;,&quot;0.5&quot;,&quot;90&quot;,&quot;MEDIUM&quot;,&quot;Both 200 and 204 indicate success.&quot;,&quot;&quot;,&quot;&quot;,&quot;&quot;,&quot;&quot;,&quot;&quot;,&quot;&quot;,&quot;&quot;
+&quot;Which number is prime?&quot;,&quot;4&quot;,&quot;6&quot;,&quot;7&quot;,&quot;8&quot;,&quot;9&quot;,&quot;&quot;,&quot;C&quot;,&quot;1&quot;,&quot;MCQ&quot;,&quot;0&quot;,&quot;60&quot;,&quot;EASY&quot;,&quot;Seven is prime.&quot;,&quot;&quot;,&quot;&quot;,&quot;&quot;,&quot;&quot;,&quot;&quot;,&quot;&quot;,&quot;&quot;
+&quot;Java is a programming language.&quot;,&quot;True&quot;,&quot;False&quot;,&quot;&quot;,&quot;&quot;,&quot;&quot;,&quot;&quot;,&quot;A&quot;,&quot;1&quot;,&quot;TRUE_FALSE&quot;,&quot;0&quot;,&quot;45&quot;,&quot;EASY&quot;,&quot;&quot;,&quot;&quot;,&quot;&quot;,&quot;&quot;,&quot;&quot;,&quot;&quot;,&quot;&quot;,&quot;&quot;
                     </pre>
                   </div>
 
                   <div className="grid gap-2 text-[10px] text-[#57534e] sm:grid-cols-2">
                     <p>
                       <span className="font-bold text-[#111111]">correctAnswer:</span>{" "}
-                      A-D for MCQ, A|C for MSQ, or A/B (TRUE/FALSE) for TRUE_FALSE.
+                      A-F for MCQ, A|C for MSQ (use | or ; between answers), or A/B (also TRUE/FALSE) for TRUE_FALSE.
                     </p>
                     <p>
                       <span className="font-bold text-[#111111]">questionType:</span>{" "}
-                      MCQ, MSQ, or TRUE_FALSE.
+                      MCQ (one correct option), MSQ (multiple correct options), or TRUE_FALSE.
                     </p>
                   </div>
 
@@ -2417,11 +2465,6 @@ questionText,optionA,optionB,optionC,optionD,correctAnswer,marks,questionType,ne
                         setter: setAllowResume,
                       },
                       {
-                        label: "Auto Submit On Deadline",
-                        val: autoSubmit,
-                        setter: setAutoSubmit,
-                      },
-                      {
                         label: "Enable Negative Marking",
                         val: negativeMarking,
                         setter: setNegativeMarking,
@@ -2438,18 +2481,11 @@ questionText,optionA,optionB,optionC,optionD,correctAnswer,marks,questionType,ne
                         <span className="block text-xs font-bold text-[#111111]">
                           {item.label}
                         </span>
-                        <button
-                          type="button"
-                          onClick={() => item.setter(!item.val)}
-                          role="switch"
-                          aria-checked={item.val}
-                          aria-label={item.label}
-                          className={`relative inline-flex h-5 w-9 shrink-0 cursor-pointer items-center rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus-visible:ring-4 focus-visible:ring-[#165dfb]/20 ${item.val ? "bg-[#165dfb]" : "bg-[#d1dee8]"}`}
-                        >
-                          <span
-                            className={`pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${item.val ? "translate-x-4" : "translate-x-0"}`}
-                          />
-                        </button>
+                        <AppleSwitch
+                          checked={item.val}
+                          onChange={() => item.setter(!item.val)}
+                          ariaLabel={item.label}
+                        />
                       </div>
                     ))}
                   </div>
@@ -2457,7 +2493,7 @@ questionText,optionA,optionB,optionC,optionD,correctAnswer,marks,questionType,ne
                     <div className="grid gap-3 sm:grid-cols-2">
                       <div>
                         <label className="mb-1.5 block text-[11px] font-bold uppercase tracking-wider text-[#57534e]">
-                          Maximum Tab Switches
+                          Max Tab Switch / Fullscreen Violations
                         </label>
                         <input
                           type="number"
@@ -2470,7 +2506,7 @@ questionText,optionA,optionB,optionC,optionD,correctAnswer,marks,questionType,ne
                           className={inputClass}
                         />
                         <p className="mt-1 text-[10px] text-[#78716b]">
-                          Backend should enforce this limit for the attempt.
+                          Tab switches and fullscreen exits count as one unified violation. Default: 3. The backend enforces the limit.
                         </p>
                       </div>
                     </div>
@@ -2517,7 +2553,7 @@ questionText,optionA,optionB,optionC,optionD,correctAnswer,marks,questionType,ne
           </button>
           <button
             type="button"
-            onClick={(e) => handleSave(e as any)}
+            onClick={handleSave}
             disabled={submitting || savingDraft}
             className="inline-flex items-center gap-2 rounded-[10px] bg-[#165dfb] px-5 py-2.5 text-xs font-bold text-white shadow-sm shadow-[#165dfb]/25 transition-all hover:bg-[#0f4fd8] hover:shadow-md active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-40"
           >

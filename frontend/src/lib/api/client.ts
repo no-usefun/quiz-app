@@ -61,6 +61,17 @@ export interface RequestOptions extends RequestInit {
    * Prevent Authorization from being added.
    */
   skipAuth?: boolean;
+
+  /**
+   * Number of network retries for idempotent requests.
+   * Mutating requests are never retried automatically.
+   */
+  retry?: number;
+
+  /**
+   * Base delay between safe-request retries.
+   */
+  retryDelayMs?: number;
 }
 
 async function parseResponseBody(response: Response): Promise<unknown> {
@@ -75,6 +86,19 @@ async function parseResponseBody(response: Response): Promise<unknown> {
   }
 
   const contentType = response.headers.get("content-type") || "";
+  const looksLikeHtml =
+    contentType.toLowerCase().includes("text/html") ||
+    /^\\s*<(?:!doctype\\s+html|html|head|body)\\b/i.test(text);
+
+  // API calls should return JSON. Hosting platforms and reverse proxies
+  // often return an HTML error page for 404/502/503 responses; never expose
+  // that full document as the user-facing error message.
+  if (looksLikeHtml) {
+    return {
+      __unexpectedHtmlResponse: true,
+      contentType: contentType || "unknown",
+    };
+  }
 
   if (contentType.includes("application/json")) {
     try {
@@ -105,6 +129,10 @@ function normalizeToken(token: string | null | undefined): string | null {
   return clean;
 }
 
+function delay(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
 export async function apiRequest<T = unknown>(
   url: string,
   options: RequestOptions = {},
@@ -114,6 +142,8 @@ export async function apiRequest<T = unknown>(
     skipAuth = false,
     headers: customHeaders,
     body,
+    retry = 0,
+    retryDelayMs = 400,
     ...rest
   } = options;
 
@@ -133,26 +163,65 @@ export async function apiRequest<T = unknown>(
     headers.delete("Authorization");
   }
 
+  const method = String(rest.method ?? "GET").toUpperCase();
+  const isSafeMethod =
+    method === "GET" || method === "HEAD" || method === "OPTIONS";
+  const maxRetries = isSafeMethod
+    ? Math.max(0, Math.min(3, Math.floor(Number(retry) || 0)))
+    : 0;
+
   let response: Response;
 
-  try {
-    response = await fetch(url, {
-      ...rest,
-      body,
-      headers,
-    });
-  } catch (error) {
-    const message =
-      error instanceof TypeError && /fetch|network/i.test(error.message)
-        ? "Quizly backend is unreachable. Start the Spring Boot server and verify NEXT_PUBLIC_API_URL."
-        : error instanceof Error
-          ? error.message
-          : "Unable to reach the backend server.";
+  for (let attempt = 0; ; attempt += 1) {
+    try {
+      response = await fetch(url, {
+        ...rest,
+        body,
+        headers,
+      });
+      break;
+    } catch (error) {
+      const isAbort =
+        typeof error === "object" &&
+        error !== null &&
+        "name" in error &&
+        String((error as { name?: unknown }).name) === "AbortError";
 
-    throw new ApiClientError(0, message); 
+      if (isAbort || attempt >= maxRetries) {
+        const message =
+          error instanceof TypeError && /fetch|network/i.test(error.message)
+            ? "Quizly backend is unreachable. Start the Spring Boot server and verify NEXT_PUBLIC_API_URL."
+            : error instanceof Error
+              ? error.message
+              : "Unable to reach the backend server.";
+
+        throw new ApiClientError(0, message);
+      }
+
+      await delay(Math.max(150, retryDelayMs) * (attempt + 1));
+    }
   }
 
   const data = await parseResponseBody(response);
+
+  if (
+    data &&
+    typeof data === "object" &&
+    "__unexpectedHtmlResponse" in data
+  ) {
+    const htmlResponse = data as Record<string, unknown>;
+    const contentType =
+      typeof htmlResponse.contentType === "string"
+        ? htmlResponse.contentType
+        : "unknown";
+
+    throw new ApiClientError(
+      response.status,
+      `The server returned an HTML page instead of JSON (HTTP ${response.status}). Check NEXT_PUBLIC_API_URL and the requested API endpoint.`,
+      "UNEXPECTED_HTML_RESPONSE",
+      { contentType },
+    );
+  }
 
   if (response.ok) {
     return (data ?? {}) as T;

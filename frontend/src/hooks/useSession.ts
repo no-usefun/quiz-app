@@ -1,7 +1,6 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { useRouter } from "next/navigation";
 import { ENDPOINTS } from "@/lib/api/endpoints";
 
 type SessionUser = {
@@ -135,7 +134,7 @@ function clearSessionStorage() {
   sessionStorage.clear();
 
   document.cookie =
-    "dynoquizz_token=; expires=Thu, 01 Jan 1970 00:00:00 GMT; path=/;";
+    "dynoquizz_token=; max-age=0; expires=Thu, 01 Jan 1970 00:00:00 GMT; path=/; samesite=lax";
 }
 
 function persistToken(token: string, expiresIn?: unknown) {
@@ -162,7 +161,6 @@ function persistToken(token: string, expiresIn?: unknown) {
 }
 
 export function useSession() {
-  const router = useRouter();
   const [user, setUser] = useState<SessionUser | null>(null);
   const [loading, setLoading] = useState(true);
 
@@ -171,15 +169,13 @@ export function useSession() {
       clearSessionStorage();
       setUser(null);
 
-      if (
-        redirect &&
-        typeof window !== "undefined" &&
-        window.location.pathname !== "/login"
-      ) {
-        router.replace("/login");
+      // Use a full navigation so stale dashboard/profile UI and route guards
+      // cannot survive after the client-side session has been cleared.
+      if (redirect && typeof window !== "undefined") {
+        window.location.replace("/");
       }
     },
-    [router],
+    [],
   );
 
   const fetchSession = useCallback(async (): Promise<SessionUser | null> => {
@@ -259,6 +255,8 @@ export function useSession() {
   }, []);
 
   useEffect(() => {
+    // The session request synchronizes the client session with the auth provider.
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- async session initialization
     void fetchSession();
   }, [fetchSession]);
 

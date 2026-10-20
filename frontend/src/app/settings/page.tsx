@@ -2,8 +2,8 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
-import { useTheme } from "next-themes";
 import {
   User,
   Bell,
@@ -17,14 +17,13 @@ import {
   EyeOff,
   CheckCircle2,
   AlertTriangle,
-  ChevronRight,
-  Moon,
-  Monitor,
   LayoutDashboard,
   Settings as SettingsIcon,
 } from "lucide-react";
 import { useSession } from "@/hooks/useSession";
 import { Logo } from "@/components/Logo";
+import { AppearanceToggle } from "@/components/AppearanceToggle";
+import { AppleSwitch } from "@/components/AppleSwitch";
 import { ENDPOINTS } from "@/lib/api/endpoints";
 
 const TABS = [
@@ -66,6 +65,7 @@ function TextInput({
   icon,
   rightSlot,
   disabled = false,
+  required = false,
   maxLength,
 }: {
   type?: string;
@@ -75,6 +75,7 @@ function TextInput({
   icon?: React.ReactNode;
   rightSlot?: React.ReactNode;
   disabled?: boolean;
+  required?: boolean;
   maxLength?: number;
 }) {
   return (
@@ -91,6 +92,7 @@ function TextInput({
         value={value}
         onChange={onChange}
         disabled={disabled}
+        required={required}
         maxLength={maxLength}
         className={`w-full rounded-[10px] border border-[#d1dee8]/70 py-2.5 text-xs text-[#111111] outline-none transition-all placeholder:text-[#78716b]/60 focus:border-[#165dfb] focus:ring-4 focus:ring-[#165dfb]/10 focus:bg-white font-medium shadow-xs ${
           disabled
@@ -125,6 +127,8 @@ function Toggle({
 
   useEffect(() => {
     if (checked !== undefined) {
+      // Supports a controlled switch whose parent may change its value asynchronously.
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- controlled prop synchronization
       setOn(checked);
     }
   }, [checked]);
@@ -142,21 +146,12 @@ function Toggle({
         )}
       </div>
 
-      <button
-        type="button"
-        role="switch"
-        aria-checked={active}
-        onClick={() => (onToggle ? onToggle() : setOn((value) => !value))}
-        className={`relative mt-0.5 inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-150 focus:outline-none ${
-          active ? "bg-[#165dfb]" : "bg-[#d1dee8]"
-        }`}
-      >
-        <span
-          className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform duration-150 ${
-            active ? "translate-x-4" : "translate-x-0"
-          }`}
-        />
-      </button>
+      <AppleSwitch
+        checked={active}
+        onChange={(next) => (onToggle ? onToggle() : setOn(next))}
+        ariaLabel={label}
+        className="mt-0.5"
+      />
     </div>
   );
 }
@@ -165,10 +160,14 @@ function ProfilePanel({
   onSave,
   refreshSession,
   user,
+  isProfileCompletionMode,
+  onProfileCompleted,
 }: {
   onSave: () => void;
   refreshSession: ReturnType<typeof useSession>["refreshSession"];
-  user: any;
+  user: ReturnType<typeof useSession>["user"];
+  isProfileCompletionMode: boolean;
+  onProfileCompleted: (role: string) => void;
 }) {
   const [fullName, setFullName] = useState("");
   const [email, setEmail] = useState("");
@@ -242,6 +241,8 @@ function ProfilePanel({
   useEffect(() => {
     if (!user) return;
 
+    // Populate the profile form when the session provider finishes loading the user.
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- session-to-form hydration
     setFullName(
       user.fullName ||
         user.name ||
@@ -286,13 +287,23 @@ function ProfilePanel({
         throw new Error("Registration number is required for student profiles.");
       }
 
+      if (isProfileCompletionMode && isStudent && !institution.trim()) {
+        throw new Error("Please enter your college or university.");
+      }
+
+      if (isProfileCompletionMode && isStudent && !program.trim()) {
+        throw new Error("Please enter your course or department.");
+      }
+
       const requestBody = {
         firstName,
         lastName,
         phone: phone.trim() || null,
         college: institution.trim() || null,
         department: program.trim() || null,
-        registrationNo: registrationNo.trim() || null,
+        registrationNo: registrationNo.trim()
+          ? registrationNo.trim().toUpperCase()
+          : null,
         profileImage: profileImage.trim() || null,
       };
 
@@ -315,11 +326,21 @@ function ProfilePanel({
         );
       }
 
-      await refreshSession();
+      const refreshedUser = await refreshSession();
       onSave();
-    } catch (e: any) {
+
+      if (isProfileCompletionMode) {
+        if (refreshedUser?.profileComplete === true) {
+          onProfileCompleted(String(refreshedUser.role || user?.role || ""));
+        } else {
+          setError(
+            "Your profile was saved, but the server still reports that required details are missing. Please check the fields and try again.",
+          );
+        }
+      }
+    } catch (e: unknown) {
       console.error("Profile update failed:", e);
-      setError(e?.message || "Failed to update profile.");
+      setError((e instanceof Error ? e.message : null) || "Failed to update profile.");
     } finally {
       setSaving(false);
     }
@@ -331,6 +352,21 @@ function ProfilePanel({
 
   return (
     <div className="space-y-5">
+      {isProfileCompletionMode && (
+        <div
+          role="status"
+          className="rounded-[10px] border border-[#165dfb]/20 bg-[#165dfb]/5 p-4"
+        >
+          <h2 className="text-sm font-bold text-[#111111]">
+            Complete your Quizly profile
+          </h2>
+          <p className="mt-1 text-xs leading-relaxed text-[#78716b]">
+            Google has confirmed your sign-in, but we still need your academic
+            details before you can use student exam features. Complete the
+            required fields below and save your profile.
+          </p>
+        </div>
+      )}
       {user?.authProvider &&
         String(user.authProvider).toUpperCase() !== "LOCAL" &&
         !setPasswordDone && (
@@ -436,17 +472,25 @@ function ProfilePanel({
           />
         </Field>
 
-        <Field label="Institution / University">
+        <Field
+          label="Institution / University"
+          hint={isProfileCompletionMode ? "Required to complete your profile." : undefined}
+        >
           <TextInput
             placeholder="University"
+            required={isProfileCompletionMode}
             value={institution}
             onChange={(event) => setInstitution(event.target.value)}
           />
         </Field>
 
-        <Field label="Course / Department">
+        <Field
+          label="Course / Department"
+          hint={isProfileCompletionMode ? "Required to complete your profile." : undefined}
+        >
           <TextInput
             placeholder="Department"
+            required={isProfileCompletionMode}
             value={program}
             onChange={(event) => setProgram(event.target.value)}
           />
@@ -510,9 +554,8 @@ function PreferencesPanel({
   user,
 }: {
   onSave: () => void;
-  user: any;
+  user: ReturnType<typeof useSession>["user"];
 }) {
-  const { theme, setTheme } = useTheme();
   const [preferences, setPreferences] = useState({
     assessmentResults: true,
     upcomingAssessments: true,
@@ -617,9 +660,9 @@ function PreferencesPanel({
       }
 
       onSave();
-    } catch (error: any) {
+    } catch (error: unknown) {
       setPreferenceError(
-        error?.message || "Unable to save notification preferences.",
+        (error instanceof Error ? error.message : null) || "Unable to save notification preferences.",
       );
     } finally {
       setSavingPreferences(false);
@@ -664,7 +707,7 @@ function PreferencesPanel({
               [
                 "browserPush",
                 "Browser Push Notifications",
-                "Real-time browser alerts for exam start and result publication.",
+                "This preference can be saved, but browser push delivery is not wired up yet.",
               ],
             ].map(([key, label, description]) => {
               const preferenceKey = key as keyof typeof preferences;
@@ -686,56 +729,31 @@ function PreferencesPanel({
         <h3 className="mb-2.5 text-[10px] font-bold uppercase tracking-wider text-[#78716b] text-left">
           Appearance
         </h3>
-
-        <div className="grid grid-cols-3 gap-3">
-          {(
-            [
-              {
-                id: "system",
-                label: "System",
-                icon: <Monitor className="h-4 w-4" />,
-              },
-              {
-                id: "light",
-                label: "Light",
-                icon: <Eye className="h-4 w-4" />,
-              },
-              {
-                id: "dark",
-                label: "Dark",
-                icon: <Moon className="h-4 w-4" />,
-              },
-            ] as const
-          ).map((item) => {
-            const isActive = theme === item.id;
-
-            return (
-              <button
-                key={item.id}
-                type="button"
-                onClick={() => setTheme(item.id)}
-                className={`flex flex-col items-center gap-1.5 rounded-[10px] border py-3 text-xs font-bold transition-all duration-150 cursor-pointer shadow-xs active:scale-[0.98] ${
-                  isActive
-                    ? "border-[#165dfb] bg-[#165dfb]/5 text-[#165dfb] ring-2 ring-[#165dfb]/20"
-                    : "border-[#d1dee8]/70 bg-white text-[#78716b] hover:border-[#165dfb]/40 hover:text-[#111111]"
-                }`}
-              >
-                {item.icon}
-                {item.label}
-              </button>
-            );
-          })}
+        <p className="mb-3 text-[11px] leading-relaxed text-[#78716b]">
+          Choose the appearance you prefer. Your selection applies across Quizly.
+        </p>
+        <div className="flex items-center justify-between gap-4 rounded-[12px] border border-[#d1dee8]/70 bg-white/70 px-4 py-3 dark:border-[#3a4659] dark:bg-[#1b2432]">
+          <div className="min-w-0">
+            <p className="text-xs font-semibold text-[#111111] dark:text-[#f3f4f6]">
+              Dark Mode
+            </p>
+            <p className="mt-0.5 text-[11px] text-[#78716b] dark:text-[#a7b0c0]">
+              Off uses Light Mode; on uses Dark Mode.
+            </p>
+          </div>
+          <AppearanceToggle />
         </div>
       </div>
 
       <div className="flex justify-end pt-2">
         <button
           type="button"
-          onClick={onSave}
-          className="flex items-center gap-1.5 rounded-[10px] bg-[#165dfb] px-4 py-2 text-xs font-bold text-white hover:bg-[#165dfb]/90 active:scale-[0.98] transition-all cursor-pointer border-0 shadow-xs"
+          onClick={savePreferences}
+          disabled={loadingPreferences || savingPreferences}
+          className="flex items-center gap-1.5 rounded-[10px] bg-[#165dfb] px-4 py-2 text-xs font-bold text-white hover:bg-[#165dfb]/90 active:scale-[0.98] transition-all cursor-pointer border-0 shadow-xs disabled:cursor-not-allowed disabled:opacity-50"
         >
           <Save className="h-3.5 w-3.5" />
-          Save Preferences
+          {savingPreferences ? "Saving..." : "Save Notification Preferences"}
         </button>
       </div>
     </div>
@@ -747,7 +765,7 @@ function SecurityPanel({
   user,
 }: {
   onSave: () => void;
-  user: any;
+  user: ReturnType<typeof useSession>["user"];
 }) {
   const [currentPassword, setCurrentPassword] = useState("");
   const [setPasswordValue, setSetPasswordValue] = useState("");
@@ -818,9 +836,9 @@ function SecurityPanel({
       setNewPassword("");
       setConfirmPassword("");
       onSave();
-    } catch (e: any) {
+    } catch (e: unknown) {
       console.error("Password change failed:", e);
-      setError(e?.message || "Failed to change password.");
+      setError((e instanceof Error ? e.message : null) || "Failed to change password.");
     } finally {
       setSaving(false);
     }
@@ -997,9 +1015,9 @@ function DangerPanel({ logout }: { logout: () => void }) {
       }
 
       logout();
-    } catch (e: any) {
+    } catch (e: unknown) {
       console.error("Account deletion failed:", e);
-      setError(e?.message || "Failed to delete account.");
+      setError((e instanceof Error ? e.message : null) || "Failed to delete account.");
       setDeleting(false);
     }
   };
@@ -1110,12 +1128,32 @@ function DangerPanel({ logout }: { logout: () => void }) {
 
 export default function SettingsPage() {
   const { user, logout, refreshSession } = useSession();
+  const router = useRouter();
   const [activeTab, setActiveTab] = useState<TabId>("profile");
   const [saved, setSaved] = useState(false);
+  const [isProfileCompletionMode, setIsProfileCompletionMode] = useState(false);
+
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      // The URL is read only after client hydration to avoid server/client URL mismatch.
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- client URL initialization
+      setIsProfileCompletionMode(
+        new URLSearchParams(window.location.search).get("profile") === "complete",
+      );
+    }
+  }, []);
 
   const handleSave = () => {
     setSaved(true);
     window.setTimeout(() => setSaved(false), 2500);
+  };
+
+  const handleProfileCompleted = (role: string) => {
+    const destination =
+      role.trim().toUpperCase() === "TEACHER"
+        ? "/dashboard/teacher"
+        : "/dashboard/student";
+    router.replace(destination);
   };
 
   const dashboardHref = user
@@ -1125,8 +1163,8 @@ export default function SettingsPage() {
     : "/";
 
   return (
-    <div className="min-h-screen bg-[#f5f5f4] font-sans text-[#111111] flex overflow-hidden">
-      <aside className="w-64 bg-[#f5f5f4] border-r border-[#d1dee8]/70 flex flex-col shrink-0">
+    <div className="min-h-screen bg-[#f5f5f4] font-sans text-[#111111] flex flex-col md:flex-row overflow-x-hidden">
+      <aside className="w-full md:w-64 bg-[#f5f5f4] border-b md:border-b-0 md:border-r border-[#d1dee8]/70 flex flex-col shrink-0">
         <div className="p-6 border-b border-[#d1dee8]/50">
           <Logo />
         </div>
@@ -1178,7 +1216,7 @@ export default function SettingsPage() {
         </div>
       </aside>
 
-      <main className="flex-1 overflow-y-auto p-6 md:p-8 space-y-6 text-left">
+      <main className="min-w-0 flex-1 overflow-y-auto p-4 sm:p-6 md:p-8 space-y-6 text-left">
         <section className="border-b border-[#d1dee8]/50 pb-4 flex items-center justify-between">
           <div>
             <span className="text-xs font-bold uppercase tracking-widest text-[#78716b]">
@@ -1193,7 +1231,7 @@ export default function SettingsPage() {
           </div>
 
           {saved && (
-            <span className="flex items-center gap-1.5 rounded-full bg-[#e2ede8] px-3 py-1 text-xs font-bold text-[#1d5237] border border-[#1d5237]/20 shadow-xs animate-bounce">
+            <span role="status" aria-live="polite" className="flex items-center gap-1.5 rounded-full bg-[#e2ede8] px-3 py-1 text-xs font-bold text-[#1d5237] border border-[#1d5237]/20 shadow-xs">
               <CheckCircle2 className="h-3.5 w-3.5 text-[#1d5237]" />
               Saved!
             </span>
@@ -1237,6 +1275,8 @@ export default function SettingsPage() {
                     onSave={handleSave}
                     refreshSession={refreshSession}
                     user={user}
+                    isProfileCompletionMode={isProfileCompletionMode}
+                    onProfileCompleted={handleProfileCompleted}
                   />
                 )}
 
