@@ -190,7 +190,7 @@ export async function apiRequest<T = unknown>(
       if (isAbort || attempt >= maxRetries) {
         const message =
           error instanceof TypeError && /fetch|network/i.test(error.message)
-            ? "Quizly backend is unreachable. Start the Spring Boot server and verify NEXT_PUBLIC_API_URL."
+            ? "The browser could not complete the API request. Check network connectivity, NEXT_PUBLIC_API_URL, and backend CORS configuration."
             : error instanceof Error
               ? error.message
               : "Unable to reach the backend server.";
