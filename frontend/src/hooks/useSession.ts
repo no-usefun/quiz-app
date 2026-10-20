@@ -206,24 +206,21 @@ export function useSession() {
         retry: 1,
         cache: "no-store",
       });
-      {
-        const normalizedUser = normalizeUser(data);
 
-        if (!normalizedUser.role) {
-          throw new Error("Authenticated user has no role.");
-        }
+      const normalizedUser = normalizeUser(data);
 
-        if (normalizedUser.active === false) {
-          throw new Error("Your account is disabled.");
-        }
-
-        setUser(normalizedUser);
-        saveSessionUser(normalizedUser);
-
-        return normalizedUser;
+      if (!normalizedUser.role) {
+        throw new Error("Authenticated user has no role.");
       }
 
-      return null;
+      if (normalizedUser.active === false) {
+        throw new Error("Your account is disabled.");
+      }
+
+      setUser(normalizedUser);
+      saveSessionUser(normalizedUser);
+
+      return normalizedUser;
     } catch (error) {
       /*
        * A network-level failure means the backend could not be reached at
