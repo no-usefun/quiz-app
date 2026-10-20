@@ -1,3 +1,5 @@
+import time
+
 import httpx
 import pytest
 
@@ -42,6 +44,7 @@ async def test_event_retry_reuses_event_id_and_epoch_seconds_timestamp():
         FakeResponse(200, {"recorded": True, "warningCount": 1, "autoSubmitted": False}),
     ])
     detector.http_client = client
+    frame_timestamp = time.time() - 10
 
     result = await detector._dispatch_to_spring_boot(
         session=session,
@@ -50,7 +53,7 @@ async def test_event_retry_reuses_event_id_and_epoch_seconds_timestamp():
         severity="CRITICAL",
         confidence=0.94,
         event_id="123:PHONE_DETECTED:stable-test-id",
-        frame_timestamp=1792508400.0,
+        frame_timestamp=frame_timestamp,
     )
 
     assert result["recorded"] is True
@@ -59,7 +62,7 @@ async def test_event_retry_reuses_event_id_and_epoch_seconds_timestamp():
     second = client.calls[1]["json"]
     assert first == second
     assert first["eventId"] == "123:PHONE_DETECTED:stable-test-id"
-    assert first["frameTimestamp"] == 1792508400.0
+    assert first["frameTimestamp"] == frame_timestamp
     assert first["confidence"] == 0.94
     assert client.calls[0]["headers"]["Authorization"] == "Bearer test-token"
 
