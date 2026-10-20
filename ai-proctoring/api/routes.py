@@ -94,6 +94,8 @@ class AnalyzeFrameResponse(BaseModel):
     autoSubmitted: bool = False
     gazeValid: bool = True
     gazeConfidence: float = 1.0
+    confirmedEvents: Optional[List[dict]] = None
+    eventPersistenceFailed: bool = False
 
 class StopSessionRequest(BaseModel):
     sessionId: str
@@ -389,7 +391,9 @@ async def analyze_frame(
         eventMessage=eval_res["event_message"],
         autoSubmitted=eval_res["auto_submitted"],
         gazeValid=gaze_res.get("is_valid", True),
-        gazeConfidence=gaze_res.get("confidence", 1.0)
+        gazeConfidence=gaze_res.get("confidence", 1.0),
+        confirmedEvents=eval_res.get("confirmed_events", []),
+        eventPersistenceFailed=eval_res.get("event_persistence_failed", False),
     )
 
 @router.post("/proctor/stop", response_model=StopSessionResponse)
