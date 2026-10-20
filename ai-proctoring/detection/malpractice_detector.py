@@ -38,7 +38,8 @@ class MalpracticeDetector:
         mic_level: float,
         gaze_valid: bool = True,
         gaze_confidence: float = 1.0,
-        frame_timestamp: Optional[float] = None
+        frame_timestamp: Optional[float] = None,
+        identity_check_valid: bool = False
     ) -> dict:
         """
         Evaluates detection metrics over temporal sliding windows.
@@ -124,9 +125,11 @@ class MalpracticeDetector:
 
         # 6. Evaluate Biometric Identity Mismatch
         if faces_count == 1:
-            # Identity mismatch is evaluated only when single face is present, embedding was successfully extracted,
-            # and similarity score is strictly positive but below verification threshold
-            if not identity_match and similarity_score > 0.0:
+            # Count every completed biometric comparison as evidence, including zero/negative
+            # cosine similarity. The old > 0 check silently ignored some clearly different faces.
+            # Do not count inference failures: identity_check_valid is set only after an embedding
+            # was extracted and the recognizer comparison completed.
+            if identity_check_valid and not identity_match:
                 session.streaks["identity_mismatch"] += 1
                 if session.streaks["identity_mismatch"] >= STREAK_IDENTITY_MISMATCH:
                     confirmed_event = "IDENTITY_MISMATCH"
