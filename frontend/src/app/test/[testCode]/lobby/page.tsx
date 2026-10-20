@@ -65,6 +65,8 @@ function LobbyInner({ testCode }: { testCode: string }) {
   const [availability, setAvailability] =
     useState<QuizAvailabilityResponse | null>(null);
   const [referencePhoto, setReferencePhoto] = useState<string | null>(null);
+  const [captureRequested, setCaptureRequested] = useState(false);
+  const [pendingStartAfterCapture, setPendingStartAfterCapture] = useState(false);
 
   const [loading, setLoading] = useState(true);
   const [isStarting, setIsStarting] = useState(false);
@@ -203,6 +205,13 @@ function LobbyInner({ testCode }: { testCode: string }) {
 
   const status = availability?.status;
   const isLive = status === "LIVE" && availability?.available === true;
+
+  useEffect(() => {
+    if (!pendingStartAfterCapture || !referencePhoto || isStarting) return;
+    setCaptureRequested(false);
+    setPendingStartAfterCapture(false);
+    void handleStartAssessment();
+  }, [pendingStartAfterCapture, referencePhoto, isStarting]);
   // A missing policy is a configuration error, never an implicit standard-mode assessment.
   const aiPolicyKnown = typeof availability?.aiProctoringEnabled === "boolean";
   const aiRequired = availability?.aiProctoringEnabled === true;
@@ -233,7 +242,9 @@ function LobbyInner({ testCode }: { testCode: string }) {
         ? sessionStorage.getItem("dynoquizz_reference_photo")
         : null);
     if (aiRequired && !existingPhoto) {
-      setStartError("Capture your reference photo before starting this AI-proctored assessment.");
+      setStartError("Starting camera and automatically capturing your reference photo…");
+      setPendingStartAfterCapture(true);
+      setCaptureRequested(true);
       return;
     }
     sessionStorage.setItem(`dynoquizz_ai_proctoring_${cleanCode}`, String(aiRequired));
@@ -519,7 +530,7 @@ We couldn’t verify this assessment’s security settings. Please contact your 
             </div>
           )}
 
-          {aiRequired && <CameraReferenceCapture onCapture={(photo) => { setReferencePhoto(photo); sessionStorage.setItem("dynoquizz_reference_photo", photo); localStorage.removeItem("dynoquizz_reference_photo"); setStartError(null); }} disabled={isStarting} />}
+          {aiRequired && <CameraReferenceCapture captureRequested={captureRequested} onCapture={(photo) => { setReferencePhoto(photo); sessionStorage.setItem("dynoquizz_reference_photo", photo); localStorage.removeItem("dynoquizz_reference_photo"); setStartError(null); }} disabled={isStarting} />}
 
            <div className="space-y-2">
             <button
