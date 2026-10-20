@@ -7,7 +7,6 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
-import java.util.concurrent.ConcurrentHashMap;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -40,7 +39,6 @@ public class ProctoringService {
 
     private static final Logger logger = LoggerFactory.getLogger(ProctoringService.class);
     private static final ZoneId QUIZ_TIMEZONE = ZoneId.of("Asia/Kolkata");
-    private static final long DEBOUNCE_INTERVAL_MS = 4000L;
 
     @org.springframework.beans.factory.annotation.Value("${proctoring.max-warnings:3}")
     private int maxWarnings = 3;
@@ -70,9 +68,6 @@ public class ProctoringService {
     private final QuizRepository quizRepository;
     private final StudentAttemptService studentAttemptService;
     private final ObjectMapper objectMapper;
-
-    // Debounce cache per (attemptId:eventType)
-    private final Map<String, Long> debounceCache = new ConcurrentHashMap<>();
 
     public ProctoringService(
             QuizAttemptRepository quizAttemptRepository,
@@ -172,23 +167,14 @@ public class ProctoringService {
                 );
             }
 
-            String debounceKey = attemptId + ":" + eventType;
-            long now = System.currentTimeMillis();
-            Long lastRecorded = debounceCache.get(debounceKey);
-            if (lastRecorded != null && (now - lastRecorded) < DEBOUNCE_INTERVAL_MS) {
-                return new ProctoringEventResponse(
-                        false,
-                        attempt.getWarningsCount() != null ? attempt.getWarningsCount() : 0,
-                        false,
-                        "Debounced duplicate event"
-                );
-            }
-            debounceCache.put(debounceKey, now);
-
             String severity = request.severity() != null && !request.severity().isBlank()
                     ? request.severity().trim().toUpperCase(Locale.ROOT)
                     : null;
-            if (severity == null || !ALLOWED_SEVERITIES.contains(severity)) {
+            if (severity != null && !ALLOWED_SEVERITIES.contains(severity)) {
+                throw new BadRequestException("INVALID_EVENT_SEVERITY",
+                        "Severity must be one of: LOW, MEDIUM, HIGH, CRITICAL");
+            }
+            if (severity == null) {
                 severity = (eventType.contains("PHONE") || eventType.contains("IDENTITY")) ? "CRITICAL" : "HIGH";
             }
 
