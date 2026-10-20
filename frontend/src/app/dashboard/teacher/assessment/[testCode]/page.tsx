@@ -1257,28 +1257,65 @@ export default function TeacherAssessmentPage({
 
           {submitted.length > 0 && (
             <section className="rounded-[14px] border border-[#d1dee8]/70 bg-paper-white p-4 sm:p-5 shadow-sm text-left">
-              <div className="mb-5 flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">
+              <div className="mb-4 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
                 <div>
-                  <h2 className="text-xs font-bold uppercase tracking-wider text-midnight-navy">Score Distribution</h2>
-                  <p className="mt-1 text-xs text-steel-blue-gray">See how submitted students performed across score ranges.</p>
+                  <h2 className="text-xs font-bold uppercase tracking-wider text-midnight-navy">Class Performance</h2>
+                  <p className="mt-1 text-xs text-steel-blue-gray">A quick breakdown of scores across all submitted attempts.</p>
                 </div>
-                <p className="text-[10px] font-semibold text-steel-blue-gray">{submitted.length} submitted {submitted.length === 1 ? "attempt" : "attempts"} · {formatPercentage(averageScore)}% average</p>
+                <div className="flex items-center gap-3">
+                  <div className="rounded-[10px] bg-frost-surface px-3 py-2">
+                    <p className="text-lg font-bold tabular-nums text-midnight-navy">{formatPercentage(averageScore)}%</p>
+                    <p className="text-[9px] font-bold uppercase tracking-wider text-steel-blue-gray">Class average</p>
+                  </div>
+                  <div className="rounded-[10px] bg-frost-surface px-3 py-2">
+                    <p className="text-lg font-bold tabular-nums text-midnight-navy">{submitted.length}</p>
+                    <p className="text-[9px] font-bold uppercase tracking-wider text-steel-blue-gray">Submitted</p>
+                  </div>
+                </div>
               </div>
-              <div className="grid grid-cols-5 items-end gap-2 sm:gap-4">
+
+              <div
+                className="mb-5 flex h-3 w-full overflow-hidden rounded-full bg-frost-surface"
+                role="img"
+                aria-label={`Score distribution for ${submitted.length} submitted attempts`}
+              >
+                {scoreDistribution.map((band) => (
+                  <div
+                    key={band.label}
+                    className={`${band.color} transition-[width] duration-500 ease-out`}
+                    style={{ width: `${(band.count / submitted.length) * 100}%` }}
+                    title={`${band.label}: ${band.count} students`}
+                  />
+                ))}
+              </div>
+
+              <div className="space-y-3">
                 {scoreDistribution.map((band) => {
-                  const maximum = Math.max(1, ...scoreDistribution.map((item) => item.count));
-                  const height = band.count === 0 ? 4 : Math.max(12, (band.count / maximum) * 112);
+                  const share = (band.count / submitted.length) * 100;
                   return (
-                    <div key={band.label} className="flex min-w-0 flex-col items-center gap-2">
-                      <span className="text-xs font-bold tabular-nums text-midnight-navy">{band.count}</span>
-                      <div className="flex h-28 w-full items-end justify-center rounded-t-[8px] bg-frost-surface">
-                        <div className={`w-full max-w-16 rounded-t-[7px] ${band.color} transition-[height] duration-500 ease-out`} style={{ height: `${height}px` }} />
+                    <div key={band.label} className="grid grid-cols-[76px_minmax(0,1fr)_72px] items-center gap-3 sm:grid-cols-[90px_minmax(0,1fr)_100px]">
+                      <span className="text-[10px] font-semibold tabular-nums text-steel-blue-gray sm:text-xs">{band.label}</span>
+                      <div
+                        className="h-2.5 overflow-hidden rounded-full bg-frost-surface"
+                        role="progressbar"
+                        aria-label={`Students scoring ${band.label}`}
+                        aria-valuemin={0}
+                        aria-valuemax={100}
+                        aria-valuenow={Math.round(share)}
+                      >
+                        <div
+                          className={`h-full rounded-full ${band.color} transition-[width] duration-500 ease-out`}
+                          style={{ width: `${share}%` }}
+                        />
                       </div>
-                      <span className="text-center text-[9px] font-bold text-steel-blue-gray sm:text-[10px]">{band.label}</span>
+                      <span className="text-right text-[10px] font-bold tabular-nums text-midnight-navy sm:text-xs">
+                        {band.count} <span className="font-medium text-steel-blue-gray">({Math.round(share)}%)</span>
+                      </span>
                     </div>
                   );
                 })}
               </div>
+              <p className="mt-4 text-[10px] text-steel-blue-gray">Each row shows the score range, number of students, and share of submissions.</p>
             </section>
           )}
 
