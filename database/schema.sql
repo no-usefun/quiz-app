@@ -269,8 +269,10 @@ CREATE TABLE quiz_attempt_proctoring_events (
     attempt_id BIGINT NOT NULL REFERENCES quiz_attempts(attempt_id) ON DELETE CASCADE,
     event_type VARCHAR(40) NOT NULL,
     occurred_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    client_event_id VARCHAR(100),
     metadata_json TEXT,
-    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT uq_proctoring_attempt_client_event UNIQUE (attempt_id, client_event_id)
 );
 
 CREATE INDEX idx_proctoring_events_attempt_time ON quiz_attempt_proctoring_events(attempt_id, occurred_at);
