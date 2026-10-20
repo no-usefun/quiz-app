@@ -130,6 +130,26 @@ def health_check():
         }
     }
 
+@router.get("/ready")
+def readiness_check():
+    """Readiness probe for traffic routing; liveness remains available at /health."""
+    models = {
+        "yunet": face_detector.detector is not None,
+        "sface": face_recognizer.recognizer is not None,
+        "yolo_phone": phone_detector.model is not None,
+        "yolo_person": person_detector.model is not None,
+    }
+    required_ready = models["yunet"] and models["sface"]
+    all_models_ready = all(models.values())
+    return {
+        "status": "ready" if required_ready else "degraded",
+        "service": "ai-proctoring",
+        "readyForBiometricSessions": required_ready,
+        "models": models,
+        "optionalModelsReady": models["yolo_phone"] and models["yolo_person"],
+        "allModelsReady": all_models_ready,
+    }
+
 @router.post("/proctor/start", response_model=StartSessionResponse)
 async def start_proctoring_session(
     req: StartSessionRequest,
