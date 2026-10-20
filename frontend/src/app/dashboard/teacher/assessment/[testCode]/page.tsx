@@ -1,6 +1,7 @@
 "use client";
 
 import { use, useEffect, useMemo, useState } from "react";
+import { useTheme } from "next-themes";
 import Link from "next/link";
 import {
   ArrowLeft,
@@ -26,6 +27,8 @@ import {
   FileText,
   Medal,
   Sparkles,
+  Sun,
+  Moon,
 } from "lucide-react";
 import { Logo } from "@/components/Logo";
 import { TeacherProctoringReportModal } from "@/components/TeacherProctoringReportModal";
@@ -266,6 +269,8 @@ export default function TeacherAssessmentPage({
   params: Promise<{ testCode: string }>;
 }) {
   const { testCode } = use(params);
+  const { resolvedTheme, setTheme } = useTheme();
+  const isDark = resolvedTheme === "dark";
 
   const [assessmentData, setAssessmentData] = useState<AssessmentData | null>(
     null,
@@ -988,6 +993,20 @@ export default function TeacherAssessmentPage({
           </div>
 
           <div className="flex flex-wrap items-center justify-end gap-2 sm:gap-3">
+          <button
+            type="button"
+            onClick={() => setTheme(isDark ? "light" : "dark")}
+            aria-label={isDark ? "Switch to light mode" : "Switch to dark mode"}
+            title={isDark ? "Switch to light mode" : "Switch to dark mode"}
+            className="group inline-flex h-10 items-center gap-1 rounded-full border border-[#dce7ff] bg-gradient-to-r from-[#fff7dc] to-[#fff0c2] p-1 shadow-sm transition-all hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#3984ff] dark:border-slate-700 dark:from-slate-800 dark:to-slate-900"
+          >
+            <span className={`flex h-7 w-7 items-center justify-center rounded-full transition-all ${!isDark ? "bg-white text-amber-500 shadow-sm" : "text-slate-400"}`}>
+              <Sun className="h-4 w-4" />
+            </span>
+            <span className={`flex h-7 w-7 items-center justify-center rounded-full transition-all ${isDark ? "bg-[#2563eb] text-white shadow-sm" : "text-slate-500"}`}>
+              <Moon className="h-4 w-4" />
+            </span>
+          </button>
           <button
             type="button"
             onClick={handleExport}
