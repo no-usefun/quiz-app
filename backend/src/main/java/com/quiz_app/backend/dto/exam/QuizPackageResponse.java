@@ -31,5 +31,6 @@ public record QuizPackageResponse(
         LocalDateTime startTime,
         LocalDateTime endTime,
 
-        List<QuestionResponse> questions) {
+        List<QuestionResponse> questions,
+        boolean aiProctoringEnabled) {
 }

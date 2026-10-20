@@ -24,7 +24,8 @@ public record UpdateQuizSettingsRequest(
                 ResultVisibility resultVisibility,
                 String acceptedEmailDomain,
                 List<String> allowedRegistrationNumbers,
-                List<QuestionSettingsRequest> questions) {
+                List<QuestionSettingsRequest> questions,
+                Boolean aiProctoringEnabled) {
 
         public record QuestionSettingsRequest(
                         Long questionId,

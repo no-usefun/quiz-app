@@ -9,5 +9,6 @@ public record QuizAvailabilityResponse(
         boolean available,
         QuizAvailabilityStatus status,
         LocalDateTime startTime,
-        LocalDateTime endTime) {
+        LocalDateTime endTime,
+        boolean aiProctoringEnabled) {
 }

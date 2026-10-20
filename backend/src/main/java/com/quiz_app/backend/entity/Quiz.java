@@ -79,6 +79,9 @@ public class Quiz {
     @Column(name = "auto_submit", nullable = false)
     private boolean autoSubmit;
 
+    @Column(name = "ai_proctoring_enabled", nullable = false)
+    private boolean aiProctoringEnabled;
+
     // Phase 2 / proctoring-related field.
     // Keep it in the entity because it exists in the database.
     // We will not implement its business logic in Phase 1.
@@ -267,6 +270,14 @@ public class Quiz {
 
     public void setAutoSubmit(boolean autoSubmit) {
         this.autoSubmit = autoSubmit;
+    }
+
+    public boolean isAiProctoringEnabled() {
+        return aiProctoringEnabled;
+    }
+
+    public void setAiProctoringEnabled(boolean aiProctoringEnabled) {
+        this.aiProctoringEnabled = aiProctoringEnabled;
     }
 
     public Integer getMaxTabSwitch() {

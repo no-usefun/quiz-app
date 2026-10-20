@@ -100,7 +100,8 @@ class TeacherQuizControllerTest {
         void updateQuizSettings_shouldPassRequestAndTeacherId() throws Exception {
                 UpdateQuizSettingsRequest request = new UpdateQuizSettingsRequest(
                                 null, null, null, null, null, null, null, null, null,
-                                null, null, null, null, null, null, null);
+                                null, null, null, null, null, null, null,
+                                null);
 
                 when(teacherQuizService.updateQuizSettings(
                                 eq(10L), eq(2L), any(UpdateQuizSettingsRequest.class)))

@@ -46,5 +46,6 @@ public record QuizResponse(
         List<String> allowedRegistrationNumbers,
 
         QuizStatus status,
-        ExamState examState) {
+        ExamState examState,
+        boolean aiProctoringEnabled) {
 }
