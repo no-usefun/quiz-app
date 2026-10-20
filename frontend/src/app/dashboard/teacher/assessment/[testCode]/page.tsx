@@ -297,40 +297,53 @@ export default function TeacherAssessmentPage({
     const token = getToken();
     const headers = authHeaders(token);
 
-    const listRes = await fetch(ENDPOINTS.teacher.quizzes, {
-      method: "GET",
-      headers,
-      cache: "no-store",
-    });
+    // Assessment routes are commonly opened with a numeric quiz ID. Fetch the
+    // detail endpoint first so publishing/results does not depend on the
+    // teacher's entire quiz-list endpoint being available.
+    let matched: ApiRecord | undefined;
 
-    if (!listRes.ok) {
-      const body = await listRes.json().catch(() => ({}));
-      throw new Error(
-        body?.message ||
-          body?.error ||
-          `Unable to load teacher assessments (${listRes.status}).`,
-      );
+    if (/^\\d+$/.test(String(value))) {
+      try {
+        const detailRes = await fetch(ENDPOINTS.teacher.quizDetail(value), {
+          method: "GET",
+          headers,
+          cache: "no-store",
+        });
+
+        if (detailRes.ok) {
+          const detailPayload: unknown = await detailRes.json();
+          if (isApiRecord(detailPayload)) matched = detailPayload;
+        }
+      } catch {
+        // Fall back to the list endpoint below; preserve the most useful
+        // error if both requests fail.
+      }
     }
 
-    const listPayload: unknown = await listRes.json();
-    const list = getApiRecords(listPayload);
-
-    let matched: ApiRecord | undefined = list.find(
-      (quiz) =>
-        String(quiz?.quizCode ?? "") === String(value) ||
-        String(quiz?.quizId ?? quiz?.id ?? "") === String(value),
-    );
-
-    if (!matched && /^\d+$/.test(String(value))) {
-      const detailRes = await fetch(ENDPOINTS.teacher.quizDetail(value), {
+    if (!matched) {
+      const listRes = await fetch(ENDPOINTS.teacher.quizzes, {
         method: "GET",
         headers,
         cache: "no-store",
       });
 
-      if (detailRes.ok) {
-        matched = await detailRes.json();
+      if (!listRes.ok) {
+        const body = await listRes.json().catch(() => ({}));
+        throw new Error(
+          body?.message ||
+            body?.error ||
+            `Unable to load teacher assessments (${listRes.status}).`,
+        );
       }
+
+      const listPayload: unknown = await listRes.json();
+      const list = getApiRecords(listPayload);
+
+      matched = list.find(
+        (quiz) =>
+          String(quiz?.quizCode ?? "") === String(value) ||
+          String(quiz?.quizId ?? quiz?.id ?? "") === String(value),
+      );
     }
 
     if (!matched) {
