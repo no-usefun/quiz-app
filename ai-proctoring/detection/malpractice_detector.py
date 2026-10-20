@@ -154,6 +154,8 @@ class MalpracticeDetector:
             )
             if not dispatch_res:
                 logger.error("PROCTORING_EVENT_NOT_PERSISTED attempt=%s event=%s eventId=%s", session.attempt_id, event_type, event_id)
+                # Retry this event on a later frame rather than suppressing it for the full debounce window.
+                session.last_dispatched[event_type] = now - 3.5
                 dispatched_events.append({
                     "eventType": event_type, "details": event_details,
                     "severity": event["severity"], "confidence": event["confidence"],
