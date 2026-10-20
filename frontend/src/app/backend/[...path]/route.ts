@@ -42,6 +42,11 @@ async function proxyRequest(
   headers.delete("content-length");
   headers.delete("accept-encoding");
 
+  // ngrok's free-tier browser interstitial can otherwise be returned as HTML
+  // or plain text instead of the API response. This header asks ngrok to pass
+  // the request through to the upstream application.
+  headers.set("ngrok-skip-browser-warning", "true");
+
   const method = request.method.toUpperCase();
   const body =
     method === "GET" || method === "HEAD" || method === "OPTIONS"
