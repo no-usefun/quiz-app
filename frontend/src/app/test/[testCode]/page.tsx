@@ -780,6 +780,17 @@ export default function TestArenaPage({
           );
         }
 
+        // The lobby is the only supported entry point for AI-proctored tests.
+        // Direct navigation to /test/:code must not bypass reference-photo capture.
+        if (
+          resolvedAiPolicy &&
+          !sessionStorage.getItem("dynoquizz_reference_photo")
+        ) {
+          throw new Error(
+            "A reference photo is required for this AI-proctored assessment. Return to the assessment lobby, capture your photo, and start again.",
+          );
+        }
+
         setAiProctoringEnabled(resolvedAiPolicy);
         sessionStorage.setItem(
           `dynoquizz_ai_proctoring_${cleanCode}`,
@@ -1892,7 +1903,7 @@ export default function TestArenaPage({
         </footer>
       </motion.div>
 
-      <aside className="hidden w-72 flex-col gap-4 pl-6 lg:flex text-left">
+      <aside className="fixed bottom-3 right-3 z-40 flex max-h-[46vh] w-64 flex-col gap-3 overflow-y-auto rounded-xl bg-[#f5f5f4]/95 p-2 text-left shadow-xl backdrop-blur-sm lg:static lg:max-h-none lg:w-72 lg:shrink-0 lg:rounded-none lg:bg-transparent lg:p-0 lg:pl-6 lg:shadow-none lg:backdrop-blur-none">
         {aiProctoringEnabled && <AIProctoringHUD
           videoRef={proctoring.videoRef}
           cameraActive={proctoring.cameraActive}
