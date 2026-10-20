@@ -202,14 +202,15 @@ export async function startProctoringSession(
 export async function analyzeFrameREST(
   payload: AnalyzeFramePayload
 ): Promise<TelemetryResponse> {
+  const { authToken, ...requestPayload } = payload;
   const headers: Record<string, string> = {
     "Content-Type": "application/json",
     Accept: "application/json",
   };
-  if (payload.authToken) {
-    headers["Authorization"] = payload.authToken.startsWith("Bearer ")
-      ? payload.authToken
-      : `Bearer ${payload.authToken}`;
+  if (authToken) {
+    headers["Authorization"] = authToken.startsWith("Bearer ")
+      ? authToken
+      : `Bearer ${authToken}`;
   }
   if (payload.ticket) {
     headers["X-Proctor-Ticket"] = payload.ticket;
@@ -218,7 +219,7 @@ export async function analyzeFrameREST(
   const res = await fetch(`${AI_PROCTORING_BASE_URL}/proctor/analyze-frame`, {
     method: "POST",
     headers,
-    body: JSON.stringify(payload),
+    body: JSON.stringify(requestPayload),
   });
 
   if (!res.ok) {
@@ -238,14 +239,15 @@ export async function stopProctoringSession(
     const payload: StopSessionParams =
       typeof params === "string" ? { sessionId: params } : params;
 
+    const { authToken, ...requestPayload } = payload;
     const headers: Record<string, string> = {
       "Content-Type": "application/json",
       Accept: "application/json",
     };
-    if (payload.authToken) {
-      headers["Authorization"] = payload.authToken.startsWith("Bearer ")
-        ? payload.authToken
-        : `Bearer ${payload.authToken}`;
+    if (authToken) {
+      headers["Authorization"] = authToken.startsWith("Bearer ")
+        ? authToken
+        : `Bearer ${authToken}`;
     }
     if (payload.ticket) {
       headers["X-Proctor-Ticket"] = payload.ticket;
@@ -254,7 +256,7 @@ export async function stopProctoringSession(
     const res = await fetch(`${AI_PROCTORING_BASE_URL}/proctor/stop`, {
       method: "POST",
       headers,
-      body: JSON.stringify(payload),
+      body: JSON.stringify(requestPayload),
       signal: AbortSignal.timeout(3000),
     });
     if (res.ok) {
