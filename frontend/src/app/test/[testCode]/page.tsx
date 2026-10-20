@@ -470,7 +470,9 @@ export default function TestArenaPage({
               details,
               severity: "HIGH",
               confidence: 1.0,
-              frameTimestamp: now,
+              // Backend contract expects Unix epoch time in seconds.
+              frameTimestamp: now / 1000,
+              // Keep this ID with the event payload if the same request is retried.
               eventId: `browser-${activeAttemptId}-${eventType}-${now}`,
             },
             {
