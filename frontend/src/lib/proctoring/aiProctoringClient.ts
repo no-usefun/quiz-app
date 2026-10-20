@@ -206,6 +206,10 @@ export async function analyzeFrameREST(
   const headers: Record<string, string> = {
     "Content-Type": "application/json",
     Accept: "application/json",
+    // ngrok's free browser interstitial can otherwise replace API responses with HTML.
+    ...(AI_PROCTORING_BASE_URL.includes(".ngrok-free.dev")
+      ? { "ngrok-skip-browser-warning": "true" }
+      : {}),
   };
   if (authToken) {
     headers["Authorization"] = authToken.startsWith("Bearer ")
@@ -243,6 +247,10 @@ export async function stopProctoringSession(
     const headers: Record<string, string> = {
       "Content-Type": "application/json",
       Accept: "application/json",
+      // Apply the ngrok compatibility header only to requests targeting the AI service.
+      ...(AI_PROCTORING_BASE_URL.includes(".ngrok-free.dev")
+        ? { "ngrok-skip-browser-warning": "true" }
+        : {}),
     };
     if (authToken) {
       headers["Authorization"] = authToken.startsWith("Bearer ")
