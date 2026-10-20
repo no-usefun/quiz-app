@@ -402,6 +402,20 @@ export function useAIProctoring({
 
     const initProctoring = async () => {
       setCameraError(null);
+      setIsOnline(false);
+      // A retry starts a new session; never let telemetry from the previous
+      // session satisfy the readiness gate before fresh telemetry arrives.
+      setTelemetryReceived(false);
+      setFaceDetected(false);
+      setNumFaces(0);
+      setNumPersons(0);
+      setIdentityVerified(false);
+      setSimilarityScore(0);
+      setIsLookingAway(false);
+      setPhoneDetected(false);
+      setMicLevel(0);
+      setVoiceActive(false);
+      setLoudVoice(false);
 
       // 1. Health check AI microservice
       const health = await checkAIHealth();
