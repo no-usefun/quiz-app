@@ -66,6 +66,7 @@ export function CameraReferenceCapture({
     if (cameraStartInFlightRef.current) return;
     cameraStartInFlightRef.current = true;
     stopCamera();
+    setCapturedPhoto(null);
     setCameraError(null);
 
     try {
@@ -183,7 +184,6 @@ export function CameraReferenceCapture({
     // Starting the camera can be asynchronous, especially after a previous
     // photo stopped its stream. Never reuse the previous captured image.
     if (!cameraActive) {
-      setCapturedPhoto(null);
       if (!cameraStartInFlightRef.current) void startCamera();
       return;
     }
