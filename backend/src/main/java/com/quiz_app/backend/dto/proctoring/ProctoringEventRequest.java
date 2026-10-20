@@ -10,7 +10,7 @@ public record ProctoringEventRequest(
     @Size(max = 1000) String details,
     @Size(max = 20) String severity,
     @DecimalMin("0.0") @DecimalMax("1.0") Double confidence,
-    Double frameTimestamp,
+    @DecimalMin("946684800.0") Double frameTimestamp,
     @Size(max = 100) String eventId
 ) {
     // Preserve compatibility with clients that have not yet adopted durable event IDs.
