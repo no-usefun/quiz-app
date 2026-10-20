@@ -116,7 +116,8 @@ public class StudentQuizService {
                 quiz.isAutoSubmit(),
                 quiz.getStartTime(),
                 quiz.getEndTime(),
-                questionResponses);
+                questionResponses,
+                quiz.isAiProctoringEnabled());
     }
 
     public QuizPackageResponse getQuizPackageByCode(String quizCode) {
