@@ -86,18 +86,6 @@ export function useAIProctoring({
   }, [authToken]);
 
   const attemptIdRef = useRef(attemptId);
-  useEffect(() => {
-    const previousAttemptId = Number(attemptIdRef.current);
-    attemptIdRef.current = attemptId;
-    if (previousAttemptId !== Number(attemptId)) {
-      autoSubmitHandledAttemptRef.current = null;
-      autoSubmitModalAttemptRef.current = null;
-      serverAutoSubmittedRef.current = false;
-      setServerAutoSubmitted(false);
-      setIdentityHoldSnapshot(enabled, enabled ? "INITIALIZING" : null);
-      setReferenceRegistered(false);
-    }
-  }, [attemptId, enabled, setIdentityHoldSnapshot]);
 
   const testCodeRef = useRef(testCode);
   useEffect(() => {
@@ -131,6 +119,19 @@ export function useAIProctoring({
     setIdentityHold(held);
     setIdentityHoldReason(held ? (reason?.trim() || "IDENTITY_VERIFICATION_PENDING") : null);
   }, []);
+
+  useEffect(() => {
+    const previousAttemptId = Number(attemptIdRef.current);
+    attemptIdRef.current = attemptId;
+    if (previousAttemptId !== Number(attemptId)) {
+      autoSubmitHandledAttemptRef.current = null;
+      autoSubmitModalAttemptRef.current = null;
+      serverAutoSubmittedRef.current = false;
+      setServerAutoSubmitted(false);
+      setIdentityHoldSnapshot(enabled, enabled ? "INITIALIZING" : null);
+      setReferenceRegistered(false);
+    }
+  }, [attemptId, enabled, setIdentityHoldSnapshot]);
 
   // Strictly default to unknown/initial values until confirmed by telemetry
   const [faceDetected, setFaceDetected] = useState(false);
@@ -790,6 +791,7 @@ export function useAIProctoring({
     cleanup,
     captureFrameBase64,
     handleTelemetryUpdate,
+    setIdentityHoldSnapshot,
   ]);
 
   const showWarningModal = useCallback(
