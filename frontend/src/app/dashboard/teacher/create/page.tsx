@@ -200,8 +200,18 @@ function CreateAssessmentContent() {
     if (root.subjectCode) {
       setSubjectCode(root.subjectCode);
     }
-    const savedAiProctoring = root.aiProctoringEnabled ?? root.settings?.aiProctoringEnabled;
-    if (typeof savedAiProctoring === "boolean") setAiProctoringEnabled(savedAiProctoring);
+    const rootSettings =
+      root.settings && typeof root.settings === "object" ? root.settings : {};
+    const savedAiProctoring =
+      root.aiProctoringEnabled ??
+      root.ai_proctoring_enabled ??
+      root.proctoringEnabled ??
+      rootSettings.aiProctoringEnabled ??
+      rootSettings.ai_proctoring_enabled ??
+      rootSettings.proctoringEnabled;
+    if (typeof savedAiProctoring === "boolean") {
+      setAiProctoringEnabled(savedAiProctoring);
+    }
 
     if (root.overallTimerSeconds || root.settings?.overallTimerSeconds) {
       const timerSecs =
