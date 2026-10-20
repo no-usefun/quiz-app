@@ -1,9 +1,15 @@
 "use client";
 
+import { useSyncExternalStore } from "react";
 import Link from "next/link";
-import { GraduationCap } from "lucide-react";
+import { motion } from "framer-motion";
 import { useSession } from "@/hooks/useSession";
 import { APP_NAME } from "@/lib/constants";
+
+// ─── Animated wordmark — plays once on mount, never loops ─────────────────────
+const subscribeToHydration = () => () => {};
+const getClientHydrationSnapshot = () => true;
+const getServerHydrationSnapshot = () => false;
 
 export function AppWordmark({
   className = "",
@@ -12,34 +18,51 @@ export function AppWordmark({
   className?: string;
   size?: "default" | "lg" | "sm";
 }) {
-  const markSize =
-    size === "lg" ? "h-10 w-10 rounded-xl" :
-    size === "sm" ? "h-7 w-7 rounded-lg" :
-    "h-8 w-8 rounded-lg";
-  const iconSize =
-    size === "lg" ? "h-6 w-6" :
-    size === "sm" ? "h-4 w-4" :
-    "h-[18px] w-[18px]";
-  const textSize =
-    size === "lg" ? "text-xl" :
-    size === "sm" ? "text-xs" :
-    "text-sm";
+  const mounted = useSyncExternalStore(
+    subscribeToHydration,
+    getClientHydrationSnapshot,
+    getServerHydrationSnapshot,
+  );
+
+  const letters = APP_NAME.split("");
+
+  const textClass =
+    size === "lg"
+      ? "text-2xl font-extrabold tracking-tight"
+      : size === "sm"
+        ? "text-xs font-bold tracking-tight"
+        : "text-sm font-bold tracking-tight";
 
   return (
     <span
-      className={`inline-flex items-center gap-2.5 select-none ${className}`}
+      className={`inline-flex items-baseline select-none ${textClass} ${className}`}
       aria-label={APP_NAME}
     >
-      <span className={`inline-flex shrink-0 items-center justify-center border border-slate-200 bg-slate-900 text-white dark:border-slate-700 dark:bg-white dark:text-slate-900 ${markSize}`}>
-        <GraduationCap aria-hidden="true" className={iconSize} strokeWidth={2.1} />
-      </span>
-      <span className={`font-semibold tracking-tight text-slate-900 dark:text-slate-100 ${textSize}`}>
-        {APP_NAME}
-      </span>
+      {letters.map((letter, i) => (
+        <motion.span
+          key={i}
+          initial={mounted ? { opacity: 0, y: 6 } : { opacity: 1, y: 0 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{
+            duration: 0.3,
+            delay: mounted ? i * 0.055 : 0,
+            ease: [0.16, 1, 0.3, 1],
+          }}
+          // Subtle accent on the first letter
+          className={
+            i === 0
+              ? "text-[#165dfb]"
+              : "text-[#111111]"
+          }
+        >
+          {letter}
+        </motion.span>
+      ))}
     </span>
   );
 }
 
+// ─── Logo — clickable wordmark, routes by role ────────────────────────────────
 export function Logo() {
   const { user } = useSession();
 
@@ -50,8 +73,8 @@ export function Logo() {
     : "/";
 
   return (
-    <Link href={href} className="group flex items-center transition-opacity hover:opacity-80">
-      <AppWordmark />
+    <Link href={href} className="group flex items-center">
+      <AppWordmark className="group-hover:opacity-80 transition-opacity" />
     </Link>
   );
 }
