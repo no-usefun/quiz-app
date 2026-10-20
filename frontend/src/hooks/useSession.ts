@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { ENDPOINTS } from "@/lib/api/endpoints";
+import { api } from "@/lib/api/client";
 
 type SessionUser = {
   id?: number;
@@ -200,17 +201,12 @@ export function useSession() {
     }
 
     try {
-      const response = await fetch(ENDPOINTS.auth.me, {
-        method: "GET",
-        headers: {
-          Authorization: `Bearer ${token}`,
-          Accept: "application/json",
-        },
+      const data = await api.get<SessionUser>(ENDPOINTS.auth.me, {
+        token,
+        retry: 1,
         cache: "no-store",
       });
-
-      if (response.ok) {
-        const data: SessionUser = await response.json();
+      {
         const normalizedUser = normalizeUser(data);
 
         if (!normalizedUser.role) {
@@ -225,16 +221,6 @@ export function useSession() {
         saveSessionUser(normalizedUser);
 
         return normalizedUser;
-      }
-
-      if (
-        response.status === 400 ||
-        response.status === 401 ||
-        response.status === 403
-      ) {
-        clearSessionStorage();
-        setUser(null);
-        return null;
       }
 
       return null;
@@ -267,28 +253,14 @@ export function useSession() {
       throw new Error("Role must be STUDENT or TEACHER.");
     }
 
-    const response = await fetch(
+    const data = await api.post<Record<string, any>>(
       ENDPOINTS.auth.login,
       {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Accept: "application/json",
-      },
-      body: JSON.stringify({
         email: credentials.email.trim(),
         password: credentials.password,
-      }),
-    });
-
-    const data = await response.json().catch(() => ({}));
-
-    if (!response.ok) {
-      const message =
-        data?.message || data?.code || data?.error || "Invalid email or password.";
-
-      throw new Error(message);
-    }
+      },
+      { skipAuth: true, cache: "no-store" },
+    );
 
     const token = typeof data?.token === "string" ? data.token : "";
 
@@ -304,25 +276,18 @@ export function useSession() {
      * /auth/login already returns UserSummaryResponse, but /auth/me is
      * the canonical session source and also confirms the token works.
      */
-    const meResponse = await fetch(ENDPOINTS.auth.me, {
-      method: "GET",
-      headers: {
-        Authorization: `Bearer ${token}`,
-        Accept: "application/json",
-      },
-      cache: "no-store",
-    });
-
-    const meData = await meResponse.json().catch(() => ({}));
-
-    if (!meResponse.ok) {
+    let meData: SessionUser;
+    try {
+      meData = await api.get<SessionUser>(ENDPOINTS.auth.me, {
+        token,
+        retry: 1,
+        cache: "no-store",
+      });
+    } catch (error) {
       clearSessionStorage();
-      throw new Error(
-        meData?.message ||
-          meData?.code ||
-          meData?.error ||
-          "Unable to verify the authenticated session.",
-      );
+      throw error instanceof Error
+        ? error
+        : new Error("Unable to verify the authenticated session.");
     }
 
     const normalizedUser = normalizeUser(meData);
@@ -380,24 +345,11 @@ export function useSession() {
       ...(payload.phone?.trim() ? { phone: payload.phone.trim() } : {}),
     };
 
-    const response = await fetch(
+    const data = await api.post<Record<string, any>>(
       ENDPOINTS.auth.signup(backendRole),
-      {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Accept: "application/json",
-      },
-      body: JSON.stringify(requestBody),
-    });
-
-    const data = await response.json().catch(() => ({}));
-
-    if (!response.ok) {
-      throw new Error(
-        data?.message || data?.error || "Failed to create account.",
-      );
-    }
+      requestBody,
+      { skipAuth: true, cache: "no-store" },
+    );
 
     const returnedUser = data?.user
       ? normalizeUser(data.user)
