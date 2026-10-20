@@ -1387,7 +1387,6 @@ public class TeacherQuizService {
                                 quiz.isAllowReview(),
                                 quiz.isAllowResume(),
                                 quiz.isAutoSubmit(),
-                                quiz.isAiProctoringEnabled(),
                                 quiz.getMaxTabSwitch(),
                                 quiz.getStartTime(),
                                 quiz.getEndTime(),
