@@ -87,8 +87,17 @@ export function useAIProctoring({
 
   const attemptIdRef = useRef(attemptId);
   useEffect(() => {
+    const previousAttemptId = Number(attemptIdRef.current);
     attemptIdRef.current = attemptId;
-  }, [attemptId]);
+    if (previousAttemptId !== Number(attemptId)) {
+      autoSubmitHandledAttemptRef.current = null;
+      autoSubmitModalAttemptRef.current = null;
+      serverAutoSubmittedRef.current = false;
+      setServerAutoSubmitted(false);
+      setIdentityHoldSnapshot(enabled, enabled ? "INITIALIZING" : null);
+      setReferenceRegistered(false);
+    }
+  }, [attemptId, enabled, setIdentityHoldSnapshot]);
 
   const testCodeRef = useRef(testCode);
   useEffect(() => {
@@ -105,6 +114,23 @@ export function useAIProctoring({
   const [retryCount, setRetryCount] = useState(0);
   const [isOnline, setIsOnline] = useState(false);
   const [telemetryReceived, setTelemetryReceived] = useState(false);
+  // Fail closed: keep the assessment locked until telemetry explicitly releases
+  // the identity hold. A missing/legacy field is not interpreted as "verified".
+  const [identityHold, setIdentityHold] = useState(enabled);
+  const [identityHoldReason, setIdentityHoldReason] = useState<string | null>(
+    enabled ? "INITIALIZING" : null,
+  );
+  const identityHoldRef = useRef(enabled);
+  const [referenceRegistered, setReferenceRegistered] = useState(false);
+  const [serverAutoSubmitted, setServerAutoSubmitted] = useState(false);
+  const serverAutoSubmittedRef = useRef(false);
+  const autoSubmitModalAttemptRef = useRef<number | null>(null);
+
+  const setIdentityHoldSnapshot = useCallback((held: boolean, reason?: string | null) => {
+    identityHoldRef.current = held;
+    setIdentityHold(held);
+    setIdentityHoldReason(held ? (reason?.trim() || "IDENTITY_VERIFICATION_PENDING") : null);
+  }, []);
 
   // Strictly default to unknown/initial values until confirmed by telemetry
   const [faceDetected, setFaceDetected] = useState(false);
@@ -242,88 +268,119 @@ export function useAIProctoring({
 
   const reportedAiEventsRef = useRef<Map<string, number>>(new Map());
 
+  const markServerAutoSubmitted = useCallback((reason?: string | null) => {
+    const currentAttemptId = Number(attemptIdRef.current);
+    const isFirstForAttempt =
+      autoSubmitHandledAttemptRef.current !== currentAttemptId;
+
+    autoSubmitHandledAttemptRef.current = currentAttemptId;
+    serverAutoSubmittedRef.current = true;
+    setServerAutoSubmitted(true);
+    setIdentityHoldSnapshot(true, reason || "AUTO_SUBMITTED");
+
+    if (isFirstForAttempt) {
+      onAutoSubmitRef.current?.();
+    }
+  }, [setIdentityHoldSnapshot]);
+
   const handleTelemetryUpdate = useCallback((telemetry: TelemetryResponse) => {
     setTelemetryReceived(true);
-    setFaceDetected(telemetry.faceDetected);
-    setNumFaces(telemetry.numFaces);
+    setFaceDetected(Boolean(telemetry.faceDetected));
+    setNumFaces(Number.isFinite(Number(telemetry.numFaces)) ? Number(telemetry.numFaces) : 0);
     if (telemetry.numPersons !== undefined) {
-      setNumPersons(telemetry.numPersons);
+      setNumPersons(Number.isFinite(Number(telemetry.numPersons)) ? Number(telemetry.numPersons) : 0);
     }
-    setIdentityVerified(telemetry.identityVerified);
-    setSimilarityScore(telemetry.similarityScore);
+    setIdentityVerified(Boolean(telemetry.identityVerified));
+    setSimilarityScore(Number.isFinite(Number(telemetry.similarityScore)) ? Number(telemetry.similarityScore) : 0);
     if (telemetry.gazeDirection) {
       setGazeDirection(telemetry.gazeDirection);
     }
-    if (telemetry.yaw !== undefined) {
-      setYaw(telemetry.yaw);
-    }
-    if (telemetry.pitch !== undefined) {
-      setPitch(telemetry.pitch);
-    }
-    if (telemetry.isLookingAway !== undefined) {
-      setIsLookingAway(telemetry.isLookingAway);
-    }
-    setPhoneDetected(telemetry.phoneDetected);
-    setMicLevel(telemetry.micLevel);
-    setVoiceActive(telemetry.voiceActive);
-    setLoudVoice(telemetry.loudVoice);
+    if (telemetry.yaw !== undefined) setYaw(Number(telemetry.yaw) || 0);
+    if (telemetry.pitch !== undefined) setPitch(Number(telemetry.pitch) || 0);
+    if (telemetry.isLookingAway !== undefined) setIsLookingAway(Boolean(telemetry.isLookingAway));
+    setPhoneDetected(Boolean(telemetry.phoneDetected));
+    setMicLevel(Number.isFinite(Number(telemetry.micLevel)) ? Number(telemetry.micLevel) : 0);
+    setVoiceActive(Boolean(telemetry.voiceActive));
+    setLoudVoice(Boolean(telemetry.loudVoice));
 
-    // V2 sends the backend-authoritative warning count with telemetry. Keep the
-    // UI monotonic so delayed frames cannot make the HUD/modal count go backwards.
+    // Never unlock on a missing/invalid hold field. The V2 service must explicitly
+    // return identityHold=false before a held assessment can resume.
+    if (!serverAutoSubmittedRef.current) {
+      if (typeof telemetry.identityHold === "boolean") {
+        setIdentityHoldSnapshot(
+          telemetry.identityHold,
+          telemetry.identityHold
+            ? telemetry.identityHoldReason || "IDENTITY_VERIFICATION_PENDING"
+            : null,
+        );
+      } else {
+        setIdentityHoldSnapshot(true, "IDENTITY_HOLD_STATUS_UNAVAILABLE");
+      }
+    }
+
+    // Counts and auto-submission are backend-authoritative; the browser never
+    // creates its own warning count or infers submission from a threshold.
     if (typeof telemetry.warningCount === "number" && Number.isFinite(telemetry.warningCount)) {
       setWarningCount(telemetry.warningCount);
     }
 
-    if (!telemetry.malpracticeEvent) {
-      return;
-    }
-
-    const eventType = normalizeAIEventType(telemetry.malpracticeEvent);
-    if (!eventType) {
-      console.warn("[Proctoring] Ignoring unknown AI event type:", telemetry.malpracticeEvent);
-      return;
-    }
-
     const currentAttemptId = Number(attemptIdRef.current);
     const isValidAttempt = Number.isSafeInteger(currentAttemptId) && currentAttemptId > 0;
-    const isAutoSubmitted = Boolean(telemetry.autoSubmitted);
+    const isAutoSubmitted = telemetry.autoSubmitted === true;
+    const rawEvent = typeof telemetry.malpracticeEvent === "string"
+      ? telemetry.malpracticeEvent.trim()
+      : "";
+    const eventMessage = typeof telemetry.eventMessage === "string"
+      ? telemetry.eventMessage.trim()
+      : "";
+    const eventKey = rawEvent
+      ? (normalizeAIEventType(rawEvent) || rawEvent.toUpperCase().replace(/[\\s-]+/g, "_"))
+      : "";
     const authoritativeCount = Math.max(
       warningCountRef.current,
-      typeof telemetry.warningCount === "number" ? telemetry.warningCount : 0,
+      typeof telemetry.warningCount === "number" && Number.isFinite(telemetry.warningCount)
+        ? telemetry.warningCount
+        : 0,
     );
-    const details = (
-      telemetry.eventMessage?.trim() || telemetry.malpracticeEvent
-    ).slice(0, 1000);
+    const eventReason = [rawEvent, eventMessage].filter(Boolean).join(": ").slice(0, 1000);
 
-    // V2's AI service dispatches confirmed events to Spring Boot itself and
-    // returns the authoritative count in telemetry. Do not POST the same event
-    // again from the browser: doing so can double-count a single violation.
-    // Auto-submit is likewise driven by the backend's explicit response flag,
-    // never by a hard-coded client-side warning threshold.
-    if (
-      isAutoSubmitted &&
-      isValidAttempt &&
-      autoSubmitHandledAttemptRef.current !== currentAttemptId
-    ) {
-      autoSubmitHandledAttemptRef.current = currentAttemptId;
-      onAutoSubmitRef.current?.();
+    // Process this flag even when malpracticeEvent is null. The backend's
+    // explicit autoSubmitted response is final and must not trigger a duplicate
+    // browser submission request.
+    if (isAutoSubmitted) {
+      markServerAutoSubmitted(eventReason || "The backend automatically submitted this assessment.");
+      if (autoSubmitModalAttemptRef.current !== currentAttemptId) {
+        autoSubmitModalAttemptRef.current = currentAttemptId;
+        setActiveWarningModal({
+          isOpen: true,
+          reason: eventReason || "The backend automatically submitted this assessment.",
+          count: authoritativeCount,
+          autoSubmitted: true,
+        });
+      }
+      return;
+    }
+
+    if (!rawEvent) return;
+
+    if (!eventKey) {
+      console.warn("[Proctoring] Empty AI malpractice event was ignored.");
+      return;
     }
 
     const now = Date.now();
-    const lastReportedAt = reportedAiEventsRef.current.get(eventType) ?? 0;
+    const lastReportedAt = reportedAiEventsRef.current.get(eventKey) ?? 0;
     const eventCooldownMs = 10000;
-    if (now - lastReportedAt < eventCooldownMs && !isAutoSubmitted) {
-      return;
-    }
-    reportedAiEventsRef.current.set(eventType, now);
+    if (now - lastReportedAt < eventCooldownMs) return;
+    reportedAiEventsRef.current.set(eventKey, now);
 
     setActiveWarningModal({
       isOpen: true,
-      reason: details,
+      reason: eventReason || rawEvent,
       count: authoritativeCount,
-      autoSubmitted: isAutoSubmitted,
+      autoSubmitted: false,
     });
-  }, [setWarningCount]);
+  }, [markServerAutoSubmitted, setIdentityHoldSnapshot, setWarningCount]);
 
   // Capture single frame from in-DOM video without depending on cameraActive state
   const captureFrameBase64 = useCallback((): string | null => {
@@ -385,6 +442,10 @@ export function useAIProctoring({
     const initProctoring = async () => {
       setCameraError(null);
       setIsOnline(false);
+      setReferenceRegistered(false);
+      setServerAutoSubmitted(false);
+      serverAutoSubmittedRef.current = false;
+      setIdentityHoldSnapshot(enabled, enabled ? "INITIALIZING" : null);
       // A retry starts a new session; never let telemetry from the previous
       // session satisfy the readiness gate before fresh telemetry arrives.
       setTelemetryReceived(false);
@@ -571,6 +632,19 @@ export function useAIProctoring({
         return;
       }
 
+      // startProctoringSession rejects unless the backend explicitly confirms
+      // referenceRegistered=true and biometricReady=true. Only then may the
+      // registered baseline be treated as successful by the UI.
+      if (sessionRes.referenceRegistered !== true || sessionRes.biometricReady !== true) {
+        setCameraError(
+          sessionRes.message ||
+            "The backend did not confirm reference registration. Return to the lobby and capture a new photo.",
+        );
+        await cleanup();
+        return;
+      }
+      setReferenceRegistered(true);
+      sessionStorage.removeItem(`dynoquizz_pending_proctor_attempt_${String(testCodeRef.current || "").trim().toUpperCase()}`);
       sessionIdRef.current = sessionRes.sessionId;
       wsTicketRef.current = sessionRes.wsTicket || null;
 
@@ -649,7 +723,13 @@ export function useAIProctoring({
               handleTelemetryUpdate(res);
             }
           } catch (restErr) {
-            console.warn("REST frame analysis frame dropped:", restErr);
+            // Fail closed on telemetry transport/inference errors. The loop
+            // continues retrying frames; a later explicit identityHold=false
+            // response is required before interaction can resume.
+            if (!serverAutoSubmittedRef.current) {
+              setIdentityHoldSnapshot(true, "PROCTORING_TELEMETRY_UNAVAILABLE");
+            }
+            console.warn("REST frame analysis frame dropped; identity hold enabled:", restErr);
           } finally {
             inFlightRestRef.current = false;
           }
@@ -685,7 +765,6 @@ export function useAIProctoring({
     (reason: string, count: number, autoSubmitted: boolean = false) => {
       setWarningCount(count);
       const strikeCount = Math.max(warningCountRef.current, count);
-      // Never infer submission from a local count; use the server's decision.
       const isAuto = autoSubmitted;
       setActiveWarningModal({
         isOpen: true,
@@ -693,11 +772,11 @@ export function useAIProctoring({
         count: strikeCount,
         autoSubmitted: isAuto,
       });
-      if (isAuto && onAutoSubmitRef.current) {
-        onAutoSubmitRef.current();
+      if (isAuto) {
+        markServerAutoSubmitted(reason);
       }
     },
-    [setWarningCount]
+    [markServerAutoSubmitted, setWarningCount]
   );
 
   const dismissWarningModal = useCallback(() => {
@@ -710,6 +789,10 @@ export function useAIProctoring({
     cameraError: displayedCameraError,
     isOnline,
     telemetryReceived,
+    identityHold,
+    identityHoldReason,
+    referenceRegistered,
+    serverAutoSubmitted,
     faceDetected,
     numFaces,
     numPersons,
