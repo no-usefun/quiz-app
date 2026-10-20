@@ -330,7 +330,6 @@ export default function TestArenaPage({
 
   const proctoring = useAIProctoring({
     attemptId: Number(activeAttemptId || 0),
-    studentId: effectiveStudentId,
     testCode: cleanCode,
     referenceImage: referencePhoto,
     authToken: getAuthToken() || undefined,
