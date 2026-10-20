@@ -806,6 +806,26 @@ public class TeacherQuizService {
                                 .toList();
         }
 
+        @Transactional(readOnly = true)
+        public QuizResponse getTeacherQuizSettings(Long quizId, Long teacherId) {
+                if (quizId == null) {
+                        throw new BadRequestException("Quiz ID is required");
+                }
+                if (teacherId == null) {
+                        throw new BadRequestException("Teacher authentication is required");
+                }
+
+                Quiz quiz = quizRepository.findById(quizId)
+                                .orElseThrow(() -> new ResourceNotFoundException("Quiz not found"));
+
+                if (quiz.getTeacher() == null || !quiz.getTeacher().getId().equals(teacherId)) {
+                        throw new AccessDeniedApplicationException(
+                                        "You do not have permission to view this quiz");
+                }
+
+                return toQuizResponse(quiz);
+        }
+
         @Transactional
         public QuizResponse updateQuizSettings(
                         Long quizId,
@@ -834,9 +854,41 @@ public class TeacherQuizService {
                                         "You do not have permission to update this quiz");
                 }
 
-                if (quiz.getStatus() != QuizStatus.DRAFT) {
+                /*
+                 * Completed assessments may change only result visibility.
+                 * Keep all existing draft-only settings and question validation
+                 * unchanged for DRAFT assessments.
+                 */
+                boolean completedVisibilityOnly = quiz.getStatus() == QuizStatus.COMPLETED
+                                && request.resultVisibility() != null
+                                && request.overallTimerSeconds() == null
+                                && request.negativeMarking() == null
+                                && request.negativeMarks() == null
+                                && request.timeBonusEnabled() == null
+                                && request.randomQuestionOrder() == null
+                                && request.randomOptionOrder() == null
+                                && request.allowReview() == null
+                                && request.allowResume() == null
+                                && request.autoSubmit() == null
+                                && request.aiProctoringEnabled() == null
+                                && request.maxTabSwitch() == null
+                                && request.startTime() == null
+                                && request.endTime() == null
+                                && request.acceptedEmailDomain() == null
+                                && request.allowedRegistrationNumbers() == null
+                                && request.questions() == null;
+
+                if (quiz.getStatus() != QuizStatus.DRAFT && !completedVisibilityOnly) {
                         throw new BadRequestException(
-                                        "Quiz settings can only be updated while the quiz is in DRAFT status");
+                                        quiz.getStatus() == QuizStatus.COMPLETED
+                                                        ? "Only resultVisibility can be updated after quiz completion"
+                                                        : "Quiz settings can only be updated while the quiz is in DRAFT status");
+                }
+
+                if (completedVisibilityOnly) {
+                        quiz.setResultVisibility(request.resultVisibility());
+                        quiz.setUpdatedAt(LocalDateTime.now());
+                        return toQuizResponse(quizRepository.save(quiz));
                 }
 
                 if (request.overallTimerSeconds() != null) {
