@@ -2,7 +2,7 @@
 
 // frontend/src/app/test/[testCode]/page.tsx
 
-import { use, useCallback, useEffect, useRef, useState } from "react";
+import { use, useCallback, useEffect, useRef, useState, useSyncExternalStore } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { AnimatePresence, motion } from "framer-motion";
@@ -19,7 +19,7 @@ import {
   ShieldCheck,
 } from "lucide-react";
 
-import { useProctoring } from "@/hooks/useProctoring";
+import { useAIProctoring } from "@/hooks/useAIProctoring";
 import { AIProctoringHUD } from "@/components/AIProctoringHUD";
 import { ProctoringWarningModal } from "@/components/ProctoringWarningModal";
 import { ApiClientError, api, getAuthToken } from "@/lib/api/client";
@@ -31,6 +31,10 @@ import type {
   SubmitAttemptResponse,
 } from "@/lib/types";
 
+const subscribeToHydration = () => () => {};
+const getClientHydrationSnapshot = () => true;
+const getServerHydrationSnapshot = () => false;
+
 interface ProctoringEventResponse {
   recorded: boolean;
   warningCount: number;
@@ -39,6 +43,33 @@ interface ProctoringEventResponse {
 }
 
 type ActiveAnswerState = Record<number, number[]>;
+
+type BrowserProctoringFlag =
+  | "tab_switch"
+  | "fullscreen_exit"
+  | "right_click"
+  | "copy_attempt"
+  | "cut_attempt"
+  | "paste_attempt"
+  | "focus_loss"
+  | "keyboard_attempt"
+  | "refresh_count"
+  | "reconnect_count";
+
+type BrowserProctoringFlags = Record<BrowserProctoringFlag, number>;
+
+const initialBrowserFlags: BrowserProctoringFlags = {
+  tab_switch: 0,
+  fullscreen_exit: 0,
+  right_click: 0,
+  copy_attempt: 0,
+  cut_attempt: 0,
+  paste_attempt: 0,
+  focus_loss: 0,
+  keyboard_attempt: 0,
+  refresh_count: 0,
+  reconnect_count: 0,
+};
 
 function formatRemainingTime(seconds: number): string {
   const safe = Math.max(0, Math.floor(seconds));
@@ -228,10 +259,11 @@ export default function TestArenaPage({
   const [timeLeft, setTimeLeft] = useState(0);
 
   const [isSubmitted, setIsSubmitted] = useState(false);
-  const [submittedAttemptId, setSubmittedAttemptId] = useState<string | null>(
-    null,
+  const mounted = useSyncExternalStore(
+    subscribeToHydration,
+    getClientHydrationSnapshot,
+    getServerHydrationSnapshot,
   );
-  const [mounted, setMounted] = useState(false);
   const [sessionExpired, setSessionExpired] = useState(false);
   const [deadlineNotice, setDeadlineNotice] = useState<string | null>(null);
   const [submissionNotice, setSubmissionNotice] = useState<string | null>(null);
@@ -245,42 +277,33 @@ export default function TestArenaPage({
   const currentQuestionRef = useRef<QuestionResponse | null>(null);
   const expiryHandledRef = useRef(false);
   const submissionInFlightRef = useRef(false);
+
+  // The biometric reference remains session-scoped; do not persist raw imagery
+  // in localStorage beyond this assessment flow.
   const referencePhoto =
     typeof window !== "undefined"
-      ? sessionStorage.getItem("dynoquizz_reference_photo") ||
-        localStorage.getItem("dynoquizz_reference_photo")
+      ? sessionStorage.getItem("dynoquizz_reference_photo")
       : null;
+  const [aiProctoringEnabled] = useState(() => {
+    if (typeof window === "undefined") return true;
+    return sessionStorage.getItem(`dynoquizz_ai_proctoring_${cleanCode}`) !== "false";
+  });
 
-  const studentUser = typeof window !== "undefined"
-    ? (() => {
-        try {
-          return JSON.parse(localStorage.getItem("dynoquizz_user") || "{}");
-        } catch {
-          return {};
-        }
-      })()
-    : {};
+  const studentUser =
+    typeof window !== "undefined"
+      ? (() => {
+          try {
+            return JSON.parse(localStorage.getItem("dynoquizz_user") || "{}");
+          } catch {
+            return {};
+          }
+        })()
+      : {};
   const effectiveStudentId = studentUser?.id ? String(studentUser.id) : undefined;
 
   const finishAssessmentRef = useRef<
     ((latestAnswers?: ActiveAnswerState, latestTimeTaken?: Record<number, number>) => Promise<void>) | null
   >(null);
-
-  const proctoring = useProctoring({
-    attemptId: Number(activeAttemptId || 0),
-    studentId: effectiveStudentId,
-    testCode: cleanCode,
-    referenceImage: referencePhoto,
-    authToken: getAuthToken() || undefined,
-    onAutoSubmit: () => {
-      void proctoring.cleanup();
-      setDeadlineNotice(
-        "Assessment automatically submitted due to reaching maximum proctoring violation warnings."
-      );
-      void finishAssessmentRef.current?.(answersRef.current, timeTakenRef.current);
-    },
-    enabled: !isSubmitted && Boolean(activeAttemptId),
-  });
 
   const [isFullscreen, setIsFullscreen] = useState(() => {
     if (typeof document !== "undefined") {
@@ -289,27 +312,71 @@ export default function TestArenaPage({
     return true;
   });
   const mountTimeRef = useRef<number | null>(null);
-  const hasEnteredFullscreenRef = useRef<boolean>(false);
+  const hasEnteredFullscreenRef = useRef(false);
+  const lastBrowserViolationTimeRef = useRef(0);
+  const lastAuditEventTimeRef = useRef<Partial<Record<BrowserProctoringFlag, number>>>({});
+  const [flags, setFlags] = useState<BrowserProctoringFlags>(initialBrowserFlags);
+  const [warnings, setWarnings] = useState<string[]>([]);
+  const violationCount = Object.values(flags).reduce(
+    (sum, count) => sum + Number(count || 0),
+    0,
+  );
+
+  const recordBrowserEvent = useCallback(
+    (type: BrowserProctoringFlag, message: string) => {
+      setFlags((previous) => ({ ...previous, [type]: previous[type] + 1 }));
+      setWarnings((previous) => [...previous.slice(-9), message]);
+    },
+    [],
+  );
+
+  const proctoring = useAIProctoring({
+    attemptId: Number(activeAttemptId || 0),
+    studentId: effectiveStudentId,
+    testCode: cleanCode,
+    referenceImage: referencePhoto,
+    authToken: getAuthToken() || undefined,
+    onAutoSubmit: () => {
+      setDeadlineNotice(
+        "Assessment automatically submitted due to reaching the configured proctoring warning limit.",
+      );
+      void finishAssessmentRef.current?.(answersRef.current, timeTakenRef.current);
+    },
+    enabled: aiProctoringEnabled && !isSubmitted && Boolean(activeAttemptId),
+  });
+
+  const isAIProctoringReady = !aiProctoringEnabled || (Boolean(activeAttemptId) &&
+    proctoring.isOnline &&
+    proctoring.cameraActive &&
+    proctoring.telemetryReceived &&
+    proctoring.faceDetected &&
+    proctoring.identityVerified &&
+    !proctoring.cameraError);
 
   const requestFullscreen = useCallback(async () => {
-    if (typeof document !== "undefined" && !document.fullscreenElement) {
-      try {
-        await document.documentElement.requestFullscreen();
-        setIsFullscreen(true);
-        hasEnteredFullscreenRef.current = true;
-      } catch (err) {
-        console.warn("Could not enter fullscreen:", err);
-      }
+    if (typeof document === "undefined") return false;
+    if (document.fullscreenElement) {
+      setIsFullscreen(true);
+      return true;
+    }
+    try {
+      await document.documentElement.requestFullscreen();
+      setIsFullscreen(true);
+      hasEnteredFullscreenRef.current = true;
+      return true;
+    } catch {
+      setIsFullscreen(false);
+      return false;
     }
   }, []);
+
   const exitFullscreen = useCallback(async () => {
-    if (typeof document !== "undefined" && document.fullscreenElement) {
-      try {
-        await document.exitFullscreen();
-        setIsFullscreen(false);
-      } catch (err) {
-        console.warn("Could not exit fullscreen:", err);
-      }
+    if (typeof document === "undefined" || !document.fullscreenElement) return;
+    try {
+      await document.exitFullscreen();
+      setIsFullscreen(false);
+    } catch {
+      // Ignore browser fullscreen teardown failures.
     }
   }, []);
 
@@ -365,9 +432,8 @@ export default function TestArenaPage({
     proctoringShowWarningModalRef.current = proctoring.showWarningModal;
   }, [proctoring.showWarningModal]);
 
-  const lastBrowserViolationTimeRef = useRef<number>(0);
+  const lastBackendWarningCountRef = useRef(0);
 
-  // Browser-level security and restriction event dispatching
   useEffect(() => {
     if (typeof window === "undefined" || isSubmitted || !activeAttemptId) {
       return;
@@ -376,62 +442,89 @@ export default function TestArenaPage({
     const INITIAL_GRACE_PERIOD_MS = 8000;
     const VIOLATION_COOLDOWN_MS = 3500;
 
-    const reportEvent = async (eventType: string, details: string) => {
+    const reportEvent = async (type: BrowserProctoringFlag, details: string) => {
       const now = Date.now();
-      if (!mountTimeRef.current) {
-        mountTimeRef.current = now;
+      const isCountableViolation = type === "tab_switch" || type === "fullscreen_exit";
+
+      if (isCountableViolation) {
+        if (!mountTimeRef.current) mountTimeRef.current = now;
+        if (now - mountTimeRef.current < INITIAL_GRACE_PERIOD_MS) return;
+        if (now - lastBrowserViolationTimeRef.current < VIOLATION_COOLDOWN_MS) return;
+        lastBrowserViolationTimeRef.current = now;
+      } else {
+        const lastTime = lastAuditEventTimeRef.current[type] || 0;
+        if (now - lastTime < 600) return;
+        lastAuditEventTimeRef.current[type] = now;
       }
-      if (now - mountTimeRef.current < INITIAL_GRACE_PERIOD_MS) {
-        return; // Grace period during initial page mount and camera/sensor initialization
-      }
-      if (now - lastBrowserViolationTimeRef.current < VIOLATION_COOLDOWN_MS) {
-        return; // debounced across all browser violation signals to prevent duplicate strikes for a single action
-      }
-      lastBrowserViolationTimeRef.current = now;
+
+      recordBrowserEvent(type, details);
 
       try {
-        const token = getAuthToken();
-        const res = await api.post<ProctoringEventResponse>(
-          ENDPOINTS.proctoring.recordEvent(activeAttemptId),
-          {
-            eventType,
-            details,
-            severity: "HIGH",
-            confidence: 1.0,
-          },
-          {
-            headers: token ? { Authorization: `Bearer ${token}` } : {},
-          }
-        );
-        if (res) {
-          const isAuto = Boolean(res.autoSubmitted) || (typeof res.warningCount === "number" && res.warningCount >= 3);
-          if (typeof res.warningCount === "number") {
-            proctoringSetWarningCountRef.current(res.warningCount);
+        if (isCountableViolation) {
+          const eventType = type === "tab_switch" ? "TAB_SWITCH" : "FULLSCREEN_EXIT";
+          const token = getAuthToken();
+          const response = await api.post<ProctoringEventResponse>(
+            ENDPOINTS.proctoring.recordEvent(activeAttemptId),
+            {
+              eventType,
+              details,
+              severity: "HIGH",
+              confidence: 1.0,
+              frameTimestamp: now,
+              eventId: `browser-${activeAttemptId}-${eventType}-${now}`,
+            },
+            {
+              headers: token ? { Authorization: `Bearer ${token}` } : {},
+            },
+          );
+
+          if (response && typeof response.warningCount === "number") {
+            // The server is authoritative for auto-submission. Do not infer it
+            // from a warning count because the policy may change server-side.
+            const isAutoSubmitted = Boolean(response.autoSubmitted);
+            proctoringSetWarningCountRef.current(response.warningCount);
+            lastBackendWarningCountRef.current = Math.max(
+              lastBackendWarningCountRef.current,
+              response.warningCount,
+            );
             proctoringShowWarningModalRef.current(
               details,
-              res.warningCount,
-              isAuto
+              response.warningCount,
+              isAutoSubmitted,
             );
+            if (isAutoSubmitted) {
+              void proctoringCleanupRef.current();
+              void finishAssessmentRef.current?.(answersRef.current, timeTakenRef.current);
+            }
           }
-          if (isAuto) {
-            void proctoringCleanupRef.current();
-            void finishAssessmentRef.current?.(answersRef.current, timeTakenRef.current);
-          }
+        } else {
+          // Keep legacy non-strike audit events compatible while the backend
+          // team adds the unified V2 warning-count contract.
+          await api.post(
+            ENDPOINTS.student.proctoringEvents(activeAttemptId),
+            {
+              type,
+              occurredAt: new Date().toISOString(),
+              metadata: { source: "browser", details },
+            },
+          );
         }
-      } catch (err) {
-        console.warn("Failed to report browser proctoring event:", err);
+      } catch (error) {
+        console.warn("[Proctoring] Browser event sync failed:", error);
       }
     };
 
     const handleVisibilityChange = () => {
       if (document.visibilityState === "hidden") {
-        void reportEvent("TAB_SWITCH", "Candidate switched tabs or minimized assessment window");
+        void reportEvent("tab_switch", "Candidate switched tabs or minimized the assessment window.");
       }
     };
 
     const handleBlur = () => {
       if (document.visibilityState === "hidden" || !document.hasFocus()) {
-        void reportEvent("TAB_SWITCH", "Candidate switched away from assessment window");
+        void reportEvent("tab_switch", "Candidate switched away from the assessment window.");
+      } else {
+        void reportEvent("focus_loss", "The assessment window lost focus.");
       }
     };
 
@@ -440,55 +533,120 @@ export default function TestArenaPage({
       setIsFullscreen(active);
       if (active) {
         hasEnteredFullscreenRef.current = true;
-      } else {
-        // Tab switch handler handles Alt-Tab/minimize; only trigger fullscreen exit if window is still visible
-        // and candidate was previously in fullscreen mode
-        if (hasEnteredFullscreenRef.current && document.visibilityState === "visible") {
-          void reportEvent("FULLSCREEN_EXIT", "Candidate exited required fullscreen exam mode");
-        }
+      } else if (
+        hasEnteredFullscreenRef.current &&
+        document.visibilityState === "visible"
+      ) {
+        void reportEvent("fullscreen_exit", "Candidate exited required fullscreen mode.");
       }
     };
 
-    const handleContextMenu = (e: MouseEvent) => {
-      e.preventDefault();
+    const handleContextMenu = (event: MouseEvent) => {
+      event.preventDefault();
+      void reportEvent("right_click", "Right-click was blocked during the assessment.");
     };
 
-    const handleCopyPaste = (e: ClipboardEvent) => {
-      e.preventDefault();
+    const handleCopy = (event: ClipboardEvent) => {
+      event.preventDefault();
+      void reportEvent("copy_attempt", "Copy was blocked during the assessment.");
     };
 
-    if (!mountTimeRef.current) {
-      mountTimeRef.current = Date.now();
+    const handleCut = (event: ClipboardEvent) => {
+      event.preventDefault();
+      void reportEvent("cut_attempt", "Cut was blocked during the assessment.");
+    };
+
+    const handlePaste = (event: ClipboardEvent) => {
+      event.preventDefault();
+      void reportEvent("paste_attempt", "Paste was blocked during the assessment.");
+    };
+
+    const handleBeforeInput = (event: InputEvent) => {
+      if (event.inputType === "insertFromPaste") {
+        event.preventDefault();
+        void reportEvent("paste_attempt", "Paste input was blocked during the assessment.");
+      }
+    };
+
+    const handleDragStart = (event: DragEvent) => event.preventDefault();
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      const key = event.key.toLowerCase();
+      const command = event.ctrlKey || event.metaKey;
+      const blocked =
+        (command && ["c", "x", "v", "a", "p", "s", "u"].includes(key)) ||
+        key === "printscreen";
+      if (!blocked) return;
+
+      event.preventDefault();
+      const type: BrowserProctoringFlag =
+        key === "c" ? "copy_attempt" :
+        key === "x" ? "cut_attempt" :
+        key === "v" ? "paste_attempt" : "keyboard_attempt";
+      const message =
+        key === "c" ? "Copy shortcut was blocked during the assessment." :
+        key === "x" ? "Cut shortcut was blocked during the assessment." :
+        key === "v" ? "Paste shortcut was blocked during the assessment." :
+        "A restricted keyboard shortcut was blocked during the assessment.";
+      void reportEvent(type, message);
+    };
+
+    const navigation = performance.getEntriesByType("navigation")[0] as
+      | PerformanceNavigationTiming
+      | undefined;
+    if (navigation?.type === "reload") {
+      void reportEvent("refresh_count", "Assessment page refresh detected.");
     }
 
-    // Synchronize initial fullscreen state on mount
-    const initialFs = Boolean(document.fullscreenElement);
-    setIsFullscreen(initialFs);
-    if (initialFs) {
-      hasEnteredFullscreenRef.current = true;
-    }
+    let wasOffline = !navigator.onLine;
+    const handleOnline = () => {
+      if (wasOffline) {
+        void reportEvent("reconnect_count", "Network reconnection detected during the assessment.");
+      }
+      wasOffline = false;
+    };
+    const handleOffline = () => { wasOffline = true; };
+
+    if (!mountTimeRef.current) mountTimeRef.current = Date.now();
+    const initialFullscreen = Boolean(document.fullscreenElement);
+    // Read the browser fullscreen state once while registering the browser event listeners.
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- DOM state synchronization
+    setIsFullscreen(initialFullscreen);
+    if (initialFullscreen) hasEnteredFullscreenRef.current = true;
 
     document.addEventListener("visibilitychange", handleVisibilityChange);
     window.addEventListener("blur", handleBlur);
     document.addEventListener("fullscreenchange", handleFullscreenChange);
     document.addEventListener("contextmenu", handleContextMenu);
-    document.addEventListener("copy", handleCopyPaste);
-    document.addEventListener("cut", handleCopyPaste);
-    document.addEventListener("paste", handleCopyPaste);
+    document.addEventListener("copy", handleCopy);
+    document.addEventListener("cut", handleCut);
+    document.addEventListener("paste", handlePaste);
+    document.addEventListener("beforeinput", handleBeforeInput as EventListener);
+    document.addEventListener("dragstart", handleDragStart);
+    document.addEventListener("keydown", handleKeyDown);
+    window.addEventListener("online", handleOnline);
+    window.addEventListener("offline", handleOffline);
 
     return () => {
       document.removeEventListener("visibilitychange", handleVisibilityChange);
       window.removeEventListener("blur", handleBlur);
       document.removeEventListener("fullscreenchange", handleFullscreenChange);
       document.removeEventListener("contextmenu", handleContextMenu);
-      document.removeEventListener("copy", handleCopyPaste);
-      document.removeEventListener("cut", handleCopyPaste);
-      document.removeEventListener("paste", handleCopyPaste);
+      document.removeEventListener("copy", handleCopy);
+      document.removeEventListener("cut", handleCut);
+      document.removeEventListener("paste", handlePaste);
+      document.removeEventListener("beforeinput", handleBeforeInput as EventListener);
+      document.removeEventListener("dragstart", handleDragStart);
+      document.removeEventListener("keydown", handleKeyDown);
+      window.removeEventListener("online", handleOnline);
+      window.removeEventListener("offline", handleOffline);
     };
-  }, [isSubmitted, activeAttemptId]);
+  }, [activeAttemptId, isSubmitted, recordBrowserEvent]);
 
   useEffect(() => {
     if (isSubmitted) {
+      // Submission must release the browser fullscreen lock as part of the teardown lifecycle.
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- fullscreen teardown side effect
       void exitFullscreen();
       if (deadlineReached) {
         window.close();
@@ -497,9 +655,10 @@ export default function TestArenaPage({
   }, [isSubmitted, exitFullscreen, deadlineReached]);
 
   useEffect(() => {
-    setMounted(true);
 
     if (!cleanCode) {
+      // Invalid route params must transition the page into its explicit error state.
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- route validation state
       setTestLoadError("Assessment code is missing.");
       setIsLoadingTest(false);
       return;
@@ -609,7 +768,6 @@ export default function TestArenaPage({
               }
 
               if (serverState.status !== "IN_PROGRESS") {
-                setSubmittedAttemptId(String(serverState.attemptId));
                 setIsSubmitted(true);
 
                 if (typeof window !== "undefined") {
@@ -769,7 +927,7 @@ export default function TestArenaPage({
     }, 1000);
 
     return () => window.clearInterval(interval);
-  }, [currentQuestion?.questionId, isSubmitted]);
+  }, [currentQuestion, isSubmitted]);
   const persistCurrentState = (
     nextAnswers: ActiveAnswerState = answersRef.current,
     nextTimeTaken: Record<number, number> = timeTakenRef.current,
@@ -884,7 +1042,7 @@ export default function TestArenaPage({
 
   };
 
-  const finishAssessment = async (
+  const finishAssessment = useCallback(async (
     latestAnswers: ActiveAnswerState = answersRef.current,
     latestTimeTaken: Record<number, number> = timeTakenRef.current,
   ) => {
@@ -910,10 +1068,7 @@ export default function TestArenaPage({
     setIsSubmitting(true);
     setSubmissionNotice(null);
 
-    // Stop proctoring camera, mic, and remote AI session immediately and await summary dispatch
-    await proctoring.cleanup();
-
-    persistCurrentState(latestAnswers, latestTimeTaken);
+    persistAttemptDraft(activeAttemptId, latestAnswers, latestTimeTaken);
 
     try {
       const completeAnswers = questions.map((question) => {
@@ -949,8 +1104,6 @@ export default function TestArenaPage({
           "The server accepted the submission but did not return an attempt ID.",
         );
       }
-
-      setSubmittedAttemptId(returnedAttemptId);
       setIsSubmitted(true);
 
       localStorage.setItem(
@@ -962,6 +1115,9 @@ export default function TestArenaPage({
       localStorage.removeItem(`dynoquizz_attemptId_${cleanCode}`);
       localStorage.removeItem("dynoquizz_attemptId");
       localStorage.removeItem(`dynoquizz_pending_submit_${attemptId}`);
+      // The reference image is needed only for this attempt/session.
+      sessionStorage.removeItem("dynoquizz_reference_photo");
+      localStorage.removeItem("dynoquizz_reference_photo");
 
       if (result.status === "AUTO_SUBMITTED") {
         setDeadlineNotice(
@@ -990,20 +1146,34 @@ export default function TestArenaPage({
             { retry: 2, retryDelayMs: 300, cache: "no-store" },
           );
 
-          setSubmittedAttemptId(String(state.attemptId));
-
           if (state.status !== "IN_PROGRESS") {
             setIsSubmitted(true);
+
+            // A proctoring event may have auto-submitted the attempt on the
+            // server before the browser's normal submit request completed.
+            // Reconcile local navigation state with that authoritative result.
+            const reconciledAttemptId = String(state.attemptId ?? attemptId);
+            localStorage.setItem(
+              `dynoquizz_submittedAttemptId_${cleanCode}`,
+              reconciledAttemptId,
+            );
+            localStorage.setItem(
+              "dynoquizz_submittedAttemptId",
+              reconciledAttemptId,
+            );
+            localStorage.removeItem(`dynoquizz_attemptId_${cleanCode}`);
+            localStorage.removeItem("dynoquizz_attemptId");
+            localStorage.removeItem(
+              `dynoquizz_pending_submit_${attemptId}`,
+            );
+            sessionStorage.removeItem("dynoquizz_reference_photo");
+            localStorage.removeItem("dynoquizz_reference_photo");
 
             if (state.status === "AUTO_SUBMITTED") {
               setDeadlineNotice(
                 "The server has already automatically submitted this assessment attempt.",
               );
             }
-
-            localStorage.removeItem(
-              `dynoquizz_pending_submit_${attemptId}`,
-            );
             return;
           }
         } catch (reconcileError) {
@@ -1028,13 +1198,14 @@ export default function TestArenaPage({
       submissionInFlightRef.current = false;
       setIsSubmitting(false);
     }
-  };
+  }, [activeAttemptId, cleanCode, isSubmitted, isSubmitting, questions, test]);
 
+  // Keep the latest submission callback available to asynchronous AI warning handlers.
   useEffect(() => {
     finishAssessmentRef.current = finishAssessment;
   }, [finishAssessment]);
 
-  const handleOverallTimerExpired = () => {
+  const handleOverallTimerExpired = useCallback(() => {
     if (
       expiryHandledRef.current ||
       isSubmitted ||
@@ -1057,7 +1228,7 @@ export default function TestArenaPage({
       { ...answersRef.current },
       { ...timeTakenRef.current },
     );
-  };
+  }, [activeAttemptId, finishAssessment, isSubmitted, test]);
 
   useEffect(() => {
     if (isSubmitted || !effectiveDeadline) {
@@ -1067,6 +1238,8 @@ export default function TestArenaPage({
     const deadlineMs = parseBackendDeadline(effectiveDeadline);
 
     if (!Number.isFinite(deadlineMs)) {
+      // This validation follows a server response and must block the assessment on invalid data.
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- server response validation
       setTestLoadError(
         "The server returned an invalid assessment deadline. Please return to the lobby and start the assessment again.",
       );
@@ -1104,7 +1277,7 @@ export default function TestArenaPage({
       window.clearInterval(interval);
       document.removeEventListener("visibilitychange", handleVisibilityChange);
     };
-  }, [effectiveDeadline, isSubmitted]);
+  }, [effectiveDeadline, handleOverallTimerExpired, isSubmitted]);
 
   useEffect(() => {
     if (!activeAttemptId) {
@@ -1337,9 +1510,9 @@ export default function TestArenaPage({
             <p className="mt-2 text-xs leading-relaxed text-[#78716b]">
               The assessment must remain in fullscreen mode. Re-enter fullscreen to continue the attempt.
             </p>
-            {proctoring.warningCount > 0 && (
+            {violationCount > 0 && (
               <p className="mt-2 text-[10px] font-bold text-[#8c381c]">
-                Suspicious activity warnings recorded: {proctoring.warningCount}
+                Suspicious activity events recorded: {violationCount}
               </p>
             )}
             <button
@@ -1532,8 +1705,7 @@ export default function TestArenaPage({
                 {currentQuestion?.options.map((option, idx) => {
                   const optionId = Number(option.optionId);
                   const selectedIds =
-                    answers[Number(currentQuestion.questionId)] ??
-                    [];
+                    answers[Number(currentQuestion.questionId)] ?? [];
                   const isSelected = selectedIds.includes(optionId);
 
                   return (
@@ -1648,8 +1820,7 @@ export default function TestArenaPage({
       </motion.div>
 
       <aside className="hidden w-72 flex-col gap-4 pl-6 lg:flex text-left">
-        {/* Live AI Proctoring HUD */}
-        <AIProctoringHUD
+        {aiProctoringEnabled && <AIProctoringHUD
           videoRef={proctoring.videoRef}
           cameraActive={proctoring.cameraActive}
           cameraError={proctoring.cameraError}
@@ -1669,7 +1840,47 @@ export default function TestArenaPage({
           loudVoice={proctoring.loudVoice}
           warningCount={proctoring.warningCount}
           isOnline={proctoring.isOnline}
-        />
+        />}
+
+        <div className="rounded-[14px] border border-[#d1dee8]/70 bg-white p-4 shadow-sm">
+          <div className="flex items-center justify-between gap-3">
+            <h3 className="flex items-center gap-1.5 text-xs font-bold text-[#111111]">
+              <ShieldAlert className="h-3.5 w-3.5 text-[#8c381c]" />
+              Activity Monitor
+            </h3>
+            <span className={`rounded-full px-2 py-0.5 text-[9px] font-bold ${
+              violationCount === 0
+                ? "bg-[#e2ede8] text-[#1d5237]"
+                : "bg-[#fbeee8] text-[#8c381c]"
+            }`}>
+              {violationCount} events
+            </span>
+          </div>
+
+          <div className="mt-3 grid grid-cols-2 gap-2">
+            {[
+              ["Tab switches", flags.tab_switch],
+              ["Fullscreen exits", flags.fullscreen_exit],
+              ["Copy / cut / paste", flags.copy_attempt + flags.cut_attempt + flags.paste_attempt],
+              ["Focus / keyboard", flags.focus_loss + flags.keyboard_attempt],
+              ["Right clicks", flags.right_click],
+            ].map(([label, value]) => (
+              <div key={String(label)} className="rounded-lg border border-[#d1dee8]/70 bg-[#f8f8f7] p-2">
+                <p className="text-[9px] font-semibold text-[#78716b]">{label}</p>
+                <p className="mt-0.5 text-sm font-black text-[#111111]">{value}</p>
+              </div>
+            ))}
+          </div>
+
+          {warnings.length > 0 && (
+            <div className="mt-3 rounded-lg border border-[#73561a]/20 bg-[#f6efe1] p-2.5">
+              <p className="text-[9px] font-bold uppercase tracking-wider text-[#73561a]">Latest event</p>
+              <p className="mt-1 text-[10px] font-semibold leading-relaxed text-[#73561a]">
+                {warnings[warnings.length - 1]}
+              </p>
+            </div>
+          )}
+        </div>
 
         <div className="overflow-hidden rounded-[14px] bg-white border border-[#d1dee8]/70 shadow-sm">
           <div className="p-4 border-b border-[#d1dee8]/50 bg-[#f5f5f4]">
@@ -1720,29 +1931,83 @@ export default function TestArenaPage({
           <ul className="space-y-1.5 text-[10px] font-medium text-[#78716b]">
             <li className="flex items-start gap-1 leading-relaxed">
               <span className="mt-1 h-1 w-1 rounded-full bg-[#165dfb] shrink-0" />
-              Keep face centered and visible inside camera frame at all times.
+              Select an option to answer each question.
             </li>
             <li className="flex items-start gap-1 leading-relaxed">
               <span className="mt-1 h-1 w-1 rounded-full bg-[#165dfb] shrink-0" />
-              Do not use mobile phones or external reference materials.
+              Mark questions for review if needed.
             </li>
             <li className="flex items-start gap-1 leading-relaxed">
               <span className="mt-1 h-1 w-1 rounded-full bg-[#165dfb] shrink-0" />
-              Remain quiet. Voice and acoustic levels are continuously analyzed.
-            </li>
-
-            <li className="flex items-start gap-1 leading-relaxed">
-              <span className="mt-1 h-1 w-1 rounded-full bg-[#165dfb] shrink-0" />
-              3 confirmed malpractice strikes will result in automatic submission.
+              Submit before the timer expires.
             </li>
           </ul>
         </div>
       </aside>
 
-      {/* Proctoring Warning Modal */}
+      {aiProctoringEnabled && !isSubmitted && activeAttemptId && !isAIProctoringReady && (
+        <div
+          role="dialog"
+          aria-modal="true"
+          aria-live="polite"
+          aria-label="AI proctoring initialization"
+          className="fixed inset-0 z-[90] flex items-center justify-center bg-[#111111]/75 p-4 backdrop-blur-sm"
+        >
+          <div className="w-full max-w-md space-y-4 rounded-[16px] border border-[#d1dee8] bg-white p-6 text-center shadow-2xl">
+            <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-[#e8f0ff] text-[#165dfb]">
+              {proctoring.cameraError ? (
+                <AlertTriangle className="h-6 w-6" />
+              ) : (
+                <Clock className="h-6 w-6 animate-pulse" />
+              )}
+            </div>
+            <h2 className="text-lg font-extrabold text-[#111111]">
+              {proctoring.cameraError
+                ? "AI Proctoring Could Not Start"
+                : "Verifying AI Proctoring"}
+            </h2>
+            <p className="text-xs leading-relaxed text-[#78716b]">
+              {proctoring.cameraError
+                ? proctoring.cameraError
+                : !proctoring.cameraActive
+                  ? "Connecting to the camera, microphone, and AI proctoring service. The assessment stays locked until initialization succeeds."
+                  : !proctoring.telemetryReceived
+                    ? "Camera is active. Waiting for the first verified AI telemetry response."
+                    : !proctoring.faceDetected
+                      ? "Keep your face clearly visible and centered in the camera."
+                      : "Confirming your face matches the reference photo captured in the lobby."}
+            </p>
+            <div className="flex flex-col gap-2 sm:flex-row">
+              <button
+                type="button"
+                onClick={() => void proctoring.retryInitialization()}
+                disabled={!proctoring.cameraError}
+                className="flex-1 rounded-[10px] bg-[#165dfb] px-4 py-2.5 text-xs font-bold text-white transition hover:bg-[#0f4fd8] disabled:cursor-not-allowed disabled:opacity-40"
+              >
+                Retry AI Connection
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  void proctoring.cleanup();
+                  void exitFullscreen();
+                  router.push(`/test/${encodeURIComponent(cleanCode)}/lobby`);
+                }}
+                className="flex-1 rounded-[10px] border border-[#d1dee8] bg-white px-4 py-2.5 text-xs font-bold text-[#111111] transition hover:bg-[#f5f5f4]"
+              >
+                Return to Lobby
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       <ProctoringWarningModal
         isOpen={proctoring.activeWarningModal.isOpen}
-        warningCount={Math.max(proctoring.warningCount, proctoring.activeWarningModal.count)}
+        warningCount={Math.max(
+          proctoring.warningCount,
+          proctoring.activeWarningModal.count,
+        )}
         reason={proctoring.activeWarningModal.reason}
         autoSubmitted={proctoring.activeWarningModal.autoSubmitted}
         faceDetected={proctoring.faceDetected}
