@@ -7,7 +7,6 @@ import {
   checkAIHealth,
   startProctoringSession,
   stopProctoringSession,
-  submitProctoringSummary,
   analyzeFrameREST,
   TelemetryResponse,
   StartSessionResult,
@@ -212,35 +211,18 @@ export function useAIProctoring({
 
       if (sid) {
         try {
-          const stopResult = await Promise.race([
+          // The Python service's /proctor/stop handler persists the final
+          // summary to Spring Boot before it closes and scrubs the session.
+          // Avoid posting the same summary a second time from the browser.
+          await Promise.race([
             stopProctoringSession({
               sessionId: sid,
               ticket: ticket || undefined,
+              authToken: authTokenRef.current,
+              attemptId: Number(attemptIdRef.current),
             }),
             new Promise<null>((resolve) => setTimeout(() => resolve(null), 3000)),
           ]);
-
-          const currentAttemptId = Number(attemptIdRef.current);
-          if (
-            stopResult &&
-            Number.isSafeInteger(currentAttemptId) &&
-            currentAttemptId > 0 &&
-            !summarySubmittedAttemptsRef.current.has(currentAttemptId)
-          ) {
-            try {
-              await submitProctoringSummary({
-                attemptId: currentAttemptId,
-                authToken: authTokenRef.current,
-                totalFaceChecks: stopResult.totalVerifications,
-                identityMatches: stopResult.identityMatches,
-                identityMismatches: stopResult.identityMismatches,
-              });
-              summarySubmittedAttemptsRef.current.add(currentAttemptId);
-            } catch (summaryErr) {
-              // Do not block assessment cleanup if the summary endpoint is unavailable.
-              console.warn("Proctoring summary submission failed:", summaryErr);
-            }
-          }
         } catch (err) {
           console.warn("Error stopping proctoring session:", err);
         }
