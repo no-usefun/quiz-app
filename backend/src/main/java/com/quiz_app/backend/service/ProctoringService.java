@@ -176,13 +176,34 @@ public class ProctoringService {
             String severity = request.severity() != null && !request.severity().isBlank()
                     ? request.severity().trim().toUpperCase(Locale.ROOT)
                     : null;
-            if (severity == null || !ALLOWED_SEVERITIES.contains(severity)) {
+            if (severity != null && !ALLOWED_SEVERITIES.contains(severity)) {
+                throw new BadRequestException("INVALID_EVENT_SEVERITY",
+                        "Severity must be one of: LOW, MEDIUM, HIGH, CRITICAL");
+            }
+            if (severity == null) {
                 severity = (eventType.contains("PHONE") || eventType.contains("IDENTITY")) ? "CRITICAL" : "HIGH";
             }
 
             Double confidence = request.confidence();
-            if (confidence == null || confidence < 0.0 || confidence > 1.0) {
-                confidence = (confidence == null) ? 0.90 : Math.max(0.0, Math.min(1.0, confidence));
+            if (confidence != null && (!Double.isFinite(confidence) || confidence < 0.0 || confidence > 1.0)) {
+                throw new BadRequestException("INVALID_EVENT_CONFIDENCE",
+                        "Confidence must be a finite number between 0 and 1");
+            }
+            if (confidence == null) {
+                confidence = 0.90;
+            }
+
+            Double frameTimestamp = request.frameTimestamp();
+            if (frameTimestamp != null) {
+                if (!Double.isFinite(frameTimestamp) || frameTimestamp < 946684800.0) {
+                    throw new BadRequestException("INVALID_EVENT_TIMESTAMP",
+                            "frameTimestamp must be Unix epoch seconds from 2000-01-01 onward");
+                }
+                double latestAllowedTimestamp = Instant.now().getEpochSecond() + 300.0;
+                if (frameTimestamp > latestAllowedTimestamp) {
+                    throw new BadRequestException("INVALID_EVENT_TIMESTAMP",
+                            "frameTimestamp cannot be more than five minutes in the future");
+                }
             }
 
             // Structured JSON metadata
@@ -193,7 +214,7 @@ public class ProctoringService {
                         "severity", severity,
                         "confidence", confidence,
                         "probabilityScore", confidence,
-                        "detectionTimestamp", request.frameTimestamp() != null ? request.frameTimestamp() : 0.0
+                        "detectionTimestamp", frameTimestamp != null ? frameTimestamp : 0.0
                 );
                 metadataJson = objectMapper.writeValueAsString(metaMap);
             } catch (Exception e) {
@@ -205,9 +226,9 @@ public class ProctoringService {
             event.setAttempt(attempt);
             event.setEventType(eventType);
             event.setClientEventId(clientEventId);
-            LocalDateTime detectedAt = request.frameTimestamp() != null && request.frameTimestamp() > 0
+            LocalDateTime detectedAt = frameTimestamp != null
                     ? LocalDateTime.ofInstant(
-                            Instant.ofEpochMilli(Math.round(request.frameTimestamp() * 1000.0)),
+                            Instant.ofEpochMilli(Math.round(frameTimestamp * 1000.0)),
                             QUIZ_TIMEZONE)
                     : LocalDateTime.now(QUIZ_TIMEZONE);
             event.setOccurredAt(detectedAt);
@@ -257,6 +278,11 @@ public class ProctoringService {
 
         if (attempt.getStudent() == null || !attempt.getStudent().getId().equals(authenticatedUserId)) {
             throw new AccessDeniedApplicationException("UNAUTHORIZED_ATTEMPT", "User does not own this attempt");
+        }
+
+        if ((long) request.identityMatches() + request.identityMismatches() > request.totalFaceChecks()) {
+            throw new BadRequestException("INVALID_SUMMARY_COUNTS",
+                    "identityMatches plus identityMismatches cannot exceed totalFaceChecks");
         }
 
         {

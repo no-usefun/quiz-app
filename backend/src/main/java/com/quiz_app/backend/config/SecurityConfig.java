@@ -60,7 +60,17 @@ public class SecurityConfig {
     @Bean
     public CorsConfigurationSource corsConfigurationSource() {
         CorsConfiguration configuration = new CorsConfiguration();
-        configuration.setAllowedOriginPatterns(List.of("*"));
+        String configuredOrigins = System.getenv("CORS_ALLOWED_ORIGINS");
+        if (configuredOrigins == null || configuredOrigins.isBlank()) {
+            configuredOrigins = System.getenv("FRONTEND_URL");
+        }
+        List<String> allowedOrigins = configuredOrigins == null || configuredOrigins.isBlank()
+                ? List.of()
+                : Arrays.stream(configuredOrigins.split(","))
+                        .map(String::trim)
+                        .filter(origin -> !origin.isEmpty())
+                        .toList();
+        configuration.setAllowedOrigins(allowedOrigins);
         configuration.setAllowedMethods(Arrays.asList("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"));
         configuration.setAllowedHeaders(Arrays.asList("Authorization", "Content-Type", "X-Requested-With", "Accept",
                 "Origin", "Access-Control-Request-Method", "Access-Control-Request-Headers"));
