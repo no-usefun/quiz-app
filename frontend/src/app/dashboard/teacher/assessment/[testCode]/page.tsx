@@ -1030,7 +1030,7 @@ export default function TeacherAssessmentPage({
           <div className="relative isolate overflow-hidden rounded-[24px] border border-[#dce7ff] bg-gradient-to-br from-[#f8f6ff] via-white to-[#eaf5ff] px-5 py-5 sm:px-7 sm:py-6 shadow-[0_8px_30px_rgba(71,100,180,0.08)]">
             <div aria-hidden="true" className="pointer-events-none absolute -right-5 -top-12 h-48 w-48 rounded-full bg-[#dceaff]/60 blur-2xl" />
             <div aria-hidden="true" className="pointer-events-none absolute right-24 top-10 h-28 w-28 rounded-full bg-[#fce7f3]/60 blur-2xl" />
-            <div className="relative z-10 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+            <div className="relative z-10 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between sm:pr-44">
             <div className="text-left">
               <p className="text-[10px] font-bold uppercase tracking-widest text-steel-blue-gray">
                 Assessment Governance
