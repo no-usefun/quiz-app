@@ -379,7 +379,7 @@ export default function TestArenaPage({
   });
   const mountTimeRef = useRef<number | null>(null);
   const hasEnteredFullscreenRef = useRef(false);
-  const lastBrowserViolationTimeRef = useRef(0);
+  const lastBrowserViolationTimeRef = useRef<Partial<Record<"tab_switch" | "fullscreen_exit", number>>>({});
   const lastAuditEventTimeRef = useRef<Partial<Record<BrowserProctoringFlag, number>>>({});
   const [flags, setFlags] = useState<BrowserProctoringFlags>(initialBrowserFlags);
   const [warnings, setWarnings] = useState<string[]>([]);
@@ -538,7 +538,10 @@ export default function TestArenaPage({
     }
 
     const INITIAL_GRACE_PERIOD_MS = 8000;
-    const VIOLATION_COOLDOWN_MS = 3500;
+    // Visibility-change and blur can fire together for one browser action.
+    // Deduplicate only that near-simultaneous pair rather than dropping real
+    // tab switches for 3.5 seconds. Fullscreen exits have a separate clock.
+    const VIOLATION_COOLDOWN_MS = 500;
 
     const reportEvent = async (type: BrowserProctoringFlag, details: string) => {
       // Once submission begins, do not send additional browser events for an
@@ -551,8 +554,10 @@ export default function TestArenaPage({
       if (isCountableViolation) {
         if (!mountTimeRef.current) mountTimeRef.current = now;
         if (now - mountTimeRef.current < INITIAL_GRACE_PERIOD_MS) return;
-        if (now - lastBrowserViolationTimeRef.current < VIOLATION_COOLDOWN_MS) return;
-        lastBrowserViolationTimeRef.current = now;
+        const violationType = type as "tab_switch" | "fullscreen_exit";
+        const previousViolationAt = lastBrowserViolationTimeRef.current[violationType] ?? 0;
+        if (now - previousViolationAt < VIOLATION_COOLDOWN_MS) return;
+        lastBrowserViolationTimeRef.current[violationType] = now;
       } else {
         const lastTime = lastAuditEventTimeRef.current[type] || 0;
         if (now - lastTime < 600) return;
