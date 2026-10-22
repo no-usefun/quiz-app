@@ -19,6 +19,7 @@ import {
 import { ApiClientError, api, getAuthToken } from "@/lib/api/client";
 import { ENDPOINTS } from "@/lib/api/endpoints";
 import type { QuizAvailabilityResponse } from "@/lib/types";
+import { ThemeToggle } from "@/components/ThemeToggle";
 
 const subscribeToHydration = () => () => {};
 const getClientHydrationSnapshot = () => true;
@@ -320,6 +321,7 @@ export default function JoinPage() {
   return (
     <>
     <main className="relative flex min-h-[calc(100vh-4rem)] items-center justify-center bg-frost-surface text-midnight-navy p-4 font-sans selection:bg-frost-surface selection:text-signal-green overflow-hidden">
+      <div className="absolute right-4 top-4 z-20"><ThemeToggle /></div>
       <div
         aria-hidden
         className="pointer-events-none absolute inset-0"
