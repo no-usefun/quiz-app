@@ -467,9 +467,15 @@ export default function StudentResultPage({
       : null;
 
   const incorrectCount = totalQuestions - correctCount;
-  const sortedDetails = [...details].sort((a, b) => a.displayOrder - b.displayOrder);
-  const visibleDetails = sortedDetails.filter((detail) =>
-    questionFilter === "all" ? true : questionFilter === "correct" ? detail.correct : !detail.correct,
+  const indexedDetails = [...details]
+    .sort((a, b) => a.displayOrder - b.displayOrder)
+    .map((detail, index) => ({ detail, questionNumber: index + 1 }));
+  const visibleDetails = indexedDetails.filter(({ detail }) =>
+    questionFilter === "all"
+      ? true
+      : questionFilter === "correct"
+        ? detail.correct
+        : !detail.correct,
   );
 
   if (loading) {
@@ -764,10 +770,8 @@ export default function StudentResultPage({
             </div>
 
             <div className="rounded-[14px] bg-white border border-slate-200 overflow-hidden divide-y divide-slate-100 shadow-sm dark:border-slate-700 dark:bg-slate-900 dark:divide-slate-800">
-              {visibleDetails.map((detail) => {
-                const idx = sortedDetails.findIndex(
-                  (item) => item.questionId === detail.questionId,
-                );
+              {visibleDetails.map(({ detail, questionNumber }) => {
+                const idx = questionNumber - 1;
                 const selectedOptionTexts = formatOptionTexts(
                   detail.selectedOptionTexts,
                   detail.questionId,
@@ -782,10 +786,10 @@ export default function StudentResultPage({
                 );
 
                 return (
-                    <div
-                      key={`${detail.questionId}-${idx}`}
-                      className="p-4 sm:p-5 space-y-2.5 text-xs"
-                    >
+                  <div
+                    key={`${detail.questionId}-${idx}`}
+                    className="p-4 sm:p-5 space-y-2.5 text-xs"
+                  >
                     <div className="flex items-start justify-between gap-2">
                       <p className="font-bold text-slate-900 leading-snug">
                         {idx + 1}. {detail.questionText || "Question"}
