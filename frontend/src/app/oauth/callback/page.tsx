@@ -246,9 +246,10 @@ function OAuthCallbackContent() {
           ["expiresIn", "expires_in"],
         );
 
-        // New backend contract: exchange a short-lived, single-use code for
-        // the existing AuthResponse. Direct-token callbacks remain temporarily
-        // supported for compatibility with older deployed backend versions.
+        // The checked Spring Boot success handler currently redirects with
+        // a JWT in the URL fragment. Keep the code-exchange fallback only for
+        // deployments whose backend explicitly implements googleExchange;
+        // the main/feature-backend controller currently exposes no such route.
         if (!sessionToken && code) {
           const exchange = await api.post<{
             token?: string;
