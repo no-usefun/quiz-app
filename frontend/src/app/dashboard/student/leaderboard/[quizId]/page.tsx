@@ -16,6 +16,7 @@ import {
 } from "lucide-react";
 
 import { TopNav } from "@/components/TopNav";
+import { useSession } from "@/hooks/useSession";
 import { ApiClientError, api } from "@/lib/api/client";
 import { ENDPOINTS } from "@/lib/api/endpoints";
 import type { LeaderboardEntryResponse } from "@/lib/types";
@@ -46,6 +47,8 @@ export default function StudentLeaderboardPage({
   const [searchQuery, setSearchQuery] = useState("");
 
   const numericQuizId = Number(quizId);
+  const { user } = useSession();
+  const currentStudentId = Number(user?.id ?? user?.userId);
 
   const load = useCallback(async (background = false) => {
     if (!Number.isInteger(numericQuizId) || numericQuizId <= 0) {
@@ -119,7 +122,7 @@ export default function StudentLeaderboardPage({
 
   const scoreStats = useMemo(() => {
     if (entries.length === 0) {
-      return { average: 0, highest: 0, median: 0, completed: 0, distribution: [] as { label: string; count: number; color: string }[] };
+      return { average: 0, highest: 0, median: 0, completed: 0, distribution: [] as { label: string; min: number; max: number; count: number; color: string }[] };
     }
 
     const percentages = entries.map((entry) => Math.min(100, Math.max(0, Number(entry.percentage) || 0)));
@@ -132,6 +135,8 @@ export default function StudentLeaderboardPage({
       { label: "81–100%", min: 80, max: 100, color: "bg-[#6ee7b7]" },
     ].map((band, index) => ({
       label: band.label,
+      min: band.min,
+      max: band.max,
       color: band.color,
       count: percentages.filter((value) =>
         index === 0
@@ -154,6 +159,25 @@ export default function StudentLeaderboardPage({
       distribution,
     };
   }, [entries]);
+
+  const currentEntry = useMemo(() => {
+    if (!Number.isFinite(currentStudentId)) return undefined;
+    return entries.find((entry) => Number(entry.studentId) === currentStudentId);
+  }, [entries, currentStudentId]);
+
+  const comparison = useMemo(() => {
+    if (!currentEntry || entries.length === 0) return null;
+    const difference = Number(currentEntry.percentage ?? 0) - scoreStats.average;
+    const status = Math.abs(difference) <= 3
+      ? "Around the cohort average"
+      : difference > 0
+        ? "Above the cohort average"
+        : "Below the cohort average";
+    const message = Math.abs(difference) <= 3
+      ? "Your score is close to the cohort average."
+      : `${Math.abs(difference).toFixed(1)} percentage points ${difference > 0 ? "above" : "below"} the cohort average.`;
+    return { difference, status, message };
+  }, [currentEntry, entries.length, scoreStats.average]);
 
   const filteredEntries = useMemo(() => {
     const query = searchQuery.trim().toLowerCase();
@@ -226,6 +250,32 @@ export default function StudentLeaderboardPage({
           </div>
         ) : null}
 
+        {currentEntry && comparison && (
+          <section className="rounded-[14px] border border-[#165dfb]/25 bg-[#eef4ff] p-5 shadow-sm dark:border-blue-400/40 dark:bg-blue-950/30">
+            <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+              <div className="min-w-0">
+                <p className="text-[10px] font-bold uppercase tracking-wider text-[#165dfb] dark:text-blue-300">Your performance</p>
+                <h2 className="mt-1 text-lg font-extrabold text-slate-900 dark:text-slate-100">
+                  {comparison.status}
+                </h2>
+                <p className="mt-1 text-xs leading-relaxed text-slate-600 dark:text-slate-300">
+                  Ranked #{currentEntry.rank} of {entries.length} students. {comparison.message}
+                </p>
+              </div>
+              <div className="grid grid-cols-2 gap-3 sm:min-w-56">
+                <div className="rounded-[10px] border border-blue-200/70 bg-white/80 p-3 dark:border-blue-900 dark:bg-slate-900/80">
+                  <p className="text-[10px] font-semibold text-slate-500 dark:text-slate-400">Your score</p>
+                  <p className="mt-1 text-xl font-extrabold text-slate-900 dark:text-slate-100">{formatScore(currentEntry.percentage)}%</p>
+                </div>
+                <div className="rounded-[10px] border border-blue-200/70 bg-white/80 p-3 dark:border-blue-900 dark:bg-slate-900/80">
+                  <p className="text-[10px] font-semibold text-slate-500 dark:text-slate-400">Cohort average</p>
+                  <p className="mt-1 text-xl font-extrabold text-slate-900 dark:text-slate-100">{scoreStats.average.toFixed(1)}%</p>
+                </div>
+              </div>
+            </div>
+          </section>
+        )}
+
         {entries.length > 0 && (
           <>
             <section className="grid grid-cols-2 gap-3 lg:grid-cols-4">
@@ -248,7 +298,7 @@ export default function StudentLeaderboardPage({
               ))}
             </section>
 
-            <section className="rounded-[14px] border border-slate-200 bg-white p-5 shadow-sm">
+            <section className={`rounded-[14px] border p-5 shadow-sm ${Number(entry.studentId) === currentStudentId ? "border-[#165dfb] bg-[#eef4ff]/80 ring-1 ring-[#165dfb]/30 dark:border-blue-400 dark:bg-blue-950/40" : "border-slate-200 bg-white dark:border-slate-700 dark:bg-slate-900"}`}>
               <div className="mb-5 flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">
                 <div>
                   <h2 className="text-sm font-extrabold text-slate-900">Score distribution</h2>
@@ -257,16 +307,20 @@ export default function StudentLeaderboardPage({
                 <span className="text-[10px] font-semibold text-slate-500">Based on {scoreStats.completed} ranked students</span>
               </div>
               <div className="grid grid-cols-5 items-end gap-2 sm:gap-4">
-                {scoreStats.distribution.map((band) => {
+                {scoreStats.distribution.map((band, bandIndex) => {
+                  const studentScore = Number(currentEntry?.percentage);
+                  const isStudentBand = Boolean(currentEntry) && (bandIndex === 0
+                    ? studentScore >= band.min && studentScore <= band.max
+                    : studentScore > band.min && studentScore <= band.max);
                   const maxCount = Math.max(1, ...scoreStats.distribution.map((item) => item.count));
                   const height = band.count === 0 ? 4 : Math.max(12, (band.count / maxCount) * 112);
                   return (
                     <div key={band.label} className="flex min-w-0 flex-col items-center gap-2">
-                      <span className="text-xs font-bold tabular-nums text-[#44403c]">{band.count}</span>
+                      <span className={`text-xs font-bold tabular-nums ${isStudentBand ? "text-[#165dfb] dark:text-blue-300" : "text-[#44403c] dark:text-slate-200"}`}>{band.count}{isStudentBand ? " · You" : ""}</span>
                       <div className="flex h-28 w-full items-end justify-center rounded-t-[8px] bg-slate-50">
-                        <div className={`w-full max-w-16 rounded-t-[7px] ${band.color} transition-[height] duration-500 ease-out`} style={{ height: `${height}px` }} />
+                        <div className={`w-full max-w-16 rounded-t-[7px] ${isStudentBand ? "bg-[#165dfb] dark:bg-blue-400" : `${band.color} dark:bg-slate-600`} transition-[height] duration-500 ease-out`} style={{ height: `${height}px` }} />
                       </div>
-                      <span className="text-center text-[9px] font-bold text-slate-500 sm:text-[10px]">{band.label}</span>
+                      <span className={`text-center text-[9px] font-bold sm:text-[10px] ${isStudentBand ? "text-[#165dfb] dark:text-blue-300" : "text-slate-500 dark:text-slate-400"}`}>{band.label}{isStudentBand ? " · You" : ""}</span>
                     </div>
                   );
                 })}
@@ -307,7 +361,8 @@ export default function StudentLeaderboardPage({
                     <span className="inline-flex h-8 w-8 items-center justify-center rounded-full bg-[#eef4ff] text-xs font-extrabold text-[#165dfb]">
                       #{entry.rank}
                     </span>
-                    <Trophy className="h-4 w-4 text-[#73561a]" />
+                    {Number(entry.studentId) === currentStudentId && <span className="rounded-full bg-[#165dfb] px-2 py-1 text-[9px] font-extrabold tracking-wide text-white">YOU</span>}
+                    <Trophy className="h-4 w-4 text-[#73561a] dark:text-amber-300" />
                   </div>
                   <p className="mt-4 truncate text-sm font-extrabold">
                     {entry.studentName || "Student"}
@@ -352,13 +407,13 @@ export default function StudentLeaderboardPage({
                 {filteredEntries.map((entry) => (
                   <li
                     key={entry.studentId}
-                    className="grid grid-cols-[4rem_1fr_8rem_8rem] items-center gap-3 px-5 py-3.5 transition-colors hover:bg-[#f8fafc]"
+                    className={`grid grid-cols-[4rem_1fr_8rem_8rem] items-center gap-3 px-5 py-3.5 transition-colors ${Number(entry.studentId) === currentStudentId ? "bg-[#eef4ff] ring-1 ring-inset ring-[#165dfb]/50 dark:bg-blue-950/50 dark:ring-blue-400/50" : "hover:bg-[#f8fafc] dark:hover:bg-slate-800"}`}
                   >
                     <span className="font-mono text-xs font-bold text-slate-500">
                       #{entry.rank}
                     </span>
                     <div className="min-w-0">
-                      <p className="truncate text-xs font-bold">{entry.studentName}</p>
+                      <p className="truncate text-xs font-bold">{entry.studentName}{Number(entry.studentId) === currentStudentId && <span className="ml-2 inline-flex rounded-full bg-[#165dfb] px-1.5 py-0.5 text-[8px] font-extrabold tracking-wide text-white">YOU</span>}</p>
                       <p className="mt-0.5 text-[10px] font-medium text-[#a8a29d]">
                         {formatScore(entry.percentage)}%
                       </p>
