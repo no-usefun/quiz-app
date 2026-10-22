@@ -14,6 +14,7 @@ import {
   RefreshCw,
 } from "lucide-react";
 import { Logo } from "@/components/Logo";
+import { ThemeToggle } from "@/components/ThemeToggle";
 import { ENDPOINTS } from "@/lib/api/endpoints";
 
 const subscribeToHydration = () => () => {};
@@ -360,7 +361,7 @@ export default function LiveLeaderboard({
 
   return (
     <div className="min-h-screen bg-frost-surface font-sans text-midnight-navy selection:bg-frost-surface selection:text-signal-green">
-      <header className="sticky top-0 z-20 flex flex-wrap items-center justify-between gap-2 bg-paper-white border-b border-mist-blue/60 px-3 py-3.5 shadow-none sm:px-6">
+      <header className="sticky top-0 z-20 flex flex-wrap items-center justify-between gap-2 bg-paper-white border-b border-mist-blue/60 px-3 py-3.5 shadow-none sm:px-6 dark:border-slate-700">
         <div className="flex items-center gap-3">
           <Link
             href="/dashboard/teacher"
@@ -374,6 +375,7 @@ export default function LiveLeaderboard({
         </div>
 
         <div className="flex items-center gap-2">
+          <ThemeToggle />
           <span className="hidden sm:flex items-center gap-1.5 rounded-full bg-pastel-yellow px-3 py-1 text-xs font-bold text-pastel-yellow-text shadow-xs">
             PERSISTED SNAPSHOT
           </span>
