@@ -36,6 +36,7 @@ import {
 import { Logo, AppWordmark } from "@/components/Logo";
 import { useSession } from "@/hooks/useSession";
 import { WaveText } from "@/components/WaveText";
+import { ThemeToggle } from "@/components/ThemeToggle";
 
 // ─── Design tokens (inline for zero-class-collision safety) ──────────────────
 const C = {
@@ -786,7 +787,7 @@ export default function Home() {
         className="sticky top-0 z-30 w-full border-b backdrop-blur-md"
         style={{ background: "rgba(245,245,244,0.88)", borderColor: C.ice }}
       >
-        <div className="mx-auto flex max-w-6xl items-center justify-between px-6 py-4">
+        <div className="mx-auto flex max-w-6xl items-center justify-between gap-2 px-3 py-3 sm:px-6 sm:py-4">
           <Logo />
           <nav
             className="hidden md:flex items-center gap-8 text-xs font-bold"
@@ -818,6 +819,7 @@ export default function Home() {
             </Link>
           </nav>
           <div className="flex items-center gap-2.5">
+            <ThemeToggle />
             {user ? (
               <Link
                 href={
@@ -848,7 +850,7 @@ export default function Home() {
                   className="flex items-center gap-1.5 rounded-[8.8px] px-4 py-2 text-xs font-bold text-white border-0 transition-colors"
                   style={{ background: C.cobalt }}
                 >
-                  Create Account <ArrowRight className="h-3.5 w-3.5" />
+                  <span className="hidden sm:inline">Create Account</span><span className="sm:hidden">Sign up</span> <ArrowRight className="h-3.5 w-3.5" />
                 </Link>
               </>
             )}
