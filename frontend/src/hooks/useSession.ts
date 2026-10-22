@@ -120,13 +120,19 @@ function clearSessionStorage() {
   localStorage.removeItem("dynoquizz_role");
   localStorage.removeItem("dynoquizz_regNo");
   localStorage.removeItem("dynoquizz_attemptId");
+  localStorage.removeItem("dynoquizz_submittedAttemptId");
 
   for (const key of Object.keys(localStorage)) {
     if (
       key.startsWith("dynoquizz_active_test_") ||
       key.startsWith("dynoquizz_attemptId_") ||
       key.startsWith("dynoquizz_attemptTiming_") ||
-      key.startsWith("dynoquizz_pkg_")
+      key.startsWith("dynoquizz_pkg_") ||
+      key.startsWith("dynoquizz_pending_submit_") ||
+      key.startsWith("dynoquizz_submittedAttemptId_") ||
+      key.startsWith("dynoquizz_option_texts_attempt_") ||
+      key.startsWith("dynoquizz_option_texts_quiz_") ||
+      key.startsWith("dynoquizz_student_submissions_")
     ) {
       localStorage.removeItem(key);
     }
