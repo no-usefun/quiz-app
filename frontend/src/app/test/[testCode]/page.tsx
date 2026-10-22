@@ -23,7 +23,7 @@ import { useAIProctoring } from "@/hooks/useAIProctoring";
 import { AIProctoringHUD } from "@/components/AIProctoringHUD";
 import { ProctoringWarningModal } from "@/components/ProctoringWarningModal";
 import { ThemeToggle } from "@/components/ThemeToggle";
-import { ApiClientError, api, getAuthToken } from "@/lib/api/client";
+import { ApiClientError, api, clearApiCache, getAuthToken } from "@/lib/api/client";
 import { ENDPOINTS } from "@/lib/api/endpoints";
 import type {
   AttemptStateResponse,
@@ -210,6 +210,7 @@ function persistAttemptDraft(
  */
 function cleanupAttemptRuntimeState(attemptId: string | null, testCode: string) {
   if (typeof window === "undefined") return;
+  clearApiCache();
 
   const code = String(testCode || "").trim().toUpperCase();
   if (attemptId) {
