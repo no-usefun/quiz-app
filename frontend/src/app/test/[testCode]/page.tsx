@@ -1392,15 +1392,7 @@ export default function TestArenaPage({
               "dynoquizz_submittedAttemptId",
               reconciledAttemptId,
             );
-            localStorage.removeItem(`dynoquizz_attemptId_${cleanCode}`);
-            localStorage.removeItem("dynoquizz_attemptId");
-            localStorage.removeItem(
-              `dynoquizz_pending_submit_${attemptId}`,
-            );
-            sessionStorage.removeItem(`dynoquizz_pending_proctor_attempt_${cleanCode}`);
-            sessionStorage.removeItem(`dynoquizz_reference_photo_fresh_${attemptId}`);
-            sessionStorage.removeItem("dynoquizz_reference_photo");
-            localStorage.removeItem("dynoquizz_reference_photo");
+            cleanupAttemptRuntimeState(attemptId, cleanCode);
 
             if (state.status === "AUTO_SUBMITTED") {
               setDeadlineNotice(
