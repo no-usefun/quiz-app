@@ -1718,8 +1718,8 @@ export default function TestArenaPage({
         transition={{ duration: 0.25, ease: "easeOut" }}
         className="flex h-full w-full flex-1 flex-col bg-white overflow-hidden border-0 shadow-none text-left"
       >
-        <header className="flex flex-wrap items-center justify-between bg-white px-6 py-4 gap-3 border-b border-[#d1dee8]/50">
-          <div className="flex items-center gap-3.5">
+        <header className="flex flex-wrap items-center justify-between gap-3 border-b border-[#d1dee8]/50 bg-white px-3 py-3 sm:px-6 sm:py-4 dark:border-slate-700 dark:bg-slate-950">
+          <div className="flex min-w-0 flex-wrap items-center gap-2.5">
             <span className="rounded-full bg-[#f5f5f4] px-3 py-1 text-xs font-bold text-[#165dfb] font-mono border border-[#d1dee8]/70">
               {cleanCode}
             </span>
@@ -1761,7 +1761,7 @@ export default function TestArenaPage({
                 title="Overall server-authoritative assessment deadline"
               >
                 <Clock className="h-3.5 w-3.5" />
-                Time Remaining: {formatRemainingTime(timeLeft)}
+                <span className="hidden sm:inline">Time Remaining: </span><span className="sm:hidden">Time </span>{formatRemainingTime(timeLeft)}
               </div>
             </div>
           </div>
