@@ -228,8 +228,8 @@ function cleanupAttemptRuntimeState(attemptId: string | null, testCode: string) 
   sessionStorage.removeItem("dynoquizz_reference_photo");
   localStorage.removeItem("dynoquizz_reference_photo");
 
-  // Keep dynoquizz_submittedAttemptId_* for post-submit navigation and the
-  // option-text snapshots for the result screen's backward-compatible fallback.
+  // Keep quiz-level option-text snapshots as a compatibility fallback for
+  // older result responses. New submissions no longer create submit markers.
 }
 
 function persistQuizOptionSnapshot(
@@ -1349,12 +1349,6 @@ export default function TestArenaPage({
       }
       setIsSubmitted(true);
 
-      localStorage.setItem(
-        `dynoquizz_submittedAttemptId_${cleanCode}`,
-        returnedAttemptId,
-      );
-      localStorage.setItem("dynoquizz_submittedAttemptId", returnedAttemptId);
-
       cleanupAttemptRuntimeState(attemptId, cleanCode);
 
       if (result.status === "AUTO_SUBMITTED") {
@@ -1389,15 +1383,6 @@ export default function TestArenaPage({
             // A proctoring event may have auto-submitted the attempt on the
             // server before the browser's normal submit request completed.
             // Reconcile local navigation state with that authoritative result.
-            const reconciledAttemptId = String(state.attemptId ?? attemptId);
-            localStorage.setItem(
-              `dynoquizz_submittedAttemptId_${cleanCode}`,
-              reconciledAttemptId,
-            );
-            localStorage.setItem(
-              "dynoquizz_submittedAttemptId",
-              reconciledAttemptId,
-            );
             cleanupAttemptRuntimeState(attemptId, cleanCode);
 
             if (state.status === "AUTO_SUBMITTED") {
