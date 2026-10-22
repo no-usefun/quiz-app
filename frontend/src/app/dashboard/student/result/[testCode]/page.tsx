@@ -20,6 +20,7 @@ import {
 } from "lucide-react";
 
 import { Logo } from "@/components/Logo";
+import { ThemeToggle } from "@/components/ThemeToggle";
 
 import { ApiClientError, api } from "@/lib/api/client";
 
@@ -198,7 +199,7 @@ function ScoreRing({ score }: { score: number }) {
         cy="100"
         r={r}
         fill="none"
-        stroke="#e5e7eb"
+        stroke="var(--color-ice-line)"
         strokeWidth="12"
       />
 
@@ -207,7 +208,7 @@ function ScoreRing({ score }: { score: number }) {
         cy="100"
         r={r}
         fill="none"
-        stroke="#1d5237"
+        stroke="var(--pastel-mint-text)"
         strokeWidth="12"
         strokeLinecap="round"
         strokeDasharray={`${dash} ${circ}`}
@@ -560,8 +561,8 @@ export default function StudentResultPage({
   };
 
   return (
-    <div className="min-h-screen bg-slate-50 font-sans text-slate-900 selection:bg-[#e6e3e2] selection:text-[#165dfb]">
-      <nav className="sticky top-0 z-20 flex flex-wrap items-center justify-between gap-3 bg-white border-b border-slate-200 px-4 py-3 sm:px-6 sm:py-4">
+    <div className="min-h-screen bg-slate-50 font-sans text-slate-900 selection:bg-[#e6e3e2] selection:text-[#165dfb] dark:bg-slate-950 dark:text-slate-100">
+      <nav className="sticky top-0 z-20 flex flex-wrap items-center justify-between gap-3 bg-white border-b border-slate-200 px-4 py-3 sm:px-6 sm:py-4 dark:bg-slate-950 dark:border-slate-700">
         <div className="flex items-center gap-3">
           <Link
             href="/dashboard/student"
@@ -577,6 +578,7 @@ export default function StudentResultPage({
         </div>
 
         <div className="flex items-center gap-2">
+          <ThemeToggle />
           <span className="rounded-full bg-slate-50 border border-slate-200 px-3 py-1 font-mono text-xs font-bold text-slate-900 shadow-xs">
             Attempt #{result.attemptId}
           </span>
