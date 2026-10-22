@@ -3,13 +3,9 @@
 /* Dark mode class variant for next-themes compatibility */
 @variant dark (&:where(.dark, .dark *));
 
-/* Global Anti-Cheating Baseline: Disable text selection globally */
-* {
-  -webkit-user-select: none;
-  -moz-user-select: none;
-  -ms-user-select: none;
-  user-select: none;
-}
+/* Keep ordinary website text selectable. The active assessment applies its own
+   select-none boundary and proctoring restrictions so the rest of the product
+   remains accessible for reading, copying permitted information, and support. */
 
 /* Allow text selection inside form inputs and textareas */
 input,
@@ -598,3 +594,59 @@ html.dark .teacher-dashboard [class*="hover:bg-[#f5f5f4]"]:hover,
 html.dark .teacher-dashboard [class*="hover:bg-[#eef4ff]"]:hover {
   background-color: #1d2a40 !important;
 }
+
+/* Final cross-screen contrast safeguards for legacy literal colours.
+   These complement semantic tokens while older screens are migrated. */
+html.dark [class*="text-[#44403c]"] {
+  color: #e2e8f0 !important;
+}
+html.dark [class*="text-[#57534e]"] {
+  color: #cbd5e1 !important;
+}
+html.dark [class*="text-[#292524]"] {
+  color: #e7e5e4 !important;
+}
+html.dark [class*="border-slate-200"],
+html.dark [class*="border-slate-100"],
+html.dark [class*="divide-slate-100"] > * + * {
+  border-color: #334155 !important;
+}
+html.dark [class*="bg-slate-50"] {
+  background-color: #111827 !important;
+}
+html.dark [class*="bg-slate-100"] {
+  background-color: #1f2937 !important;
+}
+html.dark [class*="hover:bg-slate-100"]:hover,
+html.dark [class*="hover:bg-slate-50"]:hover {
+  background-color: #273449 !important;
+}
+
+/* The landing page deliberately uses inline styles for its live product
+   preview. Map neutral inline surfaces to the same dark surface palette. */
+html.dark .public-landing [style*="background: white"],
+html.dark .public-landing [style*="background:white"],
+html.dark .public-landing [style*="background: rgb(255, 255, 255)"],
+html.dark .public-landing [style*="background:rgb(255, 255, 255)"] {
+  background-color: #151e2e !important;
+}
+html.dark .public-landing [style*="color: #44403c"],
+html.dark .public-landing [style*="color:#44403c"],
+html.dark .public-landing [style*="color: rgb(68, 64, 60)"],
+html.dark .public-landing [style*="color:rgb(68, 64, 60)"] {
+  color: #cbd5e1 !important;
+}
+
+/* Keep small-screen controls reachable and prevent mobile page-level overflow. */
+html,
+body {
+  min-width: 320px;
+  overflow-wrap: anywhere;
+}
+img,
+video,
+canvas,
+svg {
+  max-width: 100%;
+}
+
