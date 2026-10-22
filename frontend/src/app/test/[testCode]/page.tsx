@@ -645,7 +645,26 @@ export default function TestArenaPage({
         // A 409 here usually means the server has already closed/submitted the
         // attempt. That is expected during finalization; avoid noisy console
         // errors and keep the student assessment flow uninterrupted.
-        if (error instanceof ApiClientError && error.status === 409) return;
+        if (error instanceof ApiClientError && error.status === 409) {
+          // A concurrent server auto-submit can close the attempt between the
+          // event post and state check. Reconcile from the authoritative state.
+          try {
+            const serverState = await api.get<AttemptStateResponse>(
+              ENDPOINTS.student.attemptState(activeAttemptId),
+              { cache: "no-store" },
+            );
+            if (serverState.status !== "IN_PROGRESS") {
+              submissionInFlightRef.current = true;
+              setIsSubmitted(true);
+              cleanupAttemptRuntimeState(activeAttemptId, cleanCode);
+              void proctoringCleanupRef.current();
+              router.replace(`/dashboard/student/result/${activeAttemptId}`);
+            }
+          } catch {
+            // Preserve the current exam UI if the status endpoint is temporarily unavailable.
+          }
+          return;
+        }
         console.warn("[Proctoring] Browser event sync failed:", error);
       }
     };
@@ -968,11 +987,7 @@ export default function TestArenaPage({
 
               if (serverState.status !== "IN_PROGRESS") {
                 setIsSubmitted(true);
-
-                if (typeof window !== "undefined") {
-                  localStorage.removeItem(`dynoquizz_attemptId_${cleanCode}`);
-                  localStorage.removeItem("dynoquizz_attemptId");
-                }
+                cleanupAttemptRuntimeState(activeAttemptId, cleanCode);
 
                 if (serverState.status === "AUTO_SUBMITTED") {
                   setDeadlineNotice(
