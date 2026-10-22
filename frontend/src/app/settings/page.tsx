@@ -1166,9 +1166,8 @@ export default function SettingsPage() {
   return (
     <div className="min-h-screen bg-[#f5f5f4] font-sans text-[#111111] flex flex-col md:flex-row overflow-x-hidden">
       <aside className="w-full md:w-64 bg-[#f5f5f4] border-b md:border-b-0 md:border-r border-[#d1dee8]/70 flex flex-col shrink-0">
-        <div className="flex items-center justify-between gap-3 border-b border-[#d1dee8]/50 p-6">
+        <div className="border-b border-[#d1dee8]/50 p-6">
           <Logo />
-          <ThemeToggle />
         </div>
 
         <nav className="flex-1 p-4 space-y-1 text-left">
@@ -1219,7 +1218,7 @@ export default function SettingsPage() {
       </aside>
 
       <main className="min-w-0 flex-1 overflow-y-auto p-4 sm:p-6 md:p-8 space-y-6 text-left">
-        <section className="border-b border-[#d1dee8]/50 pb-4 flex items-center justify-between">
+        <section className="flex flex-col justify-between gap-3 border-b border-[#d1dee8]/50 pb-4 sm:flex-row sm:items-center">
           <div>
             <span className="text-xs font-bold uppercase tracking-widest text-[#78716b]">
               Account Center
@@ -1232,12 +1231,15 @@ export default function SettingsPage() {
             </p>
           </div>
 
+          <div className="flex shrink-0 items-center gap-2">
+          <ThemeToggle />
           {saved && (
             <span role="status" aria-live="polite" className="flex items-center gap-1.5 rounded-full bg-[#e2ede8] px-3 py-1 text-xs font-bold text-[#1d5237] border border-[#1d5237]/20 shadow-xs">
               <CheckCircle2 className="h-3.5 w-3.5 text-[#1d5237]" />
               Saved!
             </span>
           )}
+          </div>
         </section>
 
         <div className="flex flex-col gap-5 lg:flex-row items-start">
