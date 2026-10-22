@@ -273,6 +273,13 @@ export default function StudentResultPage({
         return;
       }
 
+      // This marker only bridges submission to the results route; no code
+      // reads it after navigation, so clear it even while results are locked.
+      localStorage.removeItem(`dynoquizz_submittedAttemptId_${attemptId}`);
+      if (localStorage.getItem("dynoquizz_submittedAttemptId") === attemptId) {
+        localStorage.removeItem("dynoquizz_submittedAttemptId");
+      }
+
       try {
         const resultData = await api.get<AttemptResultResponse>(
           ENDPOINTS.student.attemptResult(attemptId),
@@ -390,12 +397,6 @@ export default function StudentResultPage({
           setPendingRelease(false);
           setError(null);
 
-          // Completion markers are only needed to bridge the submit-to-result
-          // transition. The backend attempt record is the durable source.
-          localStorage.removeItem(`dynoquizz_submittedAttemptId_${attemptId}`);
-          if (localStorage.getItem("dynoquizz_submittedAttemptId") === attemptId) {
-            localStorage.removeItem("dynoquizz_submittedAttemptId");
-          }
           if (detailList.length > 0) {
             localStorage.removeItem(`dynoquizz_option_texts_attempt_${attemptId}`);
           }
