@@ -204,6 +204,33 @@ function persistAttemptDraft(
   }
 }
 
+/**
+ * Clears transient data for a completed attempt while preserving the option
+ * text snapshots used by the results page for compatibility with older APIs.
+ */
+function cleanupAttemptRuntimeState(attemptId: string | null, testCode: string) {
+  if (typeof window === "undefined") return;
+
+  const code = String(testCode || "").trim().toUpperCase();
+  if (attemptId) {
+    localStorage.removeItem(`dynoquizz_pending_submit_${attemptId}`);
+    sessionStorage.removeItem(`dynoquizz_reference_photo_fresh_${attemptId}`);
+  }
+
+  localStorage.removeItem(`dynoquizz_attemptId_${code}`);
+  localStorage.removeItem("dynoquizz_attemptId");
+  localStorage.removeItem(`dynoquizz_active_test_${code}`);
+  localStorage.removeItem(`dynoquizz_attemptTiming_${code}`);
+  localStorage.removeItem(`dynoquizz_pkg_${code}`);
+
+  sessionStorage.removeItem(`dynoquizz_pending_proctor_attempt_${code}`);
+  sessionStorage.removeItem("dynoquizz_reference_photo");
+  localStorage.removeItem("dynoquizz_reference_photo");
+
+  // Keep dynoquizz_submittedAttemptId_* for post-submit navigation and the
+  // option-text snapshots for the result screen's backward-compatible fallback.
+}
+
 function persistQuizOptionSnapshot(
   attemptId: string | null,
   quizId: number | string | null | undefined,
@@ -374,11 +401,17 @@ export default function TestArenaPage({
     referenceImage: referencePhoto,
     authToken: getAuthToken() || undefined,
     onAutoSubmit: () => {
-      // The AI service/backend has already confirmed submission. Never issue a
-      // second client-side submit request for the same attempt.
+      // The proctoring backend has already confirmed submission. Never send a
+      // duplicate client-side submission for the same attempt.
+      submissionInFlightRef.current = true;
+      setIsSubmitted(true);
       setDeadlineNotice(
-        "The proctoring backend confirmed that this assessment was automatically submitted. Further interaction is disabled.",
+        "The proctoring backend confirmed that this assessment was automatically submitted.",
       );
+      cleanupAttemptRuntimeState(activeAttemptId, cleanCode);
+      if (activeAttemptId) {
+        router.replace(`/dashboard/student/result/${activeAttemptId}`);
+      }
     },
     enabled: aiProctoringEnabled === true && !isSubmitted && Boolean(activeAttemptId),
   });
@@ -528,8 +561,41 @@ export default function TestArenaPage({
       recordBrowserEvent(type, details);
 
       try {
-        if (isCountableViolation) {
-          const eventType = type === "tab_switch" ? "TAB_SWITCH" : "FULLSCREEN_EXIT";
+        if (type === "tab_switch") {
+          // Tab switches have a quiz-specific limit. Send them to the student
+          // attempt endpoint, which enforces Quiz.maxTabSwitch. The generic
+          // proctoring endpoint has a separate system-wide warning cap (3 by
+          // default) and must not govern a teacher-configured tab-switch limit.
+          await api.post<void>(
+            ENDPOINTS.student.proctoringEvents(activeAttemptId),
+            {
+              type: "tab_switch",
+              metadata: { source: "browser", details },
+            },
+          );
+
+          // This endpoint returns 202 without a body, so check server state to
+          // discover whether this particular switch exceeded the configured
+          // limit. Do not guess from a client-side counter.
+          const serverState = await api.get<AttemptStateResponse>(
+            ENDPOINTS.student.attemptState(activeAttemptId),
+            { cache: "no-store" },
+          );
+
+          if (serverState.status !== "IN_PROGRESS") {
+            submissionInFlightRef.current = true;
+            setIsSubmitted(true);
+            setDeadlineNotice(
+              "The assessment was automatically submitted because the configured tab-switch limit was exceeded.",
+            );
+            cleanupAttemptRuntimeState(activeAttemptId, cleanCode);
+            void proctoringCleanupRef.current();
+            router.replace(`/dashboard/student/result/${activeAttemptId}`);
+          }
+        } else if (type === "fullscreen_exit") {
+          // Fullscreen violations keep using the generic proctoring warning
+          // policy; this is separate from the quiz-specific tab-switch limit.
+          const eventType = "FULLSCREEN_EXIT";
           const token = getAuthToken();
           const response = await api.post<ProctoringEventResponse>(
             ENDPOINTS.proctoring.recordEvent(activeAttemptId),
@@ -538,9 +604,7 @@ export default function TestArenaPage({
               details,
               severity: "HIGH",
               confidence: 1.0,
-              // Backend contract expects Unix epoch time in seconds.
               frameTimestamp: now / 1000,
-              // Keep this ID with the event payload if the same request is retried.
               eventId: `browser-${activeAttemptId}-${eventType}-${now}`,
             },
             {
@@ -549,8 +613,6 @@ export default function TestArenaPage({
           );
 
           if (response && typeof response.warningCount === "number") {
-            // The server is authoritative for auto-submission. Do not infer it
-            // from a warning count because the policy may change server-side.
             const isAutoSubmitted = Boolean(response.autoSubmitted);
             proctoringSetWarningCountRef.current(response.warningCount);
             lastBackendWarningCountRef.current = Math.max(
@@ -563,19 +625,18 @@ export default function TestArenaPage({
               isAutoSubmitted,
             );
             if (isAutoSubmitted) {
-              // Spring Boot has already accepted the authoritative auto-submit.
-              // Tear down capture, but never send a duplicate student submission.
+              submissionInFlightRef.current = true;
+              setIsSubmitted(true);
+              cleanupAttemptRuntimeState(activeAttemptId, cleanCode);
               void proctoringCleanupRef.current();
+              router.replace(`/dashboard/student/result/${activeAttemptId}`);
             }
           }
         } else {
-          // Keep legacy non-strike audit events compatible while the backend
-          // team adds the unified V2 warning-count contract.
           await api.post(
             ENDPOINTS.student.proctoringEvents(activeAttemptId),
             {
               type,
-              occurredAt: new Date().toISOString(),
               metadata: { source: "browser", details },
             },
           );
@@ -1273,14 +1334,7 @@ export default function TestArenaPage({
       );
       localStorage.setItem("dynoquizz_submittedAttemptId", returnedAttemptId);
 
-      localStorage.removeItem(`dynoquizz_attemptId_${cleanCode}`);
-      localStorage.removeItem("dynoquizz_attemptId");
-      localStorage.removeItem(`dynoquizz_pending_submit_${attemptId}`);
-      sessionStorage.removeItem(`dynoquizz_pending_proctor_attempt_${cleanCode}`);
-      sessionStorage.removeItem(`dynoquizz_reference_photo_fresh_${attemptId}`);
-      // Reference bytes are never kept after this attempt has started.
-      sessionStorage.removeItem("dynoquizz_reference_photo");
-      localStorage.removeItem("dynoquizz_reference_photo");
+      cleanupAttemptRuntimeState(attemptId, cleanCode);
 
       if (result.status === "AUTO_SUBMITTED") {
         setDeadlineNotice(
