@@ -298,7 +298,7 @@ export default function StudentLeaderboardPage({
               ))}
             </section>
 
-            <section className={`rounded-[14px] border p-5 shadow-sm ${Number(entry.studentId) === currentStudentId ? "border-[#165dfb] bg-[#eef4ff]/80 ring-1 ring-[#165dfb]/30 dark:border-blue-400 dark:bg-blue-950/40" : "border-slate-200 bg-white dark:border-slate-700 dark:bg-slate-900"}`}>
+            <section className="rounded-[14px] border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-700 dark:bg-slate-900">
               <div className="mb-5 flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">
                 <div>
                   <h2 className="text-sm font-extrabold text-slate-900">Score distribution</h2>
@@ -355,7 +355,7 @@ export default function StudentLeaderboardPage({
               {podium.map((entry) => (
                 <div
                   key={entry.studentId}
-                  className="rounded-[14px] border border-slate-200 bg-white p-5 shadow-sm"
+                  className={`rounded-[14px] border p-5 shadow-sm ${Number(entry.studentId) === currentStudentId ? "border-[#165dfb] bg-[#eef4ff]/80 ring-1 ring-[#165dfb]/30 dark:border-blue-400 dark:bg-blue-950/40" : "border-slate-200 bg-white dark:border-slate-700 dark:bg-slate-900"}`}
                 >
                   <div className="flex items-center justify-between gap-3">
                     <span className="inline-flex h-8 w-8 items-center justify-center rounded-full bg-[#eef4ff] text-xs font-extrabold text-[#165dfb]">
