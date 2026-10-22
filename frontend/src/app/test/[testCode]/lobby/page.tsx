@@ -13,6 +13,7 @@ import {
   ArrowLeft,
 } from "lucide-react";
 import { Logo } from "@/components/Logo";
+import { ThemeToggle } from "@/components/ThemeToggle";
 import { CameraReferenceCapture } from "@/components/CameraReferenceCapture";
 import { checkAIHealth } from "@/lib/proctoring/aiProctoringClient";
 
@@ -698,11 +699,12 @@ export default function AssessmentLobbyPage({
 
   return (
     <div className="min-h-screen bg-[#f5f5f4] flex flex-col font-sans selection:bg-[#e6e3e2] selection:text-[#165dfb]">
-      <header className="sticky top-0 z-40 w-full border-b border-[#d1dee8]/70 bg-white/95 backdrop-blur-sm px-4 md:px-8 py-3">
+      <header className="sticky top-0 z-40 w-full border-b border-[#d1dee8]/70 bg-white/95 backdrop-blur-sm px-4 md:px-8 py-3 dark:border-slate-700 dark:bg-slate-950/95">
         <div className="mx-auto flex max-w-[1400px] flex-wrap items-center justify-between gap-3">
           <Logo />
 
           <div className="flex items-center gap-2">
+            <ThemeToggle />
             <Link
               href="/dashboard/student"
               className="rounded-[10px] border border-[#d1dee8]/80 bg-[#f5f5f4] px-3.5 py-2 text-xs font-bold text-[#78716b] hover:bg-[#e6e3e2] hover:border-[#b9cbd9] hover:text-[#111111] shadow-xs active:scale-95 transition-all"
