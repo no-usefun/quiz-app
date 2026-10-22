@@ -235,9 +235,13 @@ async function apiGetWithMemoryCache<T>(
 }
 
 async function mutateAndInvalidateCache<T>(request: Promise<T>): Promise<T> {
-  const value = await request;
-  clearApiCache();
-  return value;
+  try {
+    return await request;
+  } finally {
+    // Invalidate even on failed mutations: the server may have committed a
+    // change before a proxy/error response reached the browser.
+    clearApiCache();
+  }
 }
 
 export async function apiRequest<T = unknown>(
