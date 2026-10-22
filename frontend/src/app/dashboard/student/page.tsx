@@ -22,6 +22,7 @@ import type { StudentSubmissionResponse } from "@/lib/types";
 type Submission = StudentSubmissionResponse;
 
 const INITIAL_RESULTS_COUNT = 5;
+const STUDENT_SUBMISSION_CACHE_TTL_MS = 5 * 60 * 1000;
 
 function formatDate(value: string | null | undefined): string {
   if (!value) {
@@ -115,10 +116,26 @@ export default function StudentDashboard() {
         try {
           const rawCache = localStorage.getItem(cacheKey);
           if (rawCache) {
-            const parsed = JSON.parse(rawCache) as { submissions?: StudentSubmissionResponse[] };
-            if (Array.isArray(parsed.submissions)) {
-              setResults(parsed.submissions.map(normalizeSubmission).filter((item): item is Submission => item !== null));
+            const parsed = JSON.parse(rawCache) as {
+              submissions?: StudentSubmissionResponse[];
+              savedAt?: number;
+            };
+            const savedAt = Number(parsed.savedAt);
+            const cacheAge = Date.now() - savedAt;
+            const cacheIsFresh =
+              Number.isFinite(savedAt) &&
+              cacheAge >= 0 &&
+              cacheAge <= STUDENT_SUBMISSION_CACHE_TTL_MS;
+
+            if (Array.isArray(parsed.submissions) && cacheIsFresh) {
+              setResults(
+                parsed.submissions
+                  .map(normalizeSubmission)
+                  .filter((item): item is Submission => item !== null),
+              );
               hasUsableCache = true;
+            } else {
+              localStorage.removeItem(cacheKey);
             }
           }
         } catch (cacheError) {
