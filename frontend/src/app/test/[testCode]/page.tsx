@@ -15,12 +15,14 @@ import {
   Flag,
   Maximize2,
   ShieldAlert,
+  ShieldCheck,
   Trash2,
 } from "lucide-react";
 
 import { useAIProctoring } from "@/hooks/useAIProctoring";
 import { AIProctoringHUD } from "@/components/AIProctoringHUD";
 import { ProctoringWarningModal } from "@/components/ProctoringWarningModal";
+import { ThemeToggle } from "@/components/ThemeToggle";
 import { ApiClientError, api, getAuthToken } from "@/lib/api/client";
 import { ENDPOINTS } from "@/lib/api/endpoints";
 import type {
@@ -286,6 +288,7 @@ export default function TestArenaPage({
   const [timeLeft, setTimeLeft] = useState(0);
 
   const [isSubmitted, setIsSubmitted] = useState(false);
+  const [mobileProctoringOpen, setMobileProctoringOpen] = useState(false);
   const mounted = useSyncExternalStore(
     subscribeToHydration,
     getClientHydrationSnapshot,
@@ -1733,7 +1736,20 @@ export default function TestArenaPage({
             )}
           </div>
 
-          <div className="flex items-center gap-3.5">
+          <div className="flex items-center gap-2.5">
+            <ThemeToggle />
+            {aiProctoringEnabled && (
+              <button
+                type="button"
+                onClick={() => setMobileProctoringOpen((open) => !open)}
+                aria-expanded={mobileProctoringOpen}
+                aria-controls="mobile-proctoring-panel"
+                className="inline-flex h-9 items-center justify-center gap-1.5 rounded-full border border-[#d1dee8]/80 bg-white px-2.5 text-[10px] font-bold text-[#57534e] shadow-xs transition-colors hover:bg-[#f5f5f4] dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-slate-800 lg:hidden"
+              >
+                <ShieldCheck className="h-4 w-4 text-[#165dfb] dark:text-blue-300" />
+                <span className="hidden min-[380px]:inline">Proctoring</span>
+              </button>
+            )}
             <div className="flex items-center gap-2">
               <div
                 className={
@@ -2005,7 +2021,13 @@ export default function TestArenaPage({
         </footer>
       </motion.div>
 
-      <aside className="fixed bottom-3 right-3 z-40 flex max-h-[46vh] w-64 flex-col gap-3 overflow-y-auto rounded-xl bg-[#f5f5f4]/95 p-2 text-left shadow-xl backdrop-blur-sm lg:static lg:max-h-none lg:w-72 lg:shrink-0 lg:rounded-none lg:bg-transparent lg:p-0 lg:pl-6 lg:shadow-none lg:backdrop-blur-none">
+      <aside id="mobile-proctoring-panel" className={`fixed bottom-20 left-3 right-3 z-40 max-h-[34dvh] w-auto flex-col gap-3 overflow-y-auto rounded-xl border border-[#d1dee8]/80 bg-white/95 p-2 text-left shadow-xl backdrop-blur-sm dark:border-slate-700 dark:bg-slate-950/95 ${mobileProctoringOpen ? "flex" : "hidden"} lg:static lg:flex lg:max-h-none lg:w-72 lg:shrink-0 lg:rounded-none lg:border-0 lg:bg-transparent lg:p-0 lg:pl-6 lg:shadow-none lg:backdrop-blur-none`}>
+        {aiProctoringEnabled && (
+          <div className="flex items-center justify-between gap-2 px-1 py-1 lg:hidden">
+            <span className="text-[10px] font-bold uppercase tracking-wider text-slate-600 dark:text-slate-300">Proctoring status</span>
+            <button type="button" onClick={() => setMobileProctoringOpen(false)} className="rounded-md px-2 py-1 text-[10px] font-bold text-slate-500 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-800">Close</button>
+          </div>
+        )}
         {aiProctoringEnabled && <AIProctoringHUD
           videoRef={proctoring.videoRef}
           cameraActive={proctoring.cameraActive}
