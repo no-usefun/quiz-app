@@ -236,7 +236,7 @@ export default function StudentResultPage({
   const [result, setResult] = useState<AttemptResult | null>(null);
 
   const [details, setDetails] = useState<ResultDetail[]>([]);
-  const [questionFilter, setQuestionFilter] = useState<"all" | "correct" | "incorrect">("all");
+  const [questionFilter, setQuestionFilter] = useState<"all" | "correct" | "incorrect" | "unanswered">("all");
 
   const [optionTextByQuestion, setOptionTextByQuestion] = useState<
     Record<number, Record<number, string>>
@@ -466,17 +466,23 @@ export default function StudentResultPage({
       ? Math.round((correctCount / totalQuestions) * 100)
       : null;
 
-  const incorrectCount = totalQuestions - correctCount;
+  const isUnanswered = (detail: ResultDetail) =>
+    detail.answerStatus === "UNANSWERED" ||
+    !Array.isArray(detail.selectedOptionIds) ||
+    detail.selectedOptionIds.length === 0;
+  const incorrectCount = details.filter(
+    (detail) => !detail.correct && !isUnanswered(detail),
+  ).length;
+  const unansweredCount = details.filter(isUnanswered).length;
   const indexedDetails = [...details]
     .sort((a, b) => a.displayOrder - b.displayOrder)
     .map((detail, index) => ({ detail, questionNumber: index + 1 }));
-  const visibleDetails = indexedDetails.filter(({ detail }) =>
-    questionFilter === "all"
-      ? true
-      : questionFilter === "correct"
-        ? detail.correct
-        : !detail.correct,
-  );
+  const visibleDetails = indexedDetails.filter(({ detail }) => {
+    if (questionFilter === "all") return true;
+    if (questionFilter === "correct") return detail.correct;
+    if (questionFilter === "unanswered") return isUnanswered(detail);
+    return !detail.correct && !isUnanswered(detail);
+  });
 
   if (loading) {
     return (
@@ -746,6 +752,7 @@ export default function StudentResultPage({
                   { value: "all", label: "All", count: totalQuestions },
                   { value: "correct", label: "Correct", count: correctCount },
                   { value: "incorrect", label: "Incorrect", count: incorrectCount },
+                  { value: "unanswered", label: "Unanswered", count: unansweredCount },
                 ] as const).map((option) => {
                   const active = questionFilter === option.value;
                   return (
@@ -760,7 +767,7 @@ export default function StudentResultPage({
                           : "border-slate-200 bg-white text-slate-600 hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-300 dark:hover:bg-slate-800"
                       }`}
                     >
-                      {option.value === "correct" ? <CheckCircle2 className="h-3.5 w-3.5" /> : option.value === "incorrect" ? <XCircle className="h-3.5 w-3.5" /> : null}
+                      {option.value === "correct" ? <CheckCircle2 className="h-3.5 w-3.5" /> : option.value === "incorrect" ? <XCircle className="h-3.5 w-3.5" /> : option.value === "unanswered" ? <FileQuestion className="h-3.5 w-3.5" /> : null}
                       {option.label}
                       <span className={active ? "text-white/80" : "text-slate-400"}>{option.count}</span>
                     </button>
