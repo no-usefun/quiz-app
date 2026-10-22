@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { ENDPOINTS } from "@/lib/api/endpoints";
-import { api } from "@/lib/api/client";
+import { api, clearApiCache } from "@/lib/api/client";
 
 type SessionUser = {
   id?: number;
@@ -113,6 +113,7 @@ function saveSessionUser(user: SessionUser) {
 
 function clearSessionStorage() {
   if (typeof window === "undefined") return;
+  clearApiCache();
 
   localStorage.removeItem("dynoquizz_token");
   localStorage.removeItem("token");
