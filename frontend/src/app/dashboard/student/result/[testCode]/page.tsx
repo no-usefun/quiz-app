@@ -142,6 +142,12 @@ function readOptionTextSnapshot(
         continue;
       }
 
+      // The parsed snapshot is now in memory. Drop the attempt-scoped copy;
+      // the quiz-scoped compatibility snapshot remains available if needed.
+      if (key.startsWith("dynoquizz_option_texts_attempt_")) {
+        localStorage.removeItem(key);
+      }
+
       return Object.entries(parsed as Record<string, unknown>).reduce<
         Record<number, Record<number, string>>
       >((questionMap, [questionId, options]) => {
@@ -383,6 +389,16 @@ export default function StudentResultPage({
           setDetailsAvailable(detailList.length > 0);
           setPendingRelease(false);
           setError(null);
+
+          // Completion markers are only needed to bridge the submit-to-result
+          // transition. The backend attempt record is the durable source.
+          localStorage.removeItem(`dynoquizz_submittedAttemptId_${attemptId}`);
+          if (localStorage.getItem("dynoquizz_submittedAttemptId") === attemptId) {
+            localStorage.removeItem("dynoquizz_submittedAttemptId");
+          }
+          if (detailList.length > 0) {
+            localStorage.removeItem(`dynoquizz_option_texts_attempt_${attemptId}`);
+          }
         }
       } catch (error) {
         if (cancelled) {
@@ -748,22 +764,23 @@ export default function StudentResultPage({
 
             <div className="rounded-[14px] bg-white border border-slate-200 overflow-hidden divide-y divide-slate-100 shadow-sm dark:border-slate-700 dark:bg-slate-900 dark:divide-slate-800">
               {visibleDetails.map((detail) => {
-                const idx = sortedDetails.findIndex((item) => item.questionId === detail.questionId);
+                const idx = sortedDetails.findIndex(
+                  (item) => item.questionId === detail.questionId,
+                );
                 const selectedOptionTexts = formatOptionTexts(
-                    detail.selectedOptionTexts,
-                    detail.questionId,
-                    detail.selectedOptionIds,
-                    optionTextByQuestion,
-                  );
+                  detail.selectedOptionTexts,
+                  detail.questionId,
+                  detail.selectedOptionIds,
+                  optionTextByQuestion,
+                );
+                const correctOptionTexts = formatOptionTexts(
+                  detail.correctOptionTexts,
+                  detail.questionId,
+                  detail.correctOptionIds,
+                  optionTextByQuestion,
+                );
 
-                  const correctOptionTexts = formatOptionTexts(
-                    detail.correctOptionTexts,
-                    detail.questionId,
-                    detail.correctOptionIds,
-                    optionTextByQuestion,
-                  );
-
-                  return (
+                return (
                     <div
                       key={`${detail.questionId}-${idx}`}
                       className="p-4 sm:p-5 space-y-2.5 text-xs"
