@@ -3,7 +3,7 @@
 import { Suspense, useEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { ArrowLeft, CheckCircle2, Loader2, ShieldAlert } from "lucide-react";
-import { ApiClientError, api } from "@/lib/api/client";
+import { ApiClientError, api, clearApiCache } from "@/lib/api/client";
 import { ENDPOINTS } from "@/lib/api/endpoints";
 
 type BackendRole = "TEACHER" | "STUDENT";
@@ -113,6 +113,7 @@ function persistOAuthSession(token: string, user: OAuthUser, expiresIn: unknown)
     throw new Error("Google authentication returned an invalid account role.");
   }
 
+  clearApiCache();
   localStorage.setItem("dynoquizz_token", cleanToken);
   localStorage.removeItem("token");
   localStorage.setItem("dynoquizz_user", JSON.stringify(user));
