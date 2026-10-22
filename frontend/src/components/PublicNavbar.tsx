@@ -1,12 +1,13 @@
 import Link from "next/link";
 import { ArrowRight, Home, KeyRound } from "lucide-react";
 import { AppWordmark } from "@/components/Logo";
+import { ThemeToggle } from "@/components/ThemeToggle";
 
 export function PublicNavbar({ redirectTarget }: { redirectTarget?: string } = {}) {
   const authSuffix = redirectTarget ? "?redirect=" + encodeURIComponent(redirectTarget) : "";
   const examHref = redirectTarget?.startsWith("/join") ? redirectTarget : "/join";
   return (
-    <header className="sticky top-0 z-50 w-full border-b border-[#d1dee8]/80 bg-white/95 backdrop-blur">
+    <header className="sticky top-0 z-50 w-full border-b border-[#d1dee8]/80 bg-white/95 backdrop-blur dark:border-slate-700 dark:bg-slate-950/95">
       <div className="mx-auto flex h-16 max-w-7xl items-center justify-between gap-3 px-4 sm:px-6 lg:px-8">
         <Link href="/" aria-label="Quizly home" className="shrink-0 transition-opacity hover:opacity-80">
           <AppWordmark size="default" />
@@ -21,6 +22,7 @@ export function PublicNavbar({ redirectTarget }: { redirectTarget?: string } = {
             <KeyRound className="h-4 w-4" />
             <span className="hidden sm:inline">Join exam</span>
           </Link>
+          <ThemeToggle />
           <Link href={"/login" + authSuffix} className="rounded-lg px-2 py-2 text-xs font-semibold text-[#111111] transition-colors hover:bg-[#f5f5f4] sm:px-3">
             Log in
           </Link>
