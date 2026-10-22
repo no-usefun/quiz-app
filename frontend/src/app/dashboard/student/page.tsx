@@ -130,7 +130,7 @@ export default function StudentDashboard() {
       setFetchError(null);
 
       try {
-        const data = await api.get<StudentSubmissionResponse[]>(ENDPOINTS.student.submissions);
+        const data = await api.get<StudentSubmissionResponse[]>(ENDPOINTS.student.submissions, { cacheTtlMs: 5000 });
         if (cancelled) return;
         const backendList = Array.isArray(data) ? data : [];
         const normalizedResults = backendList.map(normalizeSubmission).filter((item): item is Submission => item !== null);
