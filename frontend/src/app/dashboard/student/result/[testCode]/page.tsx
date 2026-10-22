@@ -230,6 +230,7 @@ export default function StudentResultPage({
   const [result, setResult] = useState<AttemptResult | null>(null);
 
   const [details, setDetails] = useState<ResultDetail[]>([]);
+  const [questionFilter, setQuestionFilter] = useState<"all" | "correct" | "incorrect">("all");
 
   const [optionTextByQuestion, setOptionTextByQuestion] = useState<
     Record<number, Record<number, string>>
@@ -447,6 +448,12 @@ export default function StudentResultPage({
     totalQuestions > 0
       ? Math.round((correctCount / totalQuestions) * 100)
       : null;
+
+  const incorrectCount = totalQuestions - correctCount;
+  const sortedDetails = [...details].sort((a, b) => a.displayOrder - b.displayOrder);
+  const visibleDetails = sortedDetails.filter((detail) =>
+    questionFilter === "all" ? true : questionFilter === "correct" ? detail.correct : !detail.correct,
+  );
 
   if (loading) {
     return (
@@ -702,15 +709,47 @@ export default function StudentResultPage({
 
         {canRevealSolutions && details.length > 0 ? (
           <section className="space-y-2.5">
-            <h2 className="text-xs font-bold text-slate-900 uppercase tracking-wider">
-              Question Breakdown &amp; Solutions
-            </h2>
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+              <div>
+                <h2 className="text-xs font-bold text-slate-900 dark:text-slate-100 uppercase tracking-wider">
+                  Question Breakdown &amp; Solutions
+                </h2>
+                <p className="mt-1 text-[11px] text-slate-500 dark:text-slate-400">
+                  Showing {visibleDetails.length} of {totalQuestions} questions
+                </p>
+              </div>
+              <div className="flex flex-wrap items-center gap-2" role="group" aria-label="Filter questions by result">
+                {([
+                  { value: "all", label: "All", count: totalQuestions },
+                  { value: "correct", label: "Correct", count: correctCount },
+                  { value: "incorrect", label: "Incorrect", count: incorrectCount },
+                ] as const).map((option) => {
+                  const active = questionFilter === option.value;
+                  return (
+                    <button
+                      key={option.value}
+                      type="button"
+                      aria-pressed={active}
+                      onClick={() => setQuestionFilter(option.value)}
+                      className={`inline-flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-[11px] font-bold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#165dfb] ${
+                        active
+                          ? "border-[#165dfb] bg-[#165dfb] text-white"
+                          : "border-slate-200 bg-white text-slate-600 hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-300 dark:hover:bg-slate-800"
+                      }`}
+                    >
+                      {option.value === "correct" ? <CheckCircle2 className="h-3.5 w-3.5" /> : option.value === "incorrect" ? <XCircle className="h-3.5 w-3.5" /> : null}
+                      {option.label}
+                      <span className={active ? "text-white/80" : "text-slate-400"}>{option.count}</span>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
 
-            <div className="rounded-[14px] bg-white border border-slate-200 overflow-hidden divide-y divide-slate-100 shadow-sm">
-              {[...details]
-                .sort((a, b) => a.displayOrder - b.displayOrder)
-                .map((detail, idx) => {
-                  const selectedOptionTexts = formatOptionTexts(
+            <div className="rounded-[14px] bg-white border border-slate-200 overflow-hidden divide-y divide-slate-100 shadow-sm dark:border-slate-700 dark:bg-slate-900 dark:divide-slate-800">
+              {visibleDetails.map((detail) => {
+                const idx = sortedDetails.findIndex((item) => item.questionId === detail.questionId);
+                const selectedOptionTexts = formatOptionTexts(
                     detail.selectedOptionTexts,
                     detail.questionId,
                     detail.selectedOptionIds,
@@ -836,6 +875,11 @@ export default function StudentResultPage({
                   </div>
                 );
                 })}
+              {visibleDetails.length === 0 && (
+                <div className="px-5 py-10 text-center text-xs font-medium text-slate-500 dark:text-slate-400">
+                  No questions match this filter.
+                </div>
+              )}
             </div>
           </section>
         ) : (
