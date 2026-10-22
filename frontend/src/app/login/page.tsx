@@ -4,7 +4,7 @@ import { Suspense, useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { ArrowLeft, ArrowRight, Eye, EyeOff } from "lucide-react";
-import { ApiClientError, api } from "@/lib/api/client";
+import { ApiClientError, api, clearApiCache } from "@/lib/api/client";
 import { ENDPOINTS } from "@/lib/api/endpoints";
 import { isLanExamMode } from "@/lib/examMode";
 import { PublicNavbar } from "@/components/PublicNavbar";
@@ -225,6 +225,7 @@ function LoginContent() {
         throw new Error("This account is registered for a different role. Please use the corresponding login option.");
       }
 
+      clearApiCache();
       localStorage.setItem("dynoquizz_token", token);
       localStorage.removeItem("token");
       localStorage.setItem("dynoquizz_user", JSON.stringify(meData));
