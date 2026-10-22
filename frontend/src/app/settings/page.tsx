@@ -23,6 +23,7 @@ import {
 import { useSession } from "@/hooks/useSession";
 import { Logo } from "@/components/Logo";
 import { AppearanceToggle } from "@/components/AppearanceToggle";
+import { ThemeToggle } from "@/components/ThemeToggle";
 import { AppleSwitch } from "@/components/AppleSwitch";
 import { ENDPOINTS } from "@/lib/api/endpoints";
 
@@ -1165,8 +1166,9 @@ export default function SettingsPage() {
   return (
     <div className="min-h-screen bg-[#f5f5f4] font-sans text-[#111111] flex flex-col md:flex-row overflow-x-hidden">
       <aside className="w-full md:w-64 bg-[#f5f5f4] border-b md:border-b-0 md:border-r border-[#d1dee8]/70 flex flex-col shrink-0">
-        <div className="p-6 border-b border-[#d1dee8]/50">
+        <div className="flex items-center justify-between gap-3 border-b border-[#d1dee8]/50 p-6">
           <Logo />
+          <ThemeToggle />
         </div>
 
         <nav className="flex-1 p-4 space-y-1 text-left">
