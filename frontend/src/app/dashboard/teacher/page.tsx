@@ -717,10 +717,10 @@ export default function TeacherDashboard() {
 
         <motion.section initial={reduceMotion ? false : { opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.32, delay: 0.07, ease: "easeOut" }} className="grid grid-cols-2 sm:grid-cols-4 gap-3.5">
           {[
-            { label: "Total Assessments", value: loading ? "..." : tests.length },
-            { label: "Live Sessions", value: loading ? "..." : liveCount },
-            { label: "Draft Assessments", value: loading ? "..." : draftCount },
-            { label: "Completed", value: loading ? "..." : completedCount },
+            { label: "Total Assessments", value: loading ? <span aria-hidden="true" className="inline-block h-6 w-10 animate-pulse rounded bg-slate-200 dark:bg-slate-700" /> : tests.length },
+            { label: "Live Sessions", value: loading ? <span aria-hidden="true" className="inline-block h-6 w-10 animate-pulse rounded bg-slate-200 dark:bg-slate-700" /> : liveCount },
+            { label: "Draft Assessments", value: loading ? <span aria-hidden="true" className="inline-block h-6 w-10 animate-pulse rounded bg-slate-200 dark:bg-slate-700" /> : draftCount },
+            { label: "Completed", value: loading ? <span aria-hidden="true" className="inline-block h-6 w-10 animate-pulse rounded bg-slate-200 dark:bg-slate-700" /> : completedCount },
           ].map((stat) => (
             <div key={stat.label} className="teacher-stat rounded-xl border border-slate-200 bg-white p-4 sm:p-5 transition-colors duration-150 hover:border-slate-300">
               <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500">{stat.label}</span>
@@ -863,8 +863,22 @@ export default function TeacherDashboard() {
 
           <div className="grid gap-3.5">
             {loading ? (
-              <div className="rounded-[14px] bg-white border border-[#d1dee8]/70 p-10 text-center text-xs text-[#78716b] shadow-sm">
-                Loading assessments roster...
+              <div className="grid animate-pulse gap-3.5" aria-busy="true" aria-label="Loading assessments roster">
+                {[1, 2, 3].map((item) => (
+                  <article key={item} className="rounded-[14px] border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-800 dark:bg-slate-900 sm:p-5">
+                    <div className="flex items-center justify-between gap-4">
+                      <div className="h-4 w-2/5 rounded bg-slate-200 dark:bg-slate-700" />
+                      <div className="h-6 w-20 rounded-full bg-slate-100 dark:bg-slate-800" />
+                    </div>
+                    <div className="mt-4 h-3 w-3/5 rounded bg-slate-100 dark:bg-slate-800" />
+                    <div className="mt-4 flex flex-wrap gap-2">
+                      <div className="h-8 w-20 rounded-lg bg-slate-100 dark:bg-slate-800" />
+                      <div className="h-8 w-24 rounded-lg bg-slate-100 dark:bg-slate-800" />
+                      <div className="h-8 w-16 rounded-lg bg-slate-100 dark:bg-slate-800" />
+                    </div>
+                  </article>
+                ))}
+                <p className="sr-only">Loading assessments roster…</p>
               </div>
             ) : fetchError && tests.length === 0 ? (
               <div className="rounded-[14px] bg-[#fbeee8] border border-[#8c381c]/30 p-8 text-center space-y-3 shadow-sm">
