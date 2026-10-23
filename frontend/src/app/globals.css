@@ -757,3 +757,29 @@ html.dark .assessment-governance [class*="bg-pink-"] {
   border-color: #63404d !important;
 }
 html.dark .assessment-governance [class*="text-white/"] { color: #e5edf9 !important; }
+
+
+/* The public landing header uses inline styles for its light palette. Give it
+   explicit semantic dark surfaces and legible navigation when dark is active. */
+html.dark .public-landing > header {
+  background: rgba(15, 23, 42, 0.96) !important;
+  background-color: #0f172a !important;
+  border-color: #334155 !important;
+  color: #e5edf9 !important;
+}
+html.dark .public-landing > header nav {
+  color: #cbd5e1 !important;
+}
+html.dark .public-landing > header nav a {
+  color: #cbd5e1 !important;
+}
+html.dark .public-landing > header nav a:hover {
+  color: #ffffff !important;
+}
+html.dark .public-landing > header a[style*="background: white"],
+html.dark .public-landing > header a[style*="background: rgb(255, 255, 255)"] {
+  background: #1e293b !important;
+  background-color: #1e293b !important;
+  border-color: #475569 !important;
+  color: #e5edf9 !important;
+}

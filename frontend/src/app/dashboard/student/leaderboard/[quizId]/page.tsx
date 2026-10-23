@@ -420,7 +420,7 @@ export default function StudentLeaderboardPage({
                     <Trophy className="h-4 w-4 text-[#73561a] dark:text-amber-300" />
                   </div>
                   <p className="mt-4 truncate text-sm font-extrabold">
-                    {entry.studentName || "Student"}
+                    {Number(entry.studentId) === currentStudentId ? "YOU" : entry.studentName || "Student"}
                   </p>
                   <p className="mt-1 text-xs font-medium text-slate-500">
                     {formatScore(entry.score)} / {formatScore(entry.totalMarks)}
@@ -485,7 +485,7 @@ export default function StudentLeaderboardPage({
                       #{entry.rank}
                     </span>
                     <div className="min-w-0">
-                      <p className="truncate text-xs font-bold">{entry.studentName}{Number(entry.studentId) === currentStudentId && <span className="ml-2 inline-flex rounded-full bg-[#165dfb] px-1.5 py-0.5 text-[8px] font-extrabold tracking-wide text-white">YOU</span>}</p>
+                      <p className={`truncate text-xs font-bold ${Number(entry.studentId) === currentStudentId ? "text-[#165dfb] dark:text-blue-300" : "text-slate-900 dark:text-slate-100"}`}>{Number(entry.studentId) === currentStudentId ? "YOU" : entry.studentName || "Student"}</p>
                       <p className="mt-0.5 text-[10px] font-medium text-[#a8a29d]">
                         {formatScore(entry.percentage)}%
                       </p>
