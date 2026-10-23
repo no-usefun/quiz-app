@@ -457,19 +457,25 @@ export default function StudentResultPage({
     };
   }, [testCode]);
 
-  const hasSelectedAnswer = (detail: ResultDetail) => {
-    const selectedIds = detail.selectedOptionIds;
-    if (Array.isArray(selectedIds) && selectedIds.length > 0) return true;
-    const selectedTexts = detail.selectedOptionTexts;
-    return Array.isArray(selectedTexts) &&
-      selectedTexts.some((text) => String(text ?? "").trim().length > 0);
-  };
-
   const isUnanswered = (detail: ResultDetail) => {
     const status = String(detail.answerStatus ?? "").trim().toUpperCase();
+    const selectedIds = detail.selectedOptionIds;
+    const selectedTexts = detail.selectedOptionTexts;
+    const hasIds = Array.isArray(selectedIds);
+    const hasTexts = Array.isArray(selectedTexts);
+    const hasAnySelection =
+      (hasIds && selectedIds.length > 0) ||
+      (hasTexts && selectedTexts.some((text) => {
+        const value = String(text ?? "").trim().toLowerCase();
+        return value.length > 0 && value !== "not answered" && value !== "unanswered";
+      }));
+
+    // A visible selection (or a definitively empty selection array) takes
+    // precedence over a stale status string so skipped questions stay gray.
+    if (hasAnySelection) return false;
     if (["UNANSWERED", "NOT_ANSWERED", "SKIPPED", "BLANK"].includes(status)) return true;
-    if (["ANSWERED", "CORRECT", "INCORRECT", "PARTIALLY_CORRECT"].includes(status)) return false;
-    return !hasSelectedAnswer(detail);
+    if (hasIds || hasTexts) return true;
+    return !["ANSWERED", "CORRECT", "INCORRECT", "PARTIALLY_CORRECT"].includes(status);
   };
   const isCorrect = (detail: ResultDetail) =>
     Boolean(detail.correct) && !isUnanswered(detail);
