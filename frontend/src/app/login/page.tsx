@@ -269,26 +269,26 @@ function LoginContent() {
       <>
       <PublicNavbar redirectTarget={redirectTarget} />
       <main className="min-h-[calc(100vh-4rem)] w-full grid grid-cols-1 md:grid-cols-2 font-sans">
-        <section className="flex flex-col items-center justify-center bg-[#F9FAFB] p-8 text-center sm:p-16">
+        <section className="flex flex-col items-center justify-center bg-[#F9FAFB] p-8 text-center transition-colors dark:bg-slate-950 sm:p-16">
           <div className="w-full max-w-xs space-y-5">
             <div>
-              <h1 className="text-3xl font-bold tracking-tight text-[#111827]">Student</h1>
-              <p className="mt-1 text-sm text-[#6B7280]">Take quizzes with an access code</p>
+              <h1 className="text-3xl font-bold tracking-tight text-[#111827] dark:text-slate-100">Student</h1>
+              <p className="mt-1 text-sm text-[#6B7280] dark:text-slate-400">Take quizzes with an access code</p>
             </div>
-            <Link href={"/login?role=student" + (redirectTarget ? "&redirect=" + encodeURIComponent(redirectTarget) : "")} className="inline-flex w-full items-center justify-center gap-2 rounded-lg bg-[#111827] px-5 py-3 text-sm font-medium text-white shadow-sm transition-all hover:bg-black active:scale-[0.99] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#165dfb] focus-visible:ring-offset-2">
+            <Link href={"/login?role=student" + (redirectTarget ? "&redirect=" + encodeURIComponent(redirectTarget) : "")} className="inline-flex w-full items-center justify-center gap-2 rounded-lg bg-[#111827] px-5 py-3 text-sm font-medium text-white shadow-sm transition-all hover:bg-black active:scale-[0.99] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#165dfb] focus-visible:ring-offset-2 dark:bg-blue-600 dark:hover:bg-blue-500">
               Continue as Student
               <ArrowRight className="h-4 w-4" />
             </Link>
           </div>
         </section>
 
-        <section className="flex flex-col items-center justify-center border-t border-neutral-800 bg-[#0F172A] p-8 text-center sm:p-16 md:border-l md:border-t-0">
+        <section className="flex flex-col items-center justify-center border-t border-slate-200 bg-slate-100 p-8 text-center transition-colors dark:border-slate-800 dark:bg-slate-900 sm:p-16 md:border-l md:border-t-0">
           <div className="w-full max-w-xs space-y-5">
             <div>
-              <h1 className="text-3xl font-bold tracking-tight text-white">Instructor</h1>
-              <p className="mt-1 text-sm text-[#94A3B8]">Create and manage quizzes</p>
+              <h1 className="text-3xl font-bold tracking-tight text-slate-900 dark:text-slate-100">Instructor</h1>
+              <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">Create and manage quizzes</p>
             </div>
-            <Link href={"/login?role=teacher" + (redirectTarget ? "&redirect=" + encodeURIComponent(redirectTarget) : "")} className="inline-flex w-full items-center justify-center gap-2 rounded-lg bg-white px-5 py-3 text-sm font-medium text-[#0F172A] shadow-sm transition-all hover:bg-neutral-100 active:scale-[0.99] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white focus-visible:ring-offset-2 focus-visible:ring-offset-[#0F172A]">
+            <Link href={"/login?role=teacher" + (redirectTarget ? "&redirect=" + encodeURIComponent(redirectTarget) : "")} className="inline-flex w-full items-center justify-center gap-2 rounded-lg bg-white px-5 py-3 text-sm font-medium text-[#0F172A] shadow-sm transition-all hover:bg-neutral-100 active:scale-[0.99] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#165dfb] focus-visible:ring-offset-2 dark:bg-blue-600 dark:text-white dark:hover:bg-blue-500">
               Continue as Instructor
               <ArrowRight className="h-4 w-4" />
             </Link>
@@ -304,10 +304,10 @@ function LoginContent() {
   return (
     <>
     <PublicNavbar redirectTarget={redirectTarget} />
-    <main className="min-h-[calc(100vh-4rem)] bg-neutral-50 px-4 py-8 font-sans text-[#111827] sm:px-8">
+    <main className="min-h-[calc(100vh-4rem)] bg-neutral-50 px-4 py-8 font-sans text-[#111827] transition-colors dark:bg-slate-950 dark:text-slate-100 sm:px-8">
       <div className="mx-auto flex min-h-[calc(100vh-4rem)] max-w-md items-center">
-        <div className="w-full rounded-2xl border border-neutral-100 bg-white p-7 shadow-[0_18px_55px_-24px_rgba(15,23,42,0.25)] sm:p-8">
-          <button type="button" onClick={() => router.push("/login" + (redirectTarget ? "?redirect=" + encodeURIComponent(redirectTarget) : ""))} className="mb-6 inline-flex items-center gap-1.5 border-0 bg-transparent p-0 text-xs font-semibold text-neutral-400 transition-colors hover:text-neutral-800">
+        <div className="w-full rounded-2xl border border-neutral-200 bg-white p-7 shadow-[0_18px_55px_-24px_rgba(15,23,42,0.25)] transition-colors dark:border-slate-700 dark:bg-slate-900 sm:p-8">
+          <button type="button" onClick={() => router.push("/login" + (redirectTarget ? "?redirect=" + encodeURIComponent(redirectTarget) : ""))} className="mb-6 inline-flex items-center gap-1.5 border-0 bg-transparent p-0 text-xs font-semibold text-neutral-500 transition-colors hover:text-neutral-800 dark:text-slate-400 dark:hover:text-slate-100">
             <ArrowLeft className="h-3.5 w-3.5" />
             Back to roles
           </button>
@@ -318,7 +318,7 @@ function LoginContent() {
                 LAN Exam Mode · Local Authentication
               </span>
             )}
-            <h1 className="mt-1.5 text-2xl font-bold tracking-tight text-neutral-900">Log in as {roleLabel}</h1>
+            <h1 className="mt-1.5 text-2xl font-bold tracking-tight text-neutral-900 dark:text-slate-100">Log in as {roleLabel}</h1>
           </div>
 
           {error && (
@@ -326,27 +326,27 @@ function LoginContent() {
           )}
 
           {!lanExamMode && (
-          <button type="button" onClick={handleGoogleAuth} disabled={loading || googleLoading} aria-busy={googleLoading} className="flex w-full items-center justify-center gap-2.5 rounded-lg border border-neutral-200 bg-white px-4 py-3 text-sm font-semibold text-neutral-900 transition-all hover:border-neutral-300 hover:bg-neutral-50 active:scale-[0.99] disabled:cursor-not-allowed disabled:opacity-60">
+          <button type="button" onClick={handleGoogleAuth} disabled={loading || googleLoading} aria-busy={googleLoading} className="flex w-full items-center justify-center gap-2.5 rounded-lg border border-neutral-200 bg-white px-4 py-3 text-sm font-semibold text-neutral-900 transition-all hover:border-neutral-300 hover:bg-neutral-50 active:scale-[0.99] disabled:cursor-not-allowed disabled:opacity-60 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100 dark:hover:bg-slate-800">
             <GoogleIcon />
             {googleLoading ? "Connecting to Google..." : "Sign in with Google"}
           </button>
           )}
 
           <div className="my-5 flex items-center gap-3">
-            <div className="h-px flex-1 bg-neutral-100" />
-            <span className="text-[10px] font-bold uppercase tracking-wider text-neutral-400">or</span>
+            <div className="h-px flex-1 bg-neutral-100 dark:bg-slate-700" />
+            <span className="text-[10px] font-bold uppercase tracking-wider text-neutral-400 dark:text-slate-500">or</span>
             <div className="h-px flex-1 bg-neutral-100" />
           </div>
 
           <form onSubmit={handleLoginSubmit} className="space-y-4">
             <div className="space-y-1.5">
-              <label className="block text-xs font-bold text-neutral-700">Email address</label>
-              <input type="email" value={email} onChange={(event) => { setEmail(event.target.value); if (error) setError(""); }} placeholder="name@example.com" autoComplete="email" inputMode="email" autoCapitalize="none" spellCheck={false} required aria-invalid={!!error} className="w-full rounded-lg border border-neutral-200 bg-neutral-50 px-3.5 py-2.5 text-sm text-neutral-900 outline-none transition-all placeholder:text-neutral-400 focus:border-neutral-900 focus:bg-white focus:ring-1 focus:ring-neutral-900" />
+              <label className="block text-xs font-bold text-neutral-700 dark:text-slate-300">Email address</label>
+              <input type="email" value={email} onChange={(event) => { setEmail(event.target.value); if (error) setError(""); }} placeholder="name@example.com" autoComplete="email" inputMode="email" autoCapitalize="none" spellCheck={false} required aria-invalid={!!error} className="w-full rounded-lg border border-neutral-200 bg-neutral-50 px-3.5 py-2.5 text-sm text-neutral-900 outline-none transition-all placeholder:text-neutral-400 focus:border-neutral-900 focus:bg-white focus:ring-1 focus:ring-neutral-900 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100 dark:placeholder:text-slate-500 dark:focus:border-blue-500 dark:focus:bg-slate-900 dark:focus:ring-blue-500" />
             </div>
 
             <div className="space-y-1.5">
               <div className="flex items-center justify-between gap-3">
-                <label className="block text-xs font-bold text-neutral-700">Password</label>
+                <label className="block text-xs font-bold text-neutral-700 dark:text-slate-300">Password</label>
                 {!lanExamMode && activeRole && (
                   <Link
                     href={"/forgot-password?role=" + activeRole}
@@ -357,8 +357,8 @@ function LoginContent() {
                 )}
               </div>
               <div className="relative">
-                <input type={showPassword ? "text" : "password"} value={password} onChange={(event) => { setPassword(event.target.value); if (error) setError(""); }} placeholder="••••••••" autoComplete="current-password" required aria-invalid={!!error} className="w-full rounded-lg border border-neutral-200 bg-neutral-50 px-3.5 py-2.5 pr-10 text-sm text-neutral-900 outline-none transition-all placeholder:text-neutral-400 focus:border-neutral-900 focus:bg-white focus:ring-1 focus:ring-neutral-900" />
-                <button type="button" onClick={() => setShowPassword((value) => !value)} aria-label={showPassword ? "Hide password" : "Show password"} className="absolute right-2.5 top-1/2 -translate-y-1/2 border-0 bg-transparent p-1.5 text-neutral-400 transition-colors hover:text-neutral-800">
+                <input type={showPassword ? "text" : "password"} value={password} onChange={(event) => { setPassword(event.target.value); if (error) setError(""); }} placeholder="••••••••" autoComplete="current-password" required aria-invalid={!!error} className="w-full rounded-lg border border-neutral-200 bg-neutral-50 px-3.5 py-2.5 pr-10 text-sm text-neutral-900 outline-none transition-all placeholder:text-neutral-400 focus:border-neutral-900 focus:bg-white focus:ring-1 focus:ring-neutral-900 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100 dark:placeholder:text-slate-500 dark:focus:border-blue-500 dark:focus:bg-slate-900 dark:focus:ring-blue-500" />
+                <button type="button" onClick={() => setShowPassword((value) => !value)} aria-label={showPassword ? "Hide password" : "Show password"} className="absolute right-2.5 top-1/2 -translate-y-1/2 border-0 bg-transparent p-1.5 text-neutral-400 transition-colors hover:text-neutral-800 dark:text-slate-400 dark:hover:text-slate-100">
                   {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                 </button>
               </div>
@@ -370,9 +370,9 @@ function LoginContent() {
             </button>
           </form>
 
-          <p className="mt-5 text-center text-sm text-neutral-500">
+          <p className="mt-5 text-center text-sm text-neutral-500 dark:text-slate-400">
             Don&apos;t have an account?{" "}
-            <Link href={`/signup?role=${activeRole}${redirectTarget ? `&redirect=${encodeURIComponent(redirectTarget)}` : ""}`} className="font-bold text-neutral-900 hover:underline">
+            <Link href={`/signup?role=${activeRole}${redirectTarget ? `&redirect=${encodeURIComponent(redirectTarget)}` : ""}`} className="font-bold text-neutral-900 hover:underline dark:text-slate-100">
               Sign up
             </Link>
           </p>
@@ -385,7 +385,7 @@ function LoginContent() {
 
 export default function LoginPage() {
   return (
-    <Suspense fallback={<div className="flex min-h-screen items-center justify-center bg-neutral-50 text-sm font-medium text-neutral-400">Loading...</div>}>
+    <Suspense fallback={<div className="flex min-h-screen items-center justify-center bg-neutral-50 text-sm font-medium text-neutral-400 dark:bg-slate-950 dark:text-slate-400"><span className="mr-3 h-5 w-5 animate-spin rounded-full border-2 border-current border-t-transparent" />Loading sign-in…</div>}>
       <LoginContent />
     </Suspense>
   );

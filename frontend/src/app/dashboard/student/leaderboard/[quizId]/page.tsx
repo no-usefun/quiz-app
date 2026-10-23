@@ -181,27 +181,54 @@ export default function StudentLeaderboardPage({
 
   const filteredEntries = useMemo(() => {
     const query = searchQuery.trim().toLowerCase();
-    if (!query) return entries;
-    return entries.filter((entry) =>
+    const filtered = !query ? [...entries] : entries.filter((entry) =>
       (entry.studentName || "Student").toLowerCase().includes(query) ||
       String(entry.rank).includes(query) ||
       String(entry.percentage).includes(query),
     );
-  }, [entries, searchQuery]);
+    // Pin the current student's row in the default table view without changing
+    // the official rank, score order, or podium.
+    return filtered.sort((left, right) => {
+      const leftIsCurrent = Number(left.studentId) === currentStudentId;
+      const rightIsCurrent = Number(right.studentId) === currentStudentId;
+      return Number(rightIsCurrent) - Number(leftIsCurrent);
+    });
+  }, [entries, searchQuery, currentStudentId]);
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-slate-50">
+      <div className="min-h-screen bg-slate-50 dark:bg-slate-950">
         <TopNav role="student" />
-        <main className="flex min-h-[70vh] items-center justify-center p-6 text-sm font-medium text-slate-500">
-          Loading leaderboard...
+        <main className="mx-auto min-h-[70vh] max-w-6xl space-y-5 p-4 pt-8 md:p-8" aria-label="Loading leaderboard" aria-busy="true">
+          <div className="h-8 w-64 animate-pulse rounded-lg bg-slate-200 dark:bg-slate-800" />
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+            {[1, 2, 3].map((rank) => (
+              <div key={rank} className="animate-pulse rounded-[14px] border border-slate-200 bg-white p-5 dark:border-slate-700 dark:bg-slate-900">
+                <div className="mb-4 flex items-center gap-3">
+                  <span className="flex h-8 w-8 items-center justify-center rounded-full bg-slate-100 text-xs font-bold text-slate-500 dark:bg-slate-800">#{rank}</span>
+                  <span className="h-3 w-28 rounded bg-slate-200 dark:bg-slate-700" />
+                </div>
+                <div className="h-6 w-20 rounded bg-slate-200 dark:bg-slate-700" />
+                <div className="mt-4 h-2 w-full rounded bg-slate-100 dark:bg-slate-800" />
+              </div>
+            ))}
+          </div>
+          <div className="overflow-hidden rounded-[14px] border border-slate-200 bg-white dark:border-slate-700 dark:bg-slate-900">
+            {[1, 2, 3, 4, 5].map((row) => (
+              <div key={row} className="flex animate-pulse items-center gap-4 border-b border-slate-100 p-4 dark:border-slate-800">
+                <span className="h-7 w-7 rounded-full bg-slate-200 dark:bg-slate-800" />
+                <span className="h-3 flex-1 rounded bg-slate-200 dark:bg-slate-800" />
+                <span className="h-3 w-16 rounded bg-slate-200 dark:bg-slate-800" />
+              </div>
+            ))}
+          </div>
         </main>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-slate-50 font-sans text-slate-900">
+    <div className="min-h-screen bg-slate-50 font-sans text-slate-900 dark:bg-slate-950 dark:text-slate-100">
       <TopNav role="student" />
 
       <main className="mx-auto max-w-6xl space-y-5 p-4 md:p-8">
@@ -365,7 +392,7 @@ export default function StudentLeaderboardPage({
                     <Trophy className="h-4 w-4 text-[#73561a] dark:text-amber-300" />
                   </div>
                   <p className="mt-4 truncate text-sm font-extrabold">
-                    {entry.studentName || "Student"}
+                    {Number(entry.studentId) === currentStudentId ? "You" : (entry.studentName || "Student")}
                   </p>
                   <p className="mt-1 text-xs font-medium text-slate-500">
                     {formatScore(entry.score)} / {formatScore(entry.totalMarks)}
@@ -383,15 +410,15 @@ export default function StudentLeaderboardPage({
               ))}
             </section>
 
-            <section className="overflow-hidden rounded-[14px] border border-slate-200 bg-white shadow-sm">
+            <section className="overflow-hidden rounded-[14px] border border-slate-200 bg-white shadow-sm dark:border-slate-700 dark:bg-slate-900">
               <div className="flex flex-col gap-3 border-b border-[#d1dee8]/50 p-4 sm:flex-row sm:items-center sm:justify-between">
                 <div>
-                  <h2 className="text-sm font-extrabold text-slate-900">Full rankings</h2>
+                  <h2 className="text-sm font-extrabold text-slate-900 dark:text-slate-100">Full rankings</h2>
                   <p className="mt-1 text-[10px] text-slate-500">{filteredEntries.length} of {entries.length} students</p>
                 </div>
                 <label className="relative block w-full sm:max-w-xs">
                   <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[#a8a29e]" />
-                  <input value={searchQuery} onChange={(event) => setSearchQuery(event.target.value)} placeholder="Search student or rank..." aria-label="Search leaderboard" className="h-10 w-full rounded-[10px] border border-[#d1dee8] bg-[#fbfbfa] pl-9 pr-3 text-xs outline-none transition focus:border-[#165dfb] focus:ring-2 focus:ring-[#165dfb]/10" />
+                  <input value={searchQuery} onChange={(event) => setSearchQuery(event.target.value)} placeholder="Search student or rank..." aria-label="Search leaderboard" className="h-10 w-full rounded-[10px] border border-[#d1dee8] bg-[#fbfbfa] pl-9 pr-3 text-xs text-slate-900 outline-none transition placeholder:text-slate-400 focus:border-[#165dfb] focus:ring-2 focus:ring-[#165dfb]/10 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100 dark:placeholder:text-slate-500" />
                 </label>
               </div>
               <div className="overflow-x-auto">
