@@ -457,21 +457,28 @@ export default function StudentResultPage({
     };
   }, [testCode]);
 
-  const correctCount = details.filter((detail) => detail.correct).length;
+  const hasSelectedAnswer = (detail: ResultDetail) => {
+    const selectedIds = detail.selectedOptionIds;
+    if (Array.isArray(selectedIds) && selectedIds.length > 0) return true;
+    const selectedTexts = detail.selectedOptionTexts;
+    return Array.isArray(selectedTexts) &&
+      selectedTexts.some((text) => String(text ?? "").trim().length > 0);
+  };
 
+  const isUnanswered = (detail: ResultDetail) =>
+    String(detail.answerStatus ?? "").trim().toUpperCase() === "UNANSWERED" ||
+    !hasSelectedAnswer(detail);
+  const isCorrect = (detail: ResultDetail) =>
+    Boolean(detail.correct) && !isUnanswered(detail);
+
+  const correctCount = details.filter(isCorrect).length;
   const totalQuestions = details.length;
-
   const accuracy =
     totalQuestions > 0
       ? Math.round((correctCount / totalQuestions) * 100)
       : null;
-
-  const isUnanswered = (detail: ResultDetail) =>
-    detail.answerStatus === "UNANSWERED" ||
-    !Array.isArray(detail.selectedOptionIds) ||
-    detail.selectedOptionIds.length === 0;
   const incorrectCount = details.filter(
-    (detail) => !detail.correct && !isUnanswered(detail),
+    (detail) => !isCorrect(detail) && !isUnanswered(detail),
   ).length;
   const unansweredCount = details.filter(isUnanswered).length;
   const indexedDetails = [...details]
@@ -479,16 +486,53 @@ export default function StudentResultPage({
     .map((detail, index) => ({ detail, questionNumber: index + 1 }));
   const visibleDetails = indexedDetails.filter(({ detail }) => {
     if (questionFilter === "all") return true;
-    if (questionFilter === "correct") return detail.correct;
+    if (questionFilter === "correct") return isCorrect(detail);
     if (questionFilter === "unanswered") return isUnanswered(detail);
-    return !detail.correct && !isUnanswered(detail);
+    return !isCorrect(detail) && !isUnanswered(detail);
   });
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-slate-50 flex items-center justify-center text-xs font-semibold text-slate-500">
-        Loading assessment results...
-      </div>
+      <main className="min-h-screen bg-slate-50 px-4 py-6 text-slate-900 dark:bg-slate-950 dark:text-slate-100 sm:px-6" aria-busy="true" aria-label="Loading assessment results">
+        <div className="mx-auto max-w-4xl animate-pulse space-y-5">
+          <div className="flex items-center justify-between border-b border-slate-200 pb-4 dark:border-slate-800">
+            <div className="h-4 w-32 rounded bg-slate-200 dark:bg-slate-700" />
+            <div className="h-8 w-24 rounded-full bg-slate-200 dark:bg-slate-700" />
+          </div>
+          <section className="rounded-2xl border border-slate-200 bg-white p-5 dark:border-slate-800 dark:bg-slate-900 sm:p-7">
+            <div className="flex flex-col gap-6 sm:flex-row sm:items-center">
+              <div className="h-36 w-36 shrink-0 rounded-full border-[12px] border-slate-200 dark:border-slate-700" />
+              <div className="grid flex-1 grid-cols-1 gap-3 sm:grid-cols-3">
+                {["accuracy", "score", "time"].map((item) => (
+                  <div key={item} className="space-y-3 rounded-xl border border-slate-200 p-4 dark:border-slate-800">
+                    <div className="mx-auto h-3 w-16 rounded bg-slate-200 dark:bg-slate-700" />
+                    <div className="mx-auto h-6 w-20 rounded bg-slate-200 dark:bg-slate-700" />
+                    <div className="mx-auto h-2 w-14 rounded bg-slate-100 dark:bg-slate-800" />
+                  </div>
+                ))}
+              </div>
+            </div>
+          </section>
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div className="h-5 w-56 rounded bg-slate-200 dark:bg-slate-700" />
+            <div className="h-8 w-64 rounded-full bg-slate-200 dark:bg-slate-700" />
+          </div>
+          {[1, 2, 3].map((question) => (
+            <section key={question} className="space-y-4 rounded-2xl border border-slate-200 bg-white p-5 dark:border-slate-800 dark:bg-slate-900">
+              <div className="flex items-center justify-between gap-3">
+                <div className="h-4 w-3/5 rounded bg-slate-200 dark:bg-slate-700" />
+                <div className="h-6 w-24 rounded-full bg-slate-200 dark:bg-slate-700" />
+              </div>
+              <div className="grid gap-3 sm:grid-cols-2">
+                <div className="h-20 rounded-xl bg-slate-100 dark:bg-slate-800" />
+                <div className="h-20 rounded-xl bg-slate-100 dark:bg-slate-800" />
+              </div>
+              <div className="h-14 rounded-xl bg-slate-100 dark:bg-slate-800" />
+            </section>
+          ))}
+          <p className="sr-only">Loading assessment results…</p>
+        </div>
+      </main>
     );
   }
 
@@ -755,21 +799,24 @@ export default function StudentResultPage({
                   { value: "unanswered", label: "Unanswered", count: unansweredCount },
                 ] as const).map((option) => {
                   const active = questionFilter === option.value;
+                  const tone = option.value === "correct"
+                    ? { active: "border-emerald-600 bg-emerald-600 text-white", idle: "border-emerald-200 bg-emerald-50 text-emerald-800 hover:bg-emerald-100 dark:border-emerald-900 dark:bg-emerald-950/50 dark:text-emerald-300 dark:hover:bg-emerald-950" }
+                    : option.value === "incorrect"
+                      ? { active: "border-rose-600 bg-rose-600 text-white", idle: "border-rose-200 bg-rose-50 text-rose-800 hover:bg-rose-100 dark:border-rose-900 dark:bg-rose-950/50 dark:text-rose-300 dark:hover:bg-rose-950" }
+                      : option.value === "unanswered"
+                        ? { active: "border-slate-500 bg-slate-600 text-white", idle: "border-slate-200 bg-slate-100 text-slate-700 hover:bg-slate-200 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700" }
+                        : { active: "border-[#165dfb] bg-[#165dfb] text-white", idle: "border-slate-200 bg-white text-slate-600 hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-300 dark:hover:bg-slate-800" };
                   return (
                     <button
                       key={option.value}
                       type="button"
                       aria-pressed={active}
                       onClick={() => setQuestionFilter(option.value)}
-                      className={`inline-flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-[11px] font-bold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#165dfb] ${
-                        active
-                          ? "border-[#165dfb] bg-[#165dfb] text-white"
-                          : "border-slate-200 bg-white text-slate-600 hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-300 dark:hover:bg-slate-800"
-                      }`}
+                      className={`inline-flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-[11px] font-bold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#165dfb] ${active ? tone.active : tone.idle}`}
                     >
                       {option.value === "correct" ? <CheckCircle2 className="h-3.5 w-3.5" /> : option.value === "incorrect" ? <XCircle className="h-3.5 w-3.5" /> : option.value === "unanswered" ? <FileQuestion className="h-3.5 w-3.5" /> : null}
                       {option.label}
-                      <span className={active ? "text-white/80" : "text-slate-400"}>{option.count}</span>
+                      <span className={active ? "text-white/80" : option.value === "correct" ? "text-emerald-700 dark:text-emerald-300" : option.value === "incorrect" ? "text-rose-700 dark:text-rose-300" : option.value === "unanswered" ? "text-slate-500 dark:text-slate-400" : "text-slate-400"}>{option.count}</span>
                     </button>
                   );
                 })}
@@ -779,6 +826,8 @@ export default function StudentResultPage({
             <div className="rounded-[14px] bg-white border border-slate-200 overflow-hidden divide-y divide-slate-100 shadow-sm dark:border-slate-700 dark:bg-slate-900 dark:divide-slate-800">
               {visibleDetails.map(({ detail, questionNumber }) => {
                 const idx = questionNumber - 1;
+                const questionUnanswered = isUnanswered(detail);
+                const questionCorrect = isCorrect(detail);
                 const selectedOptionTexts = formatOptionTexts(
                   detail.selectedOptionTexts,
                   detail.questionId,
@@ -795,20 +844,25 @@ export default function StudentResultPage({
                 return (
                   <div
                     key={`${detail.questionId}-${idx}`}
-                    className="p-4 sm:p-5 space-y-2.5 text-xs"
+                    className={`space-y-3 border-l-4 p-4 text-xs transition-colors sm:p-5 ${questionCorrect ? "border-l-emerald-500" : questionUnanswered ? "border-l-slate-300 dark:border-l-slate-600" : "border-l-rose-500"}`}
                   >
-                    <div className="flex items-start justify-between gap-2">
-                      <p className="font-bold text-slate-900 leading-snug">
+                    <div className="flex items-start justify-between gap-3">
+                      <p className="font-bold leading-snug text-slate-900 dark:text-slate-100">
                         {idx + 1}. {detail.questionText || "Question"}
                       </p>
 
-                      {detail.correct ? (
-                        <span className="inline-flex items-center gap-1 rounded-full bg-[#e2ede8] text-[#1d5237] px-2.5 py-0.5 text-[10px] font-bold shrink-0 shadow-xs">
+                      {questionCorrect ? (
+                        <span className="inline-flex shrink-0 items-center gap-1 rounded-full border border-emerald-700/15 bg-[#e2ede8] px-2.5 py-1 text-[10px] font-bold text-[#1d5237] shadow-xs dark:border-emerald-800 dark:bg-emerald-950/70 dark:text-emerald-300">
                           <CheckCircle2 className="h-3 w-3" />
                           Correct
                         </span>
+                      ) : questionUnanswered ? (
+                        <span className="inline-flex shrink-0 items-center gap-1 rounded-full border border-slate-200 bg-slate-100 px-2.5 py-1 text-[10px] font-bold text-slate-600 shadow-xs dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300">
+                          <FileQuestion className="h-3 w-3" />
+                          Unanswered
+                        </span>
                       ) : (
-                        <span className="inline-flex items-center gap-1 rounded-full bg-[#fbeee8] text-[#8c381c] px-2.5 py-0.5 text-[10px] font-bold shrink-0 shadow-xs">
+                        <span className="inline-flex shrink-0 items-center gap-1 rounded-full border border-rose-700/15 bg-[#fbeee8] px-2.5 py-1 text-[10px] font-bold text-[#8c381c] shadow-xs dark:border-rose-900 dark:bg-rose-950/70 dark:text-rose-300">
                           <XCircle className="h-3 w-3" />
                           Incorrect
                         </span>
@@ -816,8 +870,8 @@ export default function StudentResultPage({
                     </div>
 
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-[11px]">
-                      <div className="rounded-[10px] bg-slate-50 p-2.5 border border-slate-200 shadow-xs">
-                        <span className="text-slate-500 block text-[9px] uppercase font-bold">
+                      <div className="rounded-[10px] border border-slate-200 bg-slate-50 p-2.5 shadow-xs dark:border-slate-700 dark:bg-slate-800">
+                        <span className="block text-[9px] font-bold uppercase text-slate-500 dark:text-slate-400">
                           Your Answer:
                         </span>
 
@@ -826,7 +880,7 @@ export default function StudentResultPage({
                             selectedOptionTexts.map((optionText, optionIndex) => (
                               <span
                                 key={`selected-${detail.questionId}-${optionIndex}`}
-                                className="rounded-[8px] border border-slate-200 bg-white px-2.5 py-1.5 font-semibold text-slate-900"
+                                className="rounded-[8px] border border-slate-200 bg-white px-2.5 py-1.5 font-semibold text-slate-900 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100"
                               >
                                 {optionText}
                               </span>
@@ -839,8 +893,8 @@ export default function StudentResultPage({
                         </div>
                       </div>
 
-                      <div className="rounded-[10px] bg-[#e2ede8]/60 p-2.5 border border-[#1d5237]/20 shadow-xs">
-                        <span className="text-[#1d5237] block text-[9px] uppercase font-bold">
+                      <div className={`rounded-[10px] border p-2.5 shadow-xs ${questionUnanswered ? "border-slate-200 bg-slate-50 dark:border-slate-700 dark:bg-slate-800" : "border-[#1d5237]/20 bg-[#e2ede8]/60 dark:border-emerald-900 dark:bg-emerald-950/40"}`}>
+                        <span className={`block text-[9px] font-bold uppercase ${questionUnanswered ? "text-slate-500 dark:text-slate-400" : "text-[#1d5237] dark:text-emerald-300"}`}>
                           Correct Answer:
                         </span>
 
@@ -849,7 +903,7 @@ export default function StudentResultPage({
                             correctOptionTexts.map((optionText, optionIndex) => (
                               <span
                                 key={`correct-${detail.questionId}-${optionIndex}`}
-                                className="rounded-[8px] border border-[#1d5237]/20 bg-white px-2.5 py-1.5 font-bold text-[#1d5237]"
+                                className={`rounded-[8px] border bg-white px-2.5 py-1.5 font-bold dark:bg-slate-900 ${questionUnanswered ? "border-slate-200 text-slate-600 dark:border-slate-700 dark:text-slate-300" : "border-[#1d5237]/20 text-[#1d5237] dark:border-emerald-900 dark:text-emerald-300"}`}
                               >
                                 {optionText}
                               </span>

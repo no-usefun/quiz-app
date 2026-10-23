@@ -650,3 +650,110 @@ svg {
   max-width: 100%;
 }
 
+
+
+/* Shared dark palette and contrast guardrails for every route, including
+   older pages that still rely on literal neutral/slate utility classes. */
+html.dark {
+  color-scheme: dark;
+  --color-paper-stone: #0b1120;
+  --color-chalk: #1e293b;
+  --color-ink-black: #e5edf9;
+  --color-fog-gray: #a7b4c8;
+  --color-ice-line: #334155;
+  --color-cobalt-stamp: #6f98ff;
+  --color-soft-blue: #1e3152;
+  --color-soft-lavender: #302849;
+  --color-soft-mint: #1c3a31;
+  --color-soft-peach: #3b2926;
+  --color-soft-yellow: #3a321c;
+  --color-soft-rose: #3a252b;
+  --pastel-mint: #17382e;
+  --pastel-mint-text: #9ae6bd;
+  --pastel-yellow: #3a301b;
+  --pastel-yellow-text: #f8d879;
+  --pastel-pink: #3b2928;
+  --pastel-pink-text: #ffb8a7;
+  --pastel-lavender: #302849;
+  --pastel-lavender-text: #d3c6ff;
+}
+html.dark [class~="bg-neutral-50"],
+html.dark [class~="bg-neutral-100"],
+html.dark [class~="bg-stone-50"],
+html.dark [class~="bg-gray-50"] { background-color: #111827 !important; }
+html.dark [class~="bg-neutral-200"],
+html.dark [class~="bg-stone-100"],
+html.dark [class~="bg-gray-100"] { background-color: #273449 !important; }
+html.dark [class~="border-neutral-100"],
+html.dark [class~="border-neutral-200"],
+html.dark [class~="border-neutral-300"],
+html.dark [class~="border-gray-100"],
+html.dark [class~="border-gray-200"] { border-color: #334155 !important; }
+html.dark [class~="text-neutral-900"],
+html.dark [class~="text-neutral-800"],
+html.dark [class~="text-slate-900"],
+html.dark [class~="text-slate-800"],
+html.dark [class~="text-gray-900"],
+html.dark [class~="text-gray-800"],
+html.dark [class~="text-[#111827]"] { color: #e5edf9 !important; }
+html.dark [class~="text-neutral-700"],
+html.dark [class~="text-neutral-600"],
+html.dark [class~="text-slate-700"],
+html.dark [class~="text-slate-600"],
+html.dark [class~="text-gray-700"],
+html.dark [class~="text-gray-600"] { color: #cbd5e1 !important; }
+html.dark [class~="text-neutral-500"],
+html.dark [class~="text-neutral-400"],
+html.dark [class~="text-slate-500"],
+html.dark [class~="text-slate-400"],
+html.dark [class~="text-gray-500"],
+html.dark [class~="text-gray-400"] { color: #94a3b8 !important; }
+html.dark [class~="bg-red-50"],
+html.dark [class~="bg-rose-50"],
+html.dark [class~="bg-pink-50"] {
+  background-color: #3b2028 !important;
+  border-color: #733b49 !important;
+}
+html.dark [class~="text-red-700"],
+html.dark [class~="text-rose-700"],
+html.dark [class~="text-pink-700"] { color: #fda4af !important; }
+html.dark [class~="bg-green-50"],
+html.dark [class~="bg-emerald-50"] {
+  background-color: #17372c !important;
+  border-color: #285e49 !important;
+}
+html.dark [class~="text-green-700"],
+html.dark [class~="text-emerald-700"] { color: #86efac !important; }
+html.dark [class~="bg-amber-50"],
+html.dark [class~="bg-yellow-50"],
+html.dark [class~="bg-orange-50"] {
+  background-color: #3a2d17 !important;
+  border-color: #6b5129 !important;
+}
+html.dark [class~="text-amber-700"],
+html.dark [class~="text-yellow-700"],
+html.dark [class~="text-orange-700"] { color: #fcd34d !important; }
+html.dark input[type="date"],
+html.dark input[type="datetime-local"],
+html.dark input[type="time"] { color-scheme: dark; }
+html.dark input,
+html.dark textarea,
+html.dark select { background-color: #111a2a; color: #e5edf9; }
+html.dark input::placeholder,
+html.dark textarea::placeholder { color: #94a3b8 !important; }
+
+/* Reduce low-contrast pale flagged rows on teacher assessment/review screens. */
+html.dark .assessment-governance [class*="bg-pastel-pink"],
+html.dark .assessment-governance [class*="bg-pastel-yellow"],
+html.dark .assessment-governance [class*="bg-pastel-lavender"],
+html.dark .assessment-governance [class*="bg-pastel-mint"] {
+  background-color: #202b3c !important;
+  border-color: #3a4a61 !important;
+}
+html.dark .assessment-governance [class*="bg-red-"],
+html.dark .assessment-governance [class*="bg-rose-"],
+html.dark .assessment-governance [class*="bg-pink-"] {
+  background-color: #392630 !important;
+  border-color: #63404d !important;
+}
+html.dark .assessment-governance [class*="text-white/"] { color: #e5edf9 !important; }

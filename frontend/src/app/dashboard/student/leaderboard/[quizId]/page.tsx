@@ -45,6 +45,7 @@ export default function StudentLeaderboardPage({
   const [error, setError] = useState<string | null>(null);
   const [leaderboardLocked, setLeaderboardLocked] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
+  const [sortBy, setSortBy] = useState<"self" | "rank-asc" | "rank-desc" | "score-desc" | "score-asc" | "time-asc" | "time-desc" | "name-asc" | "name-desc">("self");
 
   const numericQuizId = Number(quizId);
   const { user } = useSession();
@@ -118,8 +119,6 @@ export default function StudentLeaderboardPage({
     void load();
   }, [load]);
 
-  const podium = useMemo(() => entries.slice(0, 3), [entries]);
-
   const scoreStats = useMemo(() => {
     if (entries.length === 0) {
       return { average: 0, highest: 0, median: 0, completed: 0, distribution: [] as { label: string; min: number; max: number; count: number; color: string }[] };
@@ -165,6 +164,15 @@ export default function StudentLeaderboardPage({
     return entries.find((entry) => Number(entry.studentId) === currentStudentId);
   }, [entries, currentStudentId]);
 
+  const podium = useMemo(() => {
+    const topRanked = entries.slice(0, 3);
+    if (!currentEntry) return topRanked;
+    return [
+      currentEntry,
+      ...topRanked.filter((entry) => Number(entry.studentId) !== currentStudentId),
+    ].slice(0, 4);
+  }, [entries, currentEntry, currentStudentId]);
+
   const comparison = useMemo(() => {
     if (!currentEntry || entries.length === 0) return null;
     const difference = Number(currentEntry.percentage ?? 0) - scoreStats.average;
@@ -189,12 +197,59 @@ export default function StudentLeaderboardPage({
     );
   }, [entries, searchQuery]);
 
+  const displayEntries = useMemo(() => {
+    const list = [...filteredEntries];
+    const compareText = (a: string, b: string) => a.localeCompare(b, undefined, { sensitivity: "base" });
+    switch (sortBy) {
+      case "rank-asc": return list.sort((a, b) => a.rank - b.rank);
+      case "rank-desc": return list.sort((a, b) => b.rank - a.rank);
+      case "score-desc": return list.sort((a, b) => Number(b.percentage) - Number(a.percentage) || a.rank - b.rank);
+      case "score-asc": return list.sort((a, b) => Number(a.percentage) - Number(b.percentage) || a.rank - b.rank);
+      case "time-asc": return list.sort((a, b) => a.totalTimeTaken - b.totalTimeTaken || a.rank - b.rank);
+      case "time-desc": return list.sort((a, b) => b.totalTimeTaken - a.totalTimeTaken || a.rank - b.rank);
+      case "name-asc": return list.sort((a, b) => compareText(a.studentName || "Student", b.studentName || "Student"));
+      case "name-desc": return list.sort((a, b) => compareText(b.studentName || "Student", a.studentName || "Student"));
+      case "self":
+      default:
+        return list.sort((a, b) => {
+          const aIsSelf = Number(a.studentId) === currentStudentId;
+          const bIsSelf = Number(b.studentId) === currentStudentId;
+          if (aIsSelf !== bIsSelf) return aIsSelf ? -1 : 1;
+          return a.rank - b.rank;
+        });
+    }
+  }, [filteredEntries, sortBy, currentStudentId]);
+
   if (loading) {
     return (
-      <div className="min-h-screen bg-slate-50">
+      <div className="min-h-screen bg-slate-50 dark:bg-slate-950">
         <TopNav role="student" />
-        <main className="flex min-h-[70vh] items-center justify-center p-6 text-sm font-medium text-slate-500">
-          Loading leaderboard...
+        <main className="mx-auto min-h-[70vh] max-w-6xl space-y-5 p-4 md:p-8" aria-busy="true" aria-label="Loading leaderboard">
+          <div className="h-6 w-56 animate-pulse rounded bg-slate-200 dark:bg-slate-800" />
+          <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+            {[1, 2, 3].map((rank) => (
+              <section key={rank} className="rounded-2xl border border-slate-200 bg-white p-5 dark:border-slate-800 dark:bg-slate-900">
+                <div className="flex items-center justify-between">
+                  <span className="flex h-9 w-9 items-center justify-center rounded-full bg-slate-100 text-xs font-extrabold text-slate-500 dark:bg-slate-800 dark:text-slate-300">#{rank}</span>
+                  <span className="h-4 w-4 animate-pulse rounded-full bg-slate-200 dark:bg-slate-700" />
+                </div>
+                <div className="mt-5 h-4 w-2/3 animate-pulse rounded bg-slate-200 dark:bg-slate-700" />
+                <div className="mt-3 h-3 w-1/3 animate-pulse rounded bg-slate-100 dark:bg-slate-800" />
+                <div className="mt-6 h-7 w-20 animate-pulse rounded-full bg-slate-200 dark:bg-slate-700" />
+              </section>
+            ))}
+          </div>
+          <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white p-4 dark:border-slate-800 dark:bg-slate-900">
+            <div className="mb-4 h-5 w-36 animate-pulse rounded bg-slate-200 dark:bg-slate-700" />
+            {[1, 2, 3, 4, 5].map((row) => (
+              <div key={row} className="flex items-center gap-4 border-t border-slate-100 py-4 dark:border-slate-800">
+                <div className="h-4 w-8 animate-pulse rounded bg-slate-200 dark:bg-slate-700" />
+                <div className="h-4 flex-1 animate-pulse rounded bg-slate-100 dark:bg-slate-800" />
+                <div className="h-4 w-16 animate-pulse rounded bg-slate-100 dark:bg-slate-800" />
+              </div>
+            ))}
+          </section>
+          <p className="sr-only">Loading leaderboard…</p>
         </main>
       </div>
     );
@@ -351,7 +406,7 @@ export default function StudentLeaderboardPage({
           </div>
         ) : (
           <>
-            <section className="grid gap-3 md:grid-cols-3">
+            <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
               {podium.map((entry) => (
                 <div
                   key={entry.studentId}
@@ -386,13 +441,30 @@ export default function StudentLeaderboardPage({
             <section className="overflow-hidden rounded-[14px] border border-slate-200 bg-white shadow-sm">
               <div className="flex flex-col gap-3 border-b border-[#d1dee8]/50 p-4 sm:flex-row sm:items-center sm:justify-between">
                 <div>
-                  <h2 className="text-sm font-extrabold text-slate-900">Full rankings</h2>
-                  <p className="mt-1 text-[10px] text-slate-500">{filteredEntries.length} of {entries.length} students</p>
+                  <h2 className="text-sm font-extrabold text-slate-900 dark:text-slate-100">Full rankings</h2>
+                  <p className="mt-1 text-[10px] text-slate-500 dark:text-slate-400">{displayEntries.length} of {entries.length} students</p>
                 </div>
-                <label className="relative block w-full sm:max-w-xs">
-                  <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[#a8a29e]" />
-                  <input value={searchQuery} onChange={(event) => setSearchQuery(event.target.value)} placeholder="Search student or rank..." aria-label="Search leaderboard" className="h-10 w-full rounded-[10px] border border-[#d1dee8] bg-[#fbfbfa] pl-9 pr-3 text-xs outline-none transition focus:border-[#165dfb] focus:ring-2 focus:ring-[#165dfb]/10" />
-                </label>
+                <div className="flex w-full flex-col gap-2 sm:max-w-xl sm:flex-row">
+                  <label className="block sm:w-52">
+                    <span className="sr-only">Sort leaderboard</span>
+                    <select value={sortBy} onChange={(event) => setSortBy(event.target.value as typeof sortBy)} aria-label="Sort leaderboard" className="h-10 w-full rounded-[10px] border border-[#d1dee8] bg-white px-3 text-xs font-semibold text-slate-700 outline-none transition focus:border-[#165dfb] focus:ring-2 focus:ring-[#165dfb]/10 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200">
+                      <option value="self">Your result first (default)</option>
+                      <option value="rank-asc">Rank: ascending</option>
+                      <option value="rank-desc">Rank: descending</option>
+                      <option value="score-desc">Score: high to low</option>
+                      <option value="score-asc">Score: low to high</option>
+                      <option value="time-asc">Time: fastest first</option>
+                      <option value="time-desc">Time: slowest first</option>
+                      <option value="name-asc">Name: A–Z</option>
+                      <option value="name-desc">Name: Z–A</option>
+                    </select>
+                  </label>
+                  <label className="relative block min-w-0 flex-1">
+                    <span className="sr-only">Search students</span>
+                    <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[#a8a29e]" />
+                    <input value={searchQuery} onChange={(event) => setSearchQuery(event.target.value)} placeholder="Search student or rank..." aria-label="Search leaderboard" className="h-10 w-full rounded-[10px] border border-[#d1dee8] bg-[#fbfbfa] pl-9 pr-3 text-xs text-slate-900 outline-none transition placeholder:text-slate-400 focus:border-[#165dfb] focus:ring-2 focus:ring-[#165dfb]/10 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100" />
+                  </label>
+                </div>
               </div>
               <div className="overflow-x-auto">
               <div className="min-w-[620px]">
@@ -404,10 +476,10 @@ export default function StudentLeaderboardPage({
               </div>
 
               <ul className="divide-y divide-[#d1dee8]/40">
-                {filteredEntries.map((entry) => (
+                {displayEntries.map((entry) => (
                   <li
                     key={entry.studentId}
-                    className={`grid grid-cols-[4rem_1fr_8rem_8rem] items-center gap-3 px-5 py-3.5 transition-colors ${Number(entry.studentId) === currentStudentId ? "bg-[#eef4ff] ring-1 ring-inset ring-[#165dfb]/50 dark:bg-blue-950/50 dark:ring-blue-400/50" : "hover:bg-[#f8fafc] dark:hover:bg-slate-800"}`}
+                    className={`grid grid-cols-[4rem_1fr_8rem_8rem] items-center gap-3 px-5 py-3.5 transition-colors ${Number(entry.studentId) === currentStudentId ? "bg-[#eef4ff] ring-2 ring-inset ring-[#165dfb]/60 dark:bg-blue-950/60 dark:ring-blue-400/70" : "hover:bg-[#f8fafc] dark:hover:bg-slate-800"}`}
                   >
                     <span className="font-mono text-xs font-bold text-slate-500">
                       #{entry.rank}

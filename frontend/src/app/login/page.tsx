@@ -269,26 +269,26 @@ function LoginContent() {
       <>
       <PublicNavbar redirectTarget={redirectTarget} />
       <main className="min-h-[calc(100vh-4rem)] w-full grid grid-cols-1 md:grid-cols-2 font-sans">
-        <section className="flex flex-col items-center justify-center bg-[#F9FAFB] p-8 text-center sm:p-16">
+        <section className="flex flex-col items-center justify-center bg-[#F9FAFB] p-8 text-center transition-colors dark:bg-slate-950 sm:p-16">
           <div className="w-full max-w-xs space-y-5">
             <div>
-              <h1 className="text-3xl font-bold tracking-tight text-[#111827]">Student</h1>
-              <p className="mt-1 text-sm text-[#6B7280]">Take quizzes with an access code</p>
+              <h1 className="text-3xl font-bold tracking-tight text-[#111827] dark:text-slate-100">Student</h1>
+              <p className="mt-1 text-sm text-[#6B7280] dark:text-slate-400">Take quizzes with an access code</p>
             </div>
-            <Link href={"/login?role=student" + (redirectTarget ? "&redirect=" + encodeURIComponent(redirectTarget) : "")} className="inline-flex w-full items-center justify-center gap-2 rounded-lg bg-[#111827] px-5 py-3 text-sm font-medium text-white shadow-sm transition-all hover:bg-black active:scale-[0.99] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#165dfb] focus-visible:ring-offset-2">
+            <Link href={"/login?role=student" + (redirectTarget ? "&redirect=" + encodeURIComponent(redirectTarget) : "")} className="inline-flex w-full items-center justify-center gap-2 rounded-lg bg-[#111827] px-5 py-3 text-sm font-medium text-white shadow-sm transition-all hover:bg-black active:scale-[0.99] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#165dfb] focus-visible:ring-offset-2 dark:bg-blue-600 dark:hover:bg-blue-500">
               Continue as Student
               <ArrowRight className="h-4 w-4" />
             </Link>
           </div>
         </section>
 
-        <section className="flex flex-col items-center justify-center border-t border-neutral-800 bg-[#0F172A] p-8 text-center sm:p-16 md:border-l md:border-t-0">
+        <section className="flex flex-col items-center justify-center border-t border-neutral-800 bg-[#0F172A] p-8 text-center transition-colors dark:border-slate-800 dark:bg-slate-950 sm:p-16 md:border-l md:border-t-0">
           <div className="w-full max-w-xs space-y-5">
             <div>
               <h1 className="text-3xl font-bold tracking-tight text-white">Instructor</h1>
               <p className="mt-1 text-sm text-[#94A3B8]">Create and manage quizzes</p>
             </div>
-            <Link href={"/login?role=teacher" + (redirectTarget ? "&redirect=" + encodeURIComponent(redirectTarget) : "")} className="inline-flex w-full items-center justify-center gap-2 rounded-lg bg-white px-5 py-3 text-sm font-medium text-[#0F172A] shadow-sm transition-all hover:bg-neutral-100 active:scale-[0.99] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white focus-visible:ring-offset-2 focus-visible:ring-offset-[#0F172A]">
+            <Link href={"/login?role=teacher" + (redirectTarget ? "&redirect=" + encodeURIComponent(redirectTarget) : "")} className="inline-flex w-full items-center justify-center gap-2 rounded-lg bg-white px-5 py-3 text-sm font-medium text-[#0F172A] shadow-sm transition-all hover:bg-neutral-100 active:scale-[0.99] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white focus-visible:ring-offset-2 focus-visible:ring-offset-[#0F172A] dark:bg-slate-800 dark:text-slate-100 dark:hover:bg-slate-700 dark:focus-visible:ring-offset-slate-950">
               Continue as Instructor
               <ArrowRight className="h-4 w-4" />
             </Link>
@@ -304,9 +304,9 @@ function LoginContent() {
   return (
     <>
     <PublicNavbar redirectTarget={redirectTarget} />
-    <main className="min-h-[calc(100vh-4rem)] bg-neutral-50 px-4 py-8 font-sans text-[#111827] sm:px-8">
+    <main className="min-h-[calc(100vh-4rem)] bg-neutral-50 px-4 py-8 font-sans text-[#111827] transition-colors dark:bg-slate-950 dark:text-slate-100 sm:px-8">
       <div className="mx-auto flex min-h-[calc(100vh-4rem)] max-w-md items-center">
-        <div className="w-full rounded-2xl border border-neutral-100 bg-white p-7 shadow-[0_18px_55px_-24px_rgba(15,23,42,0.25)] sm:p-8">
+        <div className="w-full rounded-2xl border border-neutral-100 bg-white p-7 shadow-[0_18px_55px_-24px_rgba(15,23,42,0.25)] transition-colors dark:border-slate-800 dark:bg-slate-900 dark:shadow-none sm:p-8">
           <button type="button" onClick={() => router.push("/login" + (redirectTarget ? "?redirect=" + encodeURIComponent(redirectTarget) : ""))} className="mb-6 inline-flex items-center gap-1.5 border-0 bg-transparent p-0 text-xs font-semibold text-neutral-400 transition-colors hover:text-neutral-800">
             <ArrowLeft className="h-3.5 w-3.5" />
             Back to roles
@@ -318,7 +318,7 @@ function LoginContent() {
                 LAN Exam Mode · Local Authentication
               </span>
             )}
-            <h1 className="mt-1.5 text-2xl font-bold tracking-tight text-neutral-900">Log in as {roleLabel}</h1>
+            <h1 className="mt-1.5 text-2xl font-bold tracking-tight text-neutral-900 dark:text-slate-100">Log in as {roleLabel}</h1>
           </div>
 
           {error && (
