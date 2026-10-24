@@ -7,6 +7,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { AnimatePresence, motion } from "framer-motion";
 import {
+  Activity,
   AlertTriangle,
   CheckCircle2,
   ChevronLeft,
@@ -71,6 +72,92 @@ const initialBrowserFlags: BrowserProctoringFlags = {
   refresh_count: 0,
   reconnect_count: 0,
 };
+
+function BrowserActivityPanel({
+  flags,
+  warnings,
+  violationCount,
+}: {
+  flags: BrowserProctoringFlags;
+  warnings: string[];
+  violationCount: number;
+}) {
+  const rows: Array<[string, number]> = [
+    ["Tab switches", flags.tab_switch],
+    ["Copy attempts", flags.copy_attempt],
+    ["Paste attempts", flags.paste_attempt],
+    ["Cut attempts", flags.cut_attempt],
+    ["Fullscreen exits", flags.fullscreen_exit],
+    ["Focus losses", flags.focus_loss],
+    ["Right-clicks", flags.right_click],
+    ["Restricted shortcuts", flags.keyboard_attempt],
+    ["Page refreshes", flags.refresh_count],
+    ["Reconnections", flags.reconnect_count],
+  ];
+  const recentWarnings = warnings.slice(-5).reverse();
+
+  return (
+    <section
+      aria-label="Browser activity monitoring"
+      aria-live="polite"
+      className="rounded-xl border border-[#d1dee8] bg-white p-3 text-left dark:border-slate-700 dark:bg-slate-900"
+    >
+      <div className="mb-3 flex items-center justify-between gap-2">
+        <div className="flex min-w-0 items-center gap-2">
+          <Activity className="h-4 w-4 shrink-0 text-[#165dfb] dark:text-blue-300" />
+          <h2 className="truncate text-xs font-bold text-[#111111] dark:text-slate-100">
+            Browser activity
+          </h2>
+        </div>
+        <span className={`shrink-0 rounded-full px-2 py-1 text-[9px] font-bold ${
+          violationCount > 0
+            ? "bg-rose-50 text-rose-700 dark:bg-rose-950/60 dark:text-rose-300"
+            : "bg-emerald-50 text-emerald-700 dark:bg-emerald-950/60 dark:text-emerald-300"
+        }`}>
+          {violationCount > 0 ? `${violationCount} event${violationCount === 1 ? "" : "s"}` : "Monitoring"}
+        </span>
+      </div>
+
+      <div className="grid grid-cols-2 gap-2">
+        {rows.map(([label, count]) => (
+          <div
+            key={label}
+            className="min-w-0 rounded-lg border border-[#d1dee8]/70 bg-[#f8fafc] px-2.5 py-2 dark:border-slate-700 dark:bg-slate-950"
+          >
+            <p className="truncate text-[9px] font-semibold uppercase tracking-wide text-[#78716b] dark:text-slate-400">
+              {label}
+            </p>
+            <p className={`mt-0.5 text-sm font-extrabold tabular-nums ${
+              count > 0 ? "text-rose-600 dark:text-rose-300" : "text-[#111111] dark:text-slate-100"
+            }`}>
+              {count}
+            </p>
+          </div>
+        ))}
+      </div>
+
+      <div className="mt-3 border-t border-[#d1dee8]/70 pt-3 dark:border-slate-700">
+        <h3 className="mb-2 text-[10px] font-bold uppercase tracking-wide text-[#78716b] dark:text-slate-400">
+          Recent activity
+        </h3>
+        {recentWarnings.length > 0 ? (
+          <ul className="space-y-2">
+            {recentWarnings.map((message, index) => (
+              <li key={`${message}-${index}`} className="flex items-start gap-2 text-[10px] leading-relaxed text-[#57534e] dark:text-slate-300">
+                <span className="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-rose-500" />
+                <span className="min-w-0 break-words">{message}</span>
+              </li>
+            ))}
+          </ul>
+        ) : (
+          <p className="text-[10px] leading-relaxed text-[#78716b] dark:text-slate-400">
+            No browser activity flags recorded yet.
+          </p>
+        )}
+      </div>
+    </section>
+  );
+}
 
 function formatRemainingTime(seconds: number): string {
   const safe = Math.max(0, Math.floor(seconds));
@@ -1768,7 +1855,7 @@ export default function TestArenaPage({
         initial={mounted ? { opacity: 0, y: 8 } : false}
         animate={mounted ? { opacity: 1, y: 0 } : false}
         transition={{ duration: 0.25, ease: "easeOut" }}
-        className="flex h-full w-full flex-1 flex-col bg-white overflow-hidden border-0 shadow-none text-left"
+        className="flex h-full min-w-0 flex-1 flex-col bg-white overflow-hidden border-0 shadow-none text-left"
       >
         <header className="flex flex-wrap items-center justify-between gap-3 border-b border-[#d1dee8]/50 bg-white px-3 py-3 sm:px-6 sm:py-4 dark:border-slate-700 dark:bg-slate-950">
           <div className="flex min-w-0 flex-wrap items-center gap-2.5">
@@ -1790,18 +1877,7 @@ export default function TestArenaPage({
 
           <div className="flex items-center gap-2.5">
             <ThemeToggle />
-            {aiProctoringEnabled && (
-              <button
-                type="button"
-                onClick={() => setMobileProctoringOpen((open) => !open)}
-                aria-expanded={mobileProctoringOpen}
-                aria-controls="mobile-proctoring-panel"
-                className="inline-flex h-9 items-center justify-center gap-1.5 rounded-full border border-[#d1dee8]/80 bg-white px-2.5 text-[10px] font-bold text-[#57534e] shadow-xs transition-colors hover:bg-[#f5f5f4] dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-slate-800 lg:hidden"
-              >
-                <ShieldCheck className="h-4 w-4 text-[#165dfb] dark:text-blue-300" />
-                <span className="hidden min-[380px]:inline">Proctoring</span>
-              </button>
-            )}
+
             <div className="flex items-center gap-2">
               <div
                 className={
@@ -2045,6 +2121,25 @@ export default function TestArenaPage({
               </button>
             </div>
 
+            <div className="flex shrink-0 items-center gap-2">
+              <button
+                type="button"
+                onClick={() => setMobileProctoringOpen((open) => !open)}
+                aria-label="Open browser monitoring panel"
+                aria-expanded={mobileProctoringOpen}
+                aria-controls="mobile-proctoring-panel"
+                title="Open browser monitoring"
+                className="relative inline-flex h-10 shrink-0 items-center justify-center gap-1.5 rounded-lg border border-[#d1dee8]/80 bg-white px-2.5 text-[10px] font-bold text-[#57534e] transition-colors hover:bg-[#f5f5f4] dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-slate-800 lg:hidden"
+              >
+                <Activity className="h-4 w-4 text-[#165dfb] dark:text-blue-300" />
+                <span className="hidden min-[380px]:inline">Monitor</span>
+                <span className={`rounded-full px-1.5 py-0.5 text-[9px] font-extrabold tabular-nums ${
+                  violationCount > 0
+                    ? "bg-rose-50 text-rose-700 dark:bg-rose-950/60 dark:text-rose-300"
+                    : "bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-300"
+                }`}>{violationCount}</span>
+              </button>
+
             <button
               type="button"
               onClick={() => {
@@ -2073,34 +2168,55 @@ export default function TestArenaPage({
         </footer>
       </motion.div>
 
-      <aside id="mobile-proctoring-panel" className={`fixed bottom-20 left-3 right-3 z-40 max-h-[34dvh] w-auto flex-col gap-3 overflow-y-auto rounded-xl border border-[#d1dee8]/80 bg-white/95 p-2 text-left shadow-xl backdrop-blur-sm dark:border-slate-700 dark:bg-slate-950/95 ${mobileProctoringOpen ? "flex" : "hidden"} lg:static lg:flex lg:max-h-none lg:w-72 lg:shrink-0 lg:rounded-none lg:border-0 lg:bg-transparent lg:p-0 lg:pl-6 lg:shadow-none lg:backdrop-blur-none`}>
+      <aside
+        id="mobile-proctoring-panel"
+        aria-label="Assessment monitoring panel"
+        className={`fixed bottom-20 left-3 right-3 z-40 flex-col gap-3 overflow-y-auto rounded-xl border border-[#d1dee8]/80 bg-white/95 p-2 text-left shadow-xl backdrop-blur-sm dark:border-slate-700 dark:bg-slate-950/95 max-h-[46dvh] ${
+          mobileProctoringOpen ? "flex" : "hidden"
+        } lg:static lg:flex lg:h-full lg:max-h-[100dvh] lg:w-80 lg:shrink-0 lg:overflow-y-auto lg:rounded-none lg:border-0 lg:bg-transparent lg:p-0 lg:py-4 lg:pl-4 lg:pr-4 lg:shadow-none lg:backdrop-blur-none`}
+      >
+        <div className="flex items-center justify-between gap-2 px-1 py-1 lg:hidden">
+          <span className="text-[10px] font-bold uppercase tracking-wider text-slate-600 dark:text-slate-300">
+            {aiProctoringEnabled ? "Monitoring & proctoring" : "Browser monitoring"}
+          </span>
+          <button
+            type="button"
+            onClick={() => setMobileProctoringOpen(false)}
+            className="rounded-md px-2 py-1 text-[10px] font-bold text-slate-500 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-800"
+          >
+            Close
+          </button>
+        </div>
+
+        <BrowserActivityPanel
+          flags={flags}
+          warnings={warnings}
+          violationCount={violationCount}
+        />
+
         {aiProctoringEnabled && (
-          <div className="flex items-center justify-between gap-2 px-1 py-1 lg:hidden">
-            <span className="text-[10px] font-bold uppercase tracking-wider text-slate-600 dark:text-slate-300">Proctoring status</span>
-            <button type="button" onClick={() => setMobileProctoringOpen(false)} className="rounded-md px-2 py-1 text-[10px] font-bold text-slate-500 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-800">Close</button>
-          </div>
+          <AIProctoringHUD
+            videoRef={proctoring.videoRef}
+            cameraActive={proctoring.cameraActive}
+            cameraError={proctoring.cameraError}
+            telemetryReceived={proctoring.telemetryReceived}
+            faceDetected={proctoring.faceDetected}
+            numFaces={proctoring.numFaces}
+            numPersons={proctoring.numPersons}
+            identityVerified={proctoring.identityVerified}
+            similarityScore={proctoring.similarityScore}
+            gazeDirection={proctoring.gazeDirection}
+            yaw={proctoring.yaw}
+            pitch={proctoring.pitch}
+            isLookingAway={proctoring.isLookingAway}
+            phoneDetected={proctoring.phoneDetected}
+            micLevel={proctoring.micLevel}
+            voiceActive={proctoring.voiceActive}
+            loudVoice={proctoring.loudVoice}
+            warningCount={proctoring.warningCount}
+            isOnline={proctoring.isOnline}
+          />
         )}
-        {aiProctoringEnabled && <AIProctoringHUD
-          videoRef={proctoring.videoRef}
-          cameraActive={proctoring.cameraActive}
-          cameraError={proctoring.cameraError}
-          telemetryReceived={proctoring.telemetryReceived}
-          faceDetected={proctoring.faceDetected}
-          numFaces={proctoring.numFaces}
-          numPersons={proctoring.numPersons}
-          identityVerified={proctoring.identityVerified}
-          similarityScore={proctoring.similarityScore}
-          gazeDirection={proctoring.gazeDirection}
-          yaw={proctoring.yaw}
-          pitch={proctoring.pitch}
-          isLookingAway={proctoring.isLookingAway}
-          phoneDetected={proctoring.phoneDetected}
-          micLevel={proctoring.micLevel}
-          voiceActive={proctoring.voiceActive}
-          loudVoice={proctoring.loudVoice}
-          warningCount={proctoring.warningCount}
-          isOnline={proctoring.isOnline}
-        />}
       </aside>
 
       {aiProctoringEnabled &&
