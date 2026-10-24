@@ -464,18 +464,20 @@ export default function StudentResultPage({
     const hasIds = Array.isArray(selectedIds);
     const hasTexts = Array.isArray(selectedTexts);
     const hasAnySelection =
-      (hasIds && selectedIds.length > 0) ||
+      (hasIds && selectedIds.some((id) => id != null && String(id).trim() !== "")) ||
       (hasTexts && selectedTexts.some((text) => {
         const value = String(text ?? "").trim().toLowerCase();
-        return value.length > 0 && value !== "not answered" && value !== "unanswered";
+        return value.length > 0 && value !== "not answered" && value !== "unanswered" && value !== "—";
       }));
 
-    // A visible selection (or a definitively empty selection array) takes
-    // precedence over a stale status string so skipped questions stay gray.
+    // A real selection is authoritative. If there is none, explicit empty
+    // selection arrays beat stale correctness/status fields (some older API
+    // responses mark blank answers INCORRECT even while reporting UNANSWERED).
     if (hasAnySelection) return false;
-    if (["UNANSWERED", "NOT_ANSWERED", "SKIPPED", "BLANK"].includes(status)) return true;
     if (hasIds || hasTexts) return true;
-    return !["ANSWERED", "CORRECT", "INCORRECT", "PARTIALLY_CORRECT"].includes(status);
+    if (["UNANSWERED", "NOT_ANSWERED", "SKIPPED", "BLANK", "NO_ANSWER"].includes(status)) return true;
+    if (["ANSWERED", "CORRECT", "INCORRECT", "PARTIALLY_CORRECT"].includes(status)) return false;
+    return true;
   };
   const isCorrect = (detail: ResultDetail) =>
     Boolean(detail.correct) && !isUnanswered(detail);
@@ -502,7 +504,7 @@ export default function StudentResultPage({
 
   if (loading) {
     return (
-      <main className="min-h-screen bg-slate-50 px-4 py-6 text-slate-900 dark:bg-slate-950 dark:text-slate-100 sm:px-6" aria-busy="true" aria-label="Loading assessment results">
+      <main className="student-result-page min-h-screen bg-slate-50 px-4 py-6 text-slate-900 dark:bg-slate-950 dark:text-slate-100 sm:px-6" aria-busy="true" aria-label="Loading assessment results">
         <div className="mx-auto max-w-4xl animate-pulse space-y-5">
           <div className="flex items-center justify-between border-b border-slate-200 pb-4 dark:border-slate-800">
             <div className="h-4 w-32 rounded bg-slate-200 dark:bg-slate-700" />
@@ -650,7 +652,7 @@ export default function StudentResultPage({
   };
 
   return (
-    <div className="min-h-screen bg-slate-50 font-sans text-slate-900 selection:bg-[#e6e3e2] selection:text-[#165dfb] dark:bg-slate-950 dark:text-slate-100">
+    <div className="student-result-page min-h-screen bg-slate-50 font-sans text-slate-900 selection:bg-[#e6e3e2] selection:text-[#165dfb] dark:bg-slate-950 dark:text-slate-100">
       <nav className="sticky top-0 z-20 flex flex-wrap items-center justify-between gap-3 bg-white border-b border-slate-200 px-4 py-3 sm:px-6 sm:py-4 dark:bg-slate-950 dark:border-slate-700">
         <div className="flex items-center gap-3">
           <Link
