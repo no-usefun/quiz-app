@@ -1585,6 +1585,11 @@ export default function TestArenaPage({
                 "The server has already automatically submitted this assessment attempt.",
               );
             }
+            // A deadline/proctoring finalization can win the race with the
+            // answer-sheet request. Keep its local draft and go straight to
+            // results so the result page can recover the saved selections.
+            void proctoringCleanupRef.current();
+            router.replace(`/dashboard/student/result/${attemptId}`);
             return;
           }
         } catch (reconcileError) {
