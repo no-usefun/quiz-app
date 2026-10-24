@@ -46,6 +46,44 @@ interface ProctoringEventResponse {
 
 type ActiveAnswerState = Record<number, number[]>;
 
+type AttemptScoringSnapshot = {
+  negativeMarking: boolean;
+  questions: Record<number, { marks: number; negativeMarks: number | null }>;
+};
+
+function buildAttemptScoringSnapshot(
+  test: QuizPackageResponse | null | undefined,
+): AttemptScoringSnapshot | undefined {
+  if (!test || !Array.isArray(test.questions) || test.questions.length === 0) {
+    return undefined;
+  }
+
+  const questions = test.questions.reduce<
+    AttemptScoringSnapshot["questions"]
+  >((snapshot, question) => {
+    const questionId = Number(question.questionId);
+    if (!Number.isFinite(questionId) || questionId <= 0) return snapshot;
+
+    const marks = Number(question.marks);
+    const negativeMarks =
+      question.negativeMarks == null ? null : Number(question.negativeMarks);
+
+    snapshot[questionId] = {
+      marks: Number.isFinite(marks) ? marks : 0,
+      negativeMarks:
+        negativeMarks != null && Number.isFinite(negativeMarks)
+          ? negativeMarks
+          : null,
+    };
+    return snapshot;
+  }, {});
+
+  return {
+    negativeMarking: Boolean(test.negativeMarking),
+    questions,
+  };
+}
+
 type BrowserProctoringFlag =
   | "tab_switch"
   | "fullscreen_exit"
@@ -278,13 +316,41 @@ function persistAttemptDraft(
   attemptId: string | null,
   answers: ActiveAnswerState,
   timeTaken: Record<number, number>,
+  scoringSnapshot?: AttemptScoringSnapshot,
 ) {
   if (typeof window === "undefined" || !attemptId) return;
 
   try {
+    const key = `dynoquizz_pending_submit_${attemptId}`;
+    let retainedScoring = scoringSnapshot;
+
+    // Page-hide, timer, and retry writes may not have the loaded quiz package
+    // in scope. Keep the last valid scoring snapshot instead of dropping it.
+    if (!retainedScoring) {
+      try {
+        const previous = JSON.parse(localStorage.getItem(key) || "null");
+        const previousScoring = previous?.scoring;
+        if (
+          previousScoring &&
+          typeof previousScoring.negativeMarking === "boolean" &&
+          previousScoring.questions &&
+          typeof previousScoring.questions === "object"
+        ) {
+          retainedScoring = previousScoring as AttemptScoringSnapshot;
+        }
+      } catch {
+        // Continue with the current answer/time draft if prior metadata is invalid.
+      }
+    }
+
     localStorage.setItem(
-      `dynoquizz_pending_submit_${attemptId}`,
-      JSON.stringify({ answers, timeTaken, savedAt: Date.now() }),
+      key,
+      JSON.stringify({
+        answers,
+        timeTaken,
+        savedAt: Date.now(),
+        ...(retainedScoring ? { scoring: retainedScoring } : {}),
+      }),
     );
   } catch {
     // Best-effort retry storage only.
@@ -766,7 +832,11 @@ export default function TestArenaPage({
             if (serverState.status !== "IN_PROGRESS") {
               submissionInFlightRef.current = true;
               setIsSubmitted(true);
-              cleanupAttemptRuntimeState(activeAttemptId, cleanCode);
+              // A server-side auto-submit can beat the browser's answer-sheet
+              // submission. Keep the latest device draft for result recovery.
+              cleanupAttemptRuntimeState(activeAttemptId, cleanCode, {
+                preservePendingSubmitDraft: serverState.status === "AUTO_SUBMITTED",
+              });
               void proctoringCleanupRef.current();
               router.replace(`/dashboard/student/result/${activeAttemptId}`);
             }
@@ -1083,6 +1153,14 @@ export default function TestArenaPage({
           packageData.quizId,
           packageData,
         );
+        // Save scoring rules alongside the local answer draft so the result
+        // page can accurately recover a sheet if the server finalizes first.
+        persistAttemptDraft(
+          activeAttemptId,
+          answersRef.current,
+          timeTakenRef.current,
+          buildAttemptScoringSnapshot(packageData),
+        );
 
         if (activeAttemptId) {
           try {
@@ -1259,7 +1337,12 @@ export default function TestArenaPage({
     nextAnswers: ActiveAnswerState = answersRef.current,
     nextTimeTaken: Record<number, number> = timeTakenRef.current,
   ) => {
-    persistAttemptDraft(activeAttemptId, nextAnswers, nextTimeTaken);
+    persistAttemptDraft(
+      activeAttemptId,
+      nextAnswers,
+      nextTimeTaken,
+      buildAttemptScoringSnapshot(test),
+    );
   };
 
   const setCurrentAnswers = (next: ActiveAnswerState) => {
@@ -1418,7 +1501,12 @@ export default function TestArenaPage({
     setIsSubmitting(true);
     setSubmissionNotice(null);
 
-    persistAttemptDraft(activeAttemptId, latestAnswers, latestTimeTaken);
+    persistAttemptDraft(
+      activeAttemptId,
+      latestAnswers,
+      latestTimeTaken,
+      buildAttemptScoringSnapshot(test),
+    );
 
     try {
       const completeAnswers = questions.map((question) => {
