@@ -222,7 +222,7 @@ export default function StudentLeaderboardPage({
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-slate-50 dark:bg-slate-950">
+      <div className="student-leaderboard-page min-h-screen bg-slate-50 dark:bg-slate-950">
         <TopNav role="student" />
         <main className="mx-auto min-h-[70vh] max-w-6xl space-y-5 p-4 md:p-8" aria-busy="true" aria-label="Loading leaderboard">
           <div className="h-6 w-56 animate-pulse rounded bg-slate-200 dark:bg-slate-800" />
@@ -256,7 +256,7 @@ export default function StudentLeaderboardPage({
   }
 
   return (
-    <div className="min-h-screen bg-slate-50 font-sans text-slate-900">
+    <div className="student-leaderboard-page min-h-screen bg-slate-50 font-sans text-slate-900 dark:bg-slate-950 dark:text-slate-100">
       <TopNav role="student" />
 
       <main className="mx-auto max-w-6xl space-y-5 p-4 md:p-8">
@@ -484,11 +484,22 @@ export default function StudentLeaderboardPage({
                     <span className="font-mono text-xs font-bold text-slate-500">
                       #{entry.rank}
                     </span>
-                    <div className="min-w-0">
-                      <p className={`truncate text-xs font-bold ${Number(entry.studentId) === currentStudentId ? "text-[#165dfb] dark:text-blue-300" : "text-slate-900 dark:text-slate-100"}`}>{Number(entry.studentId) === currentStudentId ? "YOU" : entry.studentName || "Student"}</p>
-                      <p className="mt-0.5 text-[10px] font-medium text-[#a8a29d]">
-                        {formatScore(entry.percentage)}%
-                      </p>
+                    <div className="flex min-w-0 items-center gap-3">
+                      <span
+                        aria-hidden="true"
+                        className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-full border text-[10px] font-extrabold uppercase tracking-wide transition-colors ${Number(entry.studentId) === currentStudentId ? "border-blue-300 bg-blue-600 text-white ring-2 ring-blue-300/50 dark:border-blue-400 dark:bg-blue-500" : "border-slate-200 bg-slate-100 text-slate-600 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200"}`}
+                      >
+                        {(entry.studentName || "Student").trim().split(/\s+/).slice(0, 2).map((part) => part[0] || "").join("").toUpperCase()}
+                      </span>
+                      <div className="min-w-0">
+                        <p className={`flex flex-wrap items-center gap-2 truncate text-xs font-bold ${Number(entry.studentId) === currentStudentId ? "text-[#165dfb] dark:text-blue-300" : "text-slate-900 dark:text-slate-100"}`}>
+                          {Number(entry.studentId) === currentStudentId ? "You" : entry.studentName || "Student"}
+                          {Number(entry.studentId) === currentStudentId && <span className="inline-flex rounded-full border border-blue-200 bg-blue-50 px-2 py-0.5 text-[8px] font-extrabold tracking-widest text-blue-700 dark:border-blue-800 dark:bg-blue-950 dark:text-blue-200">YOU</span>}
+                        </p>
+                        <p className="mt-0.5 text-[10px] font-medium text-slate-500 dark:text-slate-400">
+                          {formatScore(entry.percentage)}% · Score percentage
+                        </p>
+                      </div>
                     </div>
                     <span className="text-center text-xs font-bold">
                       {formatScore(entry.score)} / {formatScore(entry.totalMarks)}
