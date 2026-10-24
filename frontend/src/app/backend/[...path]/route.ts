@@ -1,12 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
 
 /**
- * Same-origin proxy for the hosted Spring Boot API.
+ * Same-origin proxy for the configured Spring Boot API in both LAN and online modes.
  *
  * Browser requests go to this Next.js route, so browser CORS enforcement does
  * not block the frontend. The upstream request deliberately omits the Origin
  * header; authentication is still forwarded through the Authorization header.
- * LAN mode bypasses this route and talks directly to the LAN backend.
+ * NEXT_PUBLIC_API_URL selects the upstream server for the active environment.
  */
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
