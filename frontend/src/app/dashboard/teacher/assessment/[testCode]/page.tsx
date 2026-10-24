@@ -354,6 +354,7 @@ export default function TeacherAssessmentPage({
   const [proctoringOverview, setProctoringOverview] = useState<ProctoringOverview | null>(null);
   const [proctoringLoading, setProctoringLoading] = useState(false);
   const [proctoringError, setProctoringError] = useState<string | null>(null);
+  const [selectedProctoringStudent, setSelectedProctoringStudent] = useState<StudentRecord | null>(null);
 
   const getToken = () => {
     const token = localStorage.getItem("dynoquizz_token");
@@ -1554,282 +1555,6 @@ export default function TeacherAssessmentPage({
             </div>
           </section>
 
-          <details className="group overflow-hidden rounded-[14px] border border-amber-200 bg-white text-left">
-            <summary className="flex cursor-pointer list-none items-center justify-between gap-3 px-4 py-3.5 transition hover:bg-amber-50/60 sm:px-5">
-              <span className="flex min-w-0 items-center gap-3">
-                <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-amber-100 text-amber-800">
-                  <ShieldAlert className="h-5 w-5" />
-                </span>
-                <span className="min-w-0">
-                  <span className="block text-sm font-extrabold text-midnight-navy">Proctoring issues</span>
-                  <span className="mt-0.5 block text-[11px] text-steel-blue-gray">
-                    {proctoringOverview
-                      ? `${proctoringOverview.flaggedAttempts ?? 0} flagged · ${proctoringOverview.autoSubmittedAttempts ?? 0} auto-submitted · View event details`
-                      : "View browser activity, malpractice events, and auto-submission reasons"}
-                  </span>
-                </span>
-              </span>
-              <span className="flex shrink-0 items-center gap-2">
-                <span className="rounded-full border border-amber-200 bg-amber-50 px-2.5 py-1 text-[10px] font-bold text-amber-900">
-                  {proctoringLoading ? "Loading…" : "View audit"}
-                </span>
-                <ChevronDown className="h-4 w-4 text-steel-blue-gray transition-transform group-open:rotate-180" />
-              </span>
-            </summary>
-            <section className="space-y-4 border-t border-amber-100 bg-gradient-to-br from-amber-50/70 via-white to-rose-50/60 p-4 sm:p-5">
-            <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
-              <div>
-                <h2 className="flex items-center gap-2 text-sm font-extrabold uppercase tracking-wider text-midnight-navy">
-                  <ShieldAlert className="h-5 w-5 text-amber-700" />
-                  Audit details
-                </h2>
-                <p className="mt-1 text-xs text-steel-blue-gray">
-                  Review browser activity and server-recorded proctoring events for every reported attempt. Browser-event review remains available when AI camera proctoring is disabled.
-                </p>
-              </div>
-              <button
-                type="button"
-                onClick={async () => {
-                  if (!assessmentData) return;
-                  setProctoringLoading(true);
-                  setProctoringError(null);
-                  try {
-                    setProctoringOverview(await loadProctoringOverview(assessmentData.quizCode));
-                  } catch (reportError) {
-                    setProctoringError(getErrorMessage(reportError, "Unable to refresh the proctoring report."));
-                  } finally {
-                    setProctoringLoading(false);
-                  }
-                }}
-                disabled={proctoringLoading}
-                className="shrink-0 rounded-[9px] border border-amber-200 bg-white px-3 py-2 text-[10px] font-bold text-amber-900 transition hover:bg-amber-100 disabled:opacity-50"
-              >
-                {proctoringLoading ? "Refreshing…" : "Refresh proctoring"}
-              </button>
-            </div>
-
-            {proctoringError && (
-              <div className="rounded-[10px] border border-rose-200 bg-rose-50 p-3 text-xs font-semibold text-rose-800">
-                {proctoringError}
-              </div>
-            )}
-
-            {proctoringLoading && !proctoringOverview ? (
-              <div role="status" aria-label="Loading proctoring report" aria-busy="true" className="space-y-3">
-                <p className="sr-only">Loading proctoring report…</p>
-                <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
-                  {[1, 2, 3, 4].map((item) => (
-                    <div key={item} className="animate-pulse rounded-[12px] border border-mist-blue/50 bg-paper-white p-3">
-                      <div className="h-2.5 w-3/4 rounded bg-frost-surface" />
-                      <div className="mt-3 h-6 w-1/3 rounded bg-frost-surface" />
-                    </div>
-                  ))}
-                </div>
-                {[1, 2].map((item) => (
-                  <div key={item} className="animate-pulse space-y-3 rounded-[12px] border border-mist-blue/50 bg-paper-white p-4">
-                    <div className="h-4 w-1/3 rounded bg-frost-surface" />
-                    <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
-                      {[1, 2, 3, 4].map((metric) => <div key={metric} className="h-10 rounded-lg bg-frost-surface" />)}
-                    </div>
-                  </div>
-                ))}
-              </div>
-            ) : proctoringOverview ? (
-              <>
-                <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
-                  {[
-                    ["Attempts monitored", proctoringOverview.totalAttempts ?? 0],
-                    ["Flagged attempts", proctoringOverview.flaggedAttempts ?? 0],
-                    ["Auto-submitted", proctoringOverview.autoSubmittedAttempts ?? 0],
-                    ["Average risk score", proctoringOverview.averageRiskScore ?? 0],
-                  ].map(([label, value]) => (
-                    <div key={String(label)} className="rounded-[12px] border border-amber-100 bg-white p-3">
-                      <p className="text-[9px] font-bold uppercase tracking-wider text-steel-blue-gray">{label}</p>
-                      <p className="mt-1 text-xl font-extrabold tabular-nums text-midnight-navy">{value}</p>
-                    </div>
-                  ))}
-                </div>
-
-                {proctoringOverview.studentReports.length === 0 ? (
-                  <div className="rounded-[10px] border border-amber-100 bg-white p-4 text-xs text-steel-blue-gray">
-                    The backend returned no per-student proctoring reports for this assessment. The section will not infer flags or termination causes from the leaderboard status alone.
-                  </div>
-                ) : (
-                  <div className="space-y-3">
-                    {proctoringOverview.studentReports.map((report, index) => {
-                      const statusValue = String(report.status || "UNKNOWN").toUpperCase();
-                      const autoSubmitted = statusValue === "AUTO_SUBMITTED";
-                      const events = Array.isArray(report.events) ? report.events : [];
-                      const flagMetrics: Array<[string, unknown]> = [
-                        ["Face checks", report.totalFaceChecks],
-                        ["Identity matches", report.identityMatches],
-                        ["Identity mismatches", report.identityMismatches],
-                        ["Face absent", report.faceAbsenceCount],
-                        ["Multiple faces", report.multipleFacesCount],
-                        ["Multiple people", report.multiplePersonsCount],
-                        ["Looking away", report.lookingAwayCount],
-                        ["Phone detections", report.phoneDetectionsCount],
-                        ["Voice detections", report.voiceDetectionsCount],
-                        ["Tab switches / fullscreen exits", report.tabSwitchesCount],
-                        ["Total violations", report.totalViolationsCount],
-                      ];
-                      // Browser telemetry is recorded independently of AI camera
-                      // proctoring. Count each event type from the returned timeline
-                      // instead of inferring copy/paste counts from aggregate risk.
-                      const countBrowserEvent = (eventType: string) =>
-                        events.filter(
-                          (event) =>
-                            String(event.eventType || "").toUpperCase() === eventType,
-                        ).length;
-                      const browserActivityMetrics: Array<[string, number]> = [
-                        ["Tab switches", countBrowserEvent("TAB_SWITCH")],
-                        ["Fullscreen exits", countBrowserEvent("FULLSCREEN_EXIT")],
-                        ["Copy attempts", countBrowserEvent("COPY_ATTEMPT")],
-                        ["Cut attempts", countBrowserEvent("CUT_ATTEMPT")],
-                        ["Paste attempts", countBrowserEvent("PASTE_ATTEMPT")],
-                        ["Right-clicks", countBrowserEvent("RIGHT_CLICK")],
-                        ["Focus losses", countBrowserEvent("FOCUS_LOSS")],
-                        ["Restricted shortcuts", countBrowserEvent("KEYBOARD_ATTEMPT")],
-                        ["Page refreshes", countBrowserEvent("REFRESH_COUNT")],
-                        ["Reconnections", countBrowserEvent("RECONNECT_COUNT")],
-                      ];
-
-                      return (
-                        <details
-                          key={String(report.attemptId ?? report.studentId ?? index)}
-                          className="overflow-hidden rounded-[12px] border border-amber-100 bg-white"
-                          open={index === 0}
-                        >
-                          <summary className="flex cursor-pointer list-none flex-wrap items-center justify-between gap-3 px-3 py-3 hover:bg-amber-50/50 sm:px-4">
-                            <div className="min-w-0">
-                              <p className="truncate text-xs font-extrabold text-midnight-navy">
-                                {report.studentName || `Student ${report.studentId ?? index + 1}`}
-                              </p>
-                              <p className="mt-0.5 text-[10px] text-steel-blue-gray">
-                                Attempt #{displayMetric(report.attemptId)} · Student ID {displayMetric(report.studentId)}
-                              </p>
-                            </div>
-                            <div className="flex flex-wrap items-center gap-2">
-                              <span className="rounded-full bg-slate-100 px-2.5 py-1 text-[9px] font-bold text-slate-700">
-                                {humanizeEvent(statusValue)}
-                              </span>
-                              <span className={`rounded-full px-2.5 py-1 text-[9px] font-bold ${autoSubmitted ? "bg-rose-100 text-rose-800" : Number(report.warningCount || 0) > 0 ? "bg-amber-100 text-amber-800" : "bg-emerald-100 text-emerald-800"}`}>
-                                {autoSubmitted ? "AUTO-SUBMITTED" : `${report.warningCount ?? 0} warnings`}
-                              </span>
-                              <span className="rounded-full border border-amber-200 px-2.5 py-1 text-[9px] font-bold text-amber-900">
-                                Risk {displayMetric(report.riskScore)} · {humanizeEvent(report.riskLevel)}
-                              </span>
-                            </div>
-                          </summary>
-
-                          <div className="space-y-3 border-t border-amber-100 p-3 sm:p-4">
-                            <div className={`rounded-[10px] border p-3 ${autoSubmitted ? "border-rose-200 bg-rose-50" : "border-slate-200 bg-slate-50"}`}>
-                              <p className="text-[9px] font-bold uppercase tracking-wider text-steel-blue-gray">Auto-submission / termination reason</p>
-                              <p className={`mt-1 text-xs font-bold ${autoSubmitted ? "text-rose-800" : "text-midnight-navy"}`}>
-                                {report.terminationReason
-                                  ? humanizeEvent(report.terminationReason)
-                                  : autoSubmitted
-                                    ? "Backend status is AUTO_SUBMITTED, but no terminationReason was supplied in this report."
-                                    : "No termination reason reported by the backend."}
-                              </p>
-                            </div>
-
-                            <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-4">
-                              {flagMetrics.map(([label, rawValue]) => (
-                                <div key={label} className="rounded-[9px] border border-slate-200 bg-slate-50 p-2.5">
-                                  <p className="text-[9px] font-semibold uppercase tracking-wide text-steel-blue-gray">{label}</p>
-                                  <p className="mt-1 text-sm font-extrabold tabular-nums text-midnight-navy">{displayMetric(rawValue ?? 0)}</p>
-                                </div>
-                              ))}
-                            </div>
-
-                            <section aria-label="Browser activity review" className="rounded-[10px] border border-blue-100 bg-blue-50/50 p-3">
-                              <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
-                                <h3 className="text-[10px] font-extrabold uppercase tracking-wider text-midnight-navy">
-                                  Browser activity review
-                                </h3>
-                                <span className="rounded-full border border-blue-100 bg-white px-2 py-1 text-[9px] font-semibold text-steel-blue-gray">
-                                  Independent of AI proctoring
-                                </span>
-                              </div>
-                              <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-5">
-                                {browserActivityMetrics.map(([label, count]) => (
-                                  <div key={label} className="rounded-[9px] border border-blue-100 bg-white p-2.5">
-                                    <p className="text-[9px] font-semibold uppercase tracking-wide text-steel-blue-gray">{label}</p>
-                                    <p className={`mt-1 text-sm font-extrabold tabular-nums ${count > 0 ? "text-rose-700" : "text-midnight-navy"}`}>
-                                      {count}
-                                    </p>
-                                  </div>
-                                ))}
-                              </div>
-                              {events.length === 0 && (
-                                <p className="mt-2 text-[10px] leading-relaxed text-steel-blue-gray">
-                                  No event timeline was returned for this attempt. These zero counts mean no browser-event details were included in the report, not proof that the student had no activity.
-                                </p>
-                              )}
-                            </section>
-
-                            <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
-                              <div className="rounded-[9px] border border-slate-200 bg-slate-50 p-3">
-                                <p className="text-[9px] font-bold uppercase tracking-wider text-steel-blue-gray">Started at</p>
-                                <p className="mt-1 text-xs font-semibold text-midnight-navy">{formatDateTime(report.startedAt)}</p>
-                              </div>
-                              <div className="rounded-[9px] border border-slate-200 bg-slate-50 p-3">
-                                <p className="text-[9px] font-bold uppercase tracking-wider text-steel-blue-gray">Submitted at</p>
-                                <p className="mt-1 text-xs font-semibold text-midnight-navy">{formatDateTime(report.submittedAt)}</p>
-                              </div>
-                            </div>
-
-                            <div>
-                              <h3 className="mb-2 text-[10px] font-extrabold uppercase tracking-wider text-midnight-navy">
-                                Recorded event timeline ({events.length})
-                              </h3>
-                              {events.length === 0 ? (
-                                <p className="rounded-[9px] bg-slate-50 p-3 text-xs text-steel-blue-gray">
-                                  No event details were included in the backend report. The browser-activity review remains visible, but its per-event counts cannot be reconstructed without event details from the API.
-                                </p>
-                              ) : (
-                                <div className="overflow-x-auto rounded-[9px] border border-slate-200">
-                                  <table className="w-full min-w-[640px] text-left">
-                                    <thead className="bg-slate-50">
-                                      <tr>
-                                        <th className="px-3 py-2 text-[9px] font-bold uppercase text-steel-blue-gray">Time</th>
-                                        <th className="px-3 py-2 text-[9px] font-bold uppercase text-steel-blue-gray">Event</th>
-                                        <th className="px-3 py-2 text-[9px] font-bold uppercase text-steel-blue-gray">Severity</th>
-                                        <th className="px-3 py-2 text-[9px] font-bold uppercase text-steel-blue-gray">Confidence</th>
-                                        <th className="px-3 py-2 text-[9px] font-bold uppercase text-steel-blue-gray">Details</th>
-                                      </tr>
-                                    </thead>
-                                    <tbody className="divide-y divide-slate-100">
-                                      {events.map((event, eventIndex) => (
-                                        <tr key={String(event.id ?? eventIndex)}>
-                                          <td className="whitespace-nowrap px-3 py-2 text-[10px] text-steel-blue-gray">{formatDateTime(event.timestamp)}</td>
-                                          <td className="px-3 py-2 text-[10px] font-bold text-midnight-navy">{humanizeEvent(event.eventType)}</td>
-                                          <td className="px-3 py-2 text-[10px] text-midnight-navy">{displayMetric(event.severity)}</td>
-                                          <td className="px-3 py-2 text-[10px] text-midnight-navy">{event.confidence == null ? "—" : `${Math.round(event.confidence * (event.confidence <= 1 ? 100 : 1))}%`}</td>
-                                          <td className="max-w-sm px-3 py-2 text-[10px] leading-relaxed text-steel-blue-gray">{event.details || "—"}</td>
-                                        </tr>
-                                      ))}
-                                    </tbody>
-                                  </table>
-                                </div>
-                              )}
-                            </div>
-                          </div>
-                        </details>
-                      );
-                    })}
-                  </div>
-                )}
-              </>
-            ) : !proctoringLoading ? (
-              <div className="rounded-[10px] border border-amber-100 bg-white p-4 text-xs text-steel-blue-gray">
-                The server did not return a report for this assessment. Browser activity is supported with AI proctoring on or off, but teachers need the backend report endpoint to return the stored attempt events and termination reason. The page will not infer malpractice from AUTO_SUBMITTED status alone.
-              </div>
-            ) : null}
-            </section>
-          </details>
-
           <section className="flex flex-1 flex-col">
             <div className="mb-4 flex flex-col gap-3 rounded-[20px] border border-[#dce7ff] bg-gradient-to-r from-[#f7faff] via-white to-[#f8f5ff] p-4 sm:flex-row sm:items-center sm:justify-between shadow-[0_4px_16px_rgba(71,100,180,0.05)]">
               <div className="text-left">
@@ -1916,6 +1641,7 @@ export default function TeacherAssessmentPage({
                 />
 
                 <span className="text-[9px] font-bold uppercase tracking-wider text-steel-blue-gray">Status</span>
+                <span className="text-[9px] font-bold uppercase tracking-wider text-steel-blue-gray">Proctoring</span>
               </div>
 
               {leaderboardUnavailable ? (
@@ -1936,7 +1662,7 @@ export default function TeacherAssessmentPage({
                   {displayList.map((student) => (
                     <li
                       key={student.id}
-                      className="grid grid-cols-[32px_minmax(140px,1.2fr)_minmax(120px,1fr)_80px_90px_80px_110px] items-center gap-3 px-4 py-3 transition-colors hover:bg-[#f6f9ff]"
+                      className="grid min-w-[1040px] grid-cols-[32px_minmax(140px,1.2fr)_minmax(120px,1fr)_80px_90px_80px_110px_100px] items-center gap-3 px-4 py-3 transition-colors hover:bg-[#f6f9ff]"
                     >
                       <span className={`flex h-7 w-7 items-center justify-center rounded-full text-[11px] font-bold tabular-nums ${student.rank === 1 ? "bg-amber-100 text-amber-800" : student.rank === 2 ? "bg-slate-100 text-slate-700" : student.rank === 3 ? "bg-orange-100 text-orange-800" : "bg-frost-surface text-steel-blue-gray"}`}>
                         {student.rank}
@@ -1989,6 +1715,17 @@ export default function TeacherAssessmentPage({
                         </span>
                       </div>
 
+                      <div className="flex justify-center">
+                        <button
+                          type="button"
+                          onClick={() => setSelectedProctoringStudent(student)}
+                          className="inline-flex items-center gap-1.5 rounded-lg border border-amber-200 bg-amber-50 px-2.5 py-2 text-[10px] font-bold text-amber-900 transition hover:bg-amber-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-500"
+                          aria-label={`View proctoring issues for ${student.name}`}
+                        >
+                          <ShieldAlert className="h-3.5 w-3.5" />
+                          View issues
+                        </button>
+                      </div>
 
                     </li>
                   ))}
@@ -1998,6 +1735,136 @@ export default function TeacherAssessmentPage({
             </div>
           </section>
         </div>
+      {selectedProctoringStudent && (() => {
+        const student = selectedProctoringStudent;
+        const report = proctoringOverview?.studentReports.find((item) =>
+          (item.studentId != null && String(item.studentId) === String(student.id)) ||
+          (item.studentName != null && item.studentName.trim().toLowerCase() === student.name.trim().toLowerCase())
+        );
+        const events = Array.isArray(report?.events) ? report.events : [];
+        const countEvent = (type: string) => events.filter((event) =>
+          String(event.eventType || "").toUpperCase() === type
+        ).length;
+        const browserMetrics: Array<[string, number]> = [
+          ["Tab switches", countEvent("TAB_SWITCH")],
+          ["Fullscreen exits", countEvent("FULLSCREEN_EXIT")],
+          ["Copy attempts", countEvent("COPY_ATTEMPT")],
+          ["Cut attempts", countEvent("CUT_ATTEMPT")],
+          ["Paste attempts", countEvent("PASTE_ATTEMPT")],
+          ["Right-clicks", countEvent("RIGHT_CLICK")],
+          ["Focus losses", countEvent("FOCUS_LOSS")],
+          ["Restricted shortcuts", countEvent("KEYBOARD_ATTEMPT")],
+          ["Screenshot attempts", events.filter((event) =>
+            String(event.eventType || "").toUpperCase() === "SCREENSHOT_ATTEMPT" ||
+            String(event.details || "").toLowerCase().includes("screenshot")
+          ).length],
+          ["Refreshes", countEvent("REFRESH_COUNT")],
+          ["Reconnections", countEvent("RECONNECT_COUNT")],
+        ];
+        return (
+          <div className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-950/50 p-3 sm:p-6" role="presentation" onMouseDown={(event) => {
+            if (event.target === event.currentTarget) setSelectedProctoringStudent(null);
+          }}>
+            <section role="dialog" aria-modal="true" aria-labelledby="student-proctoring-title" className="max-h-[90vh] w-full max-w-4xl overflow-y-auto rounded-2xl border border-amber-200 bg-white p-4 shadow-2xl sm:p-6">
+              <div className="flex items-start justify-between gap-4 border-b border-slate-100 pb-4">
+                <div>
+                  <h2 id="student-proctoring-title" className="flex items-center gap-2 text-base font-extrabold text-midnight-navy">
+                    <ShieldAlert className="h-5 w-5 text-amber-700" />
+                    Proctoring issues
+                  </h2>
+                  <p className="mt-1 text-xs text-steel-blue-gray">{student.name} · Registration {student.registrationNumber || "unavailable"}</p>
+                </div>
+                <button type="button" onClick={() => setSelectedProctoringStudent(null)} className="rounded-lg border border-slate-200 px-3 py-2 text-xs font-bold text-slate-700 hover:bg-slate-50">Close</button>
+              </div>
+              {proctoringLoading && !proctoringOverview ? (
+                <p className="py-8 text-sm text-steel-blue-gray">Loading proctoring report…</p>
+              ) : proctoringError ? (
+                <p className="mt-4 rounded-lg border border-rose-200 bg-rose-50 p-3 text-sm text-rose-800">{proctoringError}</p>
+              ) : !report ? (
+                <div className="mt-4 rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">
+                  No per-student proctoring report was returned for this submission. Refresh the report and check that the backend includes this student’s attempt events.
+                  <button type="button" onClick={async () => {
+                    if (!assessmentData) return;
+                    setProctoringLoading(true);
+                    setProctoringError(null);
+                    try {
+                      setProctoringOverview(await loadProctoringOverview(assessmentData.quizCode));
+                    } catch (error) {
+                      setProctoringError(getErrorMessage(error, "Unable to refresh the proctoring report."));
+                    } finally {
+                      setProctoringLoading(false);
+                    }
+                  }} disabled={proctoringLoading} className="ml-2 font-bold underline disabled:opacity-50">Refresh report</button>
+                </div>
+              ) : (
+                <div className="mt-4 space-y-4">
+                  <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+                    {[
+                      ["Attempt status", humanizeEvent(report.status || student.status || "UNKNOWN")],
+                      ["Warnings", report.warningCount ?? 0],
+                      ["Risk score", report.riskScore ?? 0],
+                      ["Risk level", humanizeEvent(report.riskLevel || "UNKNOWN")],
+                    ].map(([label, value]) => (
+                      <div key={String(label)} className="rounded-xl border border-slate-200 bg-slate-50 p-3">
+                        <p className="text-[9px] font-bold uppercase tracking-wide text-steel-blue-gray">{label}</p>
+                        <p className="mt-1 text-sm font-extrabold text-midnight-navy">{value}</p>
+                      </div>
+                    ))}
+                  </div>
+                  <div>
+                    <h3 className="mb-2 text-xs font-extrabold uppercase tracking-wide text-midnight-navy">Browser activity</h3>
+                    <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-4">
+                      {browserMetrics.map(([label, count]) => (
+                        <div key={label} className="rounded-lg border border-slate-200 p-3">
+                          <p className="text-[10px] font-semibold text-steel-blue-gray">{label}</p>
+                          <p className={`mt-1 text-lg font-extrabold ${count > 0 ? "text-rose-700" : "text-midnight-navy"}`}>{count}</p>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+                    <div className="rounded-lg border border-slate-200 p-3">
+                      <p className="text-[9px] font-bold uppercase tracking-wide text-steel-blue-gray">Termination reason</p>
+                      <p className="mt-1 text-xs font-semibold text-midnight-navy">{report.terminationReason ? humanizeEvent(report.terminationReason) : "None reported"}</p>
+                    </div>
+                    <div className="rounded-lg border border-slate-200 p-3">
+                      <p className="text-[9px] font-bold uppercase tracking-wide text-steel-blue-gray">Total violations</p>
+                      <p className="mt-1 text-xs font-semibold text-midnight-navy">{report.totalViolationsCount ?? events.length}</p>
+                    </div>
+                  </div>
+                  <div>
+                    <h3 className="mb-2 text-xs font-extrabold uppercase tracking-wide text-midnight-navy">Recorded event timeline ({events.length})</h3>
+                    {events.length === 0 ? (
+                      <p className="rounded-lg bg-slate-50 p-3 text-xs text-steel-blue-gray">No event timeline was included in the report. Zero counters cannot confirm that no browser activity occurred.</p>
+                    ) : (
+                      <div className="overflow-x-auto rounded-lg border border-slate-200">
+                        <table className="w-full min-w-[600px] text-left">
+                          <thead className="bg-slate-50"><tr>
+                            <th className="px-3 py-2 text-[10px] font-bold text-steel-blue-gray">Time</th>
+                            <th className="px-3 py-2 text-[10px] font-bold text-steel-blue-gray">Event</th>
+                            <th className="px-3 py-2 text-[10px] font-bold text-steel-blue-gray">Severity</th>
+                            <th className="px-3 py-2 text-[10px] font-bold text-steel-blue-gray">Details</th>
+                          </tr></thead>
+                          <tbody className="divide-y divide-slate-100">
+                            {events.map((event, index) => (
+                              <tr key={String(event.id ?? index)}>
+                                <td className="whitespace-nowrap px-3 py-2 text-[10px] text-steel-blue-gray">{formatDateTime(event.timestamp)}</td>
+                                <td className="px-3 py-2 text-[10px] font-bold text-midnight-navy">{humanizeEvent(event.eventType)}</td>
+                                <td className="px-3 py-2 text-[10px] text-midnight-navy">{event.severity || "—"}</td>
+                                <td className="px-3 py-2 text-[10px] text-steel-blue-gray">{event.details || "—"}</td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
+            </section>
+          </div>
+        );
+      })()}
       </div>
     </main>
   );
