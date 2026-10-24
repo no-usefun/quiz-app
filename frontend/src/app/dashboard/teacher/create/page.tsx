@@ -1906,17 +1906,17 @@ function CreateAssessmentContent() {
   };
 
   const inputClass =
-    "w-full rounded-[10px] border border-[#d1dee8]/80 bg-[#fbfbfa] px-3.5 py-2.5 text-xs text-[#111111] outline-none transition-all placeholder:text-[#a8a29d] hover:border-[#b9cbd9] focus:border-[#165dfb] focus:bg-white focus:ring-4 focus:ring-[#165dfb]/10 font-medium shadow-xs dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100 dark:placeholder:text-slate-400 dark:focus:bg-slate-800";
+    "w-full rounded-[10px] border border-[#d1dee8]/80 dark:border-slate-700 bg-[#fbfbfa] dark:bg-slate-800 px-3.5 py-2.5 text-xs text-[#111111] dark:text-slate-100 outline-none transition-all placeholder:text-[#a8a29d] dark:text-slate-500 hover:border-[#b9cbd9] focus:border-[#165dfb] focus:bg-white dark:bg-slate-900 focus:ring-4 focus:ring-[#165dfb]/10 font-medium shadow-xs dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100 dark:placeholder:text-slate-400 dark:focus:bg-slate-800";
 
   const labelClass =
     "mb-1.5 block text-[10px] font-bold uppercase tracking-wider text-[#78716b] dark:text-slate-300";
 
   if (loadingDraft) {
     return (
-      <div className="teacher-assessment-builder min-h-screen bg-[#f5f5f4] font-sans text-[#111111] p-4 md:p-6 lg:p-8 flex items-center justify-center text-left dark:bg-slate-950 dark:text-slate-100">
-        <div className="flex items-center gap-3 rounded-[14px] border border-[#d1dee8]/70 bg-white p-6 shadow-sm">
+      <div className="teacher-assessment-builder min-h-screen bg-[#f5f5f4] dark:bg-slate-950 font-sans text-[#111111] dark:text-slate-100 p-4 md:p-6 lg:p-8 flex items-center justify-center text-left dark:bg-slate-950 dark:text-slate-100">
+        <div className="flex items-center gap-3 rounded-[14px] border border-[#d1dee8]/70 dark:border-slate-700 bg-white dark:bg-slate-900 p-6 shadow-sm">
           <span className="h-4 w-4 animate-spin rounded-full border-2 border-[#165dfb]/30 border-t-[#165dfb]" />
-          <span className="text-xs font-bold text-[#78716b]">
+          <span className="text-xs font-bold text-[#78716b] dark:text-slate-400">
             Loading draft assessment...
           </span>
         </div>
@@ -1925,28 +1925,28 @@ function CreateAssessmentContent() {
   }
 
   return (
-    <div className="teacher-assessment-builder min-h-screen bg-[#f5f5f4] font-sans text-[#111111] p-4 md:p-6 lg:p-8 text-left dark:bg-slate-950 dark:text-slate-100">
+    <div className="teacher-assessment-builder min-h-screen bg-[#f5f5f4] dark:bg-slate-950 font-sans text-[#111111] dark:text-slate-100 p-4 md:p-6 lg:p-8 text-left dark:bg-slate-950 dark:text-slate-100">
       <div className="mx-auto max-w-4xl space-y-6">
-        <header className="sticky top-0 z-20 -mx-4 flex flex-wrap items-center justify-between gap-3 border-b border-[#d1dee8]/60 bg-[#f5f5f4]/85 px-4 py-4 backdrop-blur-md md:-mx-6 md:px-6 dark:border-slate-700 dark:bg-slate-950/90">
+        <header className="sticky top-0 z-20 -mx-4 flex flex-wrap items-center justify-between gap-3 border-b border-[#d1dee8]/60 bg-[#f5f5f4] dark:bg-slate-950/85 px-4 py-4 backdrop-blur-md md:-mx-6 md:px-6 dark:border-slate-700 dark:bg-slate-950/90">
           <div className="flex items-center gap-3">
             <Link
               href="/dashboard/teacher"
-              className="group flex h-9 w-9 shrink-0 items-center justify-center rounded-[10px] border border-[#d1dee8]/80 bg-white text-[#78716b] shadow-xs transition-all hover:border-[#b9cbd9] hover:bg-white hover:text-[#111111] active:scale-95"
+              className="group flex h-9 w-9 shrink-0 items-center justify-center rounded-[10px] border border-[#d1dee8]/80 dark:border-slate-700 bg-white dark:bg-slate-900 text-[#78716b] dark:text-slate-400 shadow-xs transition-all hover:border-[#b9cbd9] hover:bg-white dark:bg-slate-900 hover:text-[#111111] dark:text-slate-100 active:scale-95"
             >
               <ArrowLeft className="h-4 w-4 transition-transform group-hover:-translate-x-0.5" />
             </Link>
             <div>
-              <span className="text-[10px] font-bold uppercase tracking-widest text-[#78716b]">
+              <span className="text-[10px] font-bold uppercase tracking-widest text-[#78716b] dark:text-slate-400">
                 {draftId ? "EDIT DRAFT ASSESSMENT" : "ASSESSMENT BUILDER"}
               </span>
-              <h1 className="text-xl font-extrabold text-[#111111] -tracking-wide mt-0.5">
+              <h1 className="text-xl font-extrabold text-[#111111] dark:text-slate-100 -tracking-wide mt-0.5">
                 {draftId ? "Edit your draft" : "Create your assessment"}
               </h1>
             </div>
           </div>
           <div className="flex flex-wrap items-center justify-end gap-2 sm:gap-3">
             <ThemeToggle />
-            <span className="hidden rounded-full border border-[#d1dee8]/80 bg-white px-3 py-1 text-[10px] font-bold text-[#78716b] shadow-xs sm:inline-flex">
+            <span className="hidden rounded-full border border-[#d1dee8]/80 dark:border-slate-700 bg-white dark:bg-slate-900 px-3 py-1 text-[10px] font-bold text-[#78716b] dark:text-slate-400 shadow-xs sm:inline-flex">
               {parsedQuestions.length}{" "}
               {parsedQuestions.length === 1 ? "question" : "questions"}
             </span>
@@ -1989,8 +1989,8 @@ function CreateAssessmentContent() {
         )}
 
         <form onSubmit={(e) => handleSave(e)} className="space-y-6">
-          <div className="rounded-[14px] border border-[#d1dee8]/70 bg-white p-6 space-y-5 shadow-sm">
-            <h3 className="flex items-center gap-2 border-b border-[#d1dee8]/50 pb-3 text-xs font-bold uppercase tracking-wider text-[#111111]">
+          <div className="rounded-[14px] border border-[#d1dee8]/70 dark:border-slate-700 bg-white dark:bg-slate-900 p-6 space-y-5 shadow-sm">
+            <h3 className="flex items-center gap-2 border-b border-[#d1dee8]/50 dark:border-slate-700 pb-3 text-xs font-bold uppercase tracking-wider text-[#111111] dark:text-slate-100">
               <span className="h-3.5 w-1 rounded-full bg-[#165dfb]" />
               Assessment Details
             </h3>
@@ -2007,7 +2007,7 @@ function CreateAssessmentContent() {
                 />
               </div>
               <div className="text-left">
-                <label className={labelClass}>Description <span className="font-medium normal-case text-[#78716b]">(Optional)</span></label>
+                <label className={labelClass}>Description <span className="font-medium normal-case text-[#78716b] dark:text-slate-400">(Optional)</span></label>
                 <textarea
                   value={description}
                   onChange={(e) => setDescription(e.target.value)}
@@ -2039,17 +2039,17 @@ function CreateAssessmentContent() {
                 </div>
                 <div className="text-left">
                   <label className={labelClass}>Time Limit (minutes)</label>
-                  <div className="flex items-center gap-2 rounded-[10px] border border-[#d1dee8]/80 bg-[#fbfbfa] px-3 py-2.5 transition-all hover:border-[#b9cbd9] focus-within:border-[#165dfb] focus-within:bg-white focus-within:ring-4 focus-within:ring-[#165dfb]/10 shadow-xs">
-                    <Clock className="h-4 w-4 shrink-0 text-[#78716b]" />
+                  <div className="flex items-center gap-2 rounded-[10px] border border-[#d1dee8]/80 dark:border-slate-700 bg-[#fbfbfa] dark:bg-slate-800 px-3 py-2.5 transition-all hover:border-[#b9cbd9] focus-within:border-[#165dfb] focus-within:bg-white dark:bg-slate-900 focus-within:ring-4 focus-within:ring-[#165dfb]/10 shadow-xs">
+                    <Clock className="h-4 w-4 shrink-0 text-[#78716b] dark:text-slate-400" />
                     <input
                       type="number"
                       value={timeLimit}
                       onChange={(e) => setTimeLimit(Number(e.target.value))}
                       min="1"
-                      className="bg-transparent outline-none w-full text-xs font-bold text-[#111111]"
+                      className="bg-transparent outline-none w-full text-xs font-bold text-[#111111] dark:text-slate-100"
                       required
                     />
-                    <span className="text-[10px] font-bold uppercase text-[#a8a29d]">
+                    <span className="text-[10px] font-bold uppercase text-[#a8a29d] dark:text-slate-500">
                       min
                     </span>
                   </div>
@@ -2069,7 +2069,7 @@ function CreateAssessmentContent() {
                 <div className="text-left">
                   <label className={labelClass}>
                     End Time{" "}
-                    <span className="normal-case font-medium text-[#a8a29d]">
+                    <span className="normal-case font-medium text-[#a8a29d] dark:text-slate-500">
                       (auto-calculated)
                     </span>
                   </label>
@@ -2093,21 +2093,21 @@ function CreateAssessmentContent() {
                   placeholder="Comma separated, e.g. 21BCE1001, 21BCE1002"
                   className={`${inputClass} resize-y leading-relaxed`}
                 />
-                <p className="mt-1 text-[11px] text-[#78716b]">
+                <p className="mt-1 text-[11px] text-[#78716b] dark:text-slate-400">
                   Leave blank to allow any student to join.
                 </p>
               </div>
             </div>
           </div>
 
-          <section className="rounded-[14px] border border-[#d1dee8]/70 bg-white p-5 shadow-sm" aria-labelledby="ai-proctoring-setting-title">
-            <div className="flex items-center justify-between gap-4"><div className="min-w-0 space-y-1"><h3 id="ai-proctoring-setting-title" className="text-sm font-bold text-[#111111]">AI Proctoring</h3><p className="text-xs leading-relaxed text-[#78716b]">{aiProctoringEnabled ? "Camera, reference photo, and AI identity checks are required for this assessment." : "Camera and AI identity checks are off. Tab switching and copy, cut, and paste restrictions remain active."}</p></div><AppleSwitch checked={aiProctoringEnabled} onChange={setAiProctoringEnabled} ariaLabel="Enable AI proctoring" /></div>
-            <div className="mt-3 flex items-center gap-2 text-[11px] font-semibold"><span className={`h-2 w-2 rounded-full ${aiProctoringEnabled ? "bg-emerald-500" : "bg-amber-500"}`} /><span className="text-[#57534e]">{aiProctoringEnabled ? "AI proctoring enabled" : "Standard assessment mode"}</span></div>
+          <section className="rounded-[14px] border border-[#d1dee8]/70 dark:border-slate-700 bg-white dark:bg-slate-900 p-5 shadow-sm" aria-labelledby="ai-proctoring-setting-title">
+            <div className="flex items-center justify-between gap-4"><div className="min-w-0 space-y-1"><h3 id="ai-proctoring-setting-title" className="text-sm font-bold text-[#111111] dark:text-slate-100">AI Proctoring</h3><p className="text-xs leading-relaxed text-[#78716b] dark:text-slate-400">{aiProctoringEnabled ? "Camera, reference photo, and AI identity checks are required for this assessment." : "Camera and AI identity checks are off. Tab switching and copy, cut, and paste restrictions remain active."}</p></div><AppleSwitch checked={aiProctoringEnabled} onChange={setAiProctoringEnabled} ariaLabel="Enable AI proctoring" /></div>
+            <div className="mt-3 flex items-center gap-2 text-[11px] font-semibold"><span className={`h-2 w-2 rounded-full ${aiProctoringEnabled ? "bg-emerald-500" : "bg-amber-500"}`} /><span className="text-[#57534e] dark:text-slate-300">{aiProctoringEnabled ? "AI proctoring enabled" : "Standard assessment mode"}</span></div>
           </section>
 
           <div className="space-y-4">
-            <div className="flex items-center justify-between border-b border-[#d1dee8]/50 pb-2.5">
-              <h3 className="flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-[#111111]">
+            <div className="flex items-center justify-between border-b border-[#d1dee8]/50 dark:border-slate-700 pb-2.5">
+              <h3 className="flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-[#111111] dark:text-slate-100">
                 <span className="h-3.5 w-1 rounded-full bg-[#165dfb]" />
                 Questions
                 <span className="rounded-full bg-[#eef4ff] px-2.5 py-0.5 text-[10px] font-bold text-[#165dfb]">
@@ -2117,12 +2117,12 @@ function CreateAssessmentContent() {
             </div>
 
             {parsedQuestions.length === 0 ? (
-              <div className="rounded-[14px] border border-dashed border-[#d1dee8] bg-white px-6 py-10 text-center shadow-xs">
+              <div className="rounded-[14px] border border-dashed border-[#d1dee8] dark:border-slate-700 bg-white dark:bg-slate-900 px-6 py-10 text-center shadow-xs">
                 <FileQuestion className="mx-auto mb-3 h-8 w-8 text-[#c9c5c2]" />
-                <p className="text-xs font-bold text-[#57534e]">
+                <p className="text-xs font-bold text-[#57534e] dark:text-slate-300">
                   No questions yet
                 </p>
-                <p className="mt-1 text-xs text-[#a8a29d]">
+                <p className="mt-1 text-xs text-[#a8a29d] dark:text-slate-500">
                   Import a CSV or JSON file, or add a question card below.
                 </p>
               </div>
@@ -2131,17 +2131,17 @@ function CreateAssessmentContent() {
                 {parsedQuestions.map((q, idx) => (
                   <div
                     key={idx}
-                    className="group relative overflow-hidden rounded-[14px] border border-[#d1dee8]/70 bg-white shadow-sm transition-all hover:border-[#b9cbd9] hover:shadow-md"
+                    className="group relative overflow-hidden rounded-[14px] border border-[#d1dee8]/70 dark:border-slate-700 bg-white dark:bg-slate-900 shadow-sm transition-all hover:border-[#b9cbd9] hover:shadow-md"
                   >
-                    <div className="flex items-center justify-between gap-3 border-b border-[#d1dee8]/50 bg-[#fbfbfa] px-5 py-3">
-                      <span className="inline-flex items-center gap-2 text-xs font-bold text-[#57534e]">
+                    <div className="flex items-center justify-between gap-3 border-b border-[#d1dee8]/50 dark:border-slate-700 bg-[#fbfbfa] dark:bg-slate-800 px-5 py-3">
+                      <span className="inline-flex items-center gap-2 text-xs font-bold text-[#57534e] dark:text-slate-300">
                         <span className="flex h-6 w-6 items-center justify-center rounded-[8px] bg-[#eef4ff] font-mono text-[10px] font-bold text-[#165dfb]">
                           {String(idx + 1).padStart(2, "0")}
                         </span>
                         Question
                       </span>
                       <div className="flex items-center gap-2">
-                        <label className="text-[10px] font-bold uppercase tracking-wider text-[#78716b]">
+                        <label className="text-[10px] font-bold uppercase tracking-wider text-[#78716b] dark:text-slate-400">
                           Marks
                         </label>
                         <input
@@ -2156,14 +2156,14 @@ function CreateAssessmentContent() {
                               Number(e.target.value),
                             )
                           }
-                          className="w-16 rounded-[8px] border border-[#d1dee8]/80 bg-white px-2 py-1 text-center text-xs font-bold text-[#111111] outline-none transition-all focus:border-[#165dfb] focus:ring-4 focus:ring-[#165dfb]/10 shadow-xs"
+                          className="w-16 rounded-[8px] border border-[#d1dee8]/80 dark:border-slate-700 bg-white dark:bg-slate-900 px-2 py-1 text-center text-xs font-bold text-[#111111] dark:text-slate-100 outline-none transition-all focus:border-[#165dfb] focus:ring-4 focus:ring-[#165dfb]/10 shadow-xs"
                           aria-label={"Marks for question " + (idx + 1)}
                         />
                         <button
                           type="button"
                           onClick={() => handleDeleteQuestion(idx)}
                           aria-label={`Delete question ${idx + 1}`}
-                          className="flex h-7 w-7 items-center justify-center rounded-[8px] text-[#a8a29d] transition-all hover:bg-[#fbeee8] hover:text-[#8c381c] active:scale-95"
+                          className="flex h-7 w-7 items-center justify-center rounded-[8px] text-[#a8a29d] dark:text-slate-500 transition-all hover:bg-[#fbeee8] hover:text-[#8c381c] active:scale-95"
                         >
                           <Trash2 className="h-4 w-4" />
                         </button>
@@ -2183,7 +2183,7 @@ function CreateAssessmentContent() {
                             )
                           }
                           placeholder="Type your question (optional if an image is provided)"
-                          className="w-full rounded-[10px] border border-[#d1dee8]/80 bg-[#fbfbfa] px-3.5 py-2.5 text-sm font-semibold text-[#111111] outline-none transition-all placeholder:font-medium placeholder:text-[#a8a29d] hover:border-[#b9cbd9] focus:border-[#165dfb] focus:bg-white focus:ring-4 focus:ring-[#165dfb]/10 shadow-xs"
+                          className="w-full rounded-[10px] border border-[#d1dee8]/80 dark:border-slate-700 bg-[#fbfbfa] dark:bg-slate-800 px-3.5 py-2.5 text-sm font-semibold text-[#111111] dark:text-slate-100 outline-none transition-all placeholder:font-medium placeholder:text-[#a8a29d] dark:text-slate-500 hover:border-[#b9cbd9] focus:border-[#165dfb] focus:bg-white dark:bg-slate-900 focus:ring-4 focus:ring-[#165dfb]/10 shadow-xs"
                         />
                         <select
                           value={
@@ -2194,7 +2194,7 @@ function CreateAssessmentContent() {
                           onChange={(e) =>
                             handleSetQuestionType(idx, e.target.value)
                           }
-                          className="rounded-[10px] border border-[#d1dee8]/80 bg-white px-3 py-2.5 text-xs font-bold text-[#111111] outline-none focus:border-[#165dfb] focus:ring-4 focus:ring-[#165dfb]/10"
+                          className="rounded-[10px] border border-[#d1dee8]/80 dark:border-slate-700 bg-white dark:bg-slate-900 px-3 py-2.5 text-xs font-bold text-[#111111] dark:text-slate-100 outline-none focus:border-[#165dfb] focus:ring-4 focus:ring-[#165dfb]/10"
                           aria-label={`Question ${idx + 1} type`}
                         >
                           <option value="MCQ">MCQ — Single correct</option>
@@ -2205,7 +2205,7 @@ function CreateAssessmentContent() {
 
                       {negativeMarking && (
                         <div>
-                          <label className="mb-1.5 block text-[10px] font-bold uppercase tracking-wider text-[#78716b]">
+                          <label className="mb-1.5 block text-[10px] font-bold uppercase tracking-wider text-[#78716b] dark:text-slate-400">
                             Negative Marks
                           </label>
                           <input
@@ -2226,9 +2226,9 @@ function CreateAssessmentContent() {
                       )}
 
                       <div className="grid gap-2">
-                        <label className="text-[10px] font-bold uppercase tracking-wider text-[#78716b]">
+                        <label className="text-[10px] font-bold uppercase tracking-wider text-[#78716b] dark:text-slate-400">
                           Question Image URL{" "}
-                          <span className="normal-case font-medium text-[#a8a29d]">
+                          <span className="normal-case font-medium text-[#a8a29d] dark:text-slate-500">
                             (optional)
                           </span>
                         </label>
@@ -2243,7 +2243,7 @@ function CreateAssessmentContent() {
                             )
                           }
                           placeholder="https://example.com/question-image.png"
-                          className="w-full rounded-[10px] border border-[#d1dee8]/80 bg-white px-3.5 py-2.5 text-xs text-[#111111] outline-none transition-all placeholder:text-[#a8a29d] hover:border-[#b9cbd9] focus:border-[#165dfb] focus:ring-4 focus:ring-[#165dfb]/10"
+                          className="w-full rounded-[10px] border border-[#d1dee8]/80 dark:border-slate-700 bg-white dark:bg-slate-900 px-3.5 py-2.5 text-xs text-[#111111] dark:text-slate-100 outline-none transition-all placeholder:text-[#a8a29d] dark:text-slate-500 hover:border-[#b9cbd9] focus:border-[#165dfb] focus:ring-4 focus:ring-[#165dfb]/10"
                         />
                         {q.imageUrl && (
                           <Image
@@ -2252,7 +2252,7 @@ function CreateAssessmentContent() {
                             width={640}
                             height={360}
                             unoptimized
-                            className="max-h-48 max-w-full rounded-[10px] border border-[#d1dee8]/70 object-contain bg-[#fbfbfa] p-1"
+                            className="max-h-48 max-w-full rounded-[10px] border border-[#d1dee8]/70 dark:border-slate-700 object-contain bg-[#fbfbfa] dark:bg-slate-800 p-1"
                             onError={(e) => {
                               e.currentTarget.style.display = "none";
                             }}
@@ -2262,12 +2262,12 @@ function CreateAssessmentContent() {
 
                       <div className="flex items-center justify-between">
                         <div>
-                          <p className="text-[10px] font-bold uppercase tracking-wider text-[#78716b]">
+                          <p className="text-[10px] font-bold uppercase tracking-wider text-[#78716b] dark:text-slate-400">
                             {q.questionType === "MSQ"
                               ? "Select all correct answers"
                               : "Select correct answer"}
                           </p>
-                          <p className="mt-0.5 text-[10px] text-[#a8a29d]">
+                          <p className="mt-0.5 text-[10px] text-[#a8a29d] dark:text-slate-500">
                             {q.questionType === "MSQ"
                               ? "Multiple options can be correct."
                               : q.questionType === "TRUE_FALSE"
@@ -2279,7 +2279,7 @@ function CreateAssessmentContent() {
                           <button
                             type="button"
                             onClick={() => handleAddOption(idx)}
-                            className="inline-flex items-center gap-1.5 rounded-[9px] border border-[#d1dee8]/80 bg-white px-3 py-1.5 text-[10px] font-bold text-[#165dfb] shadow-xs hover:border-[#165dfb] hover:bg-[#eef4ff]"
+                            className="inline-flex items-center gap-1.5 rounded-[9px] border border-[#d1dee8]/80 dark:border-slate-700 bg-white dark:bg-slate-900 px-3 py-1.5 text-[10px] font-bold text-[#165dfb] shadow-xs hover:border-[#165dfb] hover:bg-[#eef4ff]"
                           >
                             <PlusCircle className="h-3.5 w-3.5" /> Add Option
                           </button>
@@ -2320,7 +2320,7 @@ function CreateAssessmentContent() {
                             className={`group flex items-center gap-2.5 rounded-[10px] border px-3 py-2.5 text-xs transition-all ${
                               opt.isCorrect
                                 ? "border-[#165dfb] bg-[#eef4ff] shadow-[0_0_0_3px_rgba(22,93,251,0.08)]"
-                                : "border-[#d1dee8]/80 bg-white hover:border-[#b9cbd9] hover:bg-[#fbfbfa] shadow-xs"
+                                : "border-[#d1dee8]/80 dark:border-slate-700 bg-white dark:bg-slate-900 hover:border-[#b9cbd9] hover:bg-[#fbfbfa] dark:bg-slate-800 shadow-xs"
                             } ${
                               draggedOption?.qIdx === idx && draggedOption?.optIdx === oi
                                 ? "opacity-50"
@@ -2342,7 +2342,7 @@ function CreateAssessmentContent() {
                               className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-[11px] font-bold transition-all ${
                                 opt.isCorrect
                                   ? "bg-[#165dfb] text-white shadow-xs shadow-[#165dfb]/30"
-                                  : "bg-[#f0eeed] text-[#78716b] hover:bg-[#e2dfdd] hover:text-[#111111]"
+                                  : "bg-[#f0eeed] text-[#78716b] dark:text-slate-400 hover:bg-[#e2dfdd] hover:text-[#111111] dark:text-slate-100"
                               }`}
                             >
                               {opt.isCorrect ? (
@@ -2362,10 +2362,10 @@ function CreateAssessmentContent() {
                               onChange={(e) =>
                                 handleUpdateOption(idx, oi, e.target.value)
                               }
-                              className={`w-full bg-transparent outline-none placeholder:text-[#a8a29d] ${
+                              className={`w-full bg-transparent outline-none placeholder:text-[#a8a29d] dark:text-slate-500 ${
                                 opt.isCorrect
                                   ? "font-semibold text-[#0f3fa8]"
-                                  : "text-[#111111]"
+                                  : "text-[#111111] dark:text-slate-100"
                               } ${q.questionType === "TRUE_FALSE" ? "cursor-not-allowed opacity-80" : ""}`}
                             />
                             {opt.isCorrect && (
@@ -2379,7 +2379,7 @@ function CreateAssessmentContent() {
                                   type="button"
                                   onClick={() => handleDeleteOption(idx, oi)}
                                   aria-label={`Delete option ${String.fromCharCode(65 + oi)}`}
-                                  className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-[#a8a29d] hover:bg-[#fbeee8] hover:text-[#8c381c]"
+                                  className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-[#a8a29d] dark:text-slate-500 hover:bg-[#fbeee8] hover:text-[#8c381c]"
                                 >
                                   <Trash2 className="h-3.5 w-3.5" />
                                 </button>
@@ -2393,7 +2393,7 @@ function CreateAssessmentContent() {
               </div>
             )}
 
-            <div className="rounded-[14px] border border-dashed border-[#bcd9c9] bg-[#eef8f3]/60 p-6 text-center transition-all hover:border-[#165dfb] hover:bg-[#ecf5ff]/70 shadow-xs">
+            <div className="rounded-[14px] border border-dashed border-[#bcd9c9] bg-[#eef8f3]/60 dark:bg-emerald-950/30 p-6 text-center transition-all hover:border-[#165dfb] hover:bg-[#ecf5ff]/70 shadow-xs">
               <input
                 type="file"
                 id="csv-upload"
@@ -2403,38 +2403,38 @@ function CreateAssessmentContent() {
               />
 
               <label htmlFor="csv-upload" className="cursor-pointer block">
-                <span className="mx-auto mb-3 flex h-11 w-11 items-center justify-center rounded-[12px] bg-white shadow-xs ring-1 ring-[#165dfb]/10">
+                <span className="mx-auto mb-3 flex h-11 w-11 items-center justify-center rounded-[12px] bg-white dark:bg-slate-900 shadow-xs ring-1 ring-[#165dfb]/10">
                   <FileType className="h-5 w-5 text-[#165dfb]" />
                 </span>
 
-                <h4 className="text-xs font-bold text-[#111111]">
+                <h4 className="text-xs font-bold text-[#111111] dark:text-slate-100">
                   Import via CSV or JSON
                 </h4>
 
-                <p className="mt-1 text-[11px] text-[#78716b]">
+                <p className="mt-1 text-[11px] text-[#78716b] dark:text-slate-400">
                   Import multiple questions at once using the format below.
                 </p>
 
-                <div className="mt-3 inline-flex items-center gap-1.5 rounded-[10px] border border-[#d1dee8]/80 bg-white px-4 py-2 text-xs font-bold shadow-xs transition-all hover:border-[#165dfb] hover:text-[#165dfb] active:scale-95">
+                <div className="mt-3 inline-flex items-center gap-1.5 rounded-[10px] border border-[#d1dee8]/80 dark:border-slate-700 bg-white dark:bg-slate-900 px-4 py-2 text-xs font-bold shadow-xs transition-all hover:border-[#165dfb] hover:text-[#165dfb] active:scale-95">
                   <Upload className="h-3.5 w-3.5" /> Select File
                 </div>
               </label>
 
-              <details className="mx-auto mt-4 max-w-3xl rounded-[12px] border border-[#d1dee8]/70 bg-white text-left shadow-xs">
-                <summary className="cursor-pointer list-none px-4 py-3 text-xs font-bold text-[#111111]">
+              <details className="mx-auto mt-4 max-w-3xl rounded-[12px] border border-[#d1dee8]/70 dark:border-slate-700 bg-white dark:bg-slate-900 text-left shadow-xs">
+                <summary className="cursor-pointer list-none px-4 py-3 text-xs font-bold text-[#111111] dark:text-slate-100">
                   <span className="inline-flex items-center gap-2">
                     <FileType className="h-3.5 w-3.5 text-[#165dfb]" />
                     CSV Format Guide
                   </span>
                 </summary>
 
-                <div className="border-t border-[#d1dee8]/50 p-4 space-y-3">
-                  <p className="text-[10px] leading-relaxed text-[#78716b]">
+                <div className="border-t border-[#d1dee8]/50 dark:border-slate-700 p-4 space-y-3">
+                  <p className="text-[10px] leading-relaxed text-[#78716b] dark:text-slate-400">
                     Use one question per row and keep the header row. The importer maps columns by header name, so older 12-column templates still work. Leave unused options and image URLs blank.
                   </p>
 
-                  <div className="overflow-x-auto rounded-[10px] border border-[#d1dee8]/70 bg-[#fbfbfa]">
-                    <pre className="min-w-[980px] p-3 text-[9px] leading-relaxed text-[#111111] font-mono whitespace-pre-wrap">
+                  <div className="overflow-x-auto rounded-[10px] border border-[#d1dee8]/70 dark:border-slate-700 bg-[#fbfbfa] dark:bg-slate-800">
+                    <pre className="min-w-[980px] p-3 text-[9px] leading-relaxed text-[#111111] dark:text-slate-100 font-mono whitespace-pre-wrap">
 questionText,optionA,optionB,optionC,optionD,optionE,optionF,correctAnswer,marks,questionType,negativeMarks,questionTimerSeconds,difficulty,explanation,imageUrl,optionAImageUrl,optionBImageUrl,optionCImageUrl,optionDImageUrl,optionEImageUrl,optionFImageUrl
 &quot;What is the time complexity of binary search?&quot;,&quot;O(n)&quot;,&quot;O(log n)&quot;,&quot;O(n^2)&quot;,&quot;O(1)&quot;,&quot;&quot;,&quot;&quot;,&quot;B&quot;,&quot;1&quot;,&quot;MCQ&quot;,&quot;0.25&quot;,&quot;60&quot;,&quot;EASY&quot;,&quot;Binary search halves the search space.&quot;,&quot;&quot;,&quot;&quot;,&quot;&quot;,&quot;&quot;,&quot;&quot;,&quot;&quot;,&quot;&quot;
 &quot;Which HTTP status indicates success?&quot;,&quot;200&quot;,&quot;301&quot;,&quot;404&quot;,&quot;500&quot;,&quot;204&quot;,&quot;&quot;,&quot;A|E&quot;,&quot;2&quot;,&quot;MSQ&quot;,&quot;0.5&quot;,&quot;90&quot;,&quot;MEDIUM&quot;,&quot;Both 200 and 204 indicate success.&quot;,&quot;&quot;,&quot;&quot;,&quot;&quot;,&quot;&quot;,&quot;&quot;,&quot;&quot;,&quot;&quot;
@@ -2443,13 +2443,13 @@ questionText,optionA,optionB,optionC,optionD,optionE,optionF,correctAnswer,marks
                     </pre>
                   </div>
 
-                  <div className="grid gap-2 text-[10px] text-[#57534e] sm:grid-cols-2">
+                  <div className="grid gap-2 text-[10px] text-[#57534e] dark:text-slate-300 sm:grid-cols-2">
                     <p>
-                      <span className="font-bold text-[#111111]">correctAnswer:</span>{" "}
+                      <span className="font-bold text-[#111111] dark:text-slate-100">correctAnswer:</span>{" "}
                       A-F for MCQ, A|C for MSQ (use | or ; between answers), or A/B (also TRUE/FALSE) for TRUE_FALSE.
                     </p>
                     <p>
-                      <span className="font-bold text-[#111111]">questionType:</span>{" "}
+                      <span className="font-bold text-[#111111] dark:text-slate-100">questionType:</span>{" "}
                       MCQ (one correct option), MSQ (multiple correct options), or TRUE_FALSE.
                     </p>
                   </div>
@@ -2457,7 +2457,7 @@ questionText,optionA,optionB,optionC,optionD,optionE,optionF,correctAnswer,marks
                   <button
                     type="button"
                     onClick={downloadCsvTemplate}
-                    className="inline-flex items-center gap-1.5 rounded-[10px] border border-[#d1dee8]/80 bg-white px-3.5 py-2 text-[10px] font-bold text-[#111111] shadow-xs transition-all hover:border-[#165dfb] hover:text-[#165dfb] active:scale-[0.98]"
+                    className="inline-flex items-center gap-1.5 rounded-[10px] border border-[#d1dee8]/80 dark:border-slate-700 bg-white dark:bg-slate-900 px-3.5 py-2 text-[10px] font-bold text-[#111111] dark:text-slate-100 shadow-xs transition-all hover:border-[#165dfb] hover:text-[#165dfb] active:scale-[0.98]"
                   >
                     <Download className="h-3.5 w-3.5" />
                     Download Sample CSV
@@ -2469,18 +2469,18 @@ questionText,optionA,optionB,optionC,optionD,optionE,optionF,correctAnswer,marks
             <button
               type="button"
               onClick={handleAddNewQuestion}
-              className="flex w-full items-center justify-center gap-1.5 rounded-[14px] border border-dashed border-[#d1dee8] bg-white py-3.5 text-xs font-bold text-[#165dfb] shadow-xs transition-all hover:border-[#165dfb] hover:bg-[#eef4ff] active:scale-[0.99]"
+              className="flex w-full items-center justify-center gap-1.5 rounded-[14px] border border-dashed border-[#d1dee8] dark:border-slate-700 bg-white dark:bg-slate-900 py-3.5 text-xs font-bold text-[#165dfb] shadow-xs transition-all hover:border-[#165dfb] hover:bg-[#eef4ff] active:scale-[0.99]"
             >
               <PlusCircle className="h-4 w-4" /> Add Custom Question Card
             </button>
           </div>
 
-          <div className="overflow-hidden rounded-[14px] border border-[#d1dee8]/70 bg-[#f1efff]/40 shadow-sm">
+          <div className="overflow-hidden rounded-[14px] border border-[#d1dee8]/70 dark:border-slate-700 bg-[#f1efff]/40 dark:bg-violet-950/30 shadow-sm">
             <button
               type="button"
               onClick={() => setShowAdvanced(!showAdvanced)}
               aria-expanded={showAdvanced}
-              className="flex w-full items-center justify-between bg-[#f1efff]/70 p-4 text-xs font-bold uppercase tracking-wider text-[#4c3d73] transition-colors hover:bg-[#eae6ff]"
+              className="flex w-full items-center justify-between bg-[#f1efff]/70 dark:bg-violet-950/50 p-4 text-xs font-bold uppercase tracking-wider text-[#4c3d73] transition-colors hover:bg-[#eae6ff]"
             >
               <span className="flex items-center gap-2">
                 <Lock className="h-4 w-4" /> Advanced Settings
@@ -2542,13 +2542,13 @@ questionText,optionA,optionB,optionC,optionD,optionE,optionF,correctAnswer,marks
                     ].map((item) => (
                       <div
                         key={item.label}
-                        className={`flex items-center justify-between gap-3 rounded-[10px] border bg-white p-3.5 shadow-xs transition-all ${
+                        className={`flex items-center justify-between gap-3 rounded-[10px] border bg-white dark:bg-slate-900 p-3.5 shadow-xs transition-all ${
                           item.val
                             ? "border-[#165dfb]/40 shadow-[0_0_0_3px_rgba(22,93,251,0.06)]"
-                            : "border-[#d1dee8]/80 hover:border-[#b9cbd9]"
+                            : "border-[#d1dee8]/80 dark:border-slate-700 hover:border-[#b9cbd9]"
                         }`}
                       >
-                        <span className="block text-xs font-bold text-[#111111]">
+                        <span className="block text-xs font-bold text-[#111111] dark:text-slate-100">
                           {item.label}
                         </span>
                         <AppleSwitch
@@ -2562,7 +2562,7 @@ questionText,optionA,optionB,optionC,optionD,optionE,optionF,correctAnswer,marks
                   <div className="border-t border-[#d1dee8]/30 px-4 pb-4 pt-3 text-left space-y-4">
                     <div className="grid gap-3 sm:grid-cols-2">
                       <div>
-                        <label className="mb-1.5 block text-[11px] font-bold uppercase tracking-wider text-[#57534e]">
+                        <label className="mb-1.5 block text-[11px] font-bold uppercase tracking-wider text-[#57534e] dark:text-slate-300">
                           Max Tab Switch / Fullscreen Violations
                         </label>
                         <input
@@ -2575,14 +2575,14 @@ questionText,optionA,optionB,optionC,optionD,optionE,optionF,correctAnswer,marks
                           }
                           className={inputClass}
                         />
-                        <p className="mt-1 text-[10px] text-[#78716b]">
+                        <p className="mt-1 text-[10px] text-[#78716b] dark:text-slate-400">
                           Tab switches and fullscreen exits count as one unified violation. Default: 3. The backend enforces the limit.
                         </p>
                       </div>
                     </div>
 
                     <div>
-                      <label className="mb-1.5 block text-[11px] font-bold uppercase tracking-wider text-[#57534e]">
+                      <label className="mb-1.5 block text-[11px] font-bold uppercase tracking-wider text-[#57534e] dark:text-slate-300">
                         Accepted Email Domain
                       </label>
                     <input
@@ -2590,9 +2590,9 @@ questionText,optionA,optionB,optionC,optionD,optionE,optionF,correctAnswer,marks
                       value={acceptedDomain}
                       onChange={(e) => setAcceptedDomain(e.target.value)}
                       placeholder="e.g., @vitap.ac.in"
-                      className="w-full rounded-[10px] border border-[#d1dee8]/80 bg-[#fbfbfa] px-3.5 py-2.5 text-xs font-bold text-[#111111] outline-none transition-all placeholder:font-medium placeholder:text-[#a8a29d] hover:border-[#b9cbd9] focus:border-[#165dfb] focus:bg-white focus:ring-4 focus:ring-[#165dfb]/10 shadow-xs"
+                      className="w-full rounded-[10px] border border-[#d1dee8]/80 dark:border-slate-700 bg-[#fbfbfa] dark:bg-slate-800 px-3.5 py-2.5 text-xs font-bold text-[#111111] dark:text-slate-100 outline-none transition-all placeholder:font-medium placeholder:text-[#a8a29d] dark:text-slate-500 hover:border-[#b9cbd9] focus:border-[#165dfb] focus:bg-white dark:bg-slate-900 focus:ring-4 focus:ring-[#165dfb]/10 shadow-xs"
                     />
-                    <p className="mt-1 text-[11px] text-[#78716b]">
+                    <p className="mt-1 text-[11px] text-[#78716b] dark:text-slate-400">
                       Only students with a matching email domain can join. Leave
                       blank to allow any domain.
                     </p>
@@ -2610,7 +2610,7 @@ questionText,optionA,optionB,optionC,optionD,optionE,optionF,correctAnswer,marks
             type="button"
             onClick={handleSaveDraft}
             disabled={savingDraft || submitting}
-            className="inline-flex items-center gap-2 rounded-[10px] border border-[#d1dee8]/80 bg-white px-5 py-2.5 text-xs font-bold text-[#111111] shadow-sm hover:bg-[#f5f5f4] hover:border-[#b9cbd9] active:scale-[0.98] transition-all disabled:cursor-not-allowed disabled:opacity-40"
+            className="inline-flex items-center gap-2 rounded-[10px] border border-[#d1dee8]/80 dark:border-slate-700 bg-white dark:bg-slate-900 px-5 py-2.5 text-xs font-bold text-[#111111] dark:text-slate-100 shadow-sm hover:bg-[#f5f5f4] dark:bg-slate-950 hover:border-[#b9cbd9] active:scale-[0.98] transition-all disabled:cursor-not-allowed disabled:opacity-40"
           >
             {savingDraft && (
               <span className="h-3 w-3 animate-spin rounded-full border-2 border-[#78716b]/30 border-t-[#78716b]" />
@@ -2642,10 +2642,10 @@ export default function CreateAssessmentPage() {
   return (
     <Suspense
       fallback={
-        <div className="min-h-screen bg-[#f5f5f4] font-sans text-[#111111] p-4 md:p-6 lg:p-8 flex items-center justify-center text-left dark:bg-slate-950 dark:text-slate-100">
-          <div className="flex items-center gap-3 rounded-[14px] border border-[#d1dee8]/70 bg-white p-6 shadow-sm">
+        <div className="min-h-screen bg-[#f5f5f4] dark:bg-slate-950 font-sans text-[#111111] dark:text-slate-100 p-4 md:p-6 lg:p-8 flex items-center justify-center text-left dark:bg-slate-950 dark:text-slate-100">
+          <div className="flex items-center gap-3 rounded-[14px] border border-[#d1dee8]/70 dark:border-slate-700 bg-white dark:bg-slate-900 p-6 shadow-sm">
             <span className="h-4 w-4 animate-spin rounded-full border-2 border-[#165dfb]/30 border-t-[#165dfb]" />
-            <span className="text-xs font-bold text-[#78716b]">
+            <span className="text-xs font-bold text-[#78716b] dark:text-slate-400">
               Loading assessment builder...
             </span>
           </div>
