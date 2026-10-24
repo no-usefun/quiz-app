@@ -1496,6 +1496,64 @@ export default function TeacherAssessmentPage({
             </section>
           )}
 
+          <section className="text-left">
+            <div className="mb-3 flex items-center gap-3">
+              <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-gradient-to-br from-[#fff0b8] to-[#ffd45f] text-[#b45309] shadow-sm">
+                <Trophy className="h-5 w-5" />
+              </div>
+              <div>
+                <h2 className="text-sm font-extrabold text-midnight-navy uppercase tracking-wider">Top Performers</h2>
+                <p className="mt-0.5 text-[11px] text-steel-blue-gray">Celebrating the highest-scoring submissions.</p>
+              </div>
+            </div>
+
+            <div className="grid gap-3 sm:grid-cols-3">
+              {topThree.map((student, pos) => {
+                const c = podiumRingColor(pos);
+
+                return (
+                  <div
+                    key={student.id || pos}
+                    className={`relative isolate overflow-hidden rounded-[18px] border p-4 shadow-[0_5px_18px_rgba(71,100,180,0.06)] transition-all duration-200 hover:-translate-y-0.5 hover:shadow-[0_12px_24px_rgba(71,100,180,0.11)] ${pos === 0 ? "border-[#f8df98] bg-gradient-to-br from-[#fffaf0] via-white to-[#fff1c9]" : pos === 1 ? "border-[#dce4f0] bg-gradient-to-br from-[#f7faff] to-[#edf2f9]" : "border-[#f6d8c8] bg-gradient-to-br from-[#fff8f3] to-[#ffeadf]"}`}
+                  >
+                    <span className="absolute right-3.5 top-3.5 text-lg">
+                      {c.icon}
+                    </span>
+
+                    <div
+                      className={`mb-2.5 flex h-9 w-9 items-center justify-center rounded-full ${c.bg} ${c.text} text-[10px] font-bold shadow-xs`}
+                    >
+                      {student.avatar}
+                    </div>
+
+                    <p className="font-bold text-midnight-navy truncate pr-6 text-xs text-left">
+                      {student.name}
+                    </p>
+
+                    <p className="text-[10px] text-steel-blue-gray font-medium text-left">
+                      Rank #{pos + 1} · {student.timeTaken || "00:00"}
+                    </p>
+
+                    <div className="mt-3 text-left">
+                      <p className="text-xl font-bold text-midnight-navy">
+                        {formatMarks(student.finalScore)} /{" "}
+                        {formatMarks(student.totalMarks)}
+                      </p>
+
+                      <p className="text-[10px] font-bold text-signal-green">
+                        {formatPercentage(student.percentage)}%
+                      </p>
+
+                      <p className="text-[8px] text-steel-blue-gray font-bold uppercase">
+                        Score
+                      </p>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </section>
+
           <details className="group overflow-hidden rounded-[14px] border border-amber-200 bg-white text-left">
             <summary className="flex cursor-pointer list-none items-center justify-between gap-3 px-4 py-3.5 transition hover:bg-amber-50/60 sm:px-5">
               <span className="flex min-w-0 items-center gap-3">
@@ -1771,64 +1829,6 @@ export default function TeacherAssessmentPage({
             ) : null}
             </section>
           </details>
-
-          <section className="text-left">
-            <div className="mb-3 flex items-center gap-3">
-              <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-gradient-to-br from-[#fff0b8] to-[#ffd45f] text-[#b45309] shadow-sm">
-                <Trophy className="h-5 w-5" />
-              </div>
-              <div>
-                <h2 className="text-sm font-extrabold text-midnight-navy uppercase tracking-wider">Top Performers</h2>
-                <p className="mt-0.5 text-[11px] text-steel-blue-gray">Celebrating the highest-scoring submissions.</p>
-              </div>
-            </div>
-
-            <div className="grid gap-3 sm:grid-cols-3">
-              {topThree.map((student, pos) => {
-                const c = podiumRingColor(pos);
-
-                return (
-                  <div
-                    key={student.id || pos}
-                    className={`relative isolate overflow-hidden rounded-[18px] border p-4 shadow-[0_5px_18px_rgba(71,100,180,0.06)] transition-all duration-200 hover:-translate-y-0.5 hover:shadow-[0_12px_24px_rgba(71,100,180,0.11)] ${pos === 0 ? "border-[#f8df98] bg-gradient-to-br from-[#fffaf0] via-white to-[#fff1c9]" : pos === 1 ? "border-[#dce4f0] bg-gradient-to-br from-[#f7faff] to-[#edf2f9]" : "border-[#f6d8c8] bg-gradient-to-br from-[#fff8f3] to-[#ffeadf]"}`}
-                  >
-                    <span className="absolute right-3.5 top-3.5 text-lg">
-                      {c.icon}
-                    </span>
-
-                    <div
-                      className={`mb-2.5 flex h-9 w-9 items-center justify-center rounded-full ${c.bg} ${c.text} text-[10px] font-bold shadow-xs`}
-                    >
-                      {student.avatar}
-                    </div>
-
-                    <p className="font-bold text-midnight-navy truncate pr-6 text-xs text-left">
-                      {student.name}
-                    </p>
-
-                    <p className="text-[10px] text-steel-blue-gray font-medium text-left">
-                      Rank #{pos + 1} · {student.timeTaken || "00:00"}
-                    </p>
-
-                    <div className="mt-3 text-left">
-                      <p className="text-xl font-bold text-midnight-navy">
-                        {formatMarks(student.finalScore)} /{" "}
-                        {formatMarks(student.totalMarks)}
-                      </p>
-
-                      <p className="text-[10px] font-bold text-signal-green">
-                        {formatPercentage(student.percentage)}%
-                      </p>
-
-                      <p className="text-[8px] text-steel-blue-gray font-bold uppercase">
-                        Score
-                      </p>
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          </section>
 
           <section className="flex flex-1 flex-col">
             <div className="mb-4 flex flex-col gap-3 rounded-[20px] border border-[#dce7ff] bg-gradient-to-r from-[#f7faff] via-white to-[#f8f5ff] p-4 sm:flex-row sm:items-center sm:justify-between shadow-[0_4px_16px_rgba(71,100,180,0.05)]">
