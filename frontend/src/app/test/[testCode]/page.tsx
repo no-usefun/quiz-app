@@ -2092,7 +2092,7 @@ export default function TestArenaPage({
           </AnimatePresence>
         </div>
 
-        <footer className="border-t border-[#d1dee8]/50 bg-white px-4 py-3.5 md:px-6">
+        <footer className="relative z-40 border-t border-[#d1dee8]/50 bg-white px-4 py-3.5 md:px-6">
           <div className="flex flex-wrap items-center justify-between gap-2.5">
             <div className="flex flex-wrap items-center gap-2">
               <button
@@ -2193,7 +2193,7 @@ export default function TestArenaPage({
       <aside
         id="mobile-proctoring-panel"
         aria-label="Assessment monitoring panel"
-        className={`fixed bottom-20 left-3 right-3 z-40 flex-col gap-3 overflow-y-auto rounded-xl border border-[#d1dee8]/80 bg-white/95 p-2 text-left shadow-xl backdrop-blur-sm dark:border-slate-700 dark:bg-slate-950/95 max-h-[46dvh] ${
+        className={`fixed bottom-[calc(5.5rem+env(safe-area-inset-bottom))] left-3 right-3 z-30 flex-col gap-3 overflow-y-auto rounded-xl border border-[#d1dee8]/80 bg-white/95 p-2 text-left shadow-xl backdrop-blur-sm dark:border-slate-700 dark:bg-slate-950/95 max-h-[40dvh] ${
           mobileProctoringOpen ? "flex" : "hidden"
         } lg:static lg:flex lg:h-full lg:max-h-[100dvh] lg:w-80 lg:shrink-0 lg:overflow-y-auto lg:rounded-none lg:border-0 lg:bg-transparent lg:p-0 lg:py-4 lg:pl-4 lg:pr-4 lg:shadow-none lg:backdrop-blur-none`}
       >
