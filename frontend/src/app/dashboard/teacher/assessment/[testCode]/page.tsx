@@ -1783,18 +1783,7 @@ export default function TeacherAssessmentPage({
               ) : !report ? (
                 <div className="mt-4 rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">
                   No per-student proctoring report was returned for this submission. Refresh the report and check that the backend includes this student’s attempt events.
-                  <button type="button" onClick={async () => {
-                    if (!assessmentData) return;
-                    setProctoringLoading(true);
-                    setProctoringError(null);
-                    try {
-                      setProctoringOverview(await loadProctoringOverview(assessmentData.quizCode));
-                    } catch (error) {
-                      setProctoringError(getErrorMessage(error, "Unable to refresh the proctoring report."));
-                    } finally {
-                      setProctoringLoading(false);
-                    }
-                  }} disabled={proctoringLoading} className="ml-2 font-bold underline disabled:opacity-50">Refresh report</button>
+
                 </div>
               ) : (
                 <div className="mt-4 space-y-4">
