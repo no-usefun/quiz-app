@@ -468,7 +468,11 @@ export default function StudentResultPage({
         let didRecoverScore = false;
 
         if (shouldRecoverAnswers && pendingDraft) {
-          let scoringCanBeReconstructed = Boolean(pendingDraft.scoring);
+          let scoringCanBeReconstructed = Boolean(
+            pendingDraft.scoring &&
+              detailList.length > 0 &&
+              detailList.every((detail) => (detail.correctOptionIds ?? []).length > 0),
+          );
           let recoveredScore = 0;
 
           displayDetails = detailList.map((detail) => {
@@ -515,7 +519,7 @@ export default function StudentResultPage({
                   : selectedOptionIds.length === 0
                     ? []
                     : undefined,
-              answerStatus: selectedOptionIds.length > 0 ? "ANSWERED" : "UNANSWERED",
+              answerStatus: (selectedOptionIds.length > 0 ? "ANSWERED" : "UNANSWERED") as ResultDetail["answerStatus"],
               correct,
               marksAwarded,
             };
