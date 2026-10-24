@@ -16,6 +16,7 @@ import {
   X,
   ArrowUp,
   ArrowDown,
+  CalendarDays,
 } from "lucide-react";
 import { TopNav } from "@/components/TopNav";
 import { useSession } from "@/hooks/useSession";
@@ -30,7 +31,20 @@ const getServerHydrationSnapshot = () => false;
 
 type TeacherDashboardQuiz = QuizResponse & {
   displayState: QuizDisplayState;
+  createdAt?: string | null;
+  updatedAt?: string | null;
 };
+
+function formatAssessmentDate(value?: string | null): string | null {
+  if (!value) return null;
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return null;
+  return new Intl.DateTimeFormat("en-IN", {
+    day: "2-digit",
+    month: "short",
+    year: "numeric",
+  }).format(date);
+}
 
 function extractQuizList(payload: unknown): QuizResponse[] {
   if (Array.isArray(payload)) {
@@ -1033,6 +1047,13 @@ export default function TeacherDashboard() {
                             ? `${test.totalStudents} Students`
                             : "Open to all students"}
                         </span>
+
+                        {formatAssessmentDate(test.createdAt ?? test.startTime) && (
+                          <span className="flex items-center gap-1">
+                            <CalendarDays className="h-3 w-3 text-[#78716b]/80" />
+                            {formatAssessmentDate(test.createdAt ?? test.startTime)}
+                          </span>
+                        )}
 
                         <span>{test.totalQuestions || 0} Questions</span>
 
