@@ -907,3 +907,30 @@ html.dark .public-auth select {
   }
   html, body { scroll-behavior: auto !important; }
 }
+
+
+/* Teacher review/table rows: prevent pale incident rows from retaining white
+   foreground text after the app switches to a dark surface palette. */
+html.dark .assessment-governance ul > li {
+  background-color: #151e2e !important;
+  color: #e5edf9 !important;
+  border-color: #334155 !important;
+}
+html.dark .assessment-governance ul > li:hover {
+  background-color: #1d2a40 !important;
+}
+html.dark .assessment-governance ul > li [class*="text-white"],
+html.dark .assessment-governance ul > li [class~="text-white"] {
+  color: #f8fafc !important;
+}
+html.dark .assessment-governance [class*="bg-[#fbeee8]"],
+html.dark .assessment-governance [class*="bg-[#fdebec]"],
+html.dark .assessment-governance [class*="bg-[#fff0e8]"] {
+  background-color: #392630 !important;
+  border-color: #63404d !important;
+}
+html.dark .assessment-governance [class*="bg-[#fbeee8]"] [class*="text-[#8c381c]"],
+html.dark .assessment-governance [class*="bg-[#fdebec]"] [class*="text-[#9c3535]"],
+html.dark .assessment-governance [class*="bg-[#fff0e8]"] [class*="text-[#8c381c]"] {
+  color: #ffc2cf !important;
+}
