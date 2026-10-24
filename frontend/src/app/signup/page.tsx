@@ -406,9 +406,9 @@ function SignupContent() {
     return (
       <>
       <PublicNavbar redirectTarget={searchParams?.get("redirect") || undefined} />
-      <main className="relative min-h-[calc(100vh-4rem)] w-full grid grid-cols-1 md:grid-cols-2 font-sans">
+      <main className="public-signup-role-selection relative min-h-[calc(100vh-4rem)] w-full grid grid-cols-1 md:grid-cols-2 font-sans transition-colors">
 
-        <section className="group relative flex flex-col items-center justify-center p-8 sm:p-16 bg-[#F9FAFB] text-center transition-colors duration-300 hover:bg-white">
+        <section className="signup-role-student-panel group relative flex flex-col items-center justify-center p-8 sm:p-16 bg-[#F9FAFB] text-center transition-colors duration-300 hover:bg-white">
           <div
             aria-hidden
             className="pointer-events-none absolute inset-0 opacity-0 transition-opacity duration-500 group-hover:opacity-100"
@@ -419,16 +419,16 @@ function SignupContent() {
           />
 
           <div className="relative w-full max-w-xs space-y-6">
-            <span className="mx-auto flex h-12 w-12 items-center justify-center rounded-xl bg-[#111827]/5 text-[#111827] ring-1 ring-[#111827]/10 transition-transform duration-300 group-hover:-translate-y-0.5">
+            <span className="signup-role-icon mx-auto flex h-12 w-12 items-center justify-center rounded-xl bg-[#111827]/5 text-[#111827] ring-1 ring-[#111827]/10 transition-transform duration-300 group-hover:-translate-y-0.5">
               <GraduationCap className="h-6 w-6" />
             </span>
 
             <div className="space-y-2">
-              <h1 className="text-3xl sm:text-4xl font-bold tracking-tight text-[#111827]">
+              <h1 className="signup-role-title text-3xl sm:text-4xl font-bold tracking-tight text-[#111827]">
                 Student
               </h1>
 
-              <p className="text-sm leading-relaxed text-[#6B7280]">
+              <p className="signup-role-description text-sm leading-relaxed text-[#6B7280]">
                 Take quizzes with an access code
               </p>
             </div>
@@ -439,7 +439,7 @@ function SignupContent() {
                 setError("");
                 router.push("/signup?role=student" + (searchParams.get("redirect") ? "&redirect=" + encodeURIComponent(searchParams.get("redirect") || "") : ""));
               }}
-              className="group/btn inline-flex w-full items-center justify-center gap-2 rounded-lg bg-[#111827] text-white py-3 px-5 text-sm font-medium shadow-sm ring-offset-2 transition-all hover:bg-black hover:shadow-md active:scale-[0.99] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#111827] cursor-pointer border-0"
+              className="signup-role-cta group/btn inline-flex w-full items-center justify-center gap-2 rounded-lg bg-[#111827] text-white py-3 px-5 text-sm font-medium shadow-sm ring-offset-2 transition-all hover:bg-black hover:shadow-md active:scale-[0.99] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#111827] cursor-pointer border-0"
             >
               Continue as Student
               <ArrowRight className="h-4 w-4 transition-transform duration-200 group-hover/btn:translate-x-0.5" />
@@ -447,7 +447,7 @@ function SignupContent() {
           </div>
         </section>
 
-        <section className="group relative flex flex-col items-center justify-center p-8 sm:p-16 bg-[#0F172A] text-center border-t md:border-t-0 md:border-l border-neutral-800 transition-colors duration-300 hover:bg-[#0B1220]">
+        <section className="signup-role-instructor-panel group relative flex flex-col items-center justify-center p-8 sm:p-16 bg-[#0F172A] text-center border-t md:border-t-0 md:border-l border-neutral-800 transition-colors duration-300 hover:bg-[#0B1220]">
           <div
             aria-hidden
             className="pointer-events-none absolute inset-0 opacity-0 transition-opacity duration-500 group-hover:opacity-100"
@@ -458,16 +458,16 @@ function SignupContent() {
           />
 
           <div className="relative w-full max-w-xs space-y-6">
-            <span className="mx-auto flex h-12 w-12 items-center justify-center rounded-xl bg-white/10 text-white ring-1 ring-white/15 transition-transform duration-300 group-hover:-translate-y-0.5">
+            <span className="signup-role-icon mx-auto flex h-12 w-12 items-center justify-center rounded-xl bg-white/10 text-white ring-1 ring-white/15 transition-transform duration-300 group-hover:-translate-y-0.5">
               <Presentation className="h-6 w-6" />
             </span>
 
             <div className="space-y-2">
-              <h1 className="text-3xl sm:text-4xl font-bold tracking-tight text-white">
+              <h1 className="signup-role-title text-3xl sm:text-4xl font-bold tracking-tight text-white">
                 Instructor
               </h1>
 
-              <p className="text-sm leading-relaxed text-[#94A3B8]">
+              <p className="signup-role-description text-sm leading-relaxed text-[#94A3B8]">
                 Create and manage quizzes
               </p>
             </div>
@@ -478,7 +478,7 @@ function SignupContent() {
                 setError("");
                 router.push("/signup?role=teacher" + (searchParams.get("redirect") ? "&redirect=" + encodeURIComponent(searchParams.get("redirect") || "") : ""));
               }}
-              className="group/btn inline-flex w-full items-center justify-center gap-2 rounded-lg bg-white text-[#0F172A] py-3 px-5 text-sm font-medium shadow-sm ring-offset-2 ring-offset-[#0F172A] transition-all hover:bg-neutral-100 hover:shadow-md active:scale-[0.99] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white cursor-pointer border-0"
+              className="signup-role-cta group/btn inline-flex w-full items-center justify-center gap-2 rounded-lg bg-white text-[#0F172A] py-3 px-5 text-sm font-medium shadow-sm ring-offset-2 ring-offset-[#0F172A] transition-all hover:bg-neutral-100 hover:shadow-md active:scale-[0.99] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white cursor-pointer border-0"
             >
               Continue as Instructor
               <ArrowRight className="h-4 w-4 transition-transform duration-200 group-hover/btn:translate-x-0.5" />
