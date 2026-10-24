@@ -19,6 +19,13 @@ textarea {
 /* Pastel design system root defaults */
 :root {
   --color-paper-stone: #f5f5f4;      /* Page canvas background */
+  --color-card-surface: #ffffff;     /* Card/control surface */
+  --quizly-soft-blue: #e8f0ff;
+  --quizly-soft-lavender: #eee9ff;
+  --quizly-soft-mint: #e7f7ef;
+  --quizly-soft-peach: #fff0e8;
+  --quizly-soft-yellow: #fff8d9;
+  --quizly-soft-rose: #fdebec;
   --color-chalk: #e6e3e2;            /* Alternate section bands, input backgrounds, etc. */
   --color-ink-black: #111111;        /* Primary headings and body copy */
   --color-fog-gray: #78716b;         /* Secondary helper text and labels */
@@ -49,6 +56,14 @@ textarea {
 .dark {
   /* Actual dark theme tokens. Keep the Quizly blue accent distinct from dark surfaces. */
   --color-paper-stone: #111827;
+  --color-card-surface: #151e2e;
+  --color-cobalt-stamp: #93b4ff;
+  --quizly-soft-blue: #202f4a;
+  --quizly-soft-lavender: #302b46;
+  --quizly-soft-mint: #18382d;
+  --quizly-soft-peach: #402b25;
+  --quizly-soft-yellow: #3b321f;
+  --quizly-soft-rose: #40252d;
   --color-chalk: #202938;
   --color-ink-black: #f3f4f6;
   --color-fog-gray: #a7b0c0;
@@ -657,6 +672,14 @@ svg {
 html.dark {
   color-scheme: dark;
   --color-paper-stone: #0b1120;
+  --color-card-surface: #151e2e;
+  --color-cobalt-stamp: #93b4ff;
+  --quizly-soft-blue: #1e3152;
+  --quizly-soft-lavender: #302849;
+  --quizly-soft-mint: #1c3a31;
+  --quizly-soft-peach: #3b2926;
+  --quizly-soft-yellow: #3a321c;
+  --quizly-soft-rose: #3a252b;
   --color-chalk: #1e293b;
   --color-ink-black: #e5edf9;
   --color-fog-gray: #a7b4c8;
@@ -782,4 +805,105 @@ html.dark .public-landing > header a[style*="background: rgb(255, 255, 255)"] {
   background-color: #1e293b !important;
   border-color: #475569 !important;
   color: #e5edf9 !important;
+}
+
+
+/* Student results and leaderboards normalize legacy literal surfaces in dark mode. */
+html.dark .student-result-page [class~="bg-white"],
+html.dark .student-leaderboard-page [class~="bg-white"] {
+  background-color: var(--color-card-surface) !important;
+  border-color: var(--color-ice-line) !important;
+}
+html.dark .student-result-page [class*="bg-white/"],
+html.dark .student-leaderboard-page [class*="bg-white/"] { background-color: #182337 !important; }
+html.dark .student-result-page [class*="text-slate-900"],
+html.dark .student-result-page [class*="text-[#111111]"],
+html.dark .student-leaderboard-page [class*="text-slate-900"],
+html.dark .student-leaderboard-page [class*="text-[#44403c]"] { color: #e5edf9 !important; }
+html.dark .student-result-page [class*="text-slate-500"],
+html.dark .student-result-page [class*="text-slate-600"],
+html.dark .student-leaderboard-page [class*="text-slate-500"],
+html.dark .student-leaderboard-page [class*="text-slate-600"] { color: #a7b4c8 !important; }
+html.dark .student-result-page [class*="bg-slate-50"],
+html.dark .student-leaderboard-page [class*="bg-slate-50"] { background-color: #111a2a !important; }
+html.dark .student-result-page [class*="bg-slate-100"],
+html.dark .student-leaderboard-page [class*="bg-slate-100"] { background-color: #202b3c !important; }
+html.dark .student-result-page [class*="border-slate-200"],
+html.dark .student-leaderboard-page [class*="border-slate-200"],
+html.dark .student-result-page [class*="border-slate-100"] { border-color: #334155 !important; }
+
+/* Native calendar/clock controls and assessment-builder fields use dark colors. */
+html.dark input[type="date"],
+html.dark input[type="datetime-local"],
+html.dark input[type="time"],
+html.dark input[type="month"],
+html.dark input[type="week"] { color-scheme: dark; }
+html.dark .teacher-assessment-builder input,
+html.dark .teacher-assessment-builder textarea,
+html.dark .teacher-assessment-builder select {
+  background-color: #111a2a !important;
+  border-color: #35465f !important;
+  color: #e5edf9 !important;
+}
+html.dark .teacher-assessment-builder [class*="bg-white"] {
+  background-color: #151e2e !important;
+  border-color: #334155 !important;
+}
+html.dark .teacher-assessment-builder [class*="text-[#111111]"] { color: #e5edf9 !important; }
+html.dark .teacher-assessment-builder [class*="text-[#78716b]"] { color: #a7b4c8 !important; }
+
+/* Homepage inline illustrations resolve their colors through semantic tokens. */
+html.dark .public-landing { background: var(--color-paper-stone) !important; color: var(--color-ink-black) !important; }
+html.dark .public-landing > header {
+  background: color-mix(in srgb, var(--color-paper-stone) 96%, transparent) !important;
+  border-color: var(--color-ice-line) !important;
+  color: var(--color-ink-black) !important;
+}
+html.dark .public-landing > header nav,
+html.dark .public-landing > header nav a { color: #cbd5e1 !important; }
+html.dark .public-landing > header nav a:hover { color: #ffffff !important; }
+html.dark .public-landing [class~="bg-white"],
+html.dark .public-landing [class*="bg-white/"] {
+  background-color: var(--color-card-surface) !important;
+  border-color: var(--color-ice-line) !important;
+}
+html.dark .public-landing [class*="text-[#111111]"],
+html.dark .public-landing [class*="text-[#111827]"] { color: #e5edf9 !important; }
+html.dark .public-landing [class*="text-[#78716b]"],
+html.dark .public-landing [class*="text-[#6B7280]"] { color: #a7b4c8 !important; }
+html.dark .public-landing a[style*="background: var(--color-cobalt-stamp)"] {
+  background: #1d4ed8 !important;
+  background-color: #1d4ed8 !important;
+  color: #ffffff !important;
+}
+html.dark .public-landing a[style*="background: var(--color-card-surface)"] {
+  background: #1e293b !important;
+  background-color: #1e293b !important;
+  border-color: #475569 !important;
+  color: #e5edf9 !important;
+}
+
+/* Consistent contrast for older light-mode cards used across authenticated routes. */
+html.dark .public-auth [class~="bg-white"] {
+  background-color: #151e2e !important;
+  border-color: #334155 !important;
+}
+html.dark .public-auth [class*="text-neutral-900"],
+html.dark .public-auth [class*="text-neutral-800"] { color: #e5edf9 !important; }
+html.dark .public-auth [class*="text-neutral-700"] { color: #cbd5e1 !important; }
+html.dark .public-auth input,
+html.dark .public-auth textarea,
+html.dark .public-auth select {
+  background-color: #111a2a !important;
+  border-color: #35465f !important;
+  color: #e5edf9 !important;
+}
+
+/* Honour reduced-motion settings for decorative animations. */
+@media (prefers-reduced-motion: reduce) {
+  .animate-pulse, .animate-spin, .animate-marquee, .animate-scan, .animate-blink {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+  }
+  html, body { scroll-behavior: auto !important; }
 }
