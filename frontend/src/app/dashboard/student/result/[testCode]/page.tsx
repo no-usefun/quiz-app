@@ -38,6 +38,63 @@ import type {
 type AttemptResult = AttemptResultResponse;
 type ResultDetail = AttemptResultDetailResponse;
 
+type LocalScoringSnapshot = {
+  negativeMarking: boolean;
+  questions: Record<number, { marks: number; negativeMarks: number | null }>;
+};
+
+type PendingSubmitRecovery = {
+  answers: Record<number, number[]>;
+  scoring?: LocalScoringSnapshot;
+};
+
+function readPendingSubmitRecovery(attemptId: string): PendingSubmitRecovery | null {
+  if (typeof window === "undefined") return null;
+
+  try {
+    const raw = localStorage.getItem(`dynoquizz_pending_submit_${attemptId}`);
+    if (!raw) return null;
+
+    const parsed = JSON.parse(raw);
+    if (!parsed?.answers || typeof parsed.answers !== "object") return null;
+
+    const answers = Object.entries(
+      parsed.answers as Record<string, unknown>,
+    ).reduce<Record<number, number[]>>((result, [rawQuestionId, rawOptionIds]) => {
+      const questionId = Number(rawQuestionId);
+      if (!Number.isFinite(questionId) || questionId <= 0 || !Array.isArray(rawOptionIds)) {
+        return result;
+      }
+
+      result[questionId] = rawOptionIds
+        .map(Number)
+        .filter((optionId) => Number.isFinite(optionId) && optionId > 0);
+      return result;
+    }, {});
+
+    let scoring: LocalScoringSnapshot | undefined;
+    const candidate = parsed.scoring;
+    if (
+      candidate &&
+      typeof candidate.negativeMarking === "boolean" &&
+      candidate.questions &&
+      typeof candidate.questions === "object"
+    ) {
+      scoring = candidate as LocalScoringSnapshot;
+    }
+
+    return { answers, scoring };
+  } catch {
+    return null;
+  }
+}
+
+function sameOptionSet(selectedIds: number[], correctIds: number[]): boolean {
+  if (selectedIds.length === 0 || selectedIds.length !== correctIds.length) return false;
+  const selected = new Set(selectedIds);
+  return selected.size === correctIds.length && correctIds.every((id) => selected.has(id));
+}
+
 function getErrorMessage(error: unknown, fallback: string): string {
   if (error instanceof ApiClientError) {
     return error.message || fallback;
@@ -243,6 +300,8 @@ export default function StudentResultPage({
   >({});
 
   const [detailsAvailable, setDetailsAvailable] = useState(false);
+  const [recoveredFromLocalDraft, setRecoveredFromLocalDraft] = useState(false);
+  const [recoveredScoreAvailable, setRecoveredScoreAvailable] = useState(false);
 
   const [loading, setLoading] = useState(true);
 
@@ -260,6 +319,8 @@ export default function StudentResultPage({
     let cancelled = false;
 
     const fetchResult = async () => {
+      setRecoveredFromLocalDraft(false);
+      setRecoveredScoreAvailable(false);
       const attemptId = String(testCode || "").trim();
 
       if (!/^\d+$/.test(attemptId)) {
@@ -378,22 +439,115 @@ export default function StudentResultPage({
         // Results are historical data. Do not request the active student
         // quiz package here: once a quiz ends, that endpoint is intentionally
         // unavailable and would turn a valid result page into a 400.
+        const pendingDraft =
+          normalized.status === "AUTO_SUBMITTED"
+            ? readPendingSubmitRecovery(attemptId)
+            : null;
+        const hasLocalSelections = Boolean(
+          pendingDraft &&
+            Object.values(pendingDraft.answers).some((optionIds) => optionIds.length > 0),
+        );
         const needsLegacyOptionSnapshot = detailList.some(
           (detail) =>
             !Array.isArray(detail.selectedOptionTexts) ||
             !Array.isArray(detail.correctOptionTexts),
         );
+        const shouldRecoverAnswers =
+          normalized.status === "AUTO_SUBMITTED" &&
+          hasLocalSelections &&
+          detailList.length > 0;
 
         const nextOptionTextByQuestion =
-          detailList.length > 0 && needsLegacyOptionSnapshot
+          detailList.length > 0 && (needsLegacyOptionSnapshot || shouldRecoverAnswers)
             ? readOptionTextSnapshot(attemptId, normalized.quizId)
             : {};
 
+        let displayResult = normalized;
+        let displayDetails = detailList;
+        let didRecoverAnswers = false;
+        let didRecoverScore = false;
+
+        if (shouldRecoverAnswers && pendingDraft) {
+          let scoringCanBeReconstructed = Boolean(pendingDraft.scoring);
+          let recoveredScore = 0;
+
+          displayDetails = detailList.map((detail) => {
+            const questionId = Number(detail.questionId);
+            const hasLocalAnswer = Object.prototype.hasOwnProperty.call(
+              pendingDraft.answers,
+              questionId,
+            );
+            const selectedOptionIds = hasLocalAnswer
+              ? pendingDraft.answers[questionId]
+              : (detail.selectedOptionIds ?? []).map(Number);
+            const correctOptionIds = (detail.correctOptionIds ?? []).map(Number);
+            const correct = sameOptionSet(selectedOptionIds, correctOptionIds);
+            const scoringQuestion = pendingDraft.scoring?.questions?.[questionId];
+
+            let marksAwarded = formatNumber(detail.marksAwarded);
+            if (pendingDraft.scoring && scoringQuestion) {
+              if (correct) {
+                marksAwarded = formatNumber(detail.questionMarks, scoringQuestion.marks);
+              } else if (
+                selectedOptionIds.length > 0 &&
+                pendingDraft.scoring.negativeMarking &&
+                Number(scoringQuestion.negativeMarks ?? 0) > 0
+              ) {
+                marksAwarded = -Number(scoringQuestion.negativeMarks);
+              } else {
+                marksAwarded = 0;
+              }
+              recoveredScore += marksAwarded;
+            } else {
+              scoringCanBeReconstructed = false;
+            }
+
+            const recoveredTexts = selectedOptionIds
+              .map((optionId) => nextOptionTextByQuestion[questionId]?.[optionId])
+              .filter((text): text is string => Boolean(text));
+
+            return {
+              ...detail,
+              selectedOptionIds,
+              selectedOptionTexts:
+                selectedOptionIds.length > 0 && recoveredTexts.length === selectedOptionIds.length
+                  ? recoveredTexts
+                  : selectedOptionIds.length === 0
+                    ? []
+                    : undefined,
+              answerStatus: selectedOptionIds.length > 0 ? "ANSWERED" : "UNANSWERED",
+              correct,
+              marksAwarded,
+            };
+          });
+
+          didRecoverAnswers = displayDetails.some((detail) => detail.selectedOptionIds.length > 0);
+
+          if (
+            didRecoverAnswers &&
+            scoringCanBeReconstructed &&
+            displayDetails.length > 0 &&
+            displayDetails.every((detail) =>
+              Boolean(pendingDraft.scoring?.questions?.[Number(detail.questionId)]),
+            )
+          ) {
+            const totalMarks = formatNumber(normalized.totalMarks);
+            displayResult = {
+              ...normalized,
+              finalScore: recoveredScore,
+              percentage: totalMarks > 0 ? (recoveredScore / totalMarks) * 100 : 0,
+            };
+            didRecoverScore = true;
+          }
+        }
+
         if (!cancelled) {
-          setResult(normalized);
-          setDetails(detailList);
+          setResult(displayResult);
+          setDetails(displayDetails);
           setOptionTextByQuestion(nextOptionTextByQuestion);
-          setDetailsAvailable(detailList.length > 0);
+          setDetailsAvailable(displayDetails.length > 0);
+          setRecoveredFromLocalDraft(didRecoverAnswers);
+          setRecoveredScoreAvailable(didRecoverScore);
           setPendingRelease(false);
           setError(null);
 
@@ -690,6 +844,15 @@ export default function StudentResultPage({
             <CalendarDays className="h-3.5 w-3.5 text-slate-500" />
             Submitted: {formatDateTime(result.submittedAt)}
           </p>
+
+          {recoveredFromLocalDraft && (
+            <p className="mt-3 rounded-[10px] border border-amber-200 bg-amber-50 px-3 py-2.5 text-[11px] leading-relaxed text-amber-900 dark:border-amber-900 dark:bg-amber-950/40 dark:text-amber-200">
+              The saved answer sheet was recovered from this device after automatic submission.
+              {recoveredScoreAvailable
+                ? " The displayed score is reconstructed from the recovered selections, published answer key, and saved scoring rules. The server-side leaderboard may still show the score it originally stored."
+                : " The answer selections are restored, but this page could not safely reconstruct the score from the available scoring data; the displayed score remains the server-reported score."}
+            </p>
+          )}
 
           <Link
             href={"/dashboard/student/leaderboard/" + result.quizId}
