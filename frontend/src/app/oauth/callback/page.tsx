@@ -366,8 +366,8 @@ function OAuthCallbackContent() {
   }, [router, searchParams]);
 
   return (
-    <main className="flex min-h-screen items-center justify-center bg-[#f5f5f4] px-4 font-sans text-[#111111]">
-      <section className="w-full max-w-md rounded-[16px] border border-[#d1dee8]/70 bg-white p-7 text-center shadow-sm">
+    <main className="flex min-h-screen items-center justify-center bg-[#f5f5f4] px-4 font-sans text-[#111111] transition-colors dark:bg-slate-950 dark:text-slate-100">
+      <section className="w-full max-w-md rounded-[16px] border border-[#d1dee8]/70 bg-white p-7 text-center shadow-sm dark:border-slate-800 dark:bg-slate-900 dark:shadow-none">
         {status === "processing" && (
           <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-[#e6e3e2] text-[#165dfb]">
             <Loader2 className="h-6 w-6 animate-spin" />
@@ -394,7 +394,7 @@ function OAuthCallbackContent() {
               : "Google sign-in failed"}
         </h1>
 
-        <p className="mt-2 text-sm leading-relaxed text-[#78716b]">{message}</p>
+        <p className="mt-2 text-sm leading-relaxed text-[#78716b] dark:text-slate-300">{message}</p>
 
         {status === "error" && (
           <div className="mt-5 flex flex-col gap-2">
