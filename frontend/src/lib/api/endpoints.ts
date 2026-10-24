@@ -5,17 +5,10 @@
  * attempts, scoring, results, and permissions.
  */
 
-const configuredMode = String(process.env.NEXT_PUBLIC_EXAM_MODE ?? "")
-  .trim()
-  .toUpperCase();
-
-const isLanMode = configuredMode === "LAN" || configuredMode === "OFFLINE_LAN";
-
-// Online mode uses a same-origin Next.js proxy to avoid browser CORS failures.
-// LAN exam mode must call the local network backend directly.
-export const API_BASE = isLanMode
-  ? (process.env.NEXT_PUBLIC_API_URL || "http://localhost:8080").replace(/\/+$/, "")
-  : "/backend";
+// Route browser API requests through the same-origin Next.js proxy in
+// both LAN and online modes. The proxy forwards requests to NEXT_PUBLIC_API_URL,
+// avoiding browser CORS issues while allowing the backend host to change by mode.
+export const API_BASE = "/backend";
 
 export const ENDPOINTS = {
   system: {
