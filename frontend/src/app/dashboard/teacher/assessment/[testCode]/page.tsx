@@ -1195,7 +1195,7 @@ export default function TeacherAssessmentPage({
                 disabled={lifecycleLoading || status !== "COMPLETED"}
                 className={`rounded-[10px] px-3.5 py-1.5 text-xs font-bold transition-all border-0 shadow-xs active:scale-[0.98] ${
                   status !== "COMPLETED"
-                    ? "bg-[#e6e3e2]/60 text-[#78716b] cursor-not-allowed"
+                    ? "bg-[#e6e3e2]/60 text-[#78716b] dark:text-slate-400 cursor-not-allowed"
                     : assessmentData.resultsPublished
                       ? "bg-[#8c381c] text-white hover:bg-[#6e2b14] cursor-pointer"
                       : "bg-[#1d5237] text-white hover:bg-[#153e2a] cursor-pointer"
@@ -1233,12 +1233,12 @@ export default function TeacherAssessmentPage({
 
           {confirmCompleteOpen && (
             <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4">
-              <div className="w-full max-w-sm rounded-[14px] bg-white p-6 shadow-2xl border border-[#d1dee8]/80 space-y-4 text-left">
-                <h3 className="text-sm font-black text-[#111111]">
+              <div className="w-full max-w-sm rounded-[14px] bg-white dark:bg-slate-900 p-6 shadow-2xl border border-[#d1dee8]/80 dark:border-slate-700 space-y-4 text-left">
+                <h3 className="text-sm font-black text-[#111111] dark:text-slate-100">
                   Complete Assessment?
                 </h3>
 
-                <p className="text-xs text-[#78716b] leading-relaxed font-medium">
+                <p className="text-xs text-[#78716b] dark:text-slate-400 leading-relaxed font-medium">
                   Completing this assessment changes its state to completed.
                   Results can then be published to students.
                 </p>
@@ -1247,7 +1247,7 @@ export default function TeacherAssessmentPage({
                   <button
                     type="button"
                     onClick={() => setConfirmCompleteOpen(false)}
-                    className="rounded-[10px] border border-[#d1dee8]/80 bg-white px-3.5 py-1.5 text-xs font-bold text-[#78716b] hover:bg-[#f5f5f4] hover:border-[#b9cbd9] shadow-xs cursor-pointer transition-all"
+                    className="rounded-[10px] border border-[#d1dee8]/80 dark:border-slate-700 bg-white dark:bg-slate-900 px-3.5 py-1.5 text-xs font-bold text-[#78716b] dark:text-slate-400 hover:bg-[#f5f5f4] dark:bg-slate-950 hover:border-[#b9cbd9] shadow-xs cursor-pointer transition-all"
                   >
                     Cancel
                   </button>
@@ -1265,7 +1265,7 @@ export default function TeacherAssessmentPage({
             </div>
           )}
 
-          <section className="rounded-[20px] border border-[#dce7ff] bg-white/90 p-4 sm:p-5 space-y-3 shadow-[0_5px_20px_rgba(71,100,180,0.06)]">
+          <section className="rounded-[20px] border border-[#dce7ff] bg-white dark:bg-slate-900/90 p-4 sm:p-5 space-y-3 shadow-[0_5px_20px_rgba(71,100,180,0.06)]">
             <h3 className="text-xs font-extrabold uppercase tracking-wider text-midnight-navy flex items-center gap-2 border-b border-[#e6edfb] pb-3">
               <Eye className="h-4 w-4 text-[#3984ff]" />
               Student Result Visibility
@@ -1301,7 +1301,7 @@ export default function TeacherAssessmentPage({
                   className={`flex items-center justify-between gap-3 rounded-[15px] border p-3.5 text-left transition-all duration-200 ${
                     item.active
                       ? "border-[#b8ccf5] bg-[#f8fbff] text-midnight-navy ring-1 ring-[#dce8ff]"
-                      : "border-[#e2e8f0] bg-white text-steel-blue-gray hover:border-[#cbd5e1] hover:bg-slate-50"
+                      : "border-[#e2e8f0] bg-white dark:bg-slate-900 text-steel-blue-gray hover:border-[#cbd5e1] hover:bg-slate-50"
                   } ${
                     settingsSaving
                       ? "cursor-not-allowed opacity-60"
@@ -1328,7 +1328,7 @@ export default function TeacherAssessmentPage({
                     }`}
                   >
                     <span
-                      className={`inline-block h-4 w-4 transform rounded-full bg-white shadow-xs transition-transform duration-150 ${
+                      className={`inline-block h-4 w-4 transform rounded-full bg-white dark:bg-slate-900 shadow-xs transition-transform duration-150 ${
                         item.active ? "translate-x-4" : "translate-x-0"
                       }`}
                     />
@@ -1338,7 +1338,7 @@ export default function TeacherAssessmentPage({
             </div>
           </section>
 
-          <section className="rounded-[14px] border border-slate-200 bg-white p-4 space-y-3 shadow-sm">
+          <section className="rounded-[14px] border border-slate-200 bg-white dark:bg-slate-900 p-4 space-y-3 shadow-sm">
             <div className="border-b border-[#d1dee8]/40 pb-2">
               <h3 className="text-xs font-bold uppercase tracking-wider text-midnight-navy">Student Result Details</h3>
               <p className="mt-1 text-[10px] font-medium text-steel-blue-gray">Relevant scoring and review rules from the assessment settings. These are displayed for clarity; changing them here does not alter the completed attempt scores.</p>
@@ -1364,7 +1364,7 @@ export default function TeacherAssessmentPage({
                   value: assessmentData.allowResume ? "Allowed by assessment settings" : "Not allowed by assessment settings",
                 },
               ].map((item) => (
-                <div key={item.label} className="rounded-[10px] border border-slate-200 bg-white p-3">
+                <div key={item.label} className="rounded-[10px] border border-slate-200 bg-white dark:bg-slate-900 p-3">
                   <p className="text-[9px] font-bold uppercase tracking-wider text-steel-blue-gray">{item.label}</p>
                   <p className="mt-1 text-xs font-semibold text-midnight-navy">{item.value}</p>
                 </div>
@@ -1403,11 +1403,11 @@ export default function TeacherAssessmentPage({
               },
             ].map((stat, index) => {
               const palette = [
-                { card: "border-slate-200 bg-white", icon: "bg-slate-100 text-slate-600", decor: "text-slate-200" },
-                { card: "border-slate-200 bg-white", icon: "bg-slate-100 text-slate-600", decor: "text-slate-200" },
-                { card: "border-slate-200 bg-white", icon: "bg-slate-100 text-slate-600", decor: "text-slate-200" },
-                { card: "border-slate-200 bg-white", icon: "bg-slate-100 text-slate-600", decor: "text-slate-200" },
-                { card: "border-slate-200 bg-white", icon: "bg-slate-100 text-slate-600", decor: "text-slate-200" },
+                { card: "border-slate-200 bg-white dark:bg-slate-900", icon: "bg-slate-100 text-slate-600", decor: "text-slate-200" },
+                { card: "border-slate-200 bg-white dark:bg-slate-900", icon: "bg-slate-100 text-slate-600", decor: "text-slate-200" },
+                { card: "border-slate-200 bg-white dark:bg-slate-900", icon: "bg-slate-100 text-slate-600", decor: "text-slate-200" },
+                { card: "border-slate-200 bg-white dark:bg-slate-900", icon: "bg-slate-100 text-slate-600", decor: "text-slate-200" },
+                { card: "border-slate-200 bg-white dark:bg-slate-900", icon: "bg-slate-100 text-slate-600", decor: "text-slate-200" },
               ][index];
               const decorativeIcon = [
                 <Users key="users" className="h-11 w-11" />,
@@ -1439,21 +1439,21 @@ export default function TeacherAssessmentPage({
           </div>
 
           {submitted.length > 0 && (
-            <section className="rounded-[16px] border border-slate-200 bg-white p-4 sm:p-6 shadow-sm text-left">
+            <section className="rounded-[16px] border border-slate-200 bg-white dark:bg-slate-900 p-4 sm:p-6 shadow-sm text-left">
               <div className="mb-4 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
                 <div>
                   <h2 className="flex items-center gap-2 text-xs font-extrabold uppercase tracking-wider text-midnight-navy"><BarChart3 className="h-4 w-4 text-[#8b5cf6]" />Class Performance</h2>
                   <p className="mt-1 text-xs text-steel-blue-gray">A quick breakdown of marks across all submitted attempts.</p>
                 </div>
                 <div className="flex items-center gap-2 sm:gap-3">
-                  <div className="min-w-[112px] rounded-[12px] border border-slate-200 bg-white px-3.5 py-2.5 shadow-sm dark:border-slate-700 dark:bg-slate-900">
+                  <div className="min-w-[112px] rounded-[12px] border border-slate-200 bg-white dark:bg-slate-900 px-3.5 py-2.5 shadow-sm dark:border-slate-700 dark:bg-slate-900">
                     <div className="flex items-center gap-2">
                       <TrendingUp className="h-4 w-4 text-[#2563eb] dark:text-blue-300" />
                       <p className="text-lg font-extrabold tabular-nums text-[#155eef] dark:text-blue-200">{formatMarks(averageMarks)}</p>
                     </div>
                     <p className="mt-0.5 text-[9px] font-extrabold uppercase tracking-wider text-[#3265b8] dark:text-blue-300">Average marks</p>
                   </div>
-                  <div className="min-w-[100px] rounded-[12px] border border-slate-200 bg-white px-3.5 py-2.5 shadow-sm dark:border-slate-700 dark:bg-slate-900">
+                  <div className="min-w-[100px] rounded-[12px] border border-slate-200 bg-white dark:bg-slate-900 px-3.5 py-2.5 shadow-sm dark:border-slate-700 dark:bg-slate-900">
                     <div className="flex items-center gap-2">
                       <Users className="h-4 w-4 text-[#059669] dark:text-emerald-300" />
                       <p className="text-lg font-extrabold tabular-nums text-[#047857] dark:text-emerald-200">{submitted.length}</p>
@@ -1463,7 +1463,7 @@ export default function TeacherAssessmentPage({
                 </div>
               </div>
 
-              <div className="mb-4 flex items-center justify-between border-b border-[#d1dee8]/50 pb-2">
+              <div className="mb-4 flex items-center justify-between border-b border-[#d1dee8]/50 dark:border-slate-700 pb-2">
                 <p className="text-[10px] font-bold uppercase tracking-wider text-steel-blue-gray">Marks range</p>
                 <p className="text-[10px] font-bold uppercase tracking-wider text-steel-blue-gray">Students</p>
               </div>
@@ -1581,12 +1581,12 @@ export default function TeacherAssessmentPage({
                   placeholder="Search name or registration no."
                   value={query}
                   onChange={(event) => setQuery(event.target.value)}
-                  className="w-full rounded-[10px] border border-[#d1dee8]/80 bg-paper-white py-2.5 pl-9 pr-4 text-xs font-medium text-midnight-navy outline-none transition-all placeholder:text-steel-blue-gray/70 focus:border-[#165dfb] focus:ring-2 focus:ring-[#165dfb]/15"
+                  className="w-full rounded-[10px] border border-[#d1dee8]/80 dark:border-slate-700 bg-paper-white py-2.5 pl-9 pr-4 text-xs font-medium text-midnight-navy outline-none transition-all placeholder:text-steel-blue-gray/70 focus:border-[#165dfb] focus:ring-2 focus:ring-[#165dfb]/15"
                 />
               </div>
             </div>
 
-            <div className="flex-1 overflow-x-auto rounded-[18px] border border-[#dce7ff] bg-white text-left shadow-[0_6px_22px_rgba(71,100,180,0.06)]">
+            <div className="flex-1 overflow-x-auto rounded-[18px] border border-[#dce7ff] bg-white dark:bg-slate-900 text-left shadow-[0_6px_22px_rgba(71,100,180,0.06)]">
               <div className="min-w-[1000px]">
               <div className="grid grid-cols-[32px_minmax(140px,1.2fr)_minmax(120px,1fr)_80px_90px_80px_110px] items-center gap-3 border-b border-[#dce7ff] bg-gradient-to-r from-[#f4f8ff] to-[#faf7ff] px-4 py-3">
                 <Th
@@ -1765,7 +1765,7 @@ export default function TeacherAssessmentPage({
           <div className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-950/50 p-3 sm:p-6" role="presentation" onMouseDown={(event) => {
             if (event.target === event.currentTarget) setSelectedProctoringStudent(null);
           }}>
-            <section role="dialog" aria-modal="true" aria-labelledby="student-proctoring-title" className="max-h-[90vh] w-full max-w-4xl overflow-y-auto rounded-2xl border border-amber-200 bg-white p-4 shadow-2xl sm:p-6">
+            <section role="dialog" aria-modal="true" aria-labelledby="student-proctoring-title" className="max-h-[90vh] w-full max-w-4xl overflow-y-auto rounded-2xl border border-amber-200 bg-white dark:bg-slate-900 p-4 shadow-2xl sm:p-6">
               <div className="flex items-start justify-between gap-4 border-b border-slate-100 pb-4">
                 <div>
                   <h2 id="student-proctoring-title" className="flex items-center gap-2 text-base font-extrabold text-midnight-navy">
