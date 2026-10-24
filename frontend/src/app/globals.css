@@ -969,3 +969,54 @@ html.dark .public-role-selection .role-panel-cta:hover {
 html.dark .public-role-selection .role-panel-cta:focus-visible {
   outline-color: #93c5fd !important;
 }
+
+
+/* Signup role picker: keep the role panels, icons, and actions readable in dark mode. */
+html.dark .public-signup-role-selection {
+  background-color: #0b1120 !important;
+  color: #e5edf9 !important;
+}
+html.dark .public-signup-role-selection .signup-role-student-panel {
+  background-color: #111827 !important;
+  color: #e5edf9 !important;
+  border-color: #334155 !important;
+}
+html.dark .public-signup-role-selection .signup-role-student-panel:hover {
+  background-color: #151e2e !important;
+}
+html.dark .public-signup-role-selection .signup-role-instructor-panel {
+  background-color: #151e2e !important;
+  color: #e5edf9 !important;
+  border-color: #334155 !important;
+}
+html.dark .public-signup-role-selection .signup-role-instructor-panel:hover {
+  background-color: #1b2739 !important;
+}
+html.dark .public-signup-role-selection .signup-role-title {
+  color: #f1f5f9 !important;
+}
+html.dark .public-signup-role-selection .signup-role-description {
+  color: #a7b4c8 !important;
+}
+html.dark .public-signup-role-selection .signup-role-student-panel .signup-role-icon {
+  background-color: #1e3152 !important;
+  color: #93b4ff !important;
+  box-shadow: inset 0 0 0 1px #334155 !important;
+}
+html.dark .public-signup-role-selection .signup-role-instructor-panel .signup-role-icon {
+  background-color: #273449 !important;
+  color: #e5edf9 !important;
+  box-shadow: inset 0 0 0 1px #475569 !important;
+}
+html.dark .public-signup-role-selection .signup-role-cta {
+  background-color: #2563eb !important;
+  border-color: #3b82f6 !important;
+  color: #ffffff !important;
+}
+html.dark .public-signup-role-selection .signup-role-cta:hover {
+  background-color: #1d4ed8 !important;
+}
+html.dark .public-signup-role-selection .signup-role-cta:focus-visible {
+  outline-color: #93c5fd !important;
+  --tw-ring-color: #93c5fd !important;
+}
