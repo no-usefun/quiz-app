@@ -2164,6 +2164,7 @@ export default function TestArenaPage({
                 </>
               )}
             </button>
+            </div>
           </div>
         </footer>
       </motion.div>
