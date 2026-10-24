@@ -739,8 +739,15 @@ export default function TestArenaPage({
           await api.post(
             ENDPOINTS.student.proctoringEvents(activeAttemptId),
             {
-              type,
-              metadata: { source: "browser", details },
+              // The current backend allow-list has no screenshot_attempt type.
+              // Persist the screenshot signal as keyboard_attempt while retaining
+              // its specific label in metadata for teacher-side audit details.
+              type: type === "screenshot_attempt" ? "keyboard_attempt" : type,
+              metadata: {
+                source: "browser",
+                details,
+                ...(type === "screenshot_attempt" ? { originalType: type } : {}),
+              },
             },
           );
         }
