@@ -1,7 +1,6 @@
 "use client";
 
 import { use, useEffect, useMemo, useState } from "react";
-import { useTheme } from "next-themes";
 import Link from "next/link";
 import {
   ArrowLeft,
@@ -25,10 +24,9 @@ import {
   Star,
   FileText,
   Sparkles,
-  Sun,
-  Moon,
 } from "lucide-react";
 import { Logo } from "@/components/Logo";
+import { ThemeToggle } from "@/components/ThemeToggle";
 import { ENDPOINTS } from "@/lib/api/endpoints";
 import LanExamPreflight from "@/components/LanExamPreflight";
 import { isLanExamMode } from "@/lib/examMode";
@@ -331,8 +329,6 @@ export default function TeacherAssessmentPage({
   params: Promise<{ testCode: string }>;
 }) {
   const { testCode } = use(params);
-  const { resolvedTheme, setTheme } = useTheme();
-  const isDark = resolvedTheme === "dark";
 
   const [assessmentData, setAssessmentData] = useState<AssessmentData | null>(
     null,
@@ -1087,20 +1083,7 @@ export default function TeacherAssessmentPage({
           </div>
 
           <div className="flex flex-wrap items-center justify-end gap-2 sm:gap-3">
-          <button
-            type="button"
-            onClick={() => setTheme(isDark ? "light" : "dark")}
-            aria-label={isDark ? "Switch to light mode" : "Switch to dark mode"}
-            title={isDark ? "Switch to light mode" : "Switch to dark mode"}
-            className="group inline-flex h-10 items-center gap-1 rounded-full border border-[#dce7ff] bg-gradient-to-r from-[#fff7dc] to-[#fff0c2] p-1 shadow-sm transition-all hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#3984ff] dark:border-slate-700 dark:from-slate-800 dark:to-slate-900"
-          >
-            <span className={`flex h-7 w-7 items-center justify-center rounded-full transition-all ${!isDark ? "bg-white text-amber-500 shadow-sm" : "text-slate-400"}`}>
-              <Sun className="h-4 w-4" />
-            </span>
-            <span className={`flex h-7 w-7 items-center justify-center rounded-full transition-all ${isDark ? "bg-[#2563eb] text-white shadow-sm" : "text-slate-500"}`}>
-              <Moon className="h-4 w-4" />
-            </span>
-          </button>
+          <ThemeToggle />
           <button
             type="button"
             onClick={handleExport}
@@ -1552,9 +1535,25 @@ export default function TeacherAssessmentPage({
             )}
 
             {proctoringLoading && !proctoringOverview ? (
-              <p className="rounded-[10px] border border-amber-100 bg-white p-4 text-xs text-steel-blue-gray">
-                Loading backend proctoring report…
-              </p>
+              <div role="status" aria-label="Loading proctoring report" aria-busy="true" className="space-y-3">
+                <p className="sr-only">Loading proctoring report…</p>
+                <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+                  {[1, 2, 3, 4].map((item) => (
+                    <div key={item} className="animate-pulse rounded-[12px] border border-mist-blue/50 bg-paper-white p-3">
+                      <div className="h-2.5 w-3/4 rounded bg-frost-surface" />
+                      <div className="mt-3 h-6 w-1/3 rounded bg-frost-surface" />
+                    </div>
+                  ))}
+                </div>
+                {[1, 2].map((item) => (
+                  <div key={item} className="animate-pulse space-y-3 rounded-[12px] border border-mist-blue/50 bg-paper-white p-4">
+                    <div className="h-4 w-1/3 rounded bg-frost-surface" />
+                    <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+                      {[1, 2, 3, 4].map((metric) => <div key={metric} className="h-10 rounded-lg bg-frost-surface" />)}
+                    </div>
+                  </div>
+                ))}
+              </div>
             ) : proctoringOverview ? (
               <>
                 <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
