@@ -40,18 +40,20 @@ import { ThemeToggle } from "@/components/ThemeToggle";
 
 // ─── Design tokens (inline for zero-class-collision safety) ──────────────────
 const C = {
-  ink: "#111111",
-  fog: "#78716b",
-  ice: "#d1dee8",
-  cobalt: "#165dfb",
-  paper: "#f5f5f4",
-  chalk: "#e6e3e2",
-  blue: "#e8f0ff",
-  lavender: "#eee9ff",
-  mint: "#e7f7ef",
-  peach: "#fff0e8",
-  yellow: "#fff8d9",
-  rose: "#fdebec",
+  // CSS custom properties resolve against next-themes so the landing page's
+  // inline preview styles use the same semantic palette in both themes.
+  ink: "var(--color-ink-black)",
+  fog: "var(--color-fog-gray)",
+  ice: "var(--color-ice-line)",
+  cobalt: "var(--color-cobalt-stamp)",
+  paper: "var(--color-paper-stone)",
+  chalk: "var(--color-chalk)",
+  blue: "var(--quizly-soft-blue)",
+  lavender: "var(--quizly-soft-lavender)",
+  mint: "var(--quizly-soft-mint)",
+  peach: "var(--quizly-soft-peach)",
+  yellow: "var(--quizly-soft-yellow)",
+  rose: "var(--quizly-soft-rose)",
 };
 
 // ─── Shared section scroll animation variant ─────────────────────────────────
@@ -311,7 +313,7 @@ function ProctoringMonitor() {
         <div
           className="animate-scan absolute left-0 w-full h-0.5 pointer-events-none"
           style={{
-            background: `linear-gradient(90deg, transparent, ${C.cobalt}88, transparent)`,
+            background: `linear-gradient(90deg, transparent, color-mix(in srgb, ${C.cobalt} 55%, transparent), transparent)`,
           }}
         />
         {/* Face outline simulation */}
@@ -364,7 +366,7 @@ function ProctoringMonitor() {
             className="rounded px-1.5 py-0.5 text-[9px] font-bold"
             style={{
               background:
-                step === 4 || step === 5 ? "#ef444433" : `${C.cobalt}33`,
+                step === 4 || step === 5 ? "rgba(239,68,68,0.2)" : `color-mix(in srgb, ${C.cobalt} 20%, transparent)`,
               color: step === 4 || step === 5 ? "#ef4444" : C.cobalt,
             }}
           >
@@ -785,7 +787,7 @@ export default function Home() {
       {/* ─── Sticky Navigation ─────────────────────────────────────────── */}
       <header
         className="sticky top-0 z-30 w-full border-b backdrop-blur-md"
-        style={{ background: "rgba(245,245,244,0.88)", borderColor: C.ice }}
+        style={{ background: "color-mix(in srgb, var(--color-paper-stone) 94%, transparent)", borderColor: C.ice }}
       >
         <div className="mx-auto flex max-w-6xl items-center justify-between gap-2 px-3 py-3 sm:px-6 sm:py-4">
           <Logo />
@@ -840,7 +842,7 @@ export default function Home() {
                   style={{
                     borderColor: C.ice,
                     color: C.ink,
-                    background: "white",
+                    background: "var(--color-card-surface)",
                   }}
                 >
                   Log in
@@ -920,7 +922,7 @@ export default function Home() {
           <Link
             href="/join"
             className="flex items-center gap-2 rounded-[8.8px] border px-6 py-3 text-xs font-bold transition-all hover:bg-[#e6e3e2]/40"
-            style={{ borderColor: C.ice, color: C.ink, background: "white" }}
+            style={{ borderColor: C.ice, color: C.ink, background: "var(--color-card-surface)" }}
           >
             Enter Session Code
           </Link>
@@ -1009,7 +1011,7 @@ export default function Home() {
                   key={title}
                   variants={variant}
                   className="rounded-[8.8px] border p-5 flex gap-4 items-start"
-                  style={{ background: "white", borderColor: C.ice }}
+                  style={{ background: "var(--color-card-surface)", borderColor: C.ice }}
                   whileHover={{ y: -3, transition: { duration: 0.2 } }}
                 >
                   <div
@@ -1047,7 +1049,7 @@ export default function Home() {
             <div
               className="inline-flex items-center gap-2 rounded-[8.8px] border px-5 py-3 text-xs font-bold"
               style={{
-                background: "white",
+                background: "var(--color-card-surface)",
                 borderColor: C.ice,
                 color: C.cobalt,
               }}
@@ -1125,7 +1127,7 @@ export default function Home() {
             >
               <div
                 className="h-8 w-8 rounded-[8.8px] flex items-center justify-center border"
-                style={{ background: "white", borderColor: C.ice }}
+                style={{ background: "var(--color-card-surface)", borderColor: C.ice }}
               >
                 <Lock className="h-4 w-4" style={{ color: C.cobalt }} />
               </div>
@@ -1151,7 +1153,7 @@ export default function Home() {
               viewport={vp}
               whileHover={{ scale: 1.01, transition: { duration: 0.2 } }}
               className="relative z-10 w-full max-w-md rounded-[8.8px] border-2 p-6 flex flex-col gap-4"
-              style={{ background: "white", borderColor: C.cobalt }}
+              style={{ background: "var(--color-card-surface)", borderColor: C.cobalt }}
             >
               <div className="flex items-center justify-between">
                 <div
@@ -1210,7 +1212,7 @@ export default function Home() {
             >
               <div
                 className="h-8 w-8 rounded-[8.8px] flex items-center justify-center border"
-                style={{ background: "white", borderColor: C.ice }}
+                style={{ background: "var(--color-card-surface)", borderColor: C.ice }}
               >
                 <Timer className="h-4 w-4" style={{ color: C.cobalt }} />
               </div>
@@ -1283,11 +1285,11 @@ export default function Home() {
               >
                 <div
                   className="rounded-[8.8px] border p-4 text-left flex-1 min-w-0"
-                  style={{ background: "white", borderColor: C.ice }}
+                  style={{ background: "var(--color-card-surface)", borderColor: C.ice }}
                 >
                   <span
                     className="font-mono text-2xl font-black block mb-1"
-                    style={{ color: `${C.cobalt}30` }}
+                    style={{ color: `color-mix(in srgb, ${C.cobalt} 18%, transparent)` }}
                   >
                     {step.n}
                   </span>
@@ -1355,7 +1357,7 @@ export default function Home() {
                   <div
                     className="h-8 w-8 rounded-[8.8px] flex items-center justify-center"
                     style={{
-                      background: "white",
+                      background: "var(--color-card-surface)",
                       border: `1px solid ${C.ice}`,
                     }}
                   >
@@ -1364,7 +1366,7 @@ export default function Home() {
                   <span
                     className="rounded-full px-2 py-0.5 text-[8px] font-bold border"
                     style={{
-                      background: "white",
+                      background: "var(--color-card-surface)",
                       borderColor: C.ice,
                       color: accent,
                     }}
@@ -1495,7 +1497,7 @@ export default function Home() {
           <div className="flex-1 w-full max-w-md">
             <div
               className="rounded-[8.8px] border p-6"
-              style={{ background: "white", borderColor: C.ice }}
+              style={{ background: "var(--color-card-surface)", borderColor: C.ice }}
             >
               <p
                 className="text-[9px] font-bold uppercase tracking-widest text-center mb-6"
@@ -1605,7 +1607,7 @@ export default function Home() {
             viewport={vp}
             transition={{ duration: 0.5 }}
             className="relative max-w-2xl mx-auto overflow-hidden rounded-[8.8px] border text-left"
-            style={{ background: "white", borderColor: C.ice }}
+            style={{ background: "var(--color-card-surface)", borderColor: C.ice }}
             onMouseEnter={() => setAutoplay(false)}
             onMouseLeave={() => setAutoplay(true)}
           >
@@ -1747,7 +1749,7 @@ export default function Home() {
               <div
                 key={c.name}
                 className="rounded-[8.8px] border p-4"
-                style={{ background: "white", borderColor: C.ice }}
+                style={{ background: "var(--color-card-surface)", borderColor: C.ice }}
               >
                 <div className="flex items-center justify-between mb-3">
                   <span
@@ -1906,7 +1908,7 @@ export default function Home() {
               >
                 <div
                   className="h-8 w-8 rounded-[8.8px] flex items-center justify-center border"
-                  style={{ background: "white", borderColor: C.ice }}
+                  style={{ background: "var(--color-card-surface)", borderColor: C.ice }}
                 >
                   <Icon className="h-3.5 w-3.5" style={{ color: C.cobalt }} />
                 </div>
@@ -1971,7 +1973,7 @@ export default function Home() {
             <Link
               href="/join"
               className="flex items-center gap-2 rounded-[8.8px] border px-6 py-3 text-xs font-bold transition-all hover:bg-[#e6e3e2]/40"
-              style={{ borderColor: C.ice, color: C.ink, background: "white" }}
+              style={{ borderColor: C.ice, color: C.ink, background: "var(--color-card-surface)" }}
             >
               Enter Session Code
             </Link>
