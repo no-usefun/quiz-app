@@ -1906,7 +1906,7 @@ function CreateAssessmentContent() {
   };
 
   const inputClass =
-    "w-full rounded-[10px] border border-[#d1dee8]/80 dark:border-slate-700 bg-[#fbfbfa] dark:bg-slate-800 px-3.5 py-2.5 text-xs text-[#111111] dark:text-slate-100 outline-none transition-all placeholder:text-[#a8a29d] dark:text-slate-500 hover:border-[#b9cbd9] focus:border-[#165dfb] focus:bg-white dark:bg-slate-900 focus:ring-4 focus:ring-[#165dfb]/10 font-medium shadow-xs dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100 dark:placeholder:text-slate-400 dark:focus:bg-slate-800";
+    "w-full rounded-[10px] border border-[#d1dee8]/80 dark:border-slate-700 bg-[#fbfbfa] dark:bg-slate-800 dark:bg-slate-800 px-3.5 py-2.5 text-xs text-[#111111] dark:text-slate-100 outline-none transition-all placeholder:text-[#a8a29d] dark:text-slate-500 hover:border-[#b9cbd9] focus:border-[#165dfb] focus:bg-white dark:bg-slate-900 focus:ring-4 focus:ring-[#165dfb]/10 font-medium shadow-xs dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100 dark:placeholder:text-slate-400 dark:focus:bg-slate-800";
 
   const labelClass =
     "mb-1.5 block text-[10px] font-bold uppercase tracking-wider text-[#78716b] dark:text-slate-300";
@@ -1927,7 +1927,7 @@ function CreateAssessmentContent() {
   return (
     <div className="teacher-assessment-builder min-h-screen bg-[#f5f5f4] dark:bg-slate-950 font-sans text-[#111111] dark:text-slate-100 p-4 md:p-6 lg:p-8 text-left dark:bg-slate-950 dark:text-slate-100">
       <div className="mx-auto max-w-4xl space-y-6">
-        <header className="sticky top-0 z-20 -mx-4 flex flex-wrap items-center justify-between gap-3 border-b border-[#d1dee8]/60 bg-[#f5f5f4] dark:bg-slate-950/85 px-4 py-4 backdrop-blur-md md:-mx-6 md:px-6 dark:border-slate-700 dark:bg-slate-950/90">
+        <header className="sticky top-0 z-20 -mx-4 flex flex-wrap items-center justify-between gap-3 border-b border-[#d1dee8]/60 dark:border-slate-700 bg-[#f5f5f4] dark:bg-slate-950/85 px-4 py-4 backdrop-blur-md md:-mx-6 md:px-6 dark:border-slate-700 dark:bg-slate-950/90">
           <div className="flex items-center gap-3">
             <Link
               href="/dashboard/teacher"
@@ -2039,7 +2039,7 @@ function CreateAssessmentContent() {
                 </div>
                 <div className="text-left">
                   <label className={labelClass}>Time Limit (minutes)</label>
-                  <div className="flex items-center gap-2 rounded-[10px] border border-[#d1dee8]/80 dark:border-slate-700 bg-[#fbfbfa] dark:bg-slate-800 px-3 py-2.5 transition-all hover:border-[#b9cbd9] focus-within:border-[#165dfb] focus-within:bg-white dark:bg-slate-900 focus-within:ring-4 focus-within:ring-[#165dfb]/10 shadow-xs">
+                  <div className="flex items-center gap-2 rounded-[10px] border border-[#d1dee8]/80 dark:border-slate-700 bg-[#fbfbfa] dark:bg-slate-800 dark:bg-slate-800 px-3 py-2.5 transition-all hover:border-[#b9cbd9] focus-within:border-[#165dfb] focus-within:bg-white dark:bg-slate-900 focus-within:ring-4 focus-within:ring-[#165dfb]/10 shadow-xs">
                     <Clock className="h-4 w-4 shrink-0 text-[#78716b] dark:text-slate-400" />
                     <input
                       type="number"
@@ -2110,7 +2110,7 @@ function CreateAssessmentContent() {
               <h3 className="flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-[#111111] dark:text-slate-100">
                 <span className="h-3.5 w-1 rounded-full bg-[#165dfb]" />
                 Questions
-                <span className="rounded-full bg-[#eef4ff] px-2.5 py-0.5 text-[10px] font-bold text-[#165dfb]">
+                <span className="rounded-full bg-[#eef4ff] dark:bg-blue-950/50 px-2.5 py-0.5 text-[10px] font-bold text-[#165dfb]">
                   {parsedQuestions.length}
                 </span>
               </h3>
@@ -2133,9 +2133,9 @@ function CreateAssessmentContent() {
                     key={idx}
                     className="group relative overflow-hidden rounded-[14px] border border-[#d1dee8]/70 dark:border-slate-700 bg-white dark:bg-slate-900 shadow-sm transition-all hover:border-[#b9cbd9] hover:shadow-md"
                   >
-                    <div className="flex items-center justify-between gap-3 border-b border-[#d1dee8]/50 dark:border-slate-700 bg-[#fbfbfa] dark:bg-slate-800 px-5 py-3">
+                    <div className="flex items-center justify-between gap-3 border-b border-[#d1dee8]/50 dark:border-slate-700 bg-[#fbfbfa] dark:bg-slate-800 dark:bg-slate-800 px-5 py-3">
                       <span className="inline-flex items-center gap-2 text-xs font-bold text-[#57534e] dark:text-slate-300">
-                        <span className="flex h-6 w-6 items-center justify-center rounded-[8px] bg-[#eef4ff] font-mono text-[10px] font-bold text-[#165dfb]">
+                        <span className="flex h-6 w-6 items-center justify-center rounded-[8px] bg-[#eef4ff] dark:bg-blue-950/50 font-mono text-[10px] font-bold text-[#165dfb]">
                           {String(idx + 1).padStart(2, "0")}
                         </span>
                         Question
@@ -2183,7 +2183,7 @@ function CreateAssessmentContent() {
                             )
                           }
                           placeholder="Type your question (optional if an image is provided)"
-                          className="w-full rounded-[10px] border border-[#d1dee8]/80 dark:border-slate-700 bg-[#fbfbfa] dark:bg-slate-800 px-3.5 py-2.5 text-sm font-semibold text-[#111111] dark:text-slate-100 outline-none transition-all placeholder:font-medium placeholder:text-[#a8a29d] dark:text-slate-500 hover:border-[#b9cbd9] focus:border-[#165dfb] focus:bg-white dark:bg-slate-900 focus:ring-4 focus:ring-[#165dfb]/10 shadow-xs"
+                          className="w-full rounded-[10px] border border-[#d1dee8]/80 dark:border-slate-700 bg-[#fbfbfa] dark:bg-slate-800 dark:bg-slate-800 px-3.5 py-2.5 text-sm font-semibold text-[#111111] dark:text-slate-100 outline-none transition-all placeholder:font-medium placeholder:text-[#a8a29d] dark:text-slate-500 hover:border-[#b9cbd9] focus:border-[#165dfb] focus:bg-white dark:bg-slate-900 focus:ring-4 focus:ring-[#165dfb]/10 shadow-xs"
                         />
                         <select
                           value={
@@ -2252,7 +2252,7 @@ function CreateAssessmentContent() {
                             width={640}
                             height={360}
                             unoptimized
-                            className="max-h-48 max-w-full rounded-[10px] border border-[#d1dee8]/70 dark:border-slate-700 object-contain bg-[#fbfbfa] dark:bg-slate-800 p-1"
+                            className="max-h-48 max-w-full rounded-[10px] border border-[#d1dee8]/70 dark:border-slate-700 object-contain bg-[#fbfbfa] dark:bg-slate-800 dark:bg-slate-800 p-1"
                             onError={(e) => {
                               e.currentTarget.style.display = "none";
                             }}
@@ -2279,7 +2279,7 @@ function CreateAssessmentContent() {
                           <button
                             type="button"
                             onClick={() => handleAddOption(idx)}
-                            className="inline-flex items-center gap-1.5 rounded-[9px] border border-[#d1dee8]/80 dark:border-slate-700 bg-white dark:bg-slate-900 px-3 py-1.5 text-[10px] font-bold text-[#165dfb] shadow-xs hover:border-[#165dfb] hover:bg-[#eef4ff]"
+                            className="inline-flex items-center gap-1.5 rounded-[9px] border border-[#d1dee8]/80 dark:border-slate-700 bg-white dark:bg-slate-900 px-3 py-1.5 text-[10px] font-bold text-[#165dfb] shadow-xs hover:border-[#165dfb] hover:bg-[#eef4ff] dark:hover:bg-blue-900/50 dark:bg-blue-950/50"
                           >
                             <PlusCircle className="h-3.5 w-3.5" /> Add Option
                           </button>
@@ -2319,8 +2319,8 @@ function CreateAssessmentContent() {
                             onDragEnd={() => setDraggedOption(null)}
                             className={`group flex items-center gap-2.5 rounded-[10px] border px-3 py-2.5 text-xs transition-all ${
                               opt.isCorrect
-                                ? "border-[#165dfb] bg-[#eef4ff] shadow-[0_0_0_3px_rgba(22,93,251,0.08)]"
-                                : "border-[#d1dee8]/80 dark:border-slate-700 bg-white dark:bg-slate-900 hover:border-[#b9cbd9] hover:bg-[#fbfbfa] dark:bg-slate-800 shadow-xs"
+                                ? "border-[#165dfb] bg-[#eef4ff] dark:bg-blue-950/50 shadow-[0_0_0_3px_rgba(22,93,251,0.08)]"
+                                : "border-[#d1dee8]/80 dark:border-slate-700 bg-white dark:bg-slate-900 hover:border-[#b9cbd9] hover:bg-[#fbfbfa] dark:hover:bg-slate-800 dark:bg-slate-800 dark:bg-slate-800 shadow-xs"
                             } ${
                               draggedOption?.qIdx === idx && draggedOption?.optIdx === oi
                                 ? "opacity-50"
@@ -2433,7 +2433,7 @@ function CreateAssessmentContent() {
                     Use one question per row and keep the header row. The importer maps columns by header name, so older 12-column templates still work. Leave unused options and image URLs blank.
                   </p>
 
-                  <div className="overflow-x-auto rounded-[10px] border border-[#d1dee8]/70 dark:border-slate-700 bg-[#fbfbfa] dark:bg-slate-800">
+                  <div className="overflow-x-auto rounded-[10px] border border-[#d1dee8]/70 dark:border-slate-700 bg-[#fbfbfa] dark:bg-slate-800 dark:bg-slate-800">
                     <pre className="min-w-[980px] p-3 text-[9px] leading-relaxed text-[#111111] dark:text-slate-100 font-mono whitespace-pre-wrap">
 questionText,optionA,optionB,optionC,optionD,optionE,optionF,correctAnswer,marks,questionType,negativeMarks,questionTimerSeconds,difficulty,explanation,imageUrl,optionAImageUrl,optionBImageUrl,optionCImageUrl,optionDImageUrl,optionEImageUrl,optionFImageUrl
 &quot;What is the time complexity of binary search?&quot;,&quot;O(n)&quot;,&quot;O(log n)&quot;,&quot;O(n^2)&quot;,&quot;O(1)&quot;,&quot;&quot;,&quot;&quot;,&quot;B&quot;,&quot;1&quot;,&quot;MCQ&quot;,&quot;0.25&quot;,&quot;60&quot;,&quot;EASY&quot;,&quot;Binary search halves the search space.&quot;,&quot;&quot;,&quot;&quot;,&quot;&quot;,&quot;&quot;,&quot;&quot;,&quot;&quot;,&quot;&quot;
@@ -2469,7 +2469,7 @@ questionText,optionA,optionB,optionC,optionD,optionE,optionF,correctAnswer,marks
             <button
               type="button"
               onClick={handleAddNewQuestion}
-              className="flex w-full items-center justify-center gap-1.5 rounded-[14px] border border-dashed border-[#d1dee8] dark:border-slate-700 bg-white dark:bg-slate-900 py-3.5 text-xs font-bold text-[#165dfb] shadow-xs transition-all hover:border-[#165dfb] hover:bg-[#eef4ff] active:scale-[0.99]"
+              className="flex w-full items-center justify-center gap-1.5 rounded-[14px] border border-dashed border-[#d1dee8] dark:border-slate-700 bg-white dark:bg-slate-900 py-3.5 text-xs font-bold text-[#165dfb] shadow-xs transition-all hover:border-[#165dfb] hover:bg-[#eef4ff] dark:hover:bg-blue-900/50 dark:bg-blue-950/50 active:scale-[0.99]"
             >
               <PlusCircle className="h-4 w-4" /> Add Custom Question Card
             </button>
@@ -2480,7 +2480,7 @@ questionText,optionA,optionB,optionC,optionD,optionE,optionF,correctAnswer,marks
               type="button"
               onClick={() => setShowAdvanced(!showAdvanced)}
               aria-expanded={showAdvanced}
-              className="flex w-full items-center justify-between bg-[#f1efff]/70 dark:bg-violet-950/50 p-4 text-xs font-bold uppercase tracking-wider text-[#4c3d73] transition-colors hover:bg-[#eae6ff]"
+              className="flex w-full items-center justify-between bg-[#f1efff]/70 dark:bg-violet-950/50 p-4 text-xs font-bold uppercase tracking-wider text-[#4c3d73] dark:text-violet-200 transition-colors hover:bg-[#eae6ff] dark:hover:bg-violet-900/60 dark:bg-violet-900/60"
             >
               <span className="flex items-center gap-2">
                 <Lock className="h-4 w-4" /> Advanced Settings
@@ -2495,7 +2495,7 @@ questionText,optionA,optionB,optionC,optionD,optionE,optionF,correctAnswer,marks
                   initial={{ height: 0 }}
                   animate={{ height: "auto" }}
                   exit={{ height: 0 }}
-                  className="overflow-hidden border-t border-[#d1dee8]/30"
+                  className="overflow-hidden border-t border-[#d1dee8]/30 dark:border-slate-700"
                 >
                   <div className="p-4 grid gap-3 sm:grid-cols-2">
                     {[
@@ -2559,7 +2559,7 @@ questionText,optionA,optionB,optionC,optionD,optionE,optionF,correctAnswer,marks
                       </div>
                     ))}
                   </div>
-                  <div className="border-t border-[#d1dee8]/30 px-4 pb-4 pt-3 text-left space-y-4">
+                  <div className="border-t border-[#d1dee8]/30 dark:border-slate-700 px-4 pb-4 pt-3 text-left space-y-4">
                     <div className="grid gap-3 sm:grid-cols-2">
                       <div>
                         <label className="mb-1.5 block text-[11px] font-bold uppercase tracking-wider text-[#57534e] dark:text-slate-300">
@@ -2590,7 +2590,7 @@ questionText,optionA,optionB,optionC,optionD,optionE,optionF,correctAnswer,marks
                       value={acceptedDomain}
                       onChange={(e) => setAcceptedDomain(e.target.value)}
                       placeholder="e.g., @vitap.ac.in"
-                      className="w-full rounded-[10px] border border-[#d1dee8]/80 dark:border-slate-700 bg-[#fbfbfa] dark:bg-slate-800 px-3.5 py-2.5 text-xs font-bold text-[#111111] dark:text-slate-100 outline-none transition-all placeholder:font-medium placeholder:text-[#a8a29d] dark:text-slate-500 hover:border-[#b9cbd9] focus:border-[#165dfb] focus:bg-white dark:bg-slate-900 focus:ring-4 focus:ring-[#165dfb]/10 shadow-xs"
+                      className="w-full rounded-[10px] border border-[#d1dee8]/80 dark:border-slate-700 bg-[#fbfbfa] dark:bg-slate-800 dark:bg-slate-800 px-3.5 py-2.5 text-xs font-bold text-[#111111] dark:text-slate-100 outline-none transition-all placeholder:font-medium placeholder:text-[#a8a29d] dark:text-slate-500 hover:border-[#b9cbd9] focus:border-[#165dfb] focus:bg-white dark:bg-slate-900 focus:ring-4 focus:ring-[#165dfb]/10 shadow-xs"
                     />
                     <p className="mt-1 text-[11px] text-[#78716b] dark:text-slate-400">
                       Only students with a matching email domain can join. Leave
