@@ -55,7 +55,7 @@ type BrowserProctoringFlag =
   | "paste_attempt"
   | "focus_loss"
   | "keyboard_attempt"
-  | "refresh_count"
+  | "screenshot_attempt"
   | "reconnect_count";
 
 type BrowserProctoringFlags = Record<BrowserProctoringFlag, number>;
@@ -69,7 +69,7 @@ const initialBrowserFlags: BrowserProctoringFlags = {
   paste_attempt: 0,
   focus_loss: 0,
   keyboard_attempt: 0,
-  refresh_count: 0,
+  screenshot_attempt: 0,
   reconnect_count: 0,
 };
 
@@ -91,7 +91,7 @@ function BrowserActivityPanel({
     ["Focus losses", flags.focus_loss],
     ["Right-clicks", flags.right_click],
     ["Restricted shortcuts", flags.keyboard_attempt],
-    ["Page refreshes", flags.refresh_count],
+    ["Screenshot attempts", flags.screenshot_attempt],
     ["Reconnections", flags.reconnect_count],
   ];
   const recentWarnings = warnings.slice(-5).reverse();
@@ -844,21 +844,20 @@ export default function TestArenaPage({
       const type: BrowserProctoringFlag =
         key === "c" ? "copy_attempt" :
         key === "x" ? "cut_attempt" :
-        key === "v" ? "paste_attempt" : "keyboard_attempt";
+        key === "v" ? "paste_attempt" :
+        key === "printscreen" ? "screenshot_attempt" : "keyboard_attempt";
       const message =
         key === "c" ? "Copy shortcut was blocked during the assessment." :
         key === "x" ? "Cut shortcut was blocked during the assessment." :
         key === "v" ? "Paste shortcut was blocked during the assessment." :
+        key === "printscreen" ? "Screenshot keyboard shortcut detected during the assessment." :
         "A restricted keyboard shortcut was blocked during the assessment.";
       void reportEvent(type, message);
     };
 
-    const navigation = performance.getEntriesByType("navigation")[0] as
-      | PerformanceNavigationTiming
-      | undefined;
-    if (navigation?.type === "reload") {
-      void reportEvent("refresh_count", "Assessment page refresh detected.");
-    }
+    // Page reloads are intentionally not classified as malpractice. The
+    // browser navigation entry can report "reload" when the exam route is
+    // entered through development/client navigation, creating false positives.
 
     let wasOffline = !navigator.onLine;
     const handleOnline = () => {
