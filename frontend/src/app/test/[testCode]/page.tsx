@@ -2142,23 +2142,7 @@ export default function TestArenaPage({
             </div>
 
             <div className="flex shrink-0 items-center gap-2">
-              <button
-                type="button"
-                onClick={() => setMobileProctoringOpen((open) => !open)}
-                aria-label="Open browser monitoring panel"
-                aria-expanded={mobileProctoringOpen}
-                aria-controls="mobile-proctoring-panel"
-                title="Open browser monitoring"
-                className="relative inline-flex h-10 shrink-0 items-center justify-center gap-1.5 rounded-lg border border-[#d1dee8]/80 bg-white px-2.5 text-[10px] font-bold text-[#57534e] transition-colors hover:bg-[#f5f5f4] dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-slate-800 lg:hidden"
-              >
-                <Activity className="h-4 w-4 text-[#165dfb] dark:text-blue-300" />
-                <span className="hidden min-[380px]:inline">Monitor</span>
-                <span className={`rounded-full px-1.5 py-0.5 text-[9px] font-extrabold tabular-nums ${
-                  violationCount > 0
-                    ? "bg-rose-50 text-rose-700 dark:bg-rose-950/60 dark:text-rose-300"
-                    : "bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-300"
-                }`}>{violationCount}</span>
-              </button>
+
 
             <button
               type="button"
@@ -2184,6 +2168,23 @@ export default function TestArenaPage({
                 </>
               )}
             </button>
+
+              <button
+                type="button"
+                onClick={() => setMobileProctoringOpen((open) => !open)}
+                aria-label="Open browser monitoring panel"
+                aria-expanded={mobileProctoringOpen}
+                aria-controls="mobile-proctoring-panel"
+                title="Open browser monitoring"
+                className="relative inline-flex h-10 shrink-0 items-center justify-center gap-1.5 rounded-lg border border-[#d1dee8]/80 bg-white px-3 text-[10px] font-bold text-[#57534e] transition-colors hover:bg-[#f5f5f4] dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-slate-800 lg:hidden"
+              >
+                <span>Monitoring</span>
+                <span className={`rounded-full px-1.5 py-0.5 text-[9px] font-extrabold tabular-nums ${
+                  violationCount > 0
+                    ? "bg-rose-50 text-rose-700 dark:bg-rose-950/60 dark:text-rose-300"
+                    : "bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-300"
+                }`}>{violationCount}</span>
+              </button>
             </div>
           </div>
         </footer>
