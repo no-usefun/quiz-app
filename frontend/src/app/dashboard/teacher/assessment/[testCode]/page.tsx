@@ -1504,7 +1504,7 @@ export default function TeacherAssessmentPage({
                   Proctoring &amp; Auto-Submission Audit
                 </h2>
                 <p className="mt-1 text-xs text-steel-blue-gray">
-                  Backend-recorded flags, warning counts, risk scores, termination reasons, and event timeline for every reported attempt.
+                  Review browser activity and server-recorded proctoring events for every reported attempt. Browser-event review remains available when AI camera proctoring is disabled.
                 </p>
               </div>
               <button
@@ -1590,8 +1590,28 @@ export default function TeacherAssessmentPage({
                         ["Looking away", report.lookingAwayCount],
                         ["Phone detections", report.phoneDetectionsCount],
                         ["Voice detections", report.voiceDetectionsCount],
-                        ["Tab switches", report.tabSwitchesCount],
+                        ["Tab switches / fullscreen exits", report.tabSwitchesCount],
                         ["Total violations", report.totalViolationsCount],
+                      ];
+                      // Browser telemetry is recorded independently of AI camera
+                      // proctoring. Count each event type from the returned timeline
+                      // instead of inferring copy/paste counts from aggregate risk.
+                      const countBrowserEvent = (eventType: string) =>
+                        events.filter(
+                          (event) =>
+                            String(event.eventType || "").toUpperCase() === eventType,
+                        ).length;
+                      const browserActivityMetrics: Array<[string, number]> = [
+                        ["Tab switches", countBrowserEvent("TAB_SWITCH")],
+                        ["Fullscreen exits", countBrowserEvent("FULLSCREEN_EXIT")],
+                        ["Copy attempts", countBrowserEvent("COPY_ATTEMPT")],
+                        ["Cut attempts", countBrowserEvent("CUT_ATTEMPT")],
+                        ["Paste attempts", countBrowserEvent("PASTE_ATTEMPT")],
+                        ["Right-clicks", countBrowserEvent("RIGHT_CLICK")],
+                        ["Focus losses", countBrowserEvent("FOCUS_LOSS")],
+                        ["Restricted shortcuts", countBrowserEvent("KEYBOARD_ATTEMPT")],
+                        ["Page refreshes", countBrowserEvent("REFRESH_COUNT")],
+                        ["Reconnections", countBrowserEvent("RECONNECT_COUNT")],
                       ];
 
                       return (
@@ -1643,6 +1663,32 @@ export default function TeacherAssessmentPage({
                               ))}
                             </div>
 
+                            <section aria-label="Browser activity review" className="rounded-[10px] border border-blue-100 bg-blue-50/50 p-3">
+                              <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+                                <h3 className="text-[10px] font-extrabold uppercase tracking-wider text-midnight-navy">
+                                  Browser activity review
+                                </h3>
+                                <span className="rounded-full border border-blue-100 bg-white px-2 py-1 text-[9px] font-semibold text-steel-blue-gray">
+                                  Independent of AI proctoring
+                                </span>
+                              </div>
+                              <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-5">
+                                {browserActivityMetrics.map(([label, count]) => (
+                                  <div key={label} className="rounded-[9px] border border-blue-100 bg-white p-2.5">
+                                    <p className="text-[9px] font-semibold uppercase tracking-wide text-steel-blue-gray">{label}</p>
+                                    <p className={`mt-1 text-sm font-extrabold tabular-nums ${count > 0 ? "text-rose-700" : "text-midnight-navy"}`}>
+                                      {count}
+                                    </p>
+                                  </div>
+                                ))}
+                              </div>
+                              {events.length === 0 && (
+                                <p className="mt-2 text-[10px] leading-relaxed text-steel-blue-gray">
+                                  No event timeline was returned for this attempt. These zero counts mean no browser-event details were included in the report, not proof that the student had no activity.
+                                </p>
+                              )}
+                            </section>
+
                             <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
                               <div className="rounded-[9px] border border-slate-200 bg-slate-50 p-3">
                                 <p className="text-[9px] font-bold uppercase tracking-wider text-steel-blue-gray">Started at</p>
@@ -1660,7 +1706,7 @@ export default function TeacherAssessmentPage({
                               </h3>
                               {events.length === 0 ? (
                                 <p className="rounded-[9px] bg-slate-50 p-3 text-xs text-steel-blue-gray">
-                                  No event details were included in the backend report. Counts above are shown as returned.
+                                  No event details were included in the backend report. The browser-activity review remains visible, but its per-event counts cannot be reconstructed without event details from the API.
                                 </p>
                               ) : (
                                 <div className="overflow-x-auto rounded-[9px] border border-slate-200">
@@ -1698,7 +1744,7 @@ export default function TeacherAssessmentPage({
               </>
             ) : !proctoringLoading ? (
               <div className="rounded-[10px] border border-amber-100 bg-white p-4 text-xs text-steel-blue-gray">
-                No proctoring report is available. The frontend does not infer whether a flag caused auto-submission; that cause must be returned by the backend report.
+                The server did not return a report for this assessment. Browser activity is supported with AI proctoring on or off, but teachers need the backend report endpoint to return the stored attempt events and termination reason. The page will not infer malpractice from AUTO_SUBMITTED status alone.
               </div>
             ) : null}
           </section>
