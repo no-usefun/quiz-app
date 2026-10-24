@@ -295,13 +295,19 @@ function persistAttemptDraft(
  * Clears transient data for a completed attempt while preserving the option
  * text snapshots used by the results page for compatibility with older APIs.
  */
-function cleanupAttemptRuntimeState(attemptId: string | null, testCode: string) {
+function cleanupAttemptRuntimeState(
+  attemptId: string | null,
+  testCode: string,
+  options: { preservePendingSubmitDraft?: boolean } = {},
+) {
   if (typeof window === "undefined") return;
   clearApiCache();
 
   const code = String(testCode || "").trim().toUpperCase();
   if (attemptId) {
-    localStorage.removeItem(`dynoquizz_pending_submit_${attemptId}`);
+    if (!options.preservePendingSubmitDraft) {
+      localStorage.removeItem(`dynoquizz_pending_submit_${attemptId}`);
+    }
     sessionStorage.removeItem(`dynoquizz_reference_photo_fresh_${attemptId}`);
   }
 
@@ -496,7 +502,9 @@ export default function TestArenaPage({
       setDeadlineNotice(
         "The proctoring backend confirmed that this assessment was automatically submitted.",
       );
-      cleanupAttemptRuntimeState(activeAttemptId, cleanCode);
+      // Server-triggered auto-submission did not receive the local answer sheet.
+      // Retain the draft for recovery rather than deleting the only remaining copy.
+      cleanupAttemptRuntimeState(activeAttemptId, cleanCode, { preservePendingSubmitDraft: true });
       if (activeAttemptId) {
         router.replace(`/dashboard/student/result/${activeAttemptId}`);
       }
@@ -681,7 +689,8 @@ export default function TestArenaPage({
             setDeadlineNotice(
               "The assessment was automatically submitted because the configured tab-switch limit was exceeded.",
             );
-            cleanupAttemptRuntimeState(activeAttemptId, cleanCode);
+            // Tab-switch auto-submission may happen before the answer sheet is submitted.
+            cleanupAttemptRuntimeState(activeAttemptId, cleanCode, { preservePendingSubmitDraft: true });
             void proctoringCleanupRef.current();
             router.replace(`/dashboard/student/result/${activeAttemptId}`);
           }
@@ -720,7 +729,8 @@ export default function TestArenaPage({
             if (isAutoSubmitted) {
               submissionInFlightRef.current = true;
               setIsSubmitted(true);
-              cleanupAttemptRuntimeState(activeAttemptId, cleanCode);
+              // Preserve local answers if the server finalized before it received them.
+              cleanupAttemptRuntimeState(activeAttemptId, cleanCode, { preservePendingSubmitDraft: true });
               void proctoringCleanupRef.current();
               router.replace(`/dashboard/student/result/${activeAttemptId}`);
             }
@@ -769,10 +779,14 @@ export default function TestArenaPage({
     };
 
     const handleBlur = () => {
-      if (document.visibilityState === "hidden" || !document.hasFocus()) {
-        void reportEvent("tab_switch", "Candidate switched away from the assessment window.");
+      // Count a tab switch only when the document is actually hidden. A blur
+      // while the page remains visible (address bar, another app/window, or a
+      // transient focus change) is recorded as focus loss and cannot trigger
+      // the quiz tab-switch auto-submission threshold.
+      if (document.visibilityState === "hidden") {
+        void reportEvent("tab_switch", "Candidate switched away from the assessment tab.");
       } else {
-        void reportEvent("focus_loss", "The assessment window lost focus.");
+        void reportEvent("focus_loss", "The assessment window lost focus while the page remained visible.");
       }
     };
 
@@ -1080,7 +1094,7 @@ export default function TestArenaPage({
 
               if (serverState.status !== "IN_PROGRESS") {
                 setIsSubmitted(true);
-                cleanupAttemptRuntimeState(activeAttemptId, cleanCode);
+                cleanupAttemptRuntimeState(activeAttemptId, cleanCode, { preservePendingSubmitDraft: serverState.status === "AUTO_SUBMITTED" });
 
                 if (serverState.status === "AUTO_SUBMITTED") {
                   setDeadlineNotice(
@@ -1470,7 +1484,7 @@ export default function TestArenaPage({
             // A proctoring event may have auto-submitted the attempt on the
             // server before the browser's normal submit request completed.
             // Reconcile local navigation state with that authoritative result.
-            cleanupAttemptRuntimeState(attemptId, cleanCode);
+            cleanupAttemptRuntimeState(attemptId, cleanCode, { preservePendingSubmitDraft: state.status === "AUTO_SUBMITTED" });
 
             if (state.status === "AUTO_SUBMITTED") {
               setDeadlineNotice(
