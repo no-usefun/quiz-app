@@ -1496,12 +1496,34 @@ export default function TeacherAssessmentPage({
             </section>
           )}
 
-          <section className="space-y-4 rounded-[18px] border border-amber-200 bg-gradient-to-br from-amber-50 via-white to-rose-50 p-4 sm:p-5 text-left">
+          <details className="group overflow-hidden rounded-[14px] border border-amber-200 bg-white text-left">
+            <summary className="flex cursor-pointer list-none items-center justify-between gap-3 px-4 py-3.5 transition hover:bg-amber-50/60 sm:px-5">
+              <span className="flex min-w-0 items-center gap-3">
+                <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-amber-100 text-amber-800">
+                  <ShieldAlert className="h-5 w-5" />
+                </span>
+                <span className="min-w-0">
+                  <span className="block text-sm font-extrabold text-midnight-navy">Proctoring issues</span>
+                  <span className="mt-0.5 block text-[11px] text-steel-blue-gray">
+                    {proctoringOverview
+                      ? `${proctoringOverview.flaggedAttempts ?? 0} flagged · ${proctoringOverview.autoSubmittedAttempts ?? 0} auto-submitted · View event details`
+                      : "View browser activity, malpractice events, and auto-submission reasons"}
+                  </span>
+                </span>
+              </span>
+              <span className="flex shrink-0 items-center gap-2">
+                <span className="rounded-full border border-amber-200 bg-amber-50 px-2.5 py-1 text-[10px] font-bold text-amber-900">
+                  {proctoringLoading ? "Loading…" : "View audit"}
+                </span>
+                <ChevronDown className="h-4 w-4 text-steel-blue-gray transition-transform group-open:rotate-180" />
+              </span>
+            </summary>
+            <section className="space-y-4 border-t border-amber-100 bg-gradient-to-br from-amber-50/70 via-white to-rose-50/60 p-4 sm:p-5">
             <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
               <div>
                 <h2 className="flex items-center gap-2 text-sm font-extrabold uppercase tracking-wider text-midnight-navy">
                   <ShieldAlert className="h-5 w-5 text-amber-700" />
-                  Proctoring &amp; Auto-Submission Audit
+                  Audit details
                 </h2>
                 <p className="mt-1 text-xs text-steel-blue-gray">
                   Review browser activity and server-recorded proctoring events for every reported attempt. Browser-event review remains available when AI camera proctoring is disabled.
@@ -1747,7 +1769,8 @@ export default function TeacherAssessmentPage({
                 The server did not return a report for this assessment. Browser activity is supported with AI proctoring on or off, but teachers need the backend report endpoint to return the stored attempt events and termination reason. The page will not infer malpractice from AUTO_SUBMITTED status alone.
               </div>
             ) : null}
-          </section>
+            </section>
+          </details>
 
           <section className="text-left">
             <div className="mb-3 flex items-center gap-3">
