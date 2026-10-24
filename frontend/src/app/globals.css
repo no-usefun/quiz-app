@@ -934,3 +934,38 @@ html.dark .assessment-governance [class*="bg-[#fdebec]"] [class*="text-[#9c3535]
 html.dark .assessment-governance [class*="bg-[#fff0e8]"] [class*="text-[#8c381c]"] {
   color: #ffc2cf !important;
 }
+
+
+/* Login role picker: explicit surfaces avoid legacy utility color conflicts
+   that made headings and calls to action unreadable in dark mode. */
+html.dark .public-role-selection {
+  background-color: #0b1120 !important;
+  color: #e5edf9 !important;
+}
+html.dark .public-role-selection .role-student-panel {
+  background-color: #111827 !important;
+  color: #e5edf9 !important;
+  border-color: #334155 !important;
+}
+html.dark .public-role-selection .role-instructor-panel {
+  background-color: #151e2e !important;
+  color: #e5edf9 !important;
+  border-color: #334155 !important;
+}
+html.dark .public-role-selection .role-panel-title {
+  color: #f1f5f9 !important;
+}
+html.dark .public-role-selection .role-panel-description {
+  color: #a7b4c8 !important;
+}
+html.dark .public-role-selection .role-panel-cta {
+  background-color: #2563eb !important;
+  border-color: #3b82f6 !important;
+  color: #ffffff !important;
+}
+html.dark .public-role-selection .role-panel-cta:hover {
+  background-color: #1d4ed8 !important;
+}
+html.dark .public-role-selection .role-panel-cta:focus-visible {
+  outline-color: #93c5fd !important;
+}
