@@ -286,7 +286,7 @@ function SortIcon({
   dir: SortDir;
 }) {
   if (col !== active) {
-    return <ChevronsUpDown className="h-3.5 w-3.5 text-steel-blue-gray" />;
+    return <ChevronsUpDown className="h-3.5 w-3.5 text-steel-blue-gray dark:text-slate-500 dark:text-slate-400" />;
   }
 
   return dir === "asc" ? (
@@ -315,7 +315,7 @@ function Th({
     <button
       type="button"
       onClick={() => onSort(col)}
-      className={`flex items-center gap-1 text-[9px] font-bold uppercase tracking-wider text-steel-blue-gray hover:text-midnight-navy transition-colors cursor-pointer bg-transparent border-0 ${className}`}
+      className={`flex items-center gap-1 text-[9px] font-bold uppercase tracking-wider text-steel-blue-gray dark:text-slate-500 dark:text-slate-400 hover:text-midnight-navy dark:text-slate-900 dark:text-slate-100 transition-colors cursor-pointer bg-transparent border-0 ${className}`}
     >
       {label}
       <SortIcon col={col} active={sortKey} dir={sortDir} />
@@ -1039,7 +1039,7 @@ export default function TeacherAssessmentPage({
 
   if (loading) {
     return (
-      <main className="min-h-screen bg-frost-surface flex items-center justify-center text-xs text-steel-blue-gray">
+      <main className="min-h-screen bg-frost-surface flex items-center justify-center text-xs text-steel-blue-gray dark:text-slate-500 dark:text-slate-400">
         Loading assessment governance panel...
       </main>
     );
@@ -1047,11 +1047,11 @@ export default function TeacherAssessmentPage({
 
   if (!assessmentData) {
     return (
-      <main className="min-h-screen bg-frost-surface flex items-center justify-center p-4 font-sans text-midnight-navy">
-        <div className="w-full max-w-md rounded-[14px] bg-paper-white border border-mist-blue/70 p-7 text-center shadow-sm">
+      <main className="min-h-screen bg-frost-surface flex items-center justify-center p-4 font-sans text-midnight-navy dark:text-slate-900 dark:text-slate-100">
+        <div className="w-full max-w-md rounded-[14px] bg-paper-white dark:bg-white dark:bg-slate-900 border border-mist-blue/70 p-7 text-center shadow-sm">
           <AlertTriangle className="mx-auto h-10 w-10 text-pastel-pink-text" />
           <h1 className="mt-4 text-lg font-bold">Unable to load assessment</h1>
-          <p className="mt-2 text-xs leading-relaxed text-steel-blue-gray">
+          <p className="mt-2 text-xs leading-relaxed text-steel-blue-gray dark:text-slate-500 dark:text-slate-400">
             {lifecycleError ||
               "The assessment could not be resolved from the teacher API."}
           </p>
@@ -1068,13 +1068,13 @@ export default function TeacherAssessmentPage({
   }
 
   return (
-    <main className="assessment-governance min-h-screen bg-frost-surface text-midnight-navy p-4 md:p-6 lg:p-8 font-sans selection:bg-frost-surface selection:text-signal-green">
-      <div className="mx-auto flex min-h-[90vh] max-w-[1400px] flex-col rounded-cards bg-paper-white shadow-xl border border-mist-blue overflow-hidden text-left">
-        <header className="flex w-full flex-wrap items-center justify-between gap-3 border-b border-mist-blue/30 px-4 py-4 bg-paper-white sm:px-6">
+    <main className="assessment-governance min-h-screen bg-frost-surface text-midnight-navy dark:text-slate-900 dark:text-slate-100 p-4 md:p-6 lg:p-8 font-sans selection:bg-frost-surface selection:text-signal-green">
+      <div className="mx-auto flex min-h-[90vh] max-w-[1400px] flex-col rounded-cards bg-paper-white dark:bg-white dark:bg-slate-900 shadow-xl border border-mist-blue overflow-hidden text-left">
+        <header className="flex w-full flex-wrap items-center justify-between gap-3 border-b border-mist-blue/30 px-4 py-4 bg-paper-white dark:bg-white dark:bg-slate-900 sm:px-6">
           <div className="flex items-center gap-3">
             <Link
               href="/dashboard/teacher"
-              className="flex items-center gap-2 text-xs font-bold text-steel-blue-gray hover:text-midnight-navy transition-colors"
+              className="flex items-center gap-2 text-xs font-bold text-steel-blue-gray dark:text-slate-500 dark:text-slate-400 hover:text-midnight-navy dark:text-slate-900 dark:text-slate-100 transition-colors"
             >
               <ArrowLeft className="h-3.5 w-3.5" />
               Dashboard
@@ -1123,28 +1123,28 @@ export default function TeacherAssessmentPage({
           />
         )}
 
-        <div className="flex flex-1 flex-col gap-5 p-5 md:p-6 bg-paper-white">
-          <div className="assessment-hero relative isolate overflow-hidden rounded-[24px] border border-[#dce7ff] bg-gradient-to-br from-[#f8f6ff] via-white to-[#eaf5ff] px-5 py-5 sm:px-7 sm:py-6 shadow-[0_8px_30px_rgba(71,100,180,0.08)]">
+        <div className="flex flex-1 flex-col gap-5 p-5 md:p-6 bg-paper-white dark:bg-white dark:bg-slate-900">
+          <div className="assessment-hero relative isolate overflow-hidden rounded-[24px] border border-[#dce7ff] dark:border-slate-700 bg-gradient-to-br from-[#f8f6ff] via-white dark:via-slate-900 to-[#eaf5ff] px-5 py-5 sm:px-7 sm:py-6 shadow-[0_8px_30px_rgba(71,100,180,0.08)]">
             <div aria-hidden="true" className="pointer-events-none absolute -right-5 -top-12 h-48 w-48 rounded-full bg-[#dceaff]/60 blur-2xl" />
             <div aria-hidden="true" className="pointer-events-none absolute right-24 top-10 h-28 w-28 rounded-full bg-[#fce7f3]/60 blur-2xl" />
             <div className="relative z-10 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between sm:pr-44">
             <div className="text-left">
-              <p className="text-[10px] font-bold uppercase tracking-widest text-steel-blue-gray">
+              <p className="text-[10px] font-bold uppercase tracking-widest text-steel-blue-gray dark:text-slate-500 dark:text-slate-400">
                 Assessment Governance
               </p>
 
-              <h1 className="text-xl font-bold text-midnight-navy mt-0.5">
+              <h1 className="text-xl font-bold text-midnight-navy dark:text-slate-900 dark:text-slate-100 mt-0.5">
                 {assessmentData.title}
               </h1>
 
-              <div className="mt-2 flex flex-wrap items-center gap-3 text-xs text-steel-blue-gray font-medium">
+              <div className="mt-2 flex flex-wrap items-center gap-3 text-xs text-steel-blue-gray dark:text-slate-500 dark:text-slate-400 font-medium">
                 <span className="flex items-center gap-1">
-                  <CalendarDays className="h-3.5 w-3.5 text-steel-blue-gray" />
+                  <CalendarDays className="h-3.5 w-3.5 text-steel-blue-gray dark:text-slate-500 dark:text-slate-400" />
                   {formatDateTime(assessmentData.startTime)}
                 </span>
 
                 <span className="flex items-center gap-1">
-                  <Clock className="h-3.5 w-3.5 text-steel-blue-gray" />
+                  <Clock className="h-3.5 w-3.5 text-steel-blue-gray dark:text-slate-500 dark:text-slate-400" />
                   {Math.floor(assessmentData.overallTimerSeconds / 60)} min
                 </span>
 
@@ -1158,7 +1158,7 @@ export default function TeacherAssessmentPage({
               <span
                 className={`rounded-full px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider ${
                   status === "COMPLETED"
-                    ? "bg-[#ece9f3] text-[#4c3d73]"
+                    ? "bg-[#ece9f3] text-[#4c3d73] dark:text-violet-200"
                     : status === "PUBLISHED"
                       ? "bg-[#e2ede8] text-[#1d5237]"
                       : "bg-[#f6efe1] text-[#73561a]"
@@ -1265,8 +1265,8 @@ export default function TeacherAssessmentPage({
             </div>
           )}
 
-          <section className="rounded-[20px] border border-[#dce7ff] bg-white dark:bg-slate-900/90 p-4 sm:p-5 space-y-3 shadow-[0_5px_20px_rgba(71,100,180,0.06)]">
-            <h3 className="text-xs font-extrabold uppercase tracking-wider text-midnight-navy flex items-center gap-2 border-b border-[#e6edfb] pb-3">
+          <section className="rounded-[20px] border border-[#dce7ff] dark:border-slate-700 bg-white dark:bg-slate-900/90 p-4 sm:p-5 space-y-3 shadow-[0_5px_20px_rgba(71,100,180,0.06)]">
+            <h3 className="text-xs font-extrabold uppercase tracking-wider text-midnight-navy dark:text-slate-900 dark:text-slate-100 flex items-center gap-2 border-b border-[#e6edfb] dark:border-slate-700 pb-3">
               <Eye className="h-4 w-4 text-[#3984ff]" />
               Student Result Visibility
             </h3>
@@ -1300,8 +1300,8 @@ export default function TeacherAssessmentPage({
                   disabled={settingsSaving}
                   className={`flex items-center justify-between gap-3 rounded-[15px] border p-3.5 text-left transition-all duration-200 ${
                     item.active
-                      ? "border-[#b8ccf5] bg-[#f8fbff] text-midnight-navy ring-1 ring-[#dce8ff]"
-                      : "border-[#e2e8f0] bg-white dark:bg-slate-900 text-steel-blue-gray hover:border-[#cbd5e1] hover:bg-slate-50"
+                      ? "border-[#b8ccf5] bg-[#f8fbff] text-midnight-navy dark:text-slate-900 dark:text-slate-100 ring-1 ring-[#dce8ff]"
+                      : "border-[#e2e8f0] bg-white dark:bg-slate-900 text-steel-blue-gray dark:text-slate-500 dark:text-slate-400 hover:border-[#cbd5e1] hover:bg-slate-50"
                   } ${
                     settingsSaving
                       ? "cursor-not-allowed opacity-60"
@@ -1309,14 +1309,14 @@ export default function TeacherAssessmentPage({
                   }`}
                 >
                   <div className="flex min-w-0 items-center gap-3">
-                    <span className={`flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl ${"bg-[#eef4ff] text-[#315fba]"}`}>
+                    <span className={`flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl ${"bg-[#eef4ff] dark:bg-blue-950/50 text-[#315fba]"}`}>
                       {item.label === "Show Leaderboard" ? <Trophy className="h-5 w-5" /> : <BarChart3 className="h-5 w-5" />}
                     </span>
                     <span className="min-w-0 text-left">
-                    <span className="block text-xs font-bold text-midnight-navy">
+                    <span className="block text-xs font-bold text-midnight-navy dark:text-slate-900 dark:text-slate-100">
                       {item.label}
                     </span>
-                    <span className="block text-[10px] text-steel-blue-gray mt-0.5 font-medium">
+                    <span className="block text-[10px] text-steel-blue-gray dark:text-slate-500 dark:text-slate-400 mt-0.5 font-medium">
                       {item.hint}
                     </span>
                     </span>
@@ -1340,8 +1340,8 @@ export default function TeacherAssessmentPage({
 
           <section className="rounded-[14px] border border-slate-200 bg-white dark:bg-slate-900 p-4 space-y-3 shadow-sm">
             <div className="border-b border-[#d1dee8]/40 pb-2">
-              <h3 className="text-xs font-bold uppercase tracking-wider text-midnight-navy">Student Result Details</h3>
-              <p className="mt-1 text-[10px] font-medium text-steel-blue-gray">Relevant scoring and review rules from the assessment settings. These are displayed for clarity; changing them here does not alter the completed attempt scores.</p>
+              <h3 className="text-xs font-bold uppercase tracking-wider text-midnight-navy dark:text-slate-900 dark:text-slate-100">Student Result Details</h3>
+              <p className="mt-1 text-[10px] font-medium text-steel-blue-gray dark:text-slate-500 dark:text-slate-400">Relevant scoring and review rules from the assessment settings. These are displayed for clarity; changing them here does not alter the completed attempt scores.</p>
             </div>
             <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-3">
               {[
@@ -1365,8 +1365,8 @@ export default function TeacherAssessmentPage({
                 },
               ].map((item) => (
                 <div key={item.label} className="rounded-[10px] border border-slate-200 bg-white dark:bg-slate-900 p-3">
-                  <p className="text-[9px] font-bold uppercase tracking-wider text-steel-blue-gray">{item.label}</p>
-                  <p className="mt-1 text-xs font-semibold text-midnight-navy">{item.value}</p>
+                  <p className="text-[9px] font-bold uppercase tracking-wider text-steel-blue-gray dark:text-slate-500 dark:text-slate-400">{item.label}</p>
+                  <p className="mt-1 text-xs font-semibold text-midnight-navy dark:text-slate-900 dark:text-slate-100">{item.value}</p>
                 </div>
               ))}
             </div>
@@ -1426,10 +1426,10 @@ export default function TeacherAssessmentPage({
                   {stat.icon}
                 </div>
                 <div className="text-left">
-                  <p className="text-lg font-bold text-midnight-navy">
+                  <p className="text-lg font-bold text-midnight-navy dark:text-slate-900 dark:text-slate-100">
                     {stat.value}
                   </p>
-                  <p className="text-[9px] text-steel-blue-gray font-bold uppercase tracking-wider">
+                  <p className="text-[9px] text-steel-blue-gray dark:text-slate-500 dark:text-slate-400 font-bold uppercase tracking-wider">
                     {stat.label}
                   </p>
                 </div>
@@ -1442,8 +1442,8 @@ export default function TeacherAssessmentPage({
             <section className="rounded-[16px] border border-slate-200 bg-white dark:bg-slate-900 p-4 sm:p-6 shadow-sm text-left">
               <div className="mb-4 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
                 <div>
-                  <h2 className="flex items-center gap-2 text-xs font-extrabold uppercase tracking-wider text-midnight-navy"><BarChart3 className="h-4 w-4 text-[#8b5cf6]" />Class Performance</h2>
-                  <p className="mt-1 text-xs text-steel-blue-gray">A quick breakdown of marks across all submitted attempts.</p>
+                  <h2 className="flex items-center gap-2 text-xs font-extrabold uppercase tracking-wider text-midnight-navy dark:text-slate-900 dark:text-slate-100"><BarChart3 className="h-4 w-4 text-[#8b5cf6]" />Class Performance</h2>
+                  <p className="mt-1 text-xs text-steel-blue-gray dark:text-slate-500 dark:text-slate-400">A quick breakdown of marks across all submitted attempts.</p>
                 </div>
                 <div className="flex items-center gap-2 sm:gap-3">
                   <div className="min-w-[112px] rounded-[12px] border border-slate-200 bg-white dark:bg-slate-900 px-3.5 py-2.5 shadow-sm dark:border-slate-700 dark:bg-slate-900">
@@ -1464,8 +1464,8 @@ export default function TeacherAssessmentPage({
               </div>
 
               <div className="mb-4 flex items-center justify-between border-b border-[#d1dee8]/50 dark:border-slate-700 pb-2">
-                <p className="text-[10px] font-bold uppercase tracking-wider text-steel-blue-gray">Marks range</p>
-                <p className="text-[10px] font-bold uppercase tracking-wider text-steel-blue-gray">Students</p>
+                <p className="text-[10px] font-bold uppercase tracking-wider text-steel-blue-gray dark:text-slate-500 dark:text-slate-400">Marks range</p>
+                <p className="text-[10px] font-bold uppercase tracking-wider text-steel-blue-gray dark:text-slate-500 dark:text-slate-400">Students</p>
               </div>
 
               <div className="space-y-3.5">
@@ -1474,7 +1474,7 @@ export default function TeacherAssessmentPage({
                   const barWidth = (band.count / maximumCount) * 100;
                   return (
                     <div key={band.label} className="grid grid-cols-[76px_minmax(0,1fr)_36px] items-center gap-3 sm:grid-cols-[90px_minmax(0,1fr)_44px]">
-                      <span className="text-[10px] font-semibold tabular-nums text-steel-blue-gray sm:text-xs">{band.label}</span>
+                      <span className="text-[10px] font-semibold tabular-nums text-steel-blue-gray dark:text-slate-500 dark:text-slate-400 sm:text-xs">{band.label}</span>
                       <div
                         className="h-2.5 overflow-hidden rounded-full bg-frost-surface"
                         role="progressbar"
@@ -1488,12 +1488,12 @@ export default function TeacherAssessmentPage({
                           style={{ width: `${barWidth}%` }}
                         />
                       </div>
-                      <span className="text-right text-xs font-bold tabular-nums text-midnight-navy">{band.count}</span>
+                      <span className="text-right text-xs font-bold tabular-nums text-midnight-navy dark:text-slate-900 dark:text-slate-100">{band.count}</span>
                     </div>
                   );
                 })}
               </div>
-              <p className="mt-4 text-[10px] text-steel-blue-gray">Bars compare student counts across marks ranges. Empty ranges remain visible.</p>
+              <p className="mt-4 text-[10px] text-steel-blue-gray dark:text-slate-500 dark:text-slate-400">Bars compare student counts across marks ranges. Empty ranges remain visible.</p>
             </section>
           )}
 
@@ -1503,8 +1503,8 @@ export default function TeacherAssessmentPage({
                 <Trophy className="h-5 w-5" />
               </div>
               <div>
-                <h2 className="text-sm font-extrabold text-midnight-navy uppercase tracking-wider">Top Performers</h2>
-                <p className="mt-0.5 text-[11px] text-steel-blue-gray">Celebrating the highest-scoring submissions.</p>
+                <h2 className="text-sm font-extrabold text-midnight-navy dark:text-slate-900 dark:text-slate-100 uppercase tracking-wider">Top Performers</h2>
+                <p className="mt-0.5 text-[11px] text-steel-blue-gray dark:text-slate-500 dark:text-slate-400">Celebrating the highest-scoring submissions.</p>
               </div>
             </div>
 
@@ -1515,7 +1515,7 @@ export default function TeacherAssessmentPage({
                 return (
                   <div
                     key={student.id || pos}
-                    className={`relative isolate overflow-hidden rounded-[18px] border p-4 shadow-[0_5px_18px_rgba(71,100,180,0.06)] transition-all duration-200 hover:-translate-y-0.5 hover:shadow-[0_12px_24px_rgba(71,100,180,0.11)] ${pos === 0 ? "border-[#f8df98] bg-gradient-to-br from-[#fffaf0] via-white to-[#fff1c9]" : pos === 1 ? "border-[#dce4f0] bg-gradient-to-br from-[#f7faff] to-[#edf2f9]" : "border-[#f6d8c8] bg-gradient-to-br from-[#fff8f3] to-[#ffeadf]"}`}
+                    className={`relative isolate overflow-hidden rounded-[18px] border p-4 shadow-[0_5px_18px_rgba(71,100,180,0.06)] transition-all duration-200 hover:-translate-y-0.5 hover:shadow-[0_12px_24px_rgba(71,100,180,0.11)] ${pos === 0 ? "border-[#f8df98] bg-gradient-to-br from-[#fffaf0] via-white dark:via-slate-900 to-[#fff1c9] dark:to-amber-950/30" : pos === 1 ? "border-[#dce4f0] dark:border-slate-700 bg-gradient-to-br from-[#f7faff] dark:from-slate-900 dark:from-slate-900 to-[#edf2f9] dark:to-slate-800" : "border-[#f6d8c8] bg-gradient-to-br from-[#fff8f3] dark:from-slate-900 to-[#ffeadf] dark:to-slate-800"}`}
                   >
                     <span className="absolute right-3.5 top-3.5 text-lg">
                       {c.icon}
@@ -1527,16 +1527,16 @@ export default function TeacherAssessmentPage({
                       {student.avatar}
                     </div>
 
-                    <p className="font-bold text-midnight-navy truncate pr-6 text-xs text-left">
+                    <p className="font-bold text-midnight-navy dark:text-slate-900 dark:text-slate-100 truncate pr-6 text-xs text-left">
                       {student.name}
                     </p>
 
-                    <p className="text-[10px] text-steel-blue-gray font-medium text-left">
+                    <p className="text-[10px] text-steel-blue-gray dark:text-slate-500 dark:text-slate-400 font-medium text-left">
                       Rank #{pos + 1} · {student.timeTaken || "00:00"}
                     </p>
 
                     <div className="mt-3 text-left">
-                      <p className="text-xl font-bold text-midnight-navy">
+                      <p className="text-xl font-bold text-midnight-navy dark:text-slate-900 dark:text-slate-100">
                         {formatMarks(student.finalScore)} /{" "}
                         {formatMarks(student.totalMarks)}
                       </p>
@@ -1545,7 +1545,7 @@ export default function TeacherAssessmentPage({
                         {formatPercentage(student.percentage)}%
                       </p>
 
-                      <p className="text-[8px] text-steel-blue-gray font-bold uppercase">
+                      <p className="text-[8px] text-steel-blue-gray dark:text-slate-500 dark:text-slate-400 font-bold uppercase">
                         Score
                       </p>
                     </div>
@@ -1556,39 +1556,39 @@ export default function TeacherAssessmentPage({
           </section>
 
           <section className="flex flex-1 flex-col">
-            <div className="mb-4 flex flex-col gap-3 rounded-[20px] border border-[#dce7ff] bg-gradient-to-r from-[#f7faff] via-white to-[#f8f5ff] p-4 sm:flex-row sm:items-center sm:justify-between shadow-[0_4px_16px_rgba(71,100,180,0.05)]">
+            <div className="mb-4 flex flex-col gap-3 rounded-[20px] border border-[#dce7ff] dark:border-slate-700 bg-gradient-to-r from-[#f7faff] dark:from-slate-900 dark:from-slate-900 via-white dark:via-slate-900 to-[#f8f5ff] dark:to-slate-800 p-4 sm:flex-row sm:items-center sm:justify-between shadow-[0_4px_16px_rgba(71,100,180,0.05)]">
               <div className="text-left">
                 <div className="flex items-center gap-2">
                   <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-gradient-to-br from-[#dceaff] to-[#c7d2fe] text-[#315ce8] shadow-sm">
                     <Trophy className="h-5 w-5" />
                   </div>
                   <div>
-                    <h2 className="text-base font-extrabold tracking-tight text-midnight-navy">Student Leaderboard</h2>
-                    <p className="mt-0.5 text-[11px] text-steel-blue-gray">
+                    <h2 className="text-base font-extrabold tracking-tight text-midnight-navy dark:text-slate-900 dark:text-slate-100">Student Leaderboard</h2>
+                    <p className="mt-0.5 text-[11px] text-steel-blue-gray dark:text-slate-500 dark:text-slate-400">
                       Ranked by score, with completion time as the tie-breaker.
                     </p>
                   </div>
                 </div>
-                <p className="mt-2 text-[10px] font-semibold uppercase tracking-wider text-steel-blue-gray">
+                <p className="mt-2 text-[10px] font-semibold uppercase tracking-wider text-steel-blue-gray dark:text-slate-500 dark:text-slate-400">
                   Showing {displayList.length} of {submitted.length} submissions
                 </p>
               </div>
 
               <div className="relative w-full sm:max-w-xs">
-                <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-steel-blue-gray" />
+                <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-steel-blue-gray dark:text-slate-500 dark:text-slate-400" />
                 <input
                   type="text"
                   placeholder="Search name or registration no."
                   value={query}
                   onChange={(event) => setQuery(event.target.value)}
-                  className="w-full rounded-[10px] border border-[#d1dee8]/80 dark:border-slate-700 bg-paper-white py-2.5 pl-9 pr-4 text-xs font-medium text-midnight-navy outline-none transition-all placeholder:text-steel-blue-gray/70 focus:border-[#165dfb] focus:ring-2 focus:ring-[#165dfb]/15"
+                  className="w-full rounded-[10px] border border-[#d1dee8]/80 dark:border-slate-700 bg-paper-white dark:bg-white dark:bg-slate-900 py-2.5 pl-9 pr-4 text-xs font-medium text-midnight-navy dark:text-slate-900 dark:text-slate-100 outline-none transition-all placeholder:text-steel-blue-gray/70 focus:border-[#165dfb] focus:ring-2 focus:ring-[#165dfb]/15"
                 />
               </div>
             </div>
 
-            <div className="flex-1 overflow-x-auto rounded-[18px] border border-[#dce7ff] bg-white dark:bg-slate-900 text-left shadow-[0_6px_22px_rgba(71,100,180,0.06)]">
+            <div className="flex-1 overflow-x-auto rounded-[18px] border border-[#dce7ff] dark:border-slate-700 bg-white dark:bg-slate-900 text-left shadow-[0_6px_22px_rgba(71,100,180,0.06)]">
               <div className="min-w-[1000px]">
-              <div className="grid grid-cols-[32px_minmax(140px,1.2fr)_minmax(120px,1fr)_80px_90px_80px_110px] items-center gap-3 border-b border-[#dce7ff] bg-gradient-to-r from-[#f4f8ff] to-[#faf7ff] px-4 py-3">
+              <div className="grid grid-cols-[32px_minmax(140px,1.2fr)_minmax(120px,1fr)_80px_90px_80px_110px] items-center gap-3 border-b border-[#dce7ff] dark:border-slate-700 bg-gradient-to-r from-[#f4f8ff] dark:from-slate-800 to-[#faf7ff] dark:to-slate-800 px-4 py-3">
                 <Th
                   label="#"
                   col="rank"
@@ -1640,70 +1640,70 @@ export default function TeacherAssessmentPage({
                   className="justify-center"
                 />
 
-                <span className="text-[9px] font-bold uppercase tracking-wider text-steel-blue-gray">Status</span>
-                <span className="text-[9px] font-bold uppercase tracking-wider text-steel-blue-gray">Proctoring</span>
+                <span className="text-[9px] font-bold uppercase tracking-wider text-steel-blue-gray dark:text-slate-500 dark:text-slate-400">Status</span>
+                <span className="text-[9px] font-bold uppercase tracking-wider text-steel-blue-gray dark:text-slate-500 dark:text-slate-400">Proctoring</span>
               </div>
 
               {leaderboardUnavailable ? (
-                <div className="flex flex-col items-center justify-center gap-1 py-10 text-steel-blue-gray">
-                  <p className="text-xs font-medium text-steel-blue-gray">
+                <div className="flex flex-col items-center justify-center gap-1 py-10 text-steel-blue-gray dark:text-slate-500 dark:text-slate-400">
+                  <p className="text-xs font-medium text-steel-blue-gray dark:text-slate-500 dark:text-slate-400">
                     Leaderboard isn&apos;t available yet.
                   </p>
                 </div>
               ) : displayList.length === 0 ? (
-                <div className="flex flex-col items-center justify-center gap-1 py-10 text-steel-blue-gray">
+                <div className="flex flex-col items-center justify-center gap-1 py-10 text-steel-blue-gray dark:text-slate-500 dark:text-slate-400">
                   <Search className="h-6 w-6 text-mist-blue" />
                   <p className="text-xs">
                     No submitted attempts match your query.
                   </p>
                 </div>
               ) : (
-                <ul className="divide-y divide-[#d1dee8]/50 bg-paper-white">
+                <ul className="divide-y divide-[#d1dee8]/50 bg-paper-white dark:bg-white dark:bg-slate-900">
                   {displayList.map((student) => (
                     <li
                       key={student.id}
-                      className="grid min-w-[1040px] grid-cols-[32px_minmax(140px,1.2fr)_minmax(120px,1fr)_80px_90px_80px_110px_100px] items-center gap-3 px-4 py-3 transition-colors hover:bg-[#f6f9ff]"
+                      className="grid min-w-[1040px] grid-cols-[32px_minmax(140px,1.2fr)_minmax(120px,1fr)_80px_90px_80px_110px_100px] items-center gap-3 px-4 py-3 transition-colors hover:bg-[#f6f9ff] dark:hover:bg-slate-800/70 dark:bg-slate-800/70"
                     >
-                      <span className={`flex h-7 w-7 items-center justify-center rounded-full text-[11px] font-bold tabular-nums ${student.rank === 1 ? "bg-amber-100 text-amber-800" : student.rank === 2 ? "bg-slate-100 text-slate-700" : student.rank === 3 ? "bg-orange-100 text-orange-800" : "bg-frost-surface text-steel-blue-gray"}`}>
+                      <span className={`flex h-7 w-7 items-center justify-center rounded-full text-[11px] font-bold tabular-nums ${student.rank === 1 ? "bg-amber-100 text-amber-800" : student.rank === 2 ? "bg-slate-100 text-slate-700" : student.rank === 3 ? "bg-orange-100 text-orange-800" : "bg-frost-surface text-steel-blue-gray dark:text-slate-500 dark:text-slate-400"}`}>
                         {student.rank}
                       </span>
 
                       <div className="flex min-w-0 items-center gap-2">
-                        <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-frost-surface border border-mist-blue/30 text-midnight-navy font-bold text-[10px] shadow-xs">
+                        <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-frost-surface border border-mist-blue/30 text-midnight-navy dark:text-slate-900 dark:text-slate-100 font-bold text-[10px] shadow-xs">
                           {student.avatar}
                         </div>
 
                         <div className="min-w-0">
-                          <p className="truncate text-xs font-bold text-midnight-navy">
+                          <p className="truncate text-xs font-bold text-midnight-navy dark:text-slate-900 dark:text-slate-100">
                             {student.name}
                           </p>
                           {student.status && (
-                            <p className="mt-1 text-[9px] font-medium text-steel-blue-gray">
+                            <p className="mt-1 text-[9px] font-medium text-steel-blue-gray dark:text-slate-500 dark:text-slate-400">
                               {student.status.replaceAll("_", " ")}
                             </p>
                           )}
                         </div>
                       </div>
 
-                      <span className="truncate font-mono text-[11px] font-medium text-steel-blue-gray" title={student.registrationNumber || "Registration number unavailable"}>
+                      <span className="truncate font-mono text-[11px] font-medium text-steel-blue-gray dark:text-slate-500 dark:text-slate-400" title={student.registrationNumber || "Registration number unavailable"}>
                         {student.registrationNumber || "—"}
                       </span>
 
                       <div className="flex flex-col items-center justify-center leading-tight">
-                        <span className="text-xs font-bold tabular-nums text-midnight-navy">
+                        <span className="text-xs font-bold tabular-nums text-midnight-navy dark:text-slate-900 dark:text-slate-100">
                           {formatMarks(student.finalScore)} / {formatMarks(student.totalMarks)}
                         </span>
                       </div>
 
                       <div className="flex flex-col items-center gap-1">
-                        <span className="text-xs font-bold tabular-nums text-midnight-navy">{formatPercentage(student.percentage)}%</span>
+                        <span className="text-xs font-bold tabular-nums text-midnight-navy dark:text-slate-900 dark:text-slate-100">{formatPercentage(student.percentage)}%</span>
                         <span className="h-1.5 w-16 overflow-hidden rounded-full bg-[#e3ebfb]">
                           <span className="block h-full rounded-full bg-gradient-to-r from-[#3984ff] to-[#7c5cff]" style={{ width: `${Math.max(0, Math.min(100, student.percentage))}%` }} />
                         </span>
                       </div>
 
                       <div className="flex justify-center">
-                        <span className="font-mono text-[10px] font-semibold text-steel-blue-gray">
+                        <span className="font-mono text-[10px] font-semibold text-steel-blue-gray dark:text-slate-500 dark:text-slate-400">
                           {student.timeTaken || "00:00"}
                         </span>
                       </div>
@@ -1768,16 +1768,16 @@ export default function TeacherAssessmentPage({
             <section role="dialog" aria-modal="true" aria-labelledby="student-proctoring-title" className="max-h-[90vh] w-full max-w-4xl overflow-y-auto rounded-2xl border border-amber-200 bg-white dark:bg-slate-900 p-4 shadow-2xl sm:p-6">
               <div className="flex items-start justify-between gap-4 border-b border-slate-100 pb-4">
                 <div>
-                  <h2 id="student-proctoring-title" className="flex items-center gap-2 text-base font-extrabold text-midnight-navy">
+                  <h2 id="student-proctoring-title" className="flex items-center gap-2 text-base font-extrabold text-midnight-navy dark:text-slate-900 dark:text-slate-100">
                     <ShieldAlert className="h-5 w-5 text-amber-700" />
                     Proctoring issues
                   </h2>
-                  <p className="mt-1 text-xs text-steel-blue-gray">{student.name} · Registration {student.registrationNumber || "unavailable"}</p>
+                  <p className="mt-1 text-xs text-steel-blue-gray dark:text-slate-500 dark:text-slate-400">{student.name} · Registration {student.registrationNumber || "unavailable"}</p>
                 </div>
                 <button type="button" onClick={() => setSelectedProctoringStudent(null)} className="rounded-lg border border-slate-200 px-3 py-2 text-xs font-bold text-slate-700 hover:bg-slate-50">Close</button>
               </div>
               {proctoringLoading && !proctoringOverview ? (
-                <p className="py-8 text-sm text-steel-blue-gray">Loading proctoring report…</p>
+                <p className="py-8 text-sm text-steel-blue-gray dark:text-slate-500 dark:text-slate-400">Loading proctoring report…</p>
               ) : proctoringError ? (
                 <p className="mt-4 rounded-lg border border-rose-200 bg-rose-50 p-3 text-sm text-rose-800">{proctoringError}</p>
               ) : !report ? (
@@ -1795,52 +1795,52 @@ export default function TeacherAssessmentPage({
                       ["Risk level", humanizeEvent(report.riskLevel || "UNKNOWN")],
                     ].map(([label, value]) => (
                       <div key={String(label)} className="rounded-xl border border-slate-200 bg-slate-50 p-3">
-                        <p className="text-[9px] font-bold uppercase tracking-wide text-steel-blue-gray">{label}</p>
-                        <p className="mt-1 text-sm font-extrabold text-midnight-navy">{value}</p>
+                        <p className="text-[9px] font-bold uppercase tracking-wide text-steel-blue-gray dark:text-slate-500 dark:text-slate-400">{label}</p>
+                        <p className="mt-1 text-sm font-extrabold text-midnight-navy dark:text-slate-900 dark:text-slate-100">{value}</p>
                       </div>
                     ))}
                   </div>
                   <div>
-                    <h3 className="mb-2 text-xs font-extrabold uppercase tracking-wide text-midnight-navy">Browser activity</h3>
+                    <h3 className="mb-2 text-xs font-extrabold uppercase tracking-wide text-midnight-navy dark:text-slate-900 dark:text-slate-100">Browser activity</h3>
                     <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-4">
                       {browserMetrics.map(([label, count]) => (
                         <div key={label} className="rounded-lg border border-slate-200 p-3">
-                          <p className="text-[10px] font-semibold text-steel-blue-gray">{label}</p>
-                          <p className={`mt-1 text-lg font-extrabold ${count > 0 ? "text-rose-700" : "text-midnight-navy"}`}>{count}</p>
+                          <p className="text-[10px] font-semibold text-steel-blue-gray dark:text-slate-500 dark:text-slate-400">{label}</p>
+                          <p className={`mt-1 text-lg font-extrabold ${count > 0 ? "text-rose-700" : "text-midnight-navy dark:text-slate-900 dark:text-slate-100"}`}>{count}</p>
                         </div>
                       ))}
                     </div>
                   </div>
                   <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
                     <div className="rounded-lg border border-slate-200 p-3">
-                      <p className="text-[9px] font-bold uppercase tracking-wide text-steel-blue-gray">Termination reason</p>
-                      <p className="mt-1 text-xs font-semibold text-midnight-navy">{report.terminationReason ? humanizeEvent(report.terminationReason) : "None reported"}</p>
+                      <p className="text-[9px] font-bold uppercase tracking-wide text-steel-blue-gray dark:text-slate-500 dark:text-slate-400">Termination reason</p>
+                      <p className="mt-1 text-xs font-semibold text-midnight-navy dark:text-slate-900 dark:text-slate-100">{report.terminationReason ? humanizeEvent(report.terminationReason) : "None reported"}</p>
                     </div>
                     <div className="rounded-lg border border-slate-200 p-3">
-                      <p className="text-[9px] font-bold uppercase tracking-wide text-steel-blue-gray">Total violations</p>
-                      <p className="mt-1 text-xs font-semibold text-midnight-navy">{report.totalViolationsCount ?? events.length}</p>
+                      <p className="text-[9px] font-bold uppercase tracking-wide text-steel-blue-gray dark:text-slate-500 dark:text-slate-400">Total violations</p>
+                      <p className="mt-1 text-xs font-semibold text-midnight-navy dark:text-slate-900 dark:text-slate-100">{report.totalViolationsCount ?? events.length}</p>
                     </div>
                   </div>
                   <div>
-                    <h3 className="mb-2 text-xs font-extrabold uppercase tracking-wide text-midnight-navy">Recorded event timeline ({events.length})</h3>
+                    <h3 className="mb-2 text-xs font-extrabold uppercase tracking-wide text-midnight-navy dark:text-slate-900 dark:text-slate-100">Recorded event timeline ({events.length})</h3>
                     {events.length === 0 ? (
-                      <p className="rounded-lg bg-slate-50 p-3 text-xs text-steel-blue-gray">No event timeline was included in the report. Zero counters cannot confirm that no browser activity occurred.</p>
+                      <p className="rounded-lg bg-slate-50 p-3 text-xs text-steel-blue-gray dark:text-slate-500 dark:text-slate-400">No event timeline was included in the report. Zero counters cannot confirm that no browser activity occurred.</p>
                     ) : (
                       <div className="overflow-x-auto rounded-lg border border-slate-200">
                         <table className="w-full min-w-[600px] text-left">
                           <thead className="bg-slate-50"><tr>
-                            <th className="px-3 py-2 text-[10px] font-bold text-steel-blue-gray">Time</th>
-                            <th className="px-3 py-2 text-[10px] font-bold text-steel-blue-gray">Event</th>
-                            <th className="px-3 py-2 text-[10px] font-bold text-steel-blue-gray">Severity</th>
-                            <th className="px-3 py-2 text-[10px] font-bold text-steel-blue-gray">Details</th>
+                            <th className="px-3 py-2 text-[10px] font-bold text-steel-blue-gray dark:text-slate-500 dark:text-slate-400">Time</th>
+                            <th className="px-3 py-2 text-[10px] font-bold text-steel-blue-gray dark:text-slate-500 dark:text-slate-400">Event</th>
+                            <th className="px-3 py-2 text-[10px] font-bold text-steel-blue-gray dark:text-slate-500 dark:text-slate-400">Severity</th>
+                            <th className="px-3 py-2 text-[10px] font-bold text-steel-blue-gray dark:text-slate-500 dark:text-slate-400">Details</th>
                           </tr></thead>
                           <tbody className="divide-y divide-slate-100">
                             {events.map((event, index) => (
                               <tr key={String(event.id ?? index)}>
-                                <td className="whitespace-nowrap px-3 py-2 text-[10px] text-steel-blue-gray">{formatDateTime(event.timestamp)}</td>
-                                <td className="px-3 py-2 text-[10px] font-bold text-midnight-navy">{humanizeEvent(event.eventType)}</td>
-                                <td className="px-3 py-2 text-[10px] text-midnight-navy">{event.severity || "—"}</td>
-                                <td className="px-3 py-2 text-[10px] text-steel-blue-gray">{event.details || "—"}</td>
+                                <td className="whitespace-nowrap px-3 py-2 text-[10px] text-steel-blue-gray dark:text-slate-500 dark:text-slate-400">{formatDateTime(event.timestamp)}</td>
+                                <td className="px-3 py-2 text-[10px] font-bold text-midnight-navy dark:text-slate-900 dark:text-slate-100">{humanizeEvent(event.eventType)}</td>
+                                <td className="px-3 py-2 text-[10px] text-midnight-navy dark:text-slate-900 dark:text-slate-100">{event.severity || "—"}</td>
+                                <td className="px-3 py-2 text-[10px] text-steel-blue-gray dark:text-slate-500 dark:text-slate-400">{event.details || "—"}</td>
                               </tr>
                             ))}
                           </tbody>
