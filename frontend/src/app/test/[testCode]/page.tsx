@@ -805,6 +805,13 @@ export default function TestArenaPage({
 
   const progressPercentage =
     questions.length > 0 ? ((currentIndex + 1) / questions.length) * 100 : 0;
+  const answeredQuestionCount = questions.filter(
+    (question) => (answers[Number(question.questionId)] ?? []).length > 0,
+  ).length;
+  const unansweredQuestionCount = Math.max(0, questions.length - answeredQuestionCount);
+  const markedQuestionCount = questions.filter(
+    (question) => markedForReview[Number(question.questionId)] === true,
+  ).length;
 
   useEffect(() => {
     if (typeof window === "undefined" || isSubmitted) {
@@ -2151,45 +2158,66 @@ export default function TestArenaPage({
         </div>
 
 
-        <div className="border-b border-[#d1dee8]/50 bg-[#f8f8f7] px-4 py-3 md:px-6">
-          <div className="flex items-center justify-between gap-3">
-            <span className="text-[10px] font-bold uppercase tracking-wider text-[#78716b]">
+        <div className="border-b border-[#d1dee8]/50 bg-[#f8f8f7] px-3 py-3 dark:border-slate-700 dark:bg-slate-900 sm:px-4 md:px-6">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <span className="text-[10px] font-bold uppercase tracking-wider text-[#57534e] dark:text-slate-300">
               Question Navigator
             </span>
-            <span className="text-[10px] font-semibold text-[#78716b]">
-              {Object.values(markedForReview).filter(Boolean).length} marked
+            <span className="text-[10px] font-semibold text-[#57534e] dark:text-slate-400">
+              {currentIndex + 1} of {questions.length}
             </span>
           </div>
 
-          <div className="mt-2 flex gap-1.5 overflow-x-auto pb-1">
+          <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1.5 text-[9px] font-semibold sm:gap-4 sm:text-[10px]" aria-label="Question status legend">
+            <span className="inline-flex items-center gap-1.5 text-emerald-800 dark:text-emerald-300">
+              <span className="h-2.5 w-2.5 rounded-sm border border-emerald-400 bg-emerald-100 dark:border-emerald-600 dark:bg-emerald-900/70" />
+              Answered {answeredQuestionCount}
+            </span>
+            <span className="inline-flex items-center gap-1.5 text-slate-600 dark:text-slate-300">
+              <span className="h-2.5 w-2.5 rounded-sm border border-slate-300 bg-white dark:border-slate-600 dark:bg-slate-800" />
+              Unanswered {unansweredQuestionCount}
+            </span>
+            <span className="inline-flex items-center gap-1.5 text-amber-800 dark:text-amber-300">
+              <Flag className="h-3 w-3" />
+              Marked {markedQuestionCount}
+            </span>
+          </div>
+
+          <div className="mt-2 flex gap-1.5 overflow-x-auto pb-1.5" aria-label="Questions">
             {questions.map((question, index) => {
               const questionId = Number(question.questionId);
               const answered = (answers[questionId] ?? []).length > 0;
               const marked = markedForReview[questionId] === true;
+              const isCurrent = index === currentIndex;
+              const statusLabel = answered ? "Answered" : "Unanswered";
+              const accessibleLabel = `Question ${index + 1}, ${statusLabel}${marked ? ", marked for review" : ""}${isCurrent ? ", current question" : ""}`;
 
               return (
                 <button
                   key={questionId}
                   type="button"
+                  aria-current={isCurrent ? "step" : undefined}
+                  aria-label={accessibleLabel}
+                  title={accessibleLabel}
                   onClick={() => goToQuestion(index)}
                   disabled={
                     isSubmitted ||
                     examInteractionBlocked ||
                     (test?.allowReview === false && index < currentIndex)
                   }
-                  className={`relative flex h-8 min-w-8 items-center justify-center rounded-lg border px-2 text-[10px] font-bold transition-all ${
-                    index === currentIndex
-                      ? "border-[#165dfb] bg-[#165dfb] text-white"
+                  className={`relative flex h-9 min-w-9 shrink-0 items-center justify-center rounded-lg border px-2 text-[10px] font-extrabold tabular-nums transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#165dfb] focus-visible:ring-offset-2 focus-visible:ring-offset-white disabled:cursor-not-allowed disabled:opacity-40 dark:focus-visible:ring-offset-slate-900 ${
+                    answered
+                      ? `border-emerald-300 bg-emerald-50 text-emerald-800 dark:border-emerald-700 dark:bg-emerald-950/70 dark:text-emerald-200 ${isCurrent ? "ring-2 ring-[#165dfb] ring-offset-1 dark:ring-offset-slate-900" : ""}`
                       : marked
-                        ? "border-[#73561a]/40 bg-[#f6efe1] text-[#73561a]"
-                        : answered
-                          ? "border-[#1d5237]/25 bg-[#e2ede8] text-[#1d5237]"
-                          : "border-[#d1dee8]/80 bg-white text-[#78716b]"
+                        ? `border-amber-300 bg-amber-50 text-amber-900 dark:border-amber-700 dark:bg-amber-950/70 dark:text-amber-200 ${isCurrent ? "ring-2 ring-[#165dfb] ring-offset-1 dark:ring-offset-slate-900" : ""}`
+                        : `border-slate-200 bg-white text-slate-600 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200 ${isCurrent ? "border-[#165dfb] ring-2 ring-[#165dfb] ring-offset-1 dark:ring-offset-slate-900" : ""}`
                   }`}
                 >
                   {index + 1}
                   {marked && (
-                    <span className="absolute -right-0.5 -top-0.5 h-1.5 w-1.5 rounded-full bg-[#73561a]" />
+                    <span className="absolute -right-1 -top-1 flex h-3.5 w-3.5 items-center justify-center rounded-full border border-white bg-amber-500 text-white shadow-sm dark:border-slate-900">
+                      <Flag className="h-2 w-2" />
+                    </span>
                   )}
                 </button>
               );
