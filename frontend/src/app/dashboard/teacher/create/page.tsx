@@ -167,7 +167,7 @@ function CreateAssessmentContent() {
   // endTime is derived — always equals startTime + timeLimit (overallTimerSeconds).
   // It is NOT independently editable by the teacher.
   const endTime = computeEndTime(startTime, timeLimit);
-  const [maxTabSwitch, setMaxTabSwitch] = useState(3);
+  const [maxTabSwitch, setMaxTabSwitch] = useState(5);
   const [timeBonusEnabled, setTimeBonusEnabled] = useState(false);
   const [randomQuestionOrder, setRandomQuestionOrder] = useState(true);
   const [randomOptionOrder, setRandomOptionOrder] = useState(true);
@@ -2576,7 +2576,7 @@ questionText,optionA,optionB,optionC,optionD,optionE,optionF,correctAnswer,marks
                           className={inputClass}
                         />
                         <p className="mt-1 text-[10px] text-[#78716b] dark:text-slate-400">
-                          Tab switches and fullscreen exits count as one unified violation. Default: 3. The backend enforces the limit.
+                          Tab switches and fullscreen exits count toward one unified browser-policy limit. Default: 5. The backend enforces the saved limit, whether AI proctoring is on or off.
                         </p>
                       </div>
                     </div>
