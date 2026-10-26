@@ -1187,12 +1187,12 @@ export default function TeacherAssessmentPage({
 
             {/* Leaderboard table: same eight-column proportions as the real table */}
             <section className="assessment-skeleton-panel overflow-hidden rounded-[18px] border">
-              <div className="assessment-skeleton-table-head grid min-w-[1040px] grid-cols-[32px_minmax(140px,1.2fr)_minmax(120px,1fr)_80px_90px_80px_110px_100px] items-center gap-3 border-b px-4 py-4">
+              <div className="overflow-x-auto">
+                <div className="assessment-skeleton-table-head grid min-w-[1040px] grid-cols-[32px_minmax(140px,1.2fr)_minmax(120px,1fr)_80px_90px_80px_110px_100px] items-center gap-3 border-b px-4 py-4">
                 {[12, 44, 68, 35, 45, 40, 42, 52].map((width, item) => (
                   <div key={item} className="assessment-skeleton h-2.5" style={{ width: `${width}px` }} />
                 ))}
-              </div>
-              <div className="overflow-x-auto">
+                </div>
                 <div className="min-w-[1040px] divide-y divide-mist-blue/30">
                   {[0, 1, 2].map((item) => (
                     <div key={item} className="assessment-skeleton-table-row grid grid-cols-[32px_minmax(140px,1.2fr)_minmax(120px,1fr)_80px_90px_80px_110px_100px] items-center gap-3 px-4 py-4">
