@@ -2037,7 +2037,7 @@ export default function TestArenaPage({
 
   return (
     <div
-      className="relative flex h-[100dvh] w-screen overflow-hidden bg-[#f5f5f4] text-[#111111] p-0 font-sans select-none"
+      className="relative flex h-[100dvh] w-screen overflow-hidden bg-[#f5f5f4] p-0 font-sans text-[#111111] select-none dark:bg-slate-950 dark:text-slate-100"
       style={{ WebkitUserSelect: "none", userSelect: "none" }}
     >
       <AnimatePresence>
@@ -2110,20 +2110,20 @@ export default function TestArenaPage({
         initial={mounted ? { opacity: 0, y: 8 } : false}
         animate={mounted ? { opacity: 1, y: 0 } : false}
         transition={{ duration: 0.25, ease: "easeOut" }}
-        className="flex h-full min-w-0 flex-1 flex-col bg-white overflow-hidden border-0 shadow-none text-left"
+        className="flex h-full min-w-0 flex-1 flex-col overflow-hidden border-0 bg-white text-left shadow-none dark:bg-slate-900"
       >
         <header className="flex flex-wrap items-center justify-between gap-3 border-b border-[#d1dee8]/50 bg-white px-3 py-3 sm:px-6 sm:py-4 dark:border-slate-700 dark:bg-slate-950">
           <div className="flex min-w-0 flex-wrap items-center gap-2.5">
-            <span className="rounded-full bg-[#f5f5f4] px-3 py-1 text-xs font-bold text-[#165dfb] font-mono border border-[#d1dee8]/70">
+            <span className="rounded-full border border-[#d1dee8]/70 bg-[#f5f5f4] px-3 py-1 font-mono text-xs font-bold text-[#165dfb] dark:border-slate-700 dark:bg-slate-800 dark:text-blue-300">
               {cleanCode}
             </span>
 
-            <span className="text-xs font-bold text-[#78716b]">
+            <span className="text-xs font-bold text-[#78716b] dark:text-slate-300">
               Question {currentIndex + 1} of {questions.length}
             </span>
 
             {markedForReview[Number(currentQuestion?.questionId)] && (
-              <span className="flex items-center gap-1 rounded-full bg-[#f6efe1] px-2 py-1 text-[10px] font-bold text-[#73561a]">
+              <span className="flex items-center gap-1 rounded-full bg-[#f6efe1] px-2 py-1 text-[10px] font-bold text-[#73561a] dark:border dark:border-amber-700/60 dark:bg-amber-950/70 dark:text-amber-200">
                 <Flag className="h-3 w-3" />
                 Marked for review
               </span>
@@ -2138,8 +2138,8 @@ export default function TestArenaPage({
                 className={
                   "flex items-center gap-1.5 rounded-full px-3 py-1 font-bold text-xs border " +
                   (timeLeft <= 10
-                    ? "bg-[#fbeee8] text-[#8c381c] border-[#8c381c]/30 animate-pulse"
-                    : "bg-[#f5f5f4] text-[#78716b] border-[#d1dee8]/70")
+                    ? "bg-[#fbeee8] text-[#8c381c] border-[#8c381c]/30 animate-pulse dark:bg-rose-950/70 dark:text-rose-200 dark:border-rose-800"
+                    : "bg-[#f5f5f4] text-[#78716b] border-[#d1dee8]/70 dark:bg-slate-800 dark:text-slate-300 dark:border-slate-700")
                 }
                 title="Overall server-authoritative assessment deadline"
               >
@@ -2150,7 +2150,7 @@ export default function TestArenaPage({
           </div>
         </header>
 
-        <div className="h-1.5 w-full bg-[#e6e3e2]/40 border-b border-[#d1dee8]/30">
+        <div className="h-1.5 w-full border-b border-[#d1dee8]/30 bg-[#e6e3e2]/40 dark:border-slate-800 dark:bg-slate-800">
           <div
             className="h-full bg-[#165dfb] transition-all duration-300 ease-out"
             style={{ width: `${progressPercentage}%` }}
@@ -2226,9 +2226,9 @@ export default function TestArenaPage({
         </div>
 
         {submissionNotice && !isSubmitted && (
-          <div className="border-b border-[#8c381c]/20 bg-[#fff8f5] px-4 py-3 md:px-6">
+          <div className="border-b border-[#8c381c]/20 bg-[#fff8f5] px-4 py-3 dark:border-rose-900/70 dark:bg-rose-950/40 md:px-6">
             <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-              <div className="flex items-start gap-2 text-xs font-semibold text-[#8c381c]">
+              <div className="flex items-start gap-2 text-xs font-semibold text-[#8c381c] dark:text-rose-200">
                 <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
                 <span>{submissionNotice}</span>
               </div>
@@ -2250,8 +2250,8 @@ export default function TestArenaPage({
         )}
 
         {deadlineNotice && !isSubmitted && (
-          <div className="border-b border-[#73561a]/20 bg-[#f6efe1] px-4 py-3 md:px-6">
-            <div className="flex items-start gap-2 text-xs font-semibold text-[#73561a]">
+          <div className="border-b border-[#73561a]/20 bg-[#f6efe1] px-4 py-3 dark:border-amber-800/70 dark:bg-amber-950/40 md:px-6">
+            <div className="flex items-start gap-2 text-xs font-semibold text-[#73561a] dark:text-amber-200">
               <Clock className="mt-0.5 h-4 w-4 shrink-0" />
               <span>{deadlineNotice}</span>
             </div>
@@ -2259,13 +2259,13 @@ export default function TestArenaPage({
         )}
 
         {!isFullscreen && (
-          <div className="border-b border-[#8c381c]/20 bg-[#fbeee8] px-4 py-3 md:px-6">
+          <div className="border-b border-[#8c381c]/20 bg-[#fbeee8] px-4 py-3 dark:border-rose-900/70 dark:bg-rose-950/40 md:px-6">
             <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-              <div className="flex items-start gap-2 text-xs text-[#8c381c]">
+              <div className="flex items-start gap-2 text-xs text-[#8c381c] dark:text-rose-200">
                 <ShieldAlert className="mt-0.5 h-4 w-4 shrink-0" />
                 <div>
                   <strong className="font-bold">Fullscreen mode is off.</strong>
-                  <p className="mt-0.5 font-medium">
+                  <p className="mt-0.5 font-medium dark:text-rose-200">
                     Re-enter fullscreen before continuing the assessment.
                   </p>
                 </div>
@@ -2274,7 +2274,7 @@ export default function TestArenaPage({
               <button
                 type="button"
                 onClick={() => void requestFullscreen()}
-                className="inline-flex shrink-0 items-center justify-center gap-1.5 rounded-lg border border-[#8c381c]/30 bg-white px-3 py-2 text-[10px] font-bold text-[#8c381c] transition-all hover:bg-[#fffaf8]"
+                className="inline-flex shrink-0 items-center justify-center gap-1.5 rounded-lg border border-[#8c381c]/30 bg-white px-3 py-2 text-[10px] font-bold text-[#8c381c] transition-all hover:bg-[#fffaf8] dark:border-rose-800 dark:bg-slate-900 dark:text-rose-200 dark:hover:bg-slate-800"
               >
                 <Maximize2 className="h-3.5 w-3.5" />
                 Enter Fullscreen
@@ -2283,7 +2283,7 @@ export default function TestArenaPage({
           </div>
         )}
 
-        <div className="flex-1 overflow-y-auto px-6 py-6 md:px-10 md:py-8 bg-white">
+        <div className="min-h-0 flex-1 overflow-y-auto bg-white px-4 py-5 dark:bg-slate-900 sm:px-6 sm:py-6 md:px-10 md:py-8">
           <AnimatePresence mode="wait">
             <motion.div
               key={`q-${currentIndex}`}
@@ -2293,12 +2293,12 @@ export default function TestArenaPage({
               transition={{ duration: 0.2 }}
             >
               <div className="mb-2 flex items-center justify-between gap-3">
-                <h2 className="text-lg font-bold leading-snug text-[#111111] md:text-xl tracking-tight">
+                <h2 className="text-lg font-bold leading-snug tracking-tight text-[#111111] dark:text-slate-100 md:text-xl">
                   {currentQuestion?.questionText}
                 </h2>
               </div>
 
-              <div className="mb-5 text-[11px] font-semibold text-[#78716b]">
+              <div className="mb-5 text-[11px] font-semibold text-[#78716b] dark:text-slate-400">
                 {currentQuestion?.questionType === "MSQ"
                   ? "Select all correct options."
                   : "Select one option."}
@@ -2323,16 +2323,16 @@ export default function TestArenaPage({
                       }
                       className={`w-full rounded-[10px] border p-3.5 text-left text-xs font-bold transition-all duration-150 cursor-pointer disabled:cursor-not-allowed disabled:opacity-50 ${
                         isSelected
-                          ? "border-[#165dfb] bg-[#165dfb]/5 text-[#111111] ring-2 ring-[#165dfb]/20"
-                          : "border-[#d1dee8]/70 bg-white text-[#78716b] hover:border-[#165dfb]/40 hover:text-[#111111]"
+                          ? "border-[#165dfb] bg-[#165dfb]/5 text-[#111111] ring-2 ring-[#165dfb]/20 dark:border-blue-400 dark:bg-blue-950/60 dark:text-blue-100 dark:ring-blue-400/30"
+                          : "border-[#d1dee8]/70 bg-white text-[#57534e] hover:border-[#165dfb]/40 hover:text-[#111111] dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200 dark:hover:border-blue-400 dark:hover:bg-slate-800 dark:hover:text-white"
                       }`}
                     >
                       <div className="flex items-center gap-2.5">
                         <span
                           className={`flex h-7 w-7 items-center justify-center rounded-[8px] text-xs font-bold border ${
                             isSelected
-                              ? "bg-[#165dfb] border-[#165dfb] text-white"
-                              : "bg-[#f5f5f4] text-[#78716b] border-[#d1dee8]/70"
+                              ? "bg-[#165dfb] border-[#165dfb] text-white dark:bg-blue-500 dark:border-blue-400"
+                              : "bg-[#f5f5f4] text-[#57534e] border-[#d1dee8]/70 dark:bg-slate-700 dark:text-slate-100 dark:border-slate-600"
                           }`}
                         >
                           {String.fromCharCode(65 + idx)}
@@ -2348,9 +2348,9 @@ export default function TestArenaPage({
           </AnimatePresence>
         </div>
 
-        <footer className="relative z-40 border-t border-[#d1dee8]/50 bg-white px-4 py-3.5 md:px-6">
-          <div className="flex flex-wrap items-center justify-between gap-2.5">
-            <div className="flex flex-wrap items-center gap-2">
+        <footer className="relative z-40 border-t border-[#d1dee8]/70 bg-white px-3 py-3 pb-[calc(0.75rem+env(safe-area-inset-bottom))] dark:border-slate-700 dark:bg-slate-900 sm:px-6 sm:py-3.5">
+          <div className="flex flex-col gap-2.5 sm:flex-row sm:items-center sm:justify-between">
+            <div className="grid grid-cols-3 gap-2 sm:flex sm:flex-wrap sm:items-center">
               <button
                 type="button"
                 onClick={() => goToQuestion(currentIndex - 1)}
@@ -2360,26 +2360,26 @@ export default function TestArenaPage({
                   currentIndex === 0 ||
                   test?.allowReview === false
                 }
-                className="inline-flex items-center gap-1 rounded-lg border border-[#d1dee8]/80 bg-white px-3 py-2 text-[10px] font-bold text-[#111111] transition-all hover:bg-[#f5f5f4] disabled:cursor-not-allowed disabled:opacity-40"
+                className="inline-flex min-w-0 items-center justify-center gap-1 rounded-lg border border-[#d1dee8]/80 bg-white px-2 py-2.5 text-[10px] font-bold text-[#111111] transition-all hover:bg-[#f5f5f4] disabled:cursor-not-allowed disabled:opacity-40 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100 dark:hover:bg-slate-700 sm:px-3"
               >
-                <ChevronLeft className="h-3.5 w-3.5" />
-                Previous
+                <ChevronLeft className="h-3.5 w-3.5 shrink-0" />
+                <span>Previous</span>
               </button>
 
               <button
                 type="button"
                 onClick={toggleReview}
                 disabled={isSubmitted || examInteractionBlocked || test?.allowReview === false}
-                className={`inline-flex items-center gap-1 rounded-lg border px-3 py-2 text-[10px] font-bold transition-all disabled:opacity-40 ${
+                aria-pressed={markedForReview[Number(currentQuestion?.questionId)] === true}
+                className={`inline-flex min-w-0 items-center justify-center gap-1 rounded-lg border px-2 py-2.5 text-[10px] font-bold transition-all disabled:cursor-not-allowed disabled:opacity-40 sm:px-3 ${
                   markedForReview[Number(currentQuestion?.questionId)]
-                    ? "border-[#73561a]/30 bg-[#f6efe1] text-[#73561a]"
-                    : "border-[#d1dee8]/80 bg-white text-[#78716b] hover:bg-[#f5f5f4]"
+                    ? "border-amber-300 bg-amber-50 text-amber-900 dark:border-amber-700 dark:bg-amber-950/70 dark:text-amber-200"
+                    : "border-[#d1dee8]/80 bg-white text-[#57534e] hover:bg-[#f5f5f4] dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700"
                 }`}
               >
-                <Flag className="h-3.5 w-3.5" />
-                {markedForReview[Number(currentQuestion?.questionId)]
-                  ? "Marked"
-                  : "Mark Review"}
+                <Flag className="h-3.5 w-3.5 shrink-0" />
+                <span className="sm:hidden">{markedForReview[Number(currentQuestion?.questionId)] ? "Marked" : "Review"}</span>
+                <span className="hidden sm:inline">{markedForReview[Number(currentQuestion?.questionId)] ? "Marked" : "Mark Review"}</span>
               </button>
 
               <button
@@ -2390,40 +2390,40 @@ export default function TestArenaPage({
                   examInteractionBlocked ||
                   (answers[Number(currentQuestion?.questionId)] ?? []).length === 0
                 }
-                className="inline-flex items-center gap-1 rounded-lg border border-[#d1dee8]/80 bg-white px-3 py-2 text-[10px] font-bold text-[#78716b] transition-all hover:bg-[#f5f5f4] disabled:cursor-not-allowed disabled:opacity-40"
+                className="inline-flex min-w-0 items-center justify-center gap-1 rounded-lg border border-[#d1dee8]/80 bg-white px-2 py-2.5 text-[10px] font-bold text-[#57534e] transition-all hover:bg-[#f5f5f4] disabled:cursor-not-allowed disabled:opacity-40 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700 sm:px-3"
               >
-                <Trash2 className="h-3.5 w-3.5" />
-                Clear
+                <Trash2 className="h-3.5 w-3.5 shrink-0" />
+                <span>Clear</span>
               </button>
             </div>
 
-            <div className="flex shrink-0 items-center gap-2">
-
-
-            <button
-              type="button"
-              onClick={() => {
-                if (currentIndex < questions.length - 1) {
-                  goToQuestion(currentIndex + 1);
-                } else {
-                  void finishAssessment(answersRef.current, timeTakenRef.current);
-                }
-              }}
-              disabled={isSubmitted || isSubmitting || examInteractionBlocked}
-              className="inline-flex items-center gap-1 rounded-lg bg-[#165dfb] px-4 py-2.5 text-xs font-bold text-white shadow-xs transition-all hover:bg-[#0f4fd8] active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-40"
-            >
-              {currentIndex === questions.length - 1 ? (
-                <>
-                  {isSubmitting ? "Submitting..." : "Submit Assessment"}
-                  <ChevronRight className="h-3.5 w-3.5" />
-                </>
-              ) : (
-                <>
-                  Next Question
-                  <ChevronRight className="h-3.5 w-3.5" />
-                </>
-              )}
-            </button>
+            <div className="grid grid-cols-[minmax(0,1fr)_auto] gap-2 sm:flex sm:shrink-0">
+              <button
+                type="button"
+                onClick={() => {
+                  if (currentIndex < questions.length - 1) {
+                    goToQuestion(currentIndex + 1);
+                  } else {
+                    void finishAssessment(answersRef.current, timeTakenRef.current);
+                  }
+                }}
+                disabled={isSubmitted || isSubmitting || examInteractionBlocked}
+                className="inline-flex min-w-0 items-center justify-center gap-1 rounded-lg bg-[#165dfb] px-3 py-2.5 text-xs font-bold text-white shadow-xs transition-all hover:bg-[#0f4fd8] active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-40 sm:px-4"
+              >
+                {currentIndex === questions.length - 1 ? (
+                  <>
+                    <span className="sm:hidden">{isSubmitting ? "Submitting..." : "Submit"}</span>
+                    <span className="hidden sm:inline">{isSubmitting ? "Submitting..." : "Submit Assessment"}</span>
+                    <ChevronRight className="h-3.5 w-3.5 shrink-0" />
+                  </>
+                ) : (
+                  <>
+                    <span className="sm:hidden">Next</span>
+                    <span className="hidden sm:inline">Next Question</span>
+                    <ChevronRight className="h-3.5 w-3.5 shrink-0" />
+                  </>
+                )}
+              </button>
 
               <button
                 type="button"
@@ -2432,13 +2432,14 @@ export default function TestArenaPage({
                 aria-expanded={mobileProctoringOpen}
                 aria-controls="mobile-proctoring-panel"
                 title="Open browser monitoring"
-                className="relative inline-flex h-10 shrink-0 items-center justify-center gap-1.5 rounded-lg border border-[#d1dee8]/80 bg-white px-3 text-[10px] font-bold text-[#57534e] transition-colors hover:bg-[#f5f5f4] dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-slate-800 lg:hidden"
+                className="relative inline-flex h-10 shrink-0 items-center justify-center gap-1.5 rounded-lg border border-[#d1dee8]/80 bg-white px-2.5 text-[10px] font-bold text-[#57534e] transition-colors hover:bg-[#f5f5f4] dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700 sm:px-3 lg:hidden"
               >
-                <span>Monitoring</span>
+                <Activity className="h-3.5 w-3.5 shrink-0" />
+                <span>Monitor</span>
                 <span className={`rounded-full px-1.5 py-0.5 text-[9px] font-extrabold tabular-nums ${
                   violationCount > 0
                     ? "bg-rose-50 text-rose-700 dark:bg-rose-950/60 dark:text-rose-300"
-                    : "bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-300"
+                    : "bg-slate-100 text-slate-600 dark:bg-slate-700 dark:text-slate-300"
                 }`}>{violationCount}</span>
               </button>
             </div>
@@ -2449,7 +2450,7 @@ export default function TestArenaPage({
       <aside
         id="mobile-proctoring-panel"
         aria-label="Assessment monitoring panel"
-        className={`fixed bottom-[calc(5.5rem+env(safe-area-inset-bottom))] left-3 right-3 z-30 flex-col gap-3 overflow-y-auto rounded-xl border border-[#d1dee8]/80 bg-white/95 p-2 text-left shadow-xl backdrop-blur-sm dark:border-slate-700 dark:bg-slate-950/95 max-h-[40dvh] ${
+        className={`fixed bottom-[calc(8.25rem+env(safe-area-inset-bottom))] left-3 right-3 z-30 flex-col gap-3 overflow-y-auto rounded-xl border border-[#d1dee8]/80 bg-white/95 p-2 text-left shadow-xl backdrop-blur-sm dark:border-slate-700 dark:bg-slate-950/95 max-h-[36dvh] sm:max-h-[40dvh] ${
           mobileProctoringOpen ? "flex" : "hidden"
         } lg:static lg:flex lg:h-full lg:max-h-[100dvh] lg:w-80 lg:shrink-0 lg:overflow-y-auto lg:rounded-none lg:border-0 lg:bg-transparent lg:p-0 lg:py-4 lg:pl-4 lg:pr-4 lg:shadow-none lg:backdrop-blur-none`}
       >
