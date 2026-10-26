@@ -1860,16 +1860,16 @@ export default function TestArenaPage({
           animate={mounted ? { opacity: 1, y: 0 } : false}
           className="w-full max-w-md space-y-4 rounded-[14px] border border-[#d1dee8]/70 bg-white p-6 text-center shadow-xl dark:border-slate-700 dark:bg-slate-900 md:p-8"
         >
-          <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-[10px] bg-[#fbeee8] border border-[#d1dee8]/70 text-[#8c381c] shadow-xs">
+          <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-[10px] border border-[#d1dee8]/70 bg-[#fbeee8] text-[#8c381c] shadow-xs dark:border-slate-700 dark:bg-rose-950/70 dark:text-rose-200">
             <AlertTriangle className="h-6 w-6 text-[#8c381c]" />
           </div>
 
           <div className="space-y-1">
-            <span className="text-[10px] font-bold uppercase tracking-wider text-[#78716b]">
+            <span className="text-[10px] font-bold uppercase tracking-wider text-[#78716b] dark:text-slate-400">
               Authentication Notice
             </span>
 
-            <h1 className="text-lg font-bold text-[#111111]">
+            <h1 className="text-lg font-bold text-[#111111] dark:text-slate-100">
               Session Expired Mid-Assessment
             </h1>
 
@@ -1909,7 +1909,7 @@ export default function TestArenaPage({
           transition={{ duration: 0.2, ease: "easeOut" }}
           className="w-full max-w-md space-y-4 rounded-[14px] border border-[#d1dee8]/70 bg-white p-6 text-center shadow-xl dark:border-slate-700 dark:bg-slate-900 md:p-8"
         >
-          <div className="mx-auto flex h-10 w-10 items-center justify-center rounded-[10px] bg-[#e2ede8] border border-[#d1dee8]/70 text-[#1d5237]">
+          <div className="mx-auto flex h-10 w-10 items-center justify-center rounded-[10px] border border-[#d1dee8]/70 bg-[#e2ede8] text-[#1d5237] dark:border-slate-700 dark:bg-emerald-950/70 dark:text-emerald-200">
             <CheckCircle2 className="h-6 w-6 text-[#1d5237]" />
           </div>
           <h1 className="text-xl font-bold text-[#111111] dark:text-slate-100">
@@ -1926,7 +1926,7 @@ export default function TestArenaPage({
           )}
           {submissionNotice && !isSubmitted && (
             <>
-              <p className="text-xs text-[#8c381c] leading-relaxed font-medium">
+              <p className="text-xs font-medium leading-relaxed text-[#8c381c] dark:text-rose-200">
                 Submission could not be confirmed.
               </p>
               <button
@@ -1962,7 +1962,7 @@ export default function TestArenaPage({
     return (
       <main className="flex min-h-screen items-center justify-center bg-[#f5f5f4] p-4 font-sans text-[#111111] dark:bg-slate-950 dark:text-slate-100">
         <div className="w-full max-w-md space-y-4 rounded-[14px] border border-[#d1dee8]/70 bg-white p-8 text-center shadow-xl dark:border-slate-700 dark:bg-slate-900">
-          <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-[10px] bg-[#f5f5f4] border border-[#d1dee8]/70 text-[#165dfb]">
+          <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-[10px] border border-[#d1dee8]/70 bg-[#f5f5f4] text-[#165dfb] dark:border-slate-700 dark:bg-slate-800 dark:text-blue-300">
             <Clock className="h-6 w-6 animate-pulse" />
           </div>
 
@@ -1982,7 +1982,7 @@ export default function TestArenaPage({
     return (
       <main className="flex min-h-screen items-center justify-center bg-[#f5f5f4] p-4 font-sans text-[#111111] dark:bg-slate-950 dark:text-slate-100">
         <div className="w-full max-w-md space-y-4 rounded-[14px] border border-[#d1dee8]/70 bg-white p-8 text-center shadow-xl dark:border-slate-700 dark:bg-slate-900">
-          <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-[10px] bg-[#fbeee8] border border-[#d1dee8]/70 text-[#8c381c]">
+          <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-[10px] border border-[#d1dee8]/70 bg-[#fbeee8] text-[#8c381c] dark:border-slate-700 dark:bg-rose-950/70 dark:text-rose-200">
             <AlertTriangle className="h-6 w-6" />
           </div>
 
@@ -2009,7 +2009,7 @@ export default function TestArenaPage({
     return (
       <main className="flex min-h-screen items-center justify-center bg-[#f5f5f4] p-4 font-sans text-[#111111] dark:bg-slate-950 dark:text-slate-100">
         <div className="w-full max-w-md space-y-4 rounded-[14px] border border-[#d1dee8]/70 bg-white p-8 text-center shadow-xl dark:border-slate-700 dark:bg-slate-900">
-          <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-[10px] bg-[#fbeee8] border border-[#d1dee8]/70 text-[#165dfb]">
+          <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-[10px] border border-[#d1dee8]/70 bg-[#fbeee8] text-[#165dfb] dark:border-slate-700 dark:bg-rose-950/70 dark:text-rose-200">
             <AlertTriangle className="h-6 w-6" />
           </div>
 
