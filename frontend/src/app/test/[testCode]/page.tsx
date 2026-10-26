@@ -91,6 +91,19 @@ type BrowserProctoringFlag =
 
 type BrowserProctoringFlags = Record<BrowserProctoringFlag, number>;
 
+type CachedBrowserActivity = {
+  version: 1;
+  savedAt: number;
+  flags: BrowserProctoringFlags;
+  warnings: string[];
+};
+
+const BROWSER_ACTIVITY_CACHE_TTL_MS = 12 * 60 * 60 * 1000;
+
+function browserActivityCacheKey(attemptId: string) {
+  return `dynoquizz_browser_activity_${attemptId}`;
+}
+
 type BrowserActivityNotice = {
   id: number;
   type: BrowserProctoringFlag;
@@ -129,10 +142,12 @@ function BrowserActivityPanel({
   flags,
   warnings,
   violationCount,
+  restoredFromSession,
 }: {
   flags: BrowserProctoringFlags;
   warnings: string[];
   violationCount: number;
+  restoredFromSession: boolean;
 }) {
   const rows: Array<[string, number]> = [
     ["Tab switches", flags.tab_switch],
@@ -189,9 +204,14 @@ function BrowserActivityPanel({
       </div>
 
       <div className="mt-3 border-t border-[#d1dee8]/70 pt-3 dark:border-slate-700">
-        <h3 className="mb-2 text-[10px] font-bold uppercase tracking-wide text-[#78716b] dark:text-slate-400">
-          Recent activity
-        </h3>
+        <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+          <h3 className="text-[10px] font-bold uppercase tracking-wide text-[#78716b] dark:text-slate-400">
+            Recent activity
+          </h3>
+          <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[9px] font-bold text-slate-500 dark:bg-slate-800 dark:text-slate-300">
+            {restoredFromSession ? "Restored" : "This attempt"}
+          </span>
+        </div>
         {recentWarnings.length > 0 ? (
           <ul className="space-y-2">
             {recentWarnings.map((message, index) => (
@@ -556,12 +576,95 @@ export default function TestArenaPage({
   const [flags, setFlags] = useState<BrowserProctoringFlags>(initialBrowserFlags);
   const flagsRef = useRef<BrowserProctoringFlags>(initialBrowserFlags);
   const [warnings, setWarnings] = useState<string[]>([]);
+  const [browserActivityCacheAttemptId, setBrowserActivityCacheAttemptId] = useState<string | null>(null);
+  const [browserActivityRestored, setBrowserActivityRestored] = useState(false);
   const [browserNotice, setBrowserNotice] = useState<BrowserActivityNotice | null>(null);
   const browserNoticeIdRef = useRef(0);
   const violationCount = Object.values(flags).reduce(
     (sum, count) => sum + Number(count || 0),
     0,
   );
+
+  useEffect(() => {
+    if (!activeAttemptId || typeof window === "undefined") {
+      flagsRef.current = initialBrowserFlags;
+      setFlags(initialBrowserFlags);
+      setWarnings([]);
+      setBrowserActivityRestored(false);
+      setBrowserActivityCacheAttemptId(null);
+      return;
+    }
+
+    const key = browserActivityCacheKey(activeAttemptId);
+    let restored = false;
+    let restoredFlags: BrowserProctoringFlags = initialBrowserFlags;
+    let restoredWarnings: string[] = [];
+
+    try {
+      const raw = sessionStorage.getItem(key);
+      if (raw) {
+        const parsed = JSON.parse(raw) as Partial<CachedBrowserActivity>;
+        const savedAt = Number(parsed.savedAt);
+        const validAge = Number.isFinite(savedAt)
+          && savedAt > 0
+          && Date.now() - savedAt >= 0
+          && Date.now() - savedAt <= BROWSER_ACTIVITY_CACHE_TTL_MS;
+
+        if (parsed.version === 1 && validAge && parsed.flags && typeof parsed.flags === "object") {
+          restoredFlags = { ...initialBrowserFlags };
+          for (const flag of Object.keys(initialBrowserFlags) as BrowserProctoringFlag[]) {
+            const count = Number(parsed.flags[flag]);
+            restoredFlags[flag] = Number.isFinite(count) && count >= 0
+              ? Math.floor(count)
+              : 0;
+          }
+          restoredWarnings = Array.isArray(parsed.warnings)
+            ? parsed.warnings.filter((item): item is string => typeof item === "string").slice(-10)
+            : [];
+          restored = true;
+        } else {
+          sessionStorage.removeItem(key);
+        }
+      }
+    } catch {
+      try {
+        sessionStorage.removeItem(key);
+      } catch {
+        // Session storage may be blocked by the browser.
+      }
+    }
+
+    flagsRef.current = restoredFlags;
+    setFlags(restoredFlags);
+    setWarnings(restoredWarnings);
+    setBrowserActivityRestored(restored);
+    setBrowserActivityCacheAttemptId(activeAttemptId);
+  }, [activeAttemptId]);
+
+  useEffect(() => {
+    if (
+      typeof window === "undefined"
+      || !activeAttemptId
+      || browserActivityCacheAttemptId !== activeAttemptId
+    ) {
+      return;
+    }
+
+    try {
+      const cache: CachedBrowserActivity = {
+        version: 1,
+        savedAt: Date.now(),
+        flags,
+        warnings: warnings.slice(-10),
+      };
+      sessionStorage.setItem(
+        browserActivityCacheKey(activeAttemptId),
+        JSON.stringify(cache),
+      );
+    } catch {
+      // Monitoring must continue even if browser storage is unavailable/full.
+    }
+  }, [activeAttemptId, browserActivityCacheAttemptId, flags, warnings]);
 
   const recordBrowserEvent = useCallback(
     (type: BrowserProctoringFlag, message: string) => {
@@ -2339,6 +2442,7 @@ export default function TestArenaPage({
           flags={flags}
           warnings={warnings}
           violationCount={violationCount}
+          restoredFromSession={browserActivityRestored}
         />
 
         {aiProctoringEnabled && (
