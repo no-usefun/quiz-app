@@ -8,6 +8,7 @@ import { useRouter } from "next/navigation";
 import { AnimatePresence, motion } from "framer-motion";
 import {
   Activity,
+  AppWindow,
   AlertTriangle,
   CheckCircle2,
   ChevronLeft,
@@ -209,7 +210,7 @@ function BrowserActivityPanel({
             Recent activity
           </h3>
           <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[9px] font-bold text-slate-500 dark:bg-slate-800 dark:text-slate-300">
-            {restoredFromSession ? "Restored" : "This attempt"}
+            {restoredFromSession ? "Session cache" : "Live session"}
           </span>
         </div>
         {recentWarnings.length > 0 ? (
@@ -2051,7 +2052,13 @@ export default function TestArenaPage({
             className="pointer-events-auto fixed right-3 top-3 z-[120] flex w-[min(24rem,calc(100vw-1.5rem))] items-start gap-3 rounded-xl border border-rose-300 bg-rose-50 px-3.5 py-3 text-rose-950 shadow-xl dark:border-amber-700/70 dark:bg-slate-900 dark:text-slate-100 sm:right-5 sm:top-5"
           >
             <span className="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-rose-100 text-rose-700 dark:bg-amber-950/70 dark:text-amber-300">
-              <ShieldAlert className="h-5 w-5" />
+              {browserNotice.type === "tab_switch" ? (
+                <AppWindow className="h-5 w-5" />
+              ) : browserNotice.type === "fullscreen_exit" ? (
+                <Maximize2 className="h-5 w-5" />
+              ) : (
+                <ShieldAlert className="h-5 w-5" />
+              )}
             </span>
             <span className="min-w-0 flex-1">
               <strong className="block text-xs font-extrabold">{browserNotice.title}</strong>
