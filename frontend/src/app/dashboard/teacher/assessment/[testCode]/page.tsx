@@ -1265,7 +1265,7 @@ export default function TeacherAssessmentPage({
             </div>
           )}
 
-          <section className="rounded-[20px] border border-[#dce7ff] dark:border-slate-700 bg-white dark:bg-slate-900/90 p-4 sm:p-5 space-y-3 shadow-[0_5px_20px_rgba(71,100,180,0.06)]">
+          <section className="assessment-result-visibility rounded-[20px] border border-[#dce7ff] dark:border-slate-700 bg-white dark:bg-slate-900/90 p-4 sm:p-5 space-y-3 shadow-[0_5px_20px_rgba(71,100,180,0.06)]">
             <h3 className="text-xs font-extrabold uppercase tracking-wider text-midnight-navy dark:text-slate-900 dark:text-slate-100 flex items-center gap-2 border-b border-[#e6edfb] dark:border-slate-700 pb-3">
               <Eye className="h-4 w-4 text-[#3984ff]" />
               Student Result Visibility
@@ -1298,10 +1298,10 @@ export default function TeacherAssessmentPage({
                   type="button"
                   onClick={item.onClick}
                   disabled={settingsSaving}
-                  className={`flex items-center justify-between gap-3 rounded-[15px] border p-3.5 text-left transition-all duration-200 ${
+                  className={`assessment-result-visibility-option flex items-center justify-between gap-3 rounded-[15px] border p-3.5 text-left transition-all duration-200 ${
                     item.active
-                      ? "border-[#b8ccf5] bg-[#f8fbff] text-midnight-navy dark:text-slate-900 dark:text-slate-100 ring-1 ring-[#dce8ff]"
-                      : "border-[#e2e8f0] bg-white dark:bg-slate-900 text-steel-blue-gray dark:text-slate-500 dark:text-slate-400 hover:border-[#cbd5e1] hover:bg-slate-50"
+                      ? "is-active border-[#b8ccf5] bg-[#f8fbff] text-midnight-navy dark:text-slate-900 dark:text-slate-100 ring-1 ring-[#dce8ff]"
+                      : "is-inactive border-[#e2e8f0] bg-white dark:bg-slate-900 text-steel-blue-gray dark:text-slate-500 dark:text-slate-400 hover:border-[#cbd5e1] hover:bg-slate-50"
                   } ${
                     settingsSaving
                       ? "cursor-not-allowed opacity-60"
@@ -1309,14 +1309,14 @@ export default function TeacherAssessmentPage({
                   }`}
                 >
                   <div className="flex min-w-0 items-center gap-3">
-                    <span className={`flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl ${"bg-[#eef4ff] dark:bg-blue-950/50 text-[#315fba]"}`}>
+                    <span className={`assessment-result-visibility-icon flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl ${"bg-[#eef4ff] dark:bg-blue-950/50 text-[#315fba]"}`}>
                       {item.label === "Show Leaderboard" ? <Trophy className="h-5 w-5" /> : <BarChart3 className="h-5 w-5" />}
                     </span>
                     <span className="min-w-0 text-left">
-                    <span className="block text-xs font-bold text-midnight-navy dark:text-slate-900 dark:text-slate-100">
+                    <span className="assessment-result-visibility-label block text-xs font-bold text-midnight-navy dark:text-slate-900 dark:text-slate-100">
                       {item.label}
                     </span>
-                    <span className="block text-[10px] text-steel-blue-gray dark:text-slate-500 dark:text-slate-400 mt-0.5 font-medium">
+                    <span className="assessment-result-visibility-hint block text-[10px] text-steel-blue-gray dark:text-slate-500 dark:text-slate-400 mt-0.5 font-medium">
                       {item.hint}
                     </span>
                     </span>
@@ -1328,7 +1328,7 @@ export default function TeacherAssessmentPage({
                     }`}
                   >
                     <span
-                      className={`inline-block h-4 w-4 transform rounded-full bg-white dark:bg-slate-900 shadow-xs transition-transform duration-150 ${
+                      className={`assessment-result-switch-knob inline-block h-4 w-4 transform rounded-full bg-white dark:bg-slate-900 shadow-xs transition-transform duration-150 ${
                         item.active ? "translate-x-4" : "translate-x-0"
                       }`}
                     />
@@ -1556,7 +1556,7 @@ export default function TeacherAssessmentPage({
           </section>
 
           <section className="flex flex-1 flex-col">
-            <div className="mb-4 flex flex-col gap-3 rounded-[20px] border border-[#dce7ff] dark:border-slate-700 bg-gradient-to-r from-[#f7faff] dark:from-slate-900 dark:from-slate-900 via-white dark:via-slate-900 to-[#f8f5ff] dark:to-slate-800 p-4 sm:flex-row sm:items-center sm:justify-between shadow-[0_4px_16px_rgba(71,100,180,0.05)]">
+            <div className="assessment-leaderboard-toolbar mb-4 flex flex-col gap-3 rounded-[20px] border border-[#dce7ff] dark:border-slate-700 bg-gradient-to-r from-[#f7faff] dark:from-slate-900 dark:from-slate-900 via-white dark:via-slate-900 to-[#f8f5ff] dark:to-slate-800 p-4 sm:flex-row sm:items-center sm:justify-between shadow-[0_4px_16px_rgba(71,100,180,0.05)]">
               <div className="text-left">
                 <div className="flex items-center gap-2">
                   <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-gradient-to-br from-[#dceaff] to-[#c7d2fe] text-[#315ce8] shadow-sm">
@@ -1586,9 +1586,9 @@ export default function TeacherAssessmentPage({
               </div>
             </div>
 
-            <div className="flex-1 overflow-x-auto rounded-[18px] border border-[#dce7ff] dark:border-slate-700 bg-white dark:bg-slate-900 text-left shadow-[0_6px_22px_rgba(71,100,180,0.06)]">
-              <div className="min-w-[1000px]">
-              <div className="grid grid-cols-[32px_minmax(140px,1.2fr)_minmax(120px,1fr)_80px_90px_80px_110px] items-center gap-3 border-b border-[#dce7ff] dark:border-slate-700 bg-gradient-to-r from-[#f4f8ff] dark:from-slate-800 to-[#faf7ff] dark:to-slate-800 px-4 py-3">
+            <div className="assessment-leaderboard-table flex-1 overflow-x-auto rounded-[18px] border border-[#dce7ff] dark:border-slate-700 bg-white dark:bg-slate-900 text-left shadow-[0_6px_22px_rgba(71,100,180,0.06)]">
+              <div className="min-w-[1040px]">
+              <div className="assessment-leaderboard-table-header grid min-w-[1040px] grid-cols-[32px_minmax(140px,1.2fr)_minmax(120px,1fr)_80px_90px_80px_110px_100px] items-center gap-3 border-b border-[#dce7ff] dark:border-slate-700 bg-gradient-to-r from-[#f4f8ff] dark:from-slate-800 to-[#faf7ff] dark:to-slate-800 px-4 py-3">
                 <Th
                   label="#"
                   col="rank"
@@ -1640,8 +1640,8 @@ export default function TeacherAssessmentPage({
                   className="justify-center"
                 />
 
-                <span className="text-[9px] font-bold uppercase tracking-wider text-steel-blue-gray dark:text-slate-500 dark:text-slate-400">Status</span>
-                <span className="text-[9px] font-bold uppercase tracking-wider text-steel-blue-gray dark:text-slate-500 dark:text-slate-400">Proctoring</span>
+                <span className="w-full whitespace-nowrap text-center text-[9px] font-bold uppercase tracking-wider text-steel-blue-gray dark:text-slate-500 dark:text-slate-400">Status</span>
+                <span className="w-full whitespace-nowrap text-center text-[9px] font-bold uppercase tracking-wider text-steel-blue-gray dark:text-slate-500 dark:text-slate-400">Proctoring</span>
               </div>
 
               {leaderboardUnavailable ? (
@@ -1662,7 +1662,7 @@ export default function TeacherAssessmentPage({
                   {displayList.map((student) => (
                     <li
                       key={student.id}
-                      className="grid min-w-[1040px] grid-cols-[32px_minmax(140px,1.2fr)_minmax(120px,1fr)_80px_90px_80px_110px_100px] items-center gap-3 px-4 py-3 transition-colors hover:bg-[#f6f9ff] dark:hover:bg-slate-800/70 dark:bg-slate-800/70"
+                      className="assessment-leaderboard-row grid min-w-[1040px] grid-cols-[32px_minmax(140px,1.2fr)_minmax(120px,1fr)_80px_90px_80px_110px_100px] items-center gap-3 px-4 py-3 transition-colors hover:bg-[#f6f9ff] dark:hover:bg-slate-800/70 dark:bg-slate-800/70"
                     >
                       <span className={`flex h-7 w-7 items-center justify-center rounded-full text-[11px] font-bold tabular-nums ${student.rank === 1 ? "bg-amber-100 text-amber-800" : student.rank === 2 ? "bg-slate-100 text-slate-700" : student.rank === 3 ? "bg-orange-100 text-orange-800" : "bg-frost-surface text-steel-blue-gray dark:text-slate-500 dark:text-slate-400"}`}>
                         {student.rank}
