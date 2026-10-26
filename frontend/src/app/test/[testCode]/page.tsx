@@ -37,13 +37,6 @@ const subscribeToHydration = () => () => {};
 const getClientHydrationSnapshot = () => true;
 const getServerHydrationSnapshot = () => false;
 
-interface ProctoringEventResponse {
-  recorded: boolean;
-  warningCount: number;
-  autoSubmitted: boolean;
-  message: string;
-}
-
 type ActiveAnswerState = Record<number, number[]>;
 
 type AttemptScoringSnapshot = {
@@ -97,6 +90,27 @@ type BrowserProctoringFlag =
   | "reconnect_count";
 
 type BrowserProctoringFlags = Record<BrowserProctoringFlag, number>;
+
+type BrowserActivityNotice = {
+  id: number;
+  type: BrowserProctoringFlag;
+  title: string;
+  message: string;
+  policyCount?: number;
+};
+
+const BROWSER_EVENT_TITLES: Record<BrowserProctoringFlag, string> = {
+  tab_switch: "Tab switch detected",
+  fullscreen_exit: "Fullscreen exit detected",
+  right_click: "Right-click detected",
+  copy_attempt: "Copy attempt detected",
+  cut_attempt: "Cut attempt detected",
+  paste_attempt: "Paste attempt detected",
+  focus_loss: "Window focus lost",
+  keyboard_attempt: "Restricted shortcut detected",
+  screenshot_attempt: "Screenshot shortcut detected",
+  reconnect_count: "Network reconnection detected",
+};
 
 const initialBrowserFlags: BrowserProctoringFlags = {
   tab_switch: 0,
@@ -536,12 +550,14 @@ export default function TestArenaPage({
     }
     return true;
   });
-  const mountTimeRef = useRef<number | null>(null);
   const hasEnteredFullscreenRef = useRef(false);
   const lastBrowserViolationTimeRef = useRef<Partial<Record<"tab_switch" | "fullscreen_exit", number>>>({});
   const lastAuditEventTimeRef = useRef<Partial<Record<BrowserProctoringFlag, number>>>({});
   const [flags, setFlags] = useState<BrowserProctoringFlags>(initialBrowserFlags);
+  const flagsRef = useRef<BrowserProctoringFlags>(initialBrowserFlags);
   const [warnings, setWarnings] = useState<string[]>([]);
+  const [browserNotice, setBrowserNotice] = useState<BrowserActivityNotice | null>(null);
+  const browserNoticeIdRef = useRef(0);
   const violationCount = Object.values(flags).reduce(
     (sum, count) => sum + Number(count || 0),
     0,
@@ -549,11 +565,37 @@ export default function TestArenaPage({
 
   const recordBrowserEvent = useCallback(
     (type: BrowserProctoringFlag, message: string) => {
-      setFlags((previous) => ({ ...previous, [type]: previous[type] + 1 }));
+      const nextFlags = {
+        ...flagsRef.current,
+        [type]: flagsRef.current[type] + 1,
+      };
+      flagsRef.current = nextFlags;
+      setFlags(nextFlags);
       setWarnings((previous) => [...previous.slice(-9), message]);
+
+      browserNoticeIdRef.current += 1;
+      const isPolicyViolation = type === "tab_switch" || type === "fullscreen_exit";
+      setBrowserNotice({
+        id: browserNoticeIdRef.current,
+        type,
+        title: BROWSER_EVENT_TITLES[type],
+        message,
+        ...(isPolicyViolation
+          ? { policyCount: nextFlags.tab_switch + nextFlags.fullscreen_exit }
+          : {}),
+      });
     },
     [],
   );
+
+  useEffect(() => {
+    if (!browserNotice) return;
+    const noticeId = browserNotice.id;
+    const timeoutId = window.setTimeout(() => {
+      setBrowserNotice((current) => current?.id === noticeId ? null : current);
+    }, 4500);
+    return () => window.clearTimeout(timeoutId);
+  }, [browserNotice]);
 
   const proctoring = useAIProctoring({
     attemptId: Number(activeAttemptId || 0),
@@ -698,11 +740,9 @@ export default function TestArenaPage({
       return;
     }
 
-    const INITIAL_GRACE_PERIOD_MS = 8000;
-    // Visibility-change and blur can fire together for one browser action.
-    // Deduplicate only that near-simultaneous pair rather than dropping real
-    // tab switches for 3.5 seconds. Fullscreen exits have a separate clock.
-    const VIOLATION_COOLDOWN_MS = 500;
+    // Tab switches are counted from visibilitychange only. Fullscreen exits
+    // retain a short duplicate-event guard, without an initial detection grace period.
+    const FULLSCREEN_DUPLICATE_GUARD_MS = 350;
 
     const reportEvent = async (type: BrowserProctoringFlag, details: string) => {
       // Once submission begins, do not send additional browser events for an
@@ -712,14 +752,11 @@ export default function TestArenaPage({
       const now = Date.now();
       const isCountableViolation = type === "tab_switch" || type === "fullscreen_exit";
 
-      if (isCountableViolation) {
-        if (!mountTimeRef.current) mountTimeRef.current = now;
-        if (now - mountTimeRef.current < INITIAL_GRACE_PERIOD_MS) return;
-        const violationType = type as "tab_switch" | "fullscreen_exit";
-        const previousViolationAt = lastBrowserViolationTimeRef.current[violationType] ?? 0;
-        if (now - previousViolationAt < VIOLATION_COOLDOWN_MS) return;
-        lastBrowserViolationTimeRef.current[violationType] = now;
-      } else {
+      if (type === "fullscreen_exit") {
+        const previousViolationAt = lastBrowserViolationTimeRef.current.fullscreen_exit ?? 0;
+        if (now - previousViolationAt < FULLSCREEN_DUPLICATE_GUARD_MS) return;
+        lastBrowserViolationTimeRef.current.fullscreen_exit = now;
+      } else if (!isCountableViolation) {
         const lastTime = lastAuditEventTimeRef.current[type] || 0;
         if (now - lastTime < 600) return;
         lastAuditEventTimeRef.current[type] = now;
@@ -728,22 +765,21 @@ export default function TestArenaPage({
       recordBrowserEvent(type, details);
 
       try {
-        if (type === "tab_switch") {
-          // Tab switches have a quiz-specific limit. Send them to the student
-          // attempt endpoint, which enforces Quiz.maxTabSwitch. The generic
-          // proctoring endpoint has a separate system-wide warning cap (3 by
-          // default) and must not govern a teacher-configured tab-switch limit.
+        if (type === "tab_switch" || type === "fullscreen_exit") {
+          // Browser-policy events use the quiz-specific attempt endpoint regardless
+          // of the AI camera/identity/audio setting. The backend owns the shared,
+          // teacher-configured tab-switch/fullscreen threshold.
           await api.post<void>(
             ENDPOINTS.student.proctoringEvents(activeAttemptId),
             {
-              type: "tab_switch",
-              metadata: { source: "browser", details },
+              type,
+              metadata: { source: "browser", details, detectedAt: new Date(now).toISOString() },
             },
           );
 
-          // This endpoint returns 202 without a body, so check server state to
-          // discover whether this particular switch exceeded the configured
-          // limit. Do not guess from a client-side counter.
+          // The event endpoint intentionally returns 202 without a body.
+          // Reconcile immediately with authoritative attempt state after either
+          // kind of policy violation, so a server auto-submit redirects correctly.
           const serverState = await api.get<AttemptStateResponse>(
             ENDPOINTS.student.attemptState(activeAttemptId),
             { cache: "no-store" },
@@ -753,66 +789,28 @@ export default function TestArenaPage({
             submissionInFlightRef.current = true;
             setIsSubmitted(true);
             setDeadlineNotice(
-              "The assessment was automatically submitted because the configured tab-switch limit was exceeded.",
+              type === "fullscreen_exit"
+                ? "The assessment was automatically submitted because the configured browser-violation limit was reached."
+                : "The assessment was automatically submitted because the configured tab-switch limit was reached.",
             );
-            // Tab-switch auto-submission may happen before the answer sheet is submitted.
-            cleanupAttemptRuntimeState(activeAttemptId, cleanCode, { preservePendingSubmitDraft: true });
+            cleanupAttemptRuntimeState(activeAttemptId, cleanCode, {
+              preservePendingSubmitDraft: serverState.status === "AUTO_SUBMITTED",
+            });
             void proctoringCleanupRef.current();
             router.replace(`/dashboard/student/result/${activeAttemptId}`);
-          }
-        } else if (type === "fullscreen_exit") {
-          // Fullscreen violations keep using the generic proctoring warning
-          // policy; this is separate from the quiz-specific tab-switch limit.
-          const eventType = "FULLSCREEN_EXIT";
-          const token = getAuthToken();
-          const response = await api.post<ProctoringEventResponse>(
-            ENDPOINTS.proctoring.recordEvent(activeAttemptId),
-            {
-              eventType,
-              details,
-              severity: "HIGH",
-              confidence: 1.0,
-              frameTimestamp: now / 1000,
-              eventId: `browser-${activeAttemptId}-${eventType}-${now}`,
-            },
-            {
-              headers: token ? { Authorization: `Bearer ${token}` } : {},
-            },
-          );
-
-          if (response && typeof response.warningCount === "number") {
-            const isAutoSubmitted = Boolean(response.autoSubmitted);
-            proctoringSetWarningCountRef.current(response.warningCount);
-            lastBackendWarningCountRef.current = Math.max(
-              lastBackendWarningCountRef.current,
-              response.warningCount,
-            );
-            proctoringShowWarningModalRef.current(
-              details,
-              response.warningCount,
-              isAutoSubmitted,
-            );
-            if (isAutoSubmitted) {
-              submissionInFlightRef.current = true;
-              setIsSubmitted(true);
-              // Preserve local answers if the server finalized before it received them.
-              cleanupAttemptRuntimeState(activeAttemptId, cleanCode, { preservePendingSubmitDraft: true });
-              void proctoringCleanupRef.current();
-              router.replace(`/dashboard/student/result/${activeAttemptId}`);
-            }
           }
         } else {
           await api.post(
             ENDPOINTS.student.proctoringEvents(activeAttemptId),
             {
-              // The current backend allow-list has no screenshot_attempt type.
-              // Persist the screenshot signal as keyboard_attempt while retaining
-              // its specific label in metadata for teacher-side audit details.
+              // The backend event contract currently has no screenshot_attempt type.
+              // Preserve the distinct signal in metadata until the backend contract is extended.
               type: type === "screenshot_attempt" ? "keyboard_attempt" : type,
               metadata: {
                 source: "browser",
                 details,
                 ...(type === "screenshot_attempt" ? { originalType: type } : {}),
+                detectedAt: new Date(now).toISOString(),
               },
             },
           );
@@ -856,13 +854,9 @@ export default function TestArenaPage({
     };
 
     const handleBlur = () => {
-      // Count a tab switch only when the document is actually hidden. A blur
-      // while the page remains visible (address bar, another app/window, or a
-      // transient focus change) is recorded as focus loss and cannot trigger
-      // the quiz tab-switch auto-submission threshold.
-      if (document.visibilityState === "hidden") {
-        void reportEvent("tab_switch", "Candidate switched away from the assessment tab.");
-      } else {
+      // visibilitychange is the single authoritative source for tab switches.
+      // This prevents blur + visibilitychange from counting one switch twice.
+      if (document.visibilityState !== "hidden") {
         void reportEvent("focus_loss", "The assessment window lost focus while the page remained visible.");
       }
     };
@@ -945,7 +939,6 @@ export default function TestArenaPage({
     };
     const handleOffline = () => { wasOffline = true; };
 
-    if (!mountTimeRef.current) mountTimeRef.current = Date.now();
     const initialFullscreen = Boolean(document.fullscreenElement);
     // Read the browser fullscreen state once while registering the browser event listeners.
     // eslint-disable-next-line react-hooks/set-state-in-effect -- DOM state synchronization
@@ -1935,6 +1928,43 @@ export default function TestArenaPage({
       className="relative flex h-[100dvh] w-screen overflow-hidden bg-[#f5f5f4] text-[#111111] p-0 font-sans select-none"
       style={{ WebkitUserSelect: "none", userSelect: "none" }}
     >
+      <AnimatePresence>
+        {browserNotice && (
+          <motion.div
+            key={browserNotice.id}
+            initial={{ opacity: 0, y: -8, scale: 0.98 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, y: -8, scale: 0.98 }}
+            transition={{ duration: 0.16, ease: "easeOut" }}
+            role="status"
+            aria-live="assertive"
+            className="pointer-events-auto fixed right-3 top-3 z-[120] flex w-[min(24rem,calc(100vw-1.5rem))] items-start gap-3 rounded-xl border border-rose-300 bg-rose-50 px-3.5 py-3 text-rose-950 shadow-xl dark:border-amber-700/70 dark:bg-slate-900 dark:text-slate-100 sm:right-5 sm:top-5"
+          >
+            <span className="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-rose-100 text-rose-700 dark:bg-amber-950/70 dark:text-amber-300">
+              <ShieldAlert className="h-5 w-5" />
+            </span>
+            <span className="min-w-0 flex-1">
+              <strong className="block text-xs font-extrabold">{browserNotice.title}</strong>
+              <span className="mt-1 block break-words text-[10px] leading-relaxed opacity-85">
+                {browserNotice.message}
+              </span>
+              {browserNotice.policyCount != null && (
+                <span className="mt-1.5 block text-[10px] font-bold">
+                  Browser violations detected: {browserNotice.policyCount}
+                </span>
+              )}
+            </span>
+            <button
+              type="button"
+              onClick={() => setBrowserNotice(null)}
+              aria-label="Dismiss browser activity notification"
+              className="ml-1 rounded-md px-1.5 py-0.5 text-xs font-bold opacity-70 transition hover:bg-rose-200 hover:opacity-100 dark:hover:bg-slate-700"
+            >
+              ×
+            </button>
+          </motion.div>
+        )}
+      </AnimatePresence>
       {!isFullscreen && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center bg-[#111111]/70 p-4 backdrop-blur-sm">
           <div className="w-full max-w-md rounded-[16px] border border-[#d1dee8] bg-white p-6 text-center shadow-2xl">
@@ -2432,7 +2462,14 @@ export default function TestArenaPage({
             sessionStorage.removeItem(`dynoquizz_pending_proctor_attempt_${cleanCode}`);
             sessionStorage.removeItem(`dynoquizz_reference_photo_fresh_${activeAttemptId}`);
             sessionStorage.removeItem("dynoquizz_reference_photo");
-            router.push(`/dashboard/student/result/${cleanCode}`);
+            const resultAttemptId = String(activeAttemptId ?? "").trim();
+            if (/^\\d+$/.test(resultAttemptId)) {
+              router.replace(`/dashboard/student/result/${resultAttemptId}`);
+            } else {
+              // Never navigate to the result route with a quiz code. If the
+              // attempt ID is unavailable, return to the student dashboard.
+              router.replace("/dashboard/student");
+            }
           }
         }}
       />
