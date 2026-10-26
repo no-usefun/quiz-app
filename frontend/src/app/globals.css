@@ -1251,3 +1251,50 @@ html.dark .assessment-governance .assessment-skeleton-table-row {
     opacity: 0.18;
   }
 }
+
+
+/* Fix the actual Top Performers cards in dark mode. Their original pastel
+   gradients were not covered by the legacy gradient compatibility selectors,
+   leaving the silver and bronze cards nearly white with low-contrast text. */
+html.dark .assessment-governance .assessment-top-performer-card {
+  color: #e5edf9 !important;
+  box-shadow: inset 0 0 0 1px rgba(148, 163, 184, 0.05);
+}
+html.dark .assessment-governance .assessment-top-performer-card.is-gold {
+  background: linear-gradient(135deg, #202a3e 0%, #1a2437 58%, #2c2b35 100%) !important;
+  border-color: #69562b !important;
+}
+html.dark .assessment-governance .assessment-top-performer-card.is-silver {
+  background: linear-gradient(135deg, #1d2a40 0%, #182337 58%, #202b3c 100%) !important;
+  border-color: #3b506d !important;
+}
+html.dark .assessment-governance .assessment-top-performer-card.is-bronze {
+  background: linear-gradient(135deg, #30252a 0%, #211f2c 58%, #332923 100%) !important;
+  border-color: #76503a !important;
+}
+html.dark .assessment-governance .assessment-top-performer-card p {
+  color: #e5edf9 !important;
+}
+html.dark .assessment-governance .assessment-top-performer-card p.text-steel-blue-gray,
+html.dark .assessment-governance .assessment-top-performer-card p[class*="text-steel-blue-gray"] {
+  color: #a7b4c8 !important;
+}
+html.dark .assessment-governance .assessment-top-performer-card p.text-signal-green,
+html.dark .assessment-governance .assessment-top-performer-card p[class*="text-signal-green"] {
+  color: #93b4ff !important;
+}
+html.dark .assessment-governance .assessment-top-performer-card.is-gold > div:first-of-type {
+  background-color: #42371f !important;
+  color: #f8d879 !important;
+}
+html.dark .assessment-governance .assessment-top-performer-card.is-silver > div:first-of-type {
+  background-color: #263858 !important;
+  color: #a9c2ff !important;
+}
+html.dark .assessment-governance .assessment-top-performer-card.is-bronze > div:first-of-type {
+  background-color: #493025 !important;
+  color: #fdba74 !important;
+}
+html.dark .assessment-governance .assessment-top-performer-card:hover {
+  filter: brightness(1.06);
+}
