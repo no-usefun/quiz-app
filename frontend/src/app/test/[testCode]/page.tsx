@@ -588,10 +588,6 @@ export default function TestArenaPage({
   useEffect(() => {
     if (!activeAttemptId || typeof window === "undefined") {
       flagsRef.current = initialBrowserFlags;
-      setFlags(initialBrowserFlags);
-      setWarnings([]);
-      setBrowserActivityRestored(false);
-      setBrowserActivityCacheAttemptId(null);
       return;
     }
 
@@ -635,10 +631,12 @@ export default function TestArenaPage({
     }
 
     flagsRef.current = restoredFlags;
+    /* eslint-disable react-hooks/set-state-in-effect -- Rehydrate monitoring counters from sessionStorage for this server attempt. */
     setFlags(restoredFlags);
     setWarnings(restoredWarnings);
     setBrowserActivityRestored(restored);
     setBrowserActivityCacheAttemptId(activeAttemptId);
+    /* eslint-enable react-hooks/set-state-in-effect */
   }, [activeAttemptId]);
 
   useEffect(() => {
