@@ -1140,3 +1140,114 @@ html.dark .assessment-governance .assessment-leaderboard-row > div > button {
 html.dark .assessment-governance .assessment-leaderboard-row > div > button:hover {
   background-color: #4a391e !important;
 }
+
+
+/* Assessment governance loading skeleton. The placeholders intentionally use
+   the same spacing and card geometry as the loaded page, with a low-key shimmer
+   instead of a blocking text-only screen. */
+.assessment-governance .assessment-skeleton {
+  position: relative;
+  overflow: hidden;
+  border-radius: 0.4rem;
+  background-color: #e8edf5;
+}
+.assessment-governance .assessment-skeleton::after {
+  position: absolute;
+  inset: 0;
+  content: "";
+  transform: translateX(-105%);
+  background: linear-gradient(
+    90deg,
+    transparent 0%,
+    rgba(255, 255, 255, 0.7) 48%,
+    transparent 100%
+  );
+  animation: assessment-skeleton-shimmer 1.65s ease-in-out infinite;
+}
+.assessment-governance .assessment-skeleton-panel {
+  border-color: #dce7f7;
+  background-color: #ffffff;
+}
+.assessment-governance .assessment-skeleton-option,
+.assessment-governance .assessment-skeleton-stat {
+  border-color: #dce7f7;
+  background-color: #fbfcff;
+}
+.assessment-governance .assessment-skeleton-icon-wrap {
+  background-color: #edf3ff;
+  color: #a6b8df;
+}
+.assessment-governance .assessment-skeleton-icon {
+  opacity: 0.62;
+  filter: blur(0.45px);
+}
+.assessment-governance .assessment-skeleton-ghost-icon {
+  color: #b4c6e8;
+  opacity: 0.22;
+  filter: blur(1.2px);
+}
+.assessment-governance .assessment-skeleton-performer {
+  border-color: #e5eaf2;
+  background: linear-gradient(135deg, #ffffff 0%, #f8faff 100%);
+}
+.assessment-governance .assessment-skeleton-table-head {
+  border-color: #dce7f7;
+  background: linear-gradient(100deg, #f0f5ff 0%, #f9f7ff 100%);
+}
+.assessment-governance .assessment-skeleton-table-row {
+  background-color: #ffffff;
+  border-color: #e8edf5;
+}
+
+@keyframes assessment-skeleton-shimmer {
+  100% { transform: translateX(105%); }
+}
+
+html.dark .assessment-governance .assessment-skeleton {
+  background-color: #29364a;
+}
+html.dark .assessment-governance .assessment-skeleton::after {
+  background: linear-gradient(
+    90deg,
+    transparent 0%,
+    rgba(148, 163, 184, 0.18) 48%,
+    transparent 100%
+  );
+}
+html.dark .assessment-governance .assessment-skeleton-panel {
+  border-color: #2e3d54;
+  background-color: #151e2e;
+}
+html.dark .assessment-governance .assessment-skeleton-option,
+html.dark .assessment-governance .assessment-skeleton-stat {
+  border-color: #334155;
+  background-color: #182337;
+}
+html.dark .assessment-governance .assessment-skeleton-icon-wrap {
+  background-color: #263858;
+  color: #839dce;
+}
+html.dark .assessment-governance .assessment-skeleton-ghost-icon {
+  color: #7890bc;
+  opacity: 0.2;
+}
+html.dark .assessment-governance .assessment-skeleton-performer {
+  border-color: #334155;
+  background: linear-gradient(135deg, #182337 0%, #172033 100%);
+}
+html.dark .assessment-governance .assessment-skeleton-table-head {
+  border-color: #334155;
+  background: linear-gradient(100deg, #1a263a 0%, #1c2337 100%);
+}
+html.dark .assessment-governance .assessment-skeleton-table-row {
+  border-color: #2e3d54;
+  background-color: #151e2e;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .assessment-governance .assessment-skeleton::after {
+    animation: none;
+    transform: none;
+    opacity: 0.18;
+  }
+}
