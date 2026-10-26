@@ -3,7 +3,7 @@
 import { Suspense, useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
-import { ArrowLeft, ArrowRight, Eye, EyeOff } from "lucide-react";
+import { ArrowLeft, ArrowRight, Eye, EyeOff, GraduationCap, Presentation } from "lucide-react";
 import { ApiClientError, api, clearApiCache } from "@/lib/api/client";
 import { ENDPOINTS } from "@/lib/api/endpoints";
 import { isLanExamMode } from "@/lib/examMode";
@@ -270,7 +270,10 @@ function LoginContent() {
       <PublicNavbar redirectTarget={redirectTarget} />
       <main className="public-role-selection min-h-[calc(100vh-4rem)] w-full grid grid-cols-1 md:grid-cols-2 font-sans transition-colors">
         <section className="role-student-panel flex flex-col items-center justify-center bg-[#F9FAFB] p-8 text-center transition-colors dark:bg-slate-950 sm:p-16">
-          <div className="w-full max-w-xs space-y-5">
+          <div className="w-full max-w-xs space-y-6">
+            <span className="role-panel-icon mx-auto flex h-12 w-12 items-center justify-center rounded-xl bg-[#111827]/5 text-[#111827] ring-1 ring-[#111827]/10 transition-transform duration-300">
+              <GraduationCap className="h-6 w-6" />
+            </span>
             <div>
               <h1 className="role-panel-title text-3xl font-bold tracking-tight text-[#111827] dark:text-slate-100">Student</h1>
               <p className="role-panel-description mt-1 text-sm text-[#6B7280] dark:text-slate-400">Take quizzes with an access code</p>
@@ -283,7 +286,10 @@ function LoginContent() {
         </section>
 
         <section className="role-instructor-panel flex flex-col items-center justify-center border-t border-neutral-800 bg-[#0F172A] p-8 text-center transition-colors dark:border-slate-800 dark:bg-slate-950 sm:p-16 md:border-l md:border-t-0">
-          <div className="w-full max-w-xs space-y-5">
+          <div className="w-full max-w-xs space-y-6">
+            <span className="role-panel-icon mx-auto flex h-12 w-12 items-center justify-center rounded-xl bg-white/10 text-white ring-1 ring-white/15 transition-transform duration-300">
+              <Presentation className="h-6 w-6" />
+            </span>
             <div>
               <h1 className="role-panel-title text-3xl font-bold tracking-tight text-white">Instructor</h1>
               <p className="role-panel-description mt-1 text-sm text-[#94A3B8]">Create and manage quizzes</p>
@@ -318,6 +324,19 @@ function LoginContent() {
                 LAN Exam Mode · Local Authentication
               </span>
             )}
+            <span
+              className={`mb-4 flex h-11 w-11 items-center justify-center rounded-xl ring-1 ${
+                activeRole === "teacher"
+                  ? "bg-[#0F172A] text-white ring-[#0F172A]/20 dark:bg-slate-800 dark:text-slate-100 dark:ring-slate-700"
+                  : "bg-neutral-100 text-neutral-900 ring-neutral-900/10 dark:bg-blue-950 dark:text-blue-200 dark:ring-blue-900"
+              }`}
+            >
+              {activeRole === "teacher" ? (
+                <Presentation className="h-5 w-5" />
+              ) : (
+                <GraduationCap className="h-5 w-5" />
+              )}
+            </span>
             <h1 className="mt-1.5 text-2xl font-bold tracking-tight text-neutral-900 dark:text-slate-100">Log in as {roleLabel}</h1>
           </div>
 
