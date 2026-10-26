@@ -1039,8 +1039,187 @@ export default function TeacherAssessmentPage({
 
   if (loading) {
     return (
-      <main className="min-h-screen bg-frost-surface flex items-center justify-center text-xs text-steel-blue-gray dark:text-slate-500 dark:text-slate-400">
-        Loading assessment governance panel...
+      <main
+        className="assessment-governance min-h-screen bg-frost-surface p-4 font-sans md:p-6 lg:p-8"
+        aria-busy="true"
+      >
+        <span role="status" className="sr-only">
+          Loading assessment details
+        </span>
+        <div
+          aria-hidden="true"
+          className="mx-auto flex min-h-[90vh] max-w-[1400px] flex-col overflow-hidden rounded-cards border border-mist-blue bg-paper-white shadow-xl"
+        >
+          {/* Header skeleton */}
+          <header className="flex flex-wrap items-center justify-between gap-4 border-b border-mist-blue/40 px-4 py-4 sm:px-6">
+            <div className="flex items-center gap-3">
+              <div className="assessment-skeleton h-4 w-20" />
+              <div className="h-5 w-px bg-mist-blue/50" />
+              <div className="assessment-skeleton h-7 w-24 rounded-lg" />
+            </div>
+            <div className="flex items-center gap-2">
+              <div className="assessment-skeleton h-10 w-10 rounded-full" />
+              <div className="assessment-skeleton h-10 w-32 rounded-xl" />
+            </div>
+          </header>
+
+          <div className="flex flex-1 flex-col gap-5 p-4 sm:p-5 md:p-6">
+            {/* Assessment title and state */}
+            <section className="assessment-skeleton-panel relative overflow-hidden rounded-[24px] border p-5 sm:p-7">
+              <div className="flex flex-col justify-between gap-5 sm:flex-row sm:items-center">
+                <div className="min-w-0 flex-1 space-y-3">
+                  <div className="assessment-skeleton h-3 w-36" />
+                  <div className="assessment-skeleton h-7 w-2/3 max-w-sm" />
+                  <div className="flex flex-wrap gap-3 pt-1">
+                    <div className="assessment-skeleton h-3 w-32" />
+                    <div className="assessment-skeleton h-3 w-20" />
+                    <div className="assessment-skeleton h-3 w-16" />
+                  </div>
+                </div>
+                <div className="flex items-center gap-2">
+                  <div className="assessment-skeleton h-7 w-24 rounded-full" />
+                  <div className="assessment-skeleton h-9 w-32 rounded-xl" />
+                </div>
+              </div>
+              <Trophy className="assessment-skeleton-ghost-icon absolute -bottom-2 right-7 h-24 w-24" />
+            </section>
+
+            {/* Student result visibility */}
+            <section className="assessment-skeleton-panel rounded-[20px] border p-4 sm:p-5">
+              <div className="mb-4 flex items-center gap-2 border-b border-mist-blue/40 pb-3">
+                <Eye className="assessment-skeleton-icon h-4 w-4" />
+                <div className="assessment-skeleton h-3 w-48" />
+              </div>
+              <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+                {[0, 1].map((item) => (
+                  <div key={item} className="assessment-skeleton-option flex min-w-0 items-center justify-between gap-3 rounded-[15px] border p-3.5">
+                    <div className="flex min-w-0 items-center gap-3">
+                      <div className="assessment-skeleton-icon-wrap flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl">
+                        {item === 0 ? (
+                          <Trophy className="assessment-skeleton-icon h-5 w-5" />
+                        ) : (
+                          <BarChart3 className="assessment-skeleton-icon h-5 w-5" />
+                        )}
+                      </div>
+                      <div className="min-w-0 flex-1 space-y-2">
+                        <div className="assessment-skeleton h-3 w-32 max-w-full" />
+                        <div className="assessment-skeleton h-2.5 w-52 max-w-full" />
+                      </div>
+                    </div>
+                    <div className="assessment-skeleton h-5 w-9 shrink-0 rounded-full" />
+                  </div>
+                ))}
+              </div>
+            </section>
+
+            {/* Scoring and review settings */}
+            <section className="assessment-skeleton-panel rounded-[14px] border p-4">
+              <div className="mb-3 space-y-2 border-b border-mist-blue/40 pb-3">
+                <div className="assessment-skeleton h-3 w-44" />
+                <div className="assessment-skeleton h-2.5 w-3/4 max-w-2xl" />
+              </div>
+              <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-3">
+                {[0, 1, 2, 3].map((item) => (
+                  <div key={item} className="assessment-skeleton-option rounded-xl border p-3.5">
+                    <div className="assessment-skeleton mb-2 h-2.5 w-24" />
+                    <div className="assessment-skeleton h-3.5 w-32 max-w-full" />
+                  </div>
+                ))}
+              </div>
+            </section>
+
+            {/* Summary statistics */}
+            <section className="grid grid-cols-2 gap-3 lg:grid-cols-5">
+              {[Users, TrendingUp, Award, ClipboardList, Clock].map((Icon, item) => (
+                <div key={item} className="assessment-skeleton-stat flex min-w-0 items-center gap-3 rounded-2xl border p-4">
+                  <div className="assessment-skeleton-icon-wrap flex h-12 w-12 shrink-0 items-center justify-center rounded-full">
+                    <Icon className="assessment-skeleton-icon h-5 w-5" />
+                  </div>
+                  <div className="min-w-0 flex-1 space-y-2">
+                    <div className="assessment-skeleton h-5 w-12" />
+                    <div className="assessment-skeleton h-2.5 w-20 max-w-full" />
+                  </div>
+                </div>
+              ))}
+            </section>
+
+            {/* Top performers */}
+            <section className="space-y-4">
+              <div className="flex items-center gap-3">
+                <div className="assessment-skeleton-icon-wrap flex h-10 w-10 items-center justify-center rounded-2xl">
+                  <Trophy className="assessment-skeleton-icon h-5 w-5" />
+                </div>
+                <div className="space-y-2">
+                  <div className="assessment-skeleton h-3.5 w-32" />
+                  <div className="assessment-skeleton h-2.5 w-48" />
+                </div>
+              </div>
+              <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
+                {[0, 1, 2].map((item) => (
+                  <div key={item} className="assessment-skeleton-performer rounded-[18px] border p-4">
+                    <div className="mb-3 flex items-center justify-between">
+                      <div className="assessment-skeleton h-9 w-9 rounded-full" />
+                      <Award className="assessment-skeleton-ghost-icon h-5 w-5" />
+                    </div>
+                    <div className="assessment-skeleton mb-2 h-3.5 w-36 max-w-full" />
+                    <div className="assessment-skeleton mb-5 h-2.5 w-24" />
+                    <div className="assessment-skeleton mb-2 h-6 w-20" />
+                    <div className="assessment-skeleton h-2.5 w-12" />
+                  </div>
+                ))}
+              </div>
+            </section>
+
+            {/* Leaderboard toolbar */}
+            <section className="assessment-skeleton-panel flex flex-col justify-between gap-4 rounded-[20px] border p-4 sm:flex-row sm:items-center">
+              <div className="flex items-center gap-3">
+                <div className="assessment-skeleton-icon-wrap flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl">
+                  <Trophy className="assessment-skeleton-icon h-5 w-5" />
+                </div>
+                <div className="space-y-2">
+                  <div className="assessment-skeleton h-4 w-36" />
+                  <div className="assessment-skeleton h-2.5 w-56 max-w-full" />
+                  <div className="assessment-skeleton h-2 w-40" />
+                </div>
+              </div>
+              <div className="assessment-skeleton h-10 w-full rounded-xl sm:max-w-xs" />
+            </section>
+
+            {/* Leaderboard table: same eight-column proportions as the real table */}
+            <section className="assessment-skeleton-panel overflow-hidden rounded-[18px] border">
+              <div className="assessment-skeleton-table-head grid min-w-[1040px] grid-cols-[32px_minmax(140px,1.2fr)_minmax(120px,1fr)_80px_90px_80px_110px_100px] items-center gap-3 border-b px-4 py-4">
+                {[12, 44, 68, 35, 45, 40, 42, 52].map((width, item) => (
+                  <div key={item} className="assessment-skeleton h-2.5" style={{ width: `${width}px` }} />
+                ))}
+              </div>
+              <div className="overflow-x-auto">
+                <div className="min-w-[1040px] divide-y divide-mist-blue/30">
+                  {[0, 1, 2].map((item) => (
+                    <div key={item} className="assessment-skeleton-table-row grid grid-cols-[32px_minmax(140px,1.2fr)_minmax(120px,1fr)_80px_90px_80px_110px_100px] items-center gap-3 px-4 py-4">
+                      <div className="assessment-skeleton h-8 w-8 rounded-full" />
+                      <div className="flex min-w-0 items-center gap-2">
+                        <div className="assessment-skeleton h-8 w-8 shrink-0 rounded-full" />
+                        <div className="min-w-0 flex-1 space-y-2">
+                          <div className="assessment-skeleton h-3 w-28 max-w-full" />
+                          <div className="assessment-skeleton h-2 w-20" />
+                        </div>
+                      </div>
+                      <div className="assessment-skeleton h-3 w-24 max-w-full" />
+                      <div className="assessment-skeleton mx-auto h-3 w-12" />
+                      <div className="space-y-2">
+                        <div className="assessment-skeleton mx-auto h-3 w-10" />
+                        <div className="assessment-skeleton mx-auto h-1.5 w-16 rounded-full" />
+                      </div>
+                      <div className="assessment-skeleton mx-auto h-3 w-10" />
+                      <div className="assessment-skeleton h-7 w-full rounded-full" />
+                      <div className="assessment-skeleton h-9 w-full rounded-lg" />
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </section>
+          </div>
+        </div>
       </main>
     );
   }
