@@ -160,16 +160,39 @@ function LoginContent() {
     }
 
     setError("");
-    setGoogleLoading(true);
 
+    // OAuth is a top-level browser redirect, not an API fetch. Start it against
+    // the backend origin directly so the backend's OAuth state/session cookie is
+    // stored for the same host that receives Google's callback. Routing the
+    // initial redirect through the frontend proxy can scope that cookie to the
+    // frontend host and break callback state validation across different hosts.
+    const configuredApiBase = process.env.NEXT_PUBLIC_API_URL?.trim();
+    let googleAuthUrl: URL;
+    try {
+      if (!configuredApiBase) {
+        throw new Error("NEXT_PUBLIC_API_URL is not configured.");
+      }
+      googleAuthUrl = new URL("/oauth2/authorization/google", configuredApiBase);
+      if (googleAuthUrl.protocol !== "http:" && googleAuthUrl.protocol !== "https:") {
+        throw new Error("The configured authentication server URL must use HTTP or HTTPS.");
+      }
+      googleAuthUrl.searchParams.set("role", selectedBackendRole);
+    } catch {
+      setGoogleLoading(false);
+      setError(
+        "Google sign-in is not configured with a valid backend URL. Check NEXT_PUBLIC_API_URL and the deployed OAuth configuration.",
+      );
+      return;
+    }
+
+    setGoogleLoading(true);
     sessionStorage.setItem("dynoquizz_google_role", selectedBackendRole);
 
     if (redirectTarget) {
       sessionStorage.setItem("dynoquizz_post_login_redirect", redirectTarget);
     }
 
-    window.location.href =
-      ENDPOINTS.auth.googleLogin + "?role=" + encodeURIComponent(selectedBackendRole);
+    window.location.assign(googleAuthUrl.toString());
   };
 
   const handleLoginSubmit = async (event: React.FormEvent) => {
