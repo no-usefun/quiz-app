@@ -1694,7 +1694,7 @@ export default function TeacherAssessmentPage({
                 return (
                   <div
                     key={student.id || pos}
-                    className={`relative isolate overflow-hidden rounded-[18px] border p-4 shadow-[0_5px_18px_rgba(71,100,180,0.06)] transition-all duration-200 hover:-translate-y-0.5 hover:shadow-[0_12px_24px_rgba(71,100,180,0.11)] ${pos === 0 ? "border-[#f8df98] bg-gradient-to-br from-[#fffaf0] via-white dark:via-slate-900 to-[#fff1c9] dark:to-amber-950/30" : pos === 1 ? "border-[#dce4f0] dark:border-slate-700 bg-gradient-to-br from-[#f7faff] dark:from-slate-900 dark:from-slate-900 to-[#edf2f9] dark:to-slate-800" : "border-[#f6d8c8] bg-gradient-to-br from-[#fff8f3] dark:from-slate-900 to-[#ffeadf] dark:to-slate-800"}`}
+                    className={`assessment-top-performer-card relative isolate overflow-hidden rounded-[18px] border p-4 shadow-[0_5px_18px_rgba(71,100,180,0.06)] transition-all duration-200 hover:-translate-y-0.5 hover:shadow-[0_12px_24px_rgba(71,100,180,0.11)] ${pos === 0 ? "is-gold border-[#f8df98] bg-gradient-to-br from-[#fffaf0] via-white dark:via-slate-900 to-[#fff1c9] dark:to-amber-950/30" : pos === 1 ? "is-silver border-[#dce4f0] dark:border-slate-700 bg-gradient-to-br from-[#f7faff] dark:from-slate-900 to-[#edf2f9] dark:to-slate-800" : "is-bronze border-[#f6d8c8] bg-gradient-to-br from-[#fff8f3] dark:from-slate-900 to-[#ffeadf] dark:to-slate-800"}`}
                   >
                     <span className="absolute right-3.5 top-3.5 text-lg">
                       {c.icon}
