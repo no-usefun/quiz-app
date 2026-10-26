@@ -91,7 +91,7 @@ textarea {
   --color-steel-blue-gray: var(--color-fog-gray);
   --color-mist-blue: var(--color-ice-line);
   --color-carbon: var(--color-ink-black);
-  --color-paper-white: var(--color-paper-stone);
+  --color-paper-white: var(--color-card-surface);
   --color-frost-surface: var(--color-chalk);
   --color-halo-blue-gray: var(--color-ice-line);
   --color-link-blue: var(--color-cobalt-stamp);
@@ -1019,4 +1019,124 @@ html.dark .public-signup-role-selection .signup-role-cta:hover {
 html.dark .public-signup-role-selection .signup-role-cta:focus-visible {
   outline-color: #93c5fd !important;
   --tw-ring-color: #93c5fd !important;
+}
+
+
+/* Final theme normalization. Keep surface utilities and text utilities separate:
+   older @theme aliases deliberately point slate shades at semantic tokens, so
+   background utilities must not inherit a foreground token in dark mode. */
+html.dark [class*="dark:bg-white"],
+html.dark [class*="dark:bg-slate-950"],
+html.dark [class*="dark:bg-slate-900"] {
+  background-color: var(--color-card-surface) !important;
+}
+html.dark [class*="dark:bg-slate-800"] {
+  background-color: #202b3c !important;
+}
+html.dark [class*="dark:bg-slate-700"] {
+  background-color: #273449 !important;
+}
+html.dark [class*="dark:bg-slate-600"] {
+  background-color: #334155 !important;
+}
+
+/* Dark variants of slate/gray text must remain foreground colors instead of
+   inheriting the dark surface values assigned to the corresponding utilities. */
+html.dark [class~="dark:text-slate-50"],
+html.dark [class~="dark:text-slate-100"],
+html.dark [class~="dark:text-slate-200"],
+html.dark [class~="dark:text-slate-300"],
+html.dark [class~="dark:text-slate-700"],
+html.dark [class~="dark:text-slate-800"],
+html.dark [class~="dark:text-slate-900"],
+html.dark [class~="dark:text-gray-50"],
+html.dark [class~="dark:text-gray-100"],
+html.dark [class~="dark:text-gray-200"],
+html.dark [class~="dark:text-gray-300"],
+html.dark [class~="dark:text-gray-700"],
+html.dark [class~="dark:text-gray-800"],
+html.dark [class~="dark:text-gray-900"] {
+  color: #e5edf9 !important;
+}
+html.dark [class~="dark:text-slate-400"],
+html.dark [class~="dark:text-slate-500"],
+html.dark [class~="dark:text-slate-600"],
+html.dark [class~="dark:text-gray-400"],
+html.dark [class~="dark:text-gray-500"],
+html.dark [class~="dark:text-gray-600"] {
+  color: #a7b4c8 !important;
+}
+
+/* Assessment governance: align light and dark surfaces without changing actions
+   or result state. Explicit component classes also cover literal pastel colors. */
+html.dark .assessment-governance .assessment-result-visibility-option.is-active {
+  background-color: #1b2b43 !important;
+  border-color: #5474a5 !important;
+  color: #e5edf9 !important;
+  box-shadow: inset 0 0 0 1px rgba(84, 116, 165, 0.22) !important;
+}
+html.dark .assessment-governance .assessment-result-visibility-option.is-inactive {
+  background-color: #151e2e !important;
+  border-color: #35465f !important;
+  color: #cbd5e1 !important;
+}
+html.dark .assessment-governance .assessment-result-visibility-label {
+  color: #e5edf9 !important;
+}
+html.dark .assessment-governance .assessment-result-visibility-hint {
+  color: #a7b4c8 !important;
+}
+html.dark .assessment-governance .assessment-result-visibility-icon {
+  background-color: #263858 !important;
+  color: #93b4ff !important;
+}
+html.dark .assessment-governance .assessment-result-switch-knob {
+  background-color: #f8fafc !important;
+}
+
+/* The leaderboard header and body use the same eight-column grid. Keep them
+   on a shared dark palette and retain high-contrast status/actions. */
+html.dark .assessment-governance .assessment-leaderboard-toolbar {
+  background: linear-gradient(100deg, #19263a, #171d2e) !important;
+  border-color: #334155 !important;
+}
+html.dark .assessment-governance .assessment-leaderboard-table {
+  background-color: #151e2e !important;
+  border-color: #334155 !important;
+}
+html.dark .assessment-governance .assessment-leaderboard-table-header {
+  background: #1a263a !important;
+  border-color: #334155 !important;
+}
+html.dark .assessment-governance .assessment-leaderboard-row {
+  background-color: #151e2e !important;
+  border-color: #334155 !important;
+  color: #e5edf9 !important;
+}
+html.dark .assessment-governance .assessment-leaderboard-row:hover {
+  background-color: #1d2a40 !important;
+}
+html.dark .assessment-governance .assessment-leaderboard-row [class*="bg-emerald-100"] {
+  background-color: #17372c !important;
+  color: #86efac !important;
+}
+html.dark .assessment-governance .assessment-leaderboard-row [class*="bg-slate-100"] {
+  background-color: #273449 !important;
+  color: #cbd5e1 !important;
+}
+html.dark .assessment-governance .assessment-leaderboard-row [class*="bg-amber-100"] {
+  background-color: #3a2d17 !important;
+  color: #fcd34d !important;
+}
+html.dark .assessment-governance .assessment-leaderboard-row [class*="bg-orange-100"] {
+  background-color: #3b2a1b !important;
+  color: #fdba74 !important;
+}
+html.dark .assessment-governance .assessment-leaderboard-row > div > button {
+  background-color: #3a2d17 !important;
+  border-color: #6b5129 !important;
+  color: #fcd34d !important;
+}
+html.dark .assessment-governance .assessment-leaderboard-row > div > button:hover {
+  background-color: #4a391e !important;
 }
