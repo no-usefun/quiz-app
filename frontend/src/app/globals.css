@@ -1298,3 +1298,52 @@ html.dark .assessment-governance .assessment-top-performer-card.is-bronze > div:
 html.dark .assessment-governance .assessment-top-performer-card:hover {
   filter: brightness(1.06);
 }
+
+
+/* Assessment-builder CSV/JSON upload surface: override the pale light-mode
+   hover utility when the dark theme is active, while keeping the drop zone
+   distinct from its nested file button and CSV guide. */
+html.dark .teacher-assessment-builder .assessment-file-upload-zone {
+  background-color: #142b27 !important;
+  border-color: #355f54 !important;
+  color: #e5edf9;
+}
+html.dark .teacher-assessment-builder .assessment-file-upload-zone:hover,
+html.dark .teacher-assessment-builder .assessment-file-upload-zone:focus-within {
+  background-color: #1a2b40 !important;
+  border-color: #6f98ff !important;
+}
+html.dark .teacher-assessment-builder .assessment-file-upload-zone h4 {
+  color: #e5edf9 !important;
+}
+html.dark .teacher-assessment-builder .assessment-file-upload-zone > label > p {
+  color: #a7b4c8 !important;
+}
+html.dark .teacher-assessment-builder .assessment-file-upload-zone > label > span {
+  background-color: #202f49 !important;
+  color: #93b4ff !important;
+  box-shadow: inset 0 0 0 1px #334b73 !important;
+}
+html.dark .teacher-assessment-builder .assessment-file-upload-zone > label > div {
+  background-color: #111a2a !important;
+  border-color: #3a4c67 !important;
+  color: #cbd5e1 !important;
+}
+html.dark .teacher-assessment-builder .assessment-file-upload-zone > label > div:hover {
+  background-color: #202f49 !important;
+  border-color: #6f98ff !important;
+  color: #e5edf9 !important;
+}
+html.dark .teacher-assessment-builder .assessment-file-upload-zone details {
+  background-color: #111a2a !important;
+  border-color: #35465f !important;
+}
+html.dark .teacher-assessment-builder .assessment-file-upload-zone details summary {
+  color: #e5edf9 !important;
+}
+html.dark .teacher-assessment-builder .assessment-file-upload-zone details > div {
+  border-color: #35465f !important;
+}
+html.dark .teacher-assessment-builder .assessment-file-upload-zone details pre {
+  color: #e5edf9 !important;
+}
