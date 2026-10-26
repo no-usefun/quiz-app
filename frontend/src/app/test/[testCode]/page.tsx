@@ -1855,11 +1855,11 @@ export default function TestArenaPage({
     const allowResume = test?.allowResume !== false;
 
     return (
-      <main className="flex min-h-screen items-center justify-center bg-[#f5f5f4] text-[#111111] p-4 font-sans">
+      <main className="flex min-h-screen items-center justify-center bg-[#f5f5f4] p-4 font-sans text-[#111111] dark:bg-slate-950 dark:text-slate-100">
         <motion.div
           initial={mounted ? { opacity: 0, y: 8 } : false}
           animate={mounted ? { opacity: 1, y: 0 } : false}
-          className="w-full max-w-md rounded-[14px] bg-white p-6 md:p-8 text-center border border-[#d1dee8]/70 shadow-xl space-y-4"
+          className="w-full max-w-md space-y-4 rounded-[14px] border border-[#d1dee8]/70 bg-white p-6 text-center shadow-xl dark:border-slate-700 dark:bg-slate-900 md:p-8"
         >
           <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-[10px] bg-[#fbeee8] border border-[#d1dee8]/70 text-[#8c381c] shadow-xs">
             <AlertTriangle className="h-6 w-6 text-[#8c381c]" />
@@ -1874,7 +1874,7 @@ export default function TestArenaPage({
               Session Expired Mid-Assessment
             </h1>
 
-            <p className="text-xs text-[#78716b] leading-relaxed font-medium">
+            <p className="text-xs font-medium leading-relaxed text-[#78716b] dark:text-slate-400">
               {allowResume
                 ? "Your authentication session has expired. Unsynced answers are preserved locally for retry. Log in again to resume the server attempt."
                 : "Your authentication session has expired. This assessment does not permit resumption."}
@@ -1903,17 +1903,17 @@ export default function TestArenaPage({
 
   if (isSubmitted || deadlineReached || submissionStarted) {
     return (
-      <main className="flex min-h-screen items-center justify-center bg-[#f5f5f4] text-[#111111] p-4 font-sans">
+      <main className="flex min-h-screen items-center justify-center bg-[#f5f5f4] p-4 font-sans text-[#111111] dark:bg-slate-950 dark:text-slate-100">
         <motion.div
           initial={mounted ? { opacity: 0, y: 8 } : false}
           animate={mounted ? { opacity: 1, y: 0 } : false}
           transition={{ duration: 0.2, ease: "easeOut" }}
-          className="w-full max-w-md rounded-[14px] bg-white p-6 md:p-8 text-center border border-[#d1dee8]/70 shadow-xl space-y-4"
+          className="w-full max-w-md space-y-4 rounded-[14px] border border-[#d1dee8]/70 bg-white p-6 text-center shadow-xl dark:border-slate-700 dark:bg-slate-900 md:p-8"
         >
           <div className="mx-auto flex h-10 w-10 items-center justify-center rounded-[10px] bg-[#e2ede8] border border-[#d1dee8]/70 text-[#1d5237]">
             <CheckCircle2 className="h-6 w-6 text-[#1d5237]" />
           </div>
-          <h1 className="text-xl font-bold text-[#111111]">
+          <h1 className="text-xl font-bold text-[#111111] dark:text-slate-100">
             {isSubmitted
               ? "Exam Submitted"
               : submissionNotice
@@ -1921,7 +1921,7 @@ export default function TestArenaPage({
                 : "Submitting Assessment"}
           </h1>
           {!isSubmitted && !submissionNotice && (
-            <p className="text-xs text-[#78716b] leading-relaxed font-medium">
+            <p className="text-xs font-medium leading-relaxed text-[#78716b] dark:text-slate-400">
               Your submission is being processed. You can return to the dashboard while it completes.
             </p>
           )}
@@ -1961,17 +1961,17 @@ export default function TestArenaPage({
 
   if (isLoadingTest) {
     return (
-      <main className="flex min-h-screen items-center justify-center bg-[#f5f5f4] text-[#111111] p-4 font-sans">
-        <div className="w-full max-w-md rounded-[14px] bg-white p-8 text-center border border-[#d1dee8]/70 shadow-xl space-y-4">
+      <main className="flex min-h-screen items-center justify-center bg-[#f5f5f4] p-4 font-sans text-[#111111] dark:bg-slate-950 dark:text-slate-100">
+        <div className="w-full max-w-md space-y-4 rounded-[14px] border border-[#d1dee8]/70 bg-white p-8 text-center shadow-xl dark:border-slate-700 dark:bg-slate-900">
           <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-[10px] bg-[#f5f5f4] border border-[#d1dee8]/70 text-[#165dfb]">
             <Clock className="h-6 w-6 animate-pulse" />
           </div>
 
-          <h1 className="text-xl font-bold text-[#111111]">
+          <h1 className="text-xl font-bold text-[#111111] dark:text-slate-100">
             Loading Assessment
           </h1>
 
-          <p className="text-xs text-[#78716b] leading-relaxed font-medium">
+          <p className="text-xs font-medium leading-relaxed text-[#78716b] dark:text-slate-400">
             Preparing your secure assessment package.
           </p>
         </div>
@@ -1981,17 +1981,17 @@ export default function TestArenaPage({
 
   if (testLoadError) {
     return (
-      <main className="flex min-h-screen items-center justify-center bg-[#f5f5f4] text-[#111111] p-4 font-sans">
-        <div className="w-full max-w-md rounded-[14px] bg-white p-8 text-center border border-[#d1dee8]/70 shadow-xl space-y-4">
+      <main className="flex min-h-screen items-center justify-center bg-[#f5f5f4] p-4 font-sans text-[#111111] dark:bg-slate-950 dark:text-slate-100">
+        <div className="w-full max-w-md space-y-4 rounded-[14px] border border-[#d1dee8]/70 bg-white p-8 text-center shadow-xl dark:border-slate-700 dark:bg-slate-900">
           <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-[10px] bg-[#fbeee8] border border-[#d1dee8]/70 text-[#8c381c]">
             <AlertTriangle className="h-6 w-6" />
           </div>
 
-          <h1 className="text-xl font-bold text-[#111111]">
+          <h1 className="text-xl font-bold text-[#111111] dark:text-slate-100">
             Assessment Could Not Be Loaded
           </h1>
 
-          <p className="text-xs text-[#78716b] leading-relaxed font-medium">
+          <p className="text-xs font-medium leading-relaxed text-[#78716b] dark:text-slate-400">
             {testLoadError}
           </p>
 
@@ -2008,17 +2008,17 @@ export default function TestArenaPage({
 
   if (!test || questions.length === 0 || !activeAttemptId) {
     return (
-      <main className="flex min-h-screen items-center justify-center bg-[#f5f5f4] text-[#111111] p-4 font-sans">
-        <div className="w-full max-w-md rounded-[14px] bg-white p-8 text-center border border-[#d1dee8]/70 shadow-xl space-y-4">
+      <main className="flex min-h-screen items-center justify-center bg-[#f5f5f4] p-4 font-sans text-[#111111] dark:bg-slate-950 dark:text-slate-100">
+        <div className="w-full max-w-md space-y-4 rounded-[14px] border border-[#d1dee8]/70 bg-white p-8 text-center shadow-xl dark:border-slate-700 dark:bg-slate-900">
           <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-[10px] bg-[#fbeee8] border border-[#d1dee8]/70 text-[#165dfb]">
             <AlertTriangle className="h-6 w-6" />
           </div>
 
-          <h1 className="text-xl font-bold text-[#111111]">
+          <h1 className="text-xl font-bold text-[#111111] dark:text-slate-100">
             Assessment Session Not Found
           </h1>
 
-          <p className="text-xs text-[#78716b] leading-relaxed font-medium">
+          <p className="text-xs font-medium leading-relaxed text-[#78716b] dark:text-slate-400">
             No valid active server attempt was found for{" "}
             <strong>&ldquo;{cleanCode}&rdquo;</strong>. Please return to the
             lobby and start the assessment again.
@@ -2078,26 +2078,26 @@ export default function TestArenaPage({
         )}
       </AnimatePresence>
       {!isFullscreen && (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-[#111111]/70 p-4 backdrop-blur-sm">
-          <div className="w-full max-w-md rounded-[16px] border border-[#d1dee8] bg-white p-6 text-center shadow-2xl">
-            <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-[#fbeee8] text-[#8c381c]">
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-[#111111]/70 p-4 backdrop-blur-sm dark:bg-black/80">
+          <div className="w-full max-w-md rounded-[16px] border border-[#d1dee8] bg-white p-6 text-center shadow-2xl dark:border-slate-700 dark:bg-slate-900">
+            <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-[#fbeee8] text-[#8c381c] dark:bg-rose-950/70 dark:text-rose-200">
               <Maximize2 className="h-6 w-6" />
             </div>
-            <h2 className="mt-4 text-lg font-black text-[#111111]">
+            <h2 className="mt-4 text-lg font-black text-[#111111] dark:text-slate-100">
               Fullscreen Required
             </h2>
-            <p className="mt-2 text-xs leading-relaxed text-[#78716b]">
+            <p className="mt-2 text-xs leading-relaxed text-[#78716b] dark:text-slate-300">
               The assessment must remain in fullscreen mode. Re-enter fullscreen to continue the attempt.
             </p>
             {violationCount > 0 && (
-              <p className="mt-2 text-[10px] font-bold text-[#8c381c]">
+              <p className="mt-2 text-[10px] font-bold text-[#8c381c] dark:text-rose-200">
                 Activity flags: {violationCount}
               </p>
             )}
             <button
               type="button"
               onClick={() => void requestFullscreen()}
-              className="mt-5 inline-flex items-center justify-center gap-2 rounded-lg bg-[#111111] px-5 py-2.5 text-xs font-bold text-white transition-all hover:bg-[#222222] active:scale-[0.98]"
+              className="mt-5 inline-flex items-center justify-center gap-2 rounded-lg bg-[#111111] px-5 py-2.5 text-xs font-bold text-white transition-all hover:bg-[#222222] active:scale-[0.98] dark:bg-blue-600 dark:hover:bg-blue-500"
             >
               <Maximize2 className="h-3.5 w-3.5" />
               Re-enter Fullscreen
@@ -2515,7 +2515,7 @@ export default function TestArenaPage({
       {aiProctoringEnabled && !isSubmitted && activeAttemptId && !isAIProctoringReady && proctoring.cameraError && (
         <div role="dialog" aria-modal="true" aria-live="assertive" aria-label="AI proctoring validation failed" className="fixed inset-0 z-[90] flex items-center justify-center bg-[#111111]/80 p-4 backdrop-blur-sm">
           <div className="w-full max-w-md space-y-4 rounded-[16px] border border-[#d1dee8] bg-white p-6 text-center shadow-2xl">
-            <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-[#fbeee8] text-[#8c381c]"><AlertTriangle className="h-6 w-6" /></div>
+            <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-[#fbeee8] text-[#8c381c] dark:bg-rose-950/70 dark:text-rose-200"><AlertTriangle className="h-6 w-6" /></div>
             <h2 className="text-lg font-extrabold text-[#111111]">AI Proctoring Could Not Validate You</h2>
             <p className="text-xs leading-relaxed text-[#8c381c]">{proctoring.cameraError}</p>
             <p className="text-xs leading-relaxed text-[#78716b]">
