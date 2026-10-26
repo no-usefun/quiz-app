@@ -2393,7 +2393,7 @@ function CreateAssessmentContent() {
               </div>
             )}
 
-            <div className="rounded-[14px] border border-dashed border-[#bcd9c9] bg-[#eef8f3]/60 dark:bg-emerald-950/30 p-6 text-center transition-all hover:border-[#165dfb] hover:bg-[#ecf5ff]/70 shadow-xs">
+            <div className="assessment-file-upload-zone rounded-[14px] border border-dashed border-[#bcd9c9] bg-[#eef8f3]/60 dark:bg-emerald-950/30 p-6 text-center transition-all hover:border-[#165dfb] hover:bg-[#ecf5ff]/70 shadow-xs">
               <input
                 type="file"
                 id="csv-upload"
