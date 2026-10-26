@@ -773,6 +773,8 @@ export default function TestArenaPage({
             ENDPOINTS.student.proctoringEvents(activeAttemptId),
             {
               type,
+              clientEventId: `browser-${activeAttemptId}-${type}-${now}`,
+              occurredAt: new Date(now).toISOString(),
               metadata: { source: "browser", details, detectedAt: new Date(now).toISOString() },
             },
           );
@@ -806,6 +808,8 @@ export default function TestArenaPage({
               // The backend event contract currently has no screenshot_attempt type.
               // Preserve the distinct signal in metadata until the backend contract is extended.
               type: type === "screenshot_attempt" ? "keyboard_attempt" : type,
+              clientEventId: `browser-${activeAttemptId}-${type}-${now}`,
+              occurredAt: new Date(now).toISOString(),
               metadata: {
                 source: "browser",
                 details,
