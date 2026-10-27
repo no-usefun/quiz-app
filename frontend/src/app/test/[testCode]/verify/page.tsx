@@ -1,6 +1,7 @@
 "use client";
 
 import LoadingIndicator from "@/components/LoadingIndicator";
+import SkeletonBlock from "@/components/SkeletonBlock";
 import { use, useEffect, useState, useSyncExternalStore } from "react";
 import { useRouter } from "next/navigation";
 import { motion } from "framer-motion";
@@ -277,8 +278,17 @@ export default function IdentityVerificationPage({
 
   if (loadingSession) {
     return (
-      <main className="flex min-h-screen items-center justify-center bg-frost-surface text-midnight-navy p-4 font-sans">
-        <LoadingIndicator label="Verifying assessment session" size="lg" />
+      <main className="flex min-h-screen items-center justify-center bg-frost-surface p-4 font-sans text-midnight-navy dark:bg-slate-950 dark:text-slate-100" aria-busy="true" aria-label="Verifying assessment session">
+        <section className="w-full max-w-md space-y-5 rounded-[16px] border border-mist-blue/70 bg-paper-white p-6 shadow-xl dark:border-slate-700 dark:bg-slate-900 sm:p-8">
+          <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-[12px] bg-[#eef4ff] text-[#165dfb] dark:bg-slate-800 dark:text-blue-300"><ShieldCheck className="h-6 w-6" /></div>
+          <div className="space-y-3 text-center"><SkeletonBlock className="mx-auto h-5 w-3/4 max-w-full rounded" /><SkeletonBlock className="mx-auto h-3 w-4/5 max-w-full rounded" /></div>
+          <div className="space-y-3 rounded-[12px] border border-mist-blue/70 p-4 dark:border-slate-700">
+            <div className="flex items-center gap-3"><UserCheck className="h-4 w-4 shrink-0 text-steel-blue-gray dark:text-slate-400" /><SkeletonBlock className="h-3 w-2/3 rounded" /></div>
+            <div className="flex items-center gap-3"><KeyRound className="h-4 w-4 shrink-0 text-steel-blue-gray dark:text-slate-400" /><SkeletonBlock className="h-3 w-3/4 rounded" /></div>
+          </div>
+          <SkeletonBlock className="h-11 w-full rounded-[10px]" />
+          <p className="sr-only" role="status">Verifying assessment session</p>
+        </section>
       </main>
     );
   }
