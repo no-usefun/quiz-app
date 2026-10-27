@@ -19,6 +19,8 @@ import jakarta.persistence.Table;
 @Table(name = "quizzes")
 public class Quiz {
 
+    public static final int DEFAULT_MAX_TAB_SWITCH = 5;
+
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     @Column(name = "quiz_id")
