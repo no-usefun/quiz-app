@@ -956,10 +956,10 @@ export default function TeacherAssessmentPage({
   const scoreDistribution = useMemo(() => {
     const bands = [
       { min: 0, max: 20, label: "0–20%", color: "bg-gradient-to-r from-rose-400 via-rose-400 to-rose-500" },
-      { min: 20, max: 40, label: ">20–40%", color: "bg-gradient-to-r from-orange-300 via-amber-300 to-amber-400" },
-      { min: 40, max: 60, label: ">40–60%", color: "bg-gradient-to-r from-amber-300 via-yellow-300 to-lime-300" },
-      { min: 60, max: 80, label: ">60–80%", color: "bg-gradient-to-r from-sky-300 via-blue-300 to-blue-400" },
-      { min: 80, max: 100, label: ">80–100%", color: "bg-gradient-to-r from-emerald-300 via-emerald-400 to-teal-400" },
+      { min: 20, max: 40, label: "20–40%", color: "bg-gradient-to-r from-orange-300 via-amber-300 to-amber-400" },
+      { min: 40, max: 60, label: "40–60%", color: "bg-gradient-to-r from-amber-300 via-yellow-300 to-lime-300" },
+      { min: 60, max: 80, label: "60–80%", color: "bg-gradient-to-r from-sky-300 via-blue-300 to-blue-400" },
+      { min: 80, max: 100, label: "80–100%", color: "bg-gradient-to-r from-emerald-300 via-emerald-400 to-teal-400" },
     ];
 
     return bands.map((band, index) => ({
