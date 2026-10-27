@@ -1617,3 +1617,10 @@ html.dark .public-role-selection .role-instructor-panel:hover,
 html.dark .public-signup-role-selection .signup-role-instructor-panel:hover {
   background-color: #1b2739 !important;
 }
+
+
+/* Let the ambient layer show through only the top-level page canvas. Cards and
+   controls keep their own surfaces; active test/join routes opt out entirely. */
+.ambient-content > :is([class*="min-h-screen"], .public-auth, .public-landing) {
+  background-color: transparent !important;
+}
