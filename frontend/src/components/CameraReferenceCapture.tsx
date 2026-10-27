@@ -2,7 +2,7 @@
 
 import React, { useEffect, useRef, useState, useCallback } from "react";
 import SkeletonBlock from "@/components/SkeletonBlock";
-import { Camera, CheckCircle2, AlertTriangle, RefreshCw, Loader2, Shield } from "lucide-react";
+import { Camera, CheckCircle2, AlertTriangle, RefreshCw, Shield } from "lucide-react";
 import { checkAIHealth } from "@/lib/proctoring/aiProctoringClient";
 
 interface CameraReferenceCaptureProps {
@@ -312,12 +312,15 @@ export function CameraReferenceCapture({
             disabled={!cameraActive || isProcessing || disabled}
             className="shrink-0 inline-flex items-center gap-1.5 rounded-[10px] bg-[#165dfb] px-4 py-2 text-xs font-bold text-white hover:bg-[#124bce] active:scale-95 shadow-xs disabled:opacity-50 transition-all cursor-pointer"
           >
+            <Camera className="h-3.5 w-3.5" />
             {isProcessing ? (
-              <SkeletonBlock className="h-3 w-8 rounded bg-white/50" />
+              <>
+                <SkeletonBlock className="h-3 w-14 rounded bg-white/50" />
+                <span className="sr-only" role="status">Capturing reference photo</span>
+              </>
             ) : (
-              <Camera className="h-3.5 w-3.5" />
+              "Take Photo"
             )}
-            Take Photo
           </button>
         )}
       </div>
