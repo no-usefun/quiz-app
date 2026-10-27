@@ -334,7 +334,7 @@ function LoginContent() {
     <>
     <PublicNavbar redirectTarget={redirectTarget} />
     <main className="public-auth min-h-[calc(100vh-4rem)] bg-neutral-50 px-4 py-8 font-sans text-[#111827] transition-colors dark:bg-slate-950 dark:text-slate-100 sm:px-8">
-      <div className="mx-auto flex min-h-[calc(100vh-4rem)] max-w-md items-center">
+      <div className="mx-auto flex min-h-[calc(100vh-8rem)] max-w-md items-center">
         <div className="w-full rounded-2xl border border-neutral-200 bg-white p-7 shadow-sm transition-colors dark:border-slate-700 dark:bg-slate-900 dark:shadow-none sm:p-8">
           <button type="button" onClick={() => router.push("/login" + (redirectTarget ? "?redirect=" + encodeURIComponent(redirectTarget) : ""))} className="mb-6 inline-flex items-center gap-1.5 border-0 bg-transparent p-0 text-xs font-semibold text-neutral-400 transition-colors hover:text-neutral-800 dark:text-slate-400 dark:hover:text-slate-100">
             <ArrowLeft className="h-3.5 w-3.5" />
