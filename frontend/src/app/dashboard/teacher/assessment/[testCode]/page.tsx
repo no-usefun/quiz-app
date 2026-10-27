@@ -1,5 +1,6 @@
 "use client";
 
+import LoadingIndicator from "@/components/LoadingIndicator";
 import { use, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import {
@@ -1345,7 +1346,7 @@ export default function TeacherAssessmentPage({
                   disabled={lifecycleLoading}
                   className="rounded-[10px] bg-[#165dfb] px-3.5 py-1.5 text-xs font-bold text-white hover:bg-[#0f4fd8] active:scale-[0.98] transition-all cursor-pointer border-0 disabled:opacity-50 shadow-xs"
                 >
-                  {lifecycleLoading ? "Publishing..." : "Publish Quiz"}
+                  {lifecycleLoading ? <LoadingIndicator label="Publishing quiz" size="sm" /> : "Publish Quiz"}
                 </button>
               )}
 
@@ -1948,7 +1949,7 @@ export default function TeacherAssessmentPage({
                 <button type="button" onClick={() => setSelectedProctoringStudent(null)} className="rounded-lg border border-slate-200 px-3 py-2 text-xs font-bold text-slate-700 hover:bg-slate-50">Close</button>
               </div>
               {proctoringLoading && !proctoringOverview ? (
-                <p className="py-8 text-sm text-steel-blue-gray dark:text-slate-500 dark:text-slate-400">Loading proctoring report…</p>
+                <div className="flex items-center justify-center py-8" aria-busy="true"><LoadingIndicator label="Loading proctoring report" size="md" /></div>
               ) : proctoringError ? (
                 <p className="mt-4 rounded-lg border border-rose-200 bg-rose-50 p-3 text-sm text-rose-800">{proctoringError}</p>
               ) : !report ? (
