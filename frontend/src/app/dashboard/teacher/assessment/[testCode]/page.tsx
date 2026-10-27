@@ -1,6 +1,7 @@
 "use client";
 
 import LoadingIndicator from "@/components/LoadingIndicator";
+import SkeletonBlock from "@/components/SkeletonBlock";
 import { use, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import {
@@ -1949,7 +1950,14 @@ export default function TeacherAssessmentPage({
                 <button type="button" onClick={() => setSelectedProctoringStudent(null)} className="rounded-lg border border-slate-200 px-3 py-2 text-xs font-bold text-slate-700 hover:bg-slate-50">Close</button>
               </div>
               {proctoringLoading && !proctoringOverview ? (
-                <div className="flex items-center justify-center py-8" aria-busy="true"><LoadingIndicator label="Loading proctoring report" size="md" /></div>
+                <div className="mt-4 space-y-3" aria-busy="true" aria-label="Loading proctoring report">
+                  <div className="flex items-center gap-2"><ShieldAlert className="h-4 w-4 text-amber-600 dark:text-amber-300" /><SkeletonBlock className="h-4 w-36 rounded" /></div>
+                  <div className="grid gap-3 sm:grid-cols-3">
+                    {[{ icon: ShieldCheck }, { icon: Users }, { icon: Clock }].map(({ icon: ReportIcon }, index) => <div key={index} className="space-y-3 rounded-xl border border-slate-200 p-4 dark:border-slate-700"><div className="flex items-center gap-2"><ReportIcon className="h-4 w-4 text-slate-500 dark:text-slate-400" /><SkeletonBlock className="h-3 w-24 rounded" /></div><SkeletonBlock className="h-6 w-16 rounded" /><SkeletonBlock className="h-3 w-full rounded" /></div>)}
+                  </div>
+                  {[1, 2, 3].map((row) => <div key={row} className="flex items-center gap-3 rounded-lg border border-slate-200 p-3 dark:border-slate-700"><Clock className="h-4 w-4 shrink-0 text-slate-400" /><div className="flex-1 space-y-2"><SkeletonBlock className="h-3 w-3/4 rounded" /><SkeletonBlock className="h-2.5 w-1/2 rounded" /></div><SkeletonBlock className="h-6 w-16 rounded-full" /></div>)}
+                  <p className="sr-only" role="status">Loading proctoring report</p>
+                </div>
               ) : proctoringError ? (
                 <p className="mt-4 rounded-lg border border-rose-200 bg-rose-50 p-3 text-sm text-rose-800">{proctoringError}</p>
               ) : !report ? (
