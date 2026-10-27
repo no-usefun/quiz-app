@@ -10,11 +10,11 @@ import Link from "next/link";
 import { motion } from "framer-motion";
 import {
   ArrowRight,
-  Loader2,
   AlertCircle,
   ArrowLeft,
   ShieldCheck,
   Clock,
+  Camera,
 } from "lucide-react";
 import { Logo } from "@/components/Logo";
 import { ThemeToggle } from "@/components/ThemeToggle";
@@ -684,13 +684,20 @@ We couldn’t verify this assessment’s security settings. Please contact your 
             >
               {isStarting ? (
                 <>
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                  Starting...
+                  <ShieldCheck className="h-4 w-4" />
+                  <SkeletonBlock className="h-3 w-20 rounded bg-white/50" />
+                  <span className="sr-only" role="status">Starting assessment</span>
+                </>
+              ) : pendingStartAfterCapture ? (
+                <>
+                  <Camera className="h-4 w-4" />
+                  <SkeletonBlock className="h-3 w-24 rounded bg-white/50" />
+                  <span className="sr-only" role="status">Capturing fresh reference photo</span>
                 </>
               ) : (
                 <>
-                  {pendingStartAfterCapture ? "Capturing fresh photo…" : "Start assessment"}
-                  {!pendingStartAfterCapture && <ArrowRight className="h-4 w-4" />}
+                  Start assessment
+                  <ArrowRight className="h-4 w-4" />
                 </>
               )}
             </button>
