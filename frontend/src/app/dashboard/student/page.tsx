@@ -207,7 +207,7 @@ export default function StudentDashboard() {
         <motion.section initial={reduceMotion ? false : { opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.32, ease: "easeOut" }} className="border-b border-[#d1dee8]/60 pb-5 dark:border-slate-700 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
           <div>
             <span className="text-[10px] font-bold uppercase tracking-widest text-slate-500 dark:text-slate-400">
-              Student Assessment Portal
+              Student Dashboard
             </span>
 
             <h1 className="mt-1 text-2xl font-extrabold tracking-tight text-slate-900 dark:text-slate-100 -tracking-wide">
@@ -215,8 +215,7 @@ export default function StudentDashboard() {
             </h1>
 
             <p className="mt-1 max-w-xl text-xs leading-relaxed text-slate-500 dark:text-slate-400 font-medium">
-              Join active exam sessions with your access credentials and view
-              your submitted scorecards.
+              Join an assessment with the access code from your instructor, then return here to review submitted attempts and released results.
             </p>
           </div>
 
@@ -254,9 +253,7 @@ export default function StudentDashboard() {
               </h2>
 
               <p className="max-w-md text-xs text-slate-500 dark:text-slate-400 leading-relaxed font-medium">
-                Enter your Session Access Code along with your registered
-                Student Roll / Registration Number to verify your environment
-                and begin.
+                Enter the assessment access code and your registered roll or registration number to join.
               </p>
 
               <Link
@@ -291,7 +288,7 @@ export default function StudentDashboard() {
               </p>
 
               <p className="mt-1.5 text-[9px] text-slate-500 dark:text-slate-400 font-bold uppercase tracking-wider">
-                Tests Submitted
+                Assessments Submitted
               </p>
             </div>
           </div>
@@ -311,7 +308,7 @@ export default function StudentDashboard() {
               </p>
 
               <p className="mt-1.5 text-[9px] text-slate-500 dark:text-slate-400 font-bold uppercase tracking-wider">
-                Released Grades
+                Results Available
               </p>
             </div>
           </div>
@@ -331,7 +328,7 @@ export default function StudentDashboard() {
               {loading ? (
                 <li className="flex items-center justify-center gap-2 p-8 text-center text-xs font-medium text-slate-500 dark:text-slate-400">
                   <span className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-[#d1dee8] border-t-[#165dfb]" />
-                  Loading submissions...
+                  Loading assessment history...
                 </li>
               ) : fetchError ? (
                 <li className="flex flex-col items-center justify-center gap-3 p-12 text-center">
@@ -357,13 +354,11 @@ export default function StudentDashboard() {
 
                   <div>
                     <p className="text-sm font-bold text-slate-900 dark:text-slate-100">
-                      No assessments taken yet
+                      No assessments attempted yet
                     </p>
 
                     <p className="mt-1 text-xs text-slate-500 dark:text-slate-400 font-medium max-w-xs mx-auto leading-relaxed">
-                      Your recent submitted assessments will appear here. Join
-                      your first assessment using the session code provided by
-                      your instructor.
+                      Your submitted assessments will appear here. To get started, join an assessment using the access code provided by your instructor.
                     </p>
                   </div>
 
