@@ -1,5 +1,6 @@
 "use client";
 
+import LoadingIndicator from "@/components/LoadingIndicator";
 import { use, useEffect, useState, useSyncExternalStore } from "react";
 import { useRouter } from "next/navigation";
 import { motion } from "framer-motion";
@@ -10,7 +11,6 @@ import {
   UserCheck,
   KeyRound,
   AlertCircle,
-  Loader2,
 } from "lucide-react";
 import { ENDPOINTS } from "@/lib/api/endpoints";
 
@@ -278,10 +278,7 @@ export default function IdentityVerificationPage({
   if (loadingSession) {
     return (
       <main className="flex min-h-screen items-center justify-center bg-frost-surface text-midnight-navy p-4 font-sans">
-        <div className="flex items-center gap-2 text-xs font-bold text-steel-blue-gray">
-          <Loader2 className="h-4 w-4 animate-spin text-signal-green" />
-          Verifying assessment session...
-        </div>
+        <LoadingIndicator label="Verifying assessment session" size="lg" />
       </main>
     );
   }
