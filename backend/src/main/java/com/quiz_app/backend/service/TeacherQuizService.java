@@ -125,9 +125,10 @@ public class TeacherQuizService {
                 quiz.setAutoSubmit(request.autoSubmit());
                 quiz.setAiProctoringEnabled(request.aiProctoringEnabled());
 
-                // Phase 2 field
-                // Keep the DB value, but don't implement proctoring logic now.
-                quiz.setMaxTabSwitch(3);
+                // Browser-policy limit is persisted on creation and enforced per quiz.
+                quiz.setMaxTabSwitch(request.maxTabSwitch() != null
+                                ? request.maxTabSwitch()
+                                : Quiz.DEFAULT_MAX_TAB_SWITCH);
 
                 quiz.setStartTime(request.startTime());
                 quiz.setEndTime(request.endTime());
@@ -288,10 +289,16 @@ public class TeacherQuizService {
 
                                 quiz.getStatus(),
                                 quiz.getExamState(),
-                                quiz.isAiProctoringEnabled());
+                                quiz.isAiProctoringEnabled(),
+                                quiz.getMaxTabSwitch());
         }
 
         private void validateQuiz(CreateQuizRequest request) {
+
+                if (request.maxTabSwitch() != null && request.maxTabSwitch() < 0) {
+                        throw new BadRequestException(
+                                        "Maximum browser violations cannot be negative");
+                }
 
                 if (request.title() == null || request.title().isBlank()) {
                         throw new BadRequestException(
@@ -789,7 +796,8 @@ public class TeacherQuizService {
                                                 .toList(),
                                 quiz.getStatus(),
                                 quiz.getExamState(),
-                                quiz.isAiProctoringEnabled());
+                                quiz.isAiProctoringEnabled(),
+                                quiz.getMaxTabSwitch());
         }
 
         @Transactional(readOnly = true)
@@ -798,7 +806,6 @@ public class TeacherQuizService {
                 if (teacherId == null) {
                         throw new BadRequestException("Teacher authentication is required");
                 }
-
                 List<Quiz> quizzes = quizRepository.findByTeacherIdOrderByCreatedAtDesc(teacherId);
 
                 return quizzes.stream()

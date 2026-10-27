@@ -6,6 +6,7 @@ import java.time.Instant;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -36,6 +37,9 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import com.quiz_app.backend.dto.attempt.AttemptResponse;
 import com.quiz_app.backend.dto.attempt.AttemptResultDetailResponse;
 import com.quiz_app.backend.dto.attempt.AttemptResultResponse;
+import com.quiz_app.backend.dto.attempt.DraftAttemptAnswersRequest;
+import com.quiz_app.backend.dto.attempt.DraftAttemptAnswersResponse;
+import com.quiz_app.backend.dto.attempt.ProctoringEventRequest;
 import com.quiz_app.backend.dto.attempt.LeaderboardEntryResponse;
 import com.quiz_app.backend.dto.attempt.StudentSubmissionResponse;
 import com.quiz_app.backend.dto.attempt.SubmitAnswerRequest;
@@ -49,6 +53,7 @@ import com.quiz_app.backend.entity.Question;
 import com.quiz_app.backend.entity.QuestionType;
 import com.quiz_app.backend.entity.Quiz;
 import com.quiz_app.backend.entity.QuizAttempt;
+import com.quiz_app.backend.entity.QuizAttemptProctoringEvent;
 import com.quiz_app.backend.entity.QuizAvailabilityStatus;
 import com.quiz_app.backend.entity.QuizStatus;
 import com.quiz_app.backend.entity.ResultVisibility;
@@ -64,6 +69,7 @@ import com.quiz_app.backend.repository.OptionRepository;
 import com.quiz_app.backend.repository.QuestionRepository;
 import com.quiz_app.backend.repository.QuizAllowedStudentRepository;
 import com.quiz_app.backend.repository.QuizAttemptRepository;
+import com.quiz_app.backend.repository.QuizAttemptProctoringEventRepository;
 import com.quiz_app.backend.repository.QuizRepository;
 import com.quiz_app.backend.repository.StudentAnswerRepository;
 import com.quiz_app.backend.repository.StudentSelectedOptionRepository;
@@ -74,6 +80,9 @@ class StudentAttemptServiceTest {
 
         @Mock
         private QuizAttemptRepository quizAttemptRepository;
+
+        @Mock
+        private QuizAttemptProctoringEventRepository proctoringEventRepository;
 
         @Mock
         private QuizRepository quizRepository;
@@ -198,7 +207,6 @@ class StudentAttemptServiceTest {
                 // ---------------------------------------------------------
 
                 option1 = new Option();
-
                 setOptionId(option1, 101L);
                 option1.setQuestion(question);
                 option1.setOptionText("Programming language");
@@ -225,6 +233,77 @@ class StudentAttemptServiceTest {
                 attempt.setCurrentQuestion(1);
                 attempt.setTotalTimeTaken(0);
                 attempt.setFinalScore(BigDecimal.ZERO);
+
+                // Delegate locked lookups to the ordinary stub unless a test overrides it.
+                lenient().when(quizAttemptRepository.findByIdForUpdate(anyLong()))
+                                .thenAnswer(invocation -> quizAttemptRepository.findById(invocation.getArgument(0)));
+        }
+
+        @Test
+        void saveDraftAnswers_shouldPersistSnapshotWithoutFinalizingAttempt() {
+                when(quizAttemptRepository.findByIdForUpdate(1000L)).thenReturn(Optional.of(attempt));
+                when(questionRepository.findByQuizIdOrderByDisplayOrder(10L))
+                                .thenReturn(List.of(question));
+                when(studentAnswerRepository.findByAttemptIdAndQuestionId(1000L, 100L))
+                                .thenReturn(Optional.empty());
+                when(optionRepository.findById(101L)).thenReturn(Optional.of(option1));
+                stubStudentAnswerSaveWithId(500L);
+
+                DraftAttemptAnswersResponse response = attemptService.saveDraftAnswers(
+                                1000L,
+                                new DraftAttemptAnswersRequest(List.of(
+                                                new SubmitAnswerRequest(100L, List.of(101L), 12))),
+                                1L);
+
+                assertEquals(1000L, response.attemptId());
+                assertTrue(response.saved());
+                assertEquals(AttemptStatus.IN_PROGRESS, response.status());
+                verify(studentSelectedOptionRepository).deleteByAnswerId(500L);
+                verify(studentSelectedOptionRepository).save(any(StudentSelectedOption.class));
+                verify(quizAttemptRepository, never()).save(any(QuizAttempt.class));
+        }
+
+        @Test
+        void recordProctoringEvent_shouldIgnoreDuplicateClientEventId() {
+                when(quizAttemptRepository.findByIdForUpdate(1000L)).thenReturn(Optional.of(attempt));
+                QuizAttemptProctoringEvent existing = new QuizAttemptProctoringEvent();
+                when(proctoringEventRepository.findByAttemptIdAndClientEventId(1000L, "event-1"))
+                                .thenReturn(Optional.of(existing));
+
+                attemptService.recordProctoringEvent(
+                                1000L,
+                                1L,
+                                new ProctoringEventRequest("tab_switch", null, Map.of(), "event-1"));
+
+                verify(proctoringEventRepository, never()).save(any(QuizAttemptProctoringEvent.class));
+                verify(proctoringEventRepository, never())
+                                .countByAttemptIdAndEventTypeIn(anyLong(), any());
+                verify(quizAttemptRepository, never()).save(any(QuizAttempt.class));
+        }
+
+        @Test
+        void recordProctoringEvent_shouldAutoSubmitOnConfiguredNthCombinedPolicyEvent() {
+                quiz.setMaxTabSwitch(5);
+                when(quizAttemptRepository.findByIdForUpdate(1000L)).thenReturn(Optional.of(attempt));
+                when(proctoringEventRepository.findByAttemptIdAndClientEventId(1000L, "event-5"))
+                                .thenReturn(Optional.empty());
+                when(proctoringEventRepository.countByAttemptIdAndEventTypeIn(
+                                1000L, java.util.Set.of("tab_switch", "fullscreen_exit")))
+                                .thenReturn(5L);
+                when(questionRepository.findByQuizIdOrderByDisplayOrder(10L))
+                                .thenReturn(List.of(question));
+                when(studentAnswerRepository.findByAttemptId(1000L)).thenReturn(List.of());
+                when(studentSelectedOptionRepository.findByAnswerId(500L)).thenReturn(List.of());
+                when(optionRepository.findByQuestionIdAndCorrectTrue(100L)).thenReturn(List.of(option1));
+                stubStudentAnswerSaveWithId(500L);
+
+                attemptService.recordProctoringEvent(
+                                1000L,
+                                1L,
+                                new ProctoringEventRequest("fullscreen_exit", null, Map.of(), "event-5"));
+
+                assertEquals(AttemptStatus.AUTO_SUBMITTED, attempt.getStatus());
+                assertEquals("BROWSER_VIOLATION_LIMIT", attempt.getTerminationReason());
         }
 
         // =========================================================
@@ -398,7 +477,6 @@ class StudentAttemptServiceTest {
                                 BadRequestException.class,
                                 () -> attemptService.startAttempt("123456", 1L));
         }
-
         @Test
         void startAttempt_shouldRejectStudentOutsideAcceptedEmailDomain() {
 
