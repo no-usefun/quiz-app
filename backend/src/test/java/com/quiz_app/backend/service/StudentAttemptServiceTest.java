@@ -241,6 +241,7 @@ class StudentAttemptServiceTest {
 
         @Test
         void saveDraftAnswers_shouldPersistSnapshotWithoutFinalizingAttempt() {
+                when(quizAttemptRepository.findByIdForUpdate(1000L)).thenReturn(Optional.of(attempt));
                 when(questionRepository.findByQuizIdOrderByDisplayOrder(10L))
                                 .thenReturn(List.of(question));
                 when(studentAnswerRepository.findByAttemptIdAndQuestionId(1000L, 100L))
@@ -264,6 +265,7 @@ class StudentAttemptServiceTest {
 
         @Test
         void recordProctoringEvent_shouldIgnoreDuplicateClientEventId() {
+                when(quizAttemptRepository.findByIdForUpdate(1000L)).thenReturn(Optional.of(attempt));
                 QuizAttemptProctoringEvent existing = new QuizAttemptProctoringEvent();
                 when(proctoringEventRepository.findByAttemptIdAndClientEventId(1000L, "event-1"))
                                 .thenReturn(Optional.of(existing));
