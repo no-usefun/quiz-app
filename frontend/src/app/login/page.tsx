@@ -335,7 +335,7 @@ function LoginContent() {
     <PublicNavbar redirectTarget={redirectTarget} />
     <main className="public-auth min-h-[calc(100vh-4rem)] bg-neutral-50 px-4 py-8 font-sans text-[#111827] transition-colors dark:bg-slate-950 dark:text-slate-100 sm:px-8">
       <div className="mx-auto flex min-h-[calc(100vh-4rem)] max-w-md items-center">
-        <div className="w-full rounded-2xl border border-neutral-100 bg-white p-7 shadow-[0_18px_55px_-24px_rgba(15,23,42,0.25)] transition-colors dark:border-slate-800 dark:bg-slate-900 dark:shadow-none sm:p-8">
+        <div className="w-full rounded-2xl border border-neutral-200 bg-white p-7 shadow-sm transition-colors dark:border-slate-700 dark:bg-slate-900 dark:shadow-none sm:p-8">
           <button type="button" onClick={() => router.push("/login" + (redirectTarget ? "?redirect=" + encodeURIComponent(redirectTarget) : ""))} className="mb-6 inline-flex items-center gap-1.5 border-0 bg-transparent p-0 text-xs font-semibold text-neutral-400 transition-colors hover:text-neutral-800 dark:text-slate-400 dark:hover:text-slate-100">
             <ArrowLeft className="h-3.5 w-3.5" />
             Back to roles
@@ -382,13 +382,13 @@ function LoginContent() {
 
           <form onSubmit={handleLoginSubmit} className="space-y-4">
             <div className="space-y-1.5">
-              <label className="block text-xs font-bold text-neutral-700 dark:text-slate-300">Email address</label>
-              <input type="email" value={email} onChange={(event) => { setEmail(event.target.value); if (error) setError(""); }} placeholder="name@example.com" autoComplete="email" inputMode="email" autoCapitalize="none" spellCheck={false} required aria-invalid={!!error} className="w-full rounded-lg border border-neutral-200 bg-neutral-50 px-3.5 py-2.5 text-sm text-neutral-900 outline-none transition-all placeholder:text-neutral-400 focus:border-neutral-900 focus:bg-white focus:ring-1 focus:ring-neutral-900 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100 dark:placeholder:text-slate-500 dark:focus:border-blue-400 dark:focus:bg-slate-950 dark:focus:ring-blue-400" />
+              <label className="block text-xs font-semibold text-neutral-700 dark:text-slate-300">Email address</label>
+              <input type="email" value={email} onChange={(event) => { setEmail(event.target.value); if (error) setError(""); }} placeholder="name@example.com" autoComplete="email" inputMode="email" autoCapitalize="none" spellCheck={false} required aria-invalid={!!error} className="w-full rounded-lg border border-neutral-200 bg-neutral-50 px-3.5 py-2.5 text-sm text-neutral-900 outline-none transition-all placeholder:text-neutral-400 focus:border-neutral-900 focus:bg-white focus:ring-2 focus:ring-[#165dfb]/20 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100 dark:placeholder:text-slate-500 dark:focus:border-blue-400 dark:focus:bg-slate-950 dark:focus:ring-blue-400" />
             </div>
 
             <div className="space-y-1.5">
               <div className="flex items-center justify-between gap-3">
-                <label className="block text-xs font-bold text-neutral-700 dark:text-slate-300">Password</label>
+                <label className="block text-xs font-semibold text-neutral-700 dark:text-slate-300">Password</label>
                 {!lanExamMode && activeRole && (
                   <Link
                     href={"/forgot-password?role=" + activeRole}
@@ -399,14 +399,14 @@ function LoginContent() {
                 )}
               </div>
               <div className="relative">
-                <input type={showPassword ? "text" : "password"} value={password} onChange={(event) => { setPassword(event.target.value); if (error) setError(""); }} placeholder="••••••••" autoComplete="current-password" required aria-invalid={!!error} className="w-full rounded-lg border border-neutral-200 bg-neutral-50 px-3.5 py-2.5 pr-10 text-sm text-neutral-900 outline-none transition-all placeholder:text-neutral-400 focus:border-neutral-900 focus:bg-white focus:ring-1 focus:ring-neutral-900 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100 dark:placeholder:text-slate-500 dark:focus:border-blue-400 dark:focus:bg-slate-950 dark:focus:ring-blue-400" />
+                <input type={showPassword ? "text" : "password"} value={password} onChange={(event) => { setPassword(event.target.value); if (error) setError(""); }} placeholder="••••••••" autoComplete="current-password" required aria-invalid={!!error} className="w-full rounded-lg border border-neutral-200 bg-neutral-50 px-3.5 py-2.5 pr-10 text-sm text-neutral-900 outline-none transition-all placeholder:text-neutral-400 focus:border-neutral-900 focus:bg-white focus:ring-2 focus:ring-[#165dfb]/20 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100 dark:placeholder:text-slate-500 dark:focus:border-blue-400 dark:focus:bg-slate-950 dark:focus:ring-blue-400" />
                 <button type="button" onClick={() => setShowPassword((value) => !value)} aria-label={showPassword ? "Hide password" : "Show password"} className="absolute right-2.5 top-1/2 -translate-y-1/2 border-0 bg-transparent p-1.5 text-neutral-400 transition-colors hover:text-neutral-800 dark:text-slate-400 dark:hover:text-slate-100">
                   {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                 </button>
               </div>
             </div>
 
-            <button type="submit" disabled={loading} className="mt-1 inline-flex w-full items-center justify-center gap-2 rounded-lg bg-neutral-900 px-4 py-3 text-sm font-bold text-white shadow-sm transition-all hover:bg-black active:scale-[0.99] disabled:cursor-not-allowed disabled:opacity-60 dark:bg-blue-600 dark:hover:bg-blue-500">
+            <button type="submit" disabled={loading} className="mt-1 inline-flex w-full items-center justify-center gap-2 rounded-lg bg-[#165dfb] px-4 py-3 text-sm font-semibold text-white shadow-sm transition-all hover:bg-[#104bd0] active:scale-[0.99] disabled:cursor-not-allowed disabled:opacity-60">
               {loading ? "Signing in..." : "Log in"}
               {!loading && <ArrowRight className="h-4 w-4" />}
             </button>
