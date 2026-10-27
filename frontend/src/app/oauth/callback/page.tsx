@@ -388,13 +388,13 @@ function OAuthCallbackContent() {
 
         <h1 className="mt-4 text-xl font-extrabold">
           {status === "processing"
-            ? "Signing you in"
+            ? <span className="sr-only">Signing you in</span>
             : status === "success"
               ? "Signed in"
               : "Google sign-in failed"}
         </h1>
 
-        <p className="mt-2 text-sm leading-relaxed text-[#78716b] dark:text-slate-300">{message}</p>
+        <p className={`mt-2 text-sm leading-relaxed text-[#78716b] dark:text-slate-300 ${status === "processing" ? "sr-only" : ""}`}>{message}</p>
 
         {status === "error" && (
           <div className="mt-5 flex flex-col gap-2">
