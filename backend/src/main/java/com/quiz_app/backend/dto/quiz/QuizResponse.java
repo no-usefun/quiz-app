@@ -47,5 +47,44 @@ public record QuizResponse(
 
         QuizStatus status,
         ExamState examState,
-        boolean aiProctoringEnabled) {
+        boolean aiProctoringEnabled,
+        Integer maxTabSwitch) {
+
+    public QuizResponse(
+            Long quizId,
+            String quizCode,
+            Long teacherId,
+            String title,
+            String description,
+            String instructions,
+            String subject,
+            String subjectCode,
+            Integer totalStudents,
+            Integer totalQuestions,
+            BigDecimal totalMarks,
+            Integer overallTimerSeconds,
+            boolean negativeMarking,
+            BigDecimal negativeMarks,
+            boolean timeBonusEnabled,
+            boolean randomQuestionOrder,
+            boolean randomOptionOrder,
+            boolean allowReview,
+            boolean allowResume,
+            boolean autoSubmit,
+            LocalDateTime startTime,
+            LocalDateTime endTime,
+            ResultVisibility resultVisibility,
+            boolean resultsPublished,
+            String acceptedEmailDomain,
+            List<String> allowedRegistrationNumbers,
+            QuizStatus status,
+            ExamState examState,
+            boolean aiProctoringEnabled) {
+        this(quizId, quizCode, teacherId, title, description, instructions, subject, subjectCode,
+                totalStudents, totalQuestions, totalMarks, overallTimerSeconds, negativeMarking,
+                negativeMarks, timeBonusEnabled, randomQuestionOrder, randomOptionOrder, allowReview,
+                allowResume, autoSubmit, startTime, endTime, resultVisibility, resultsPublished,
+                acceptedEmailDomain, allowedRegistrationNumbers, status, examState,
+                aiProctoringEnabled, null);
+    }
 }
