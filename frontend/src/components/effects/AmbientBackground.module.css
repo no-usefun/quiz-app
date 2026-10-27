@@ -1,0 +1,133 @@
+.ambient {
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  overflow: hidden;
+  pointer-events: none;
+  contain: strict;
+  isolation: isolate;
+  color: var(--color-cobalt-stamp, #165dfb);
+  opacity: 0.72;
+}
+
+.orb,
+.halo {
+  position: absolute;
+  display: block;
+  border-radius: 9999px;
+  pointer-events: none;
+  will-change: transform;
+}
+
+.orb {
+  width: clamp(17rem, 32vw, 35rem);
+  aspect-ratio: 1;
+  filter: blur(78px);
+  opacity: 0.2;
+  animation: ambient-drift 30s ease-in-out infinite alternate;
+}
+
+.orbBlue {
+  top: -15rem;
+  left: -11rem;
+  background: radial-gradient(circle, #91baff 0%, #91baff 18%, transparent 72%);
+}
+
+.orbLavender {
+  top: 15%;
+  right: -16rem;
+  width: clamp(19rem, 35vw, 39rem);
+  background: radial-gradient(circle, #c5b5ff 0%, #c5b5ff 18%, transparent 72%);
+  animation-delay: -11s;
+  animation-duration: 36s;
+}
+
+.orbMint {
+  bottom: -20rem;
+  left: 25%;
+  width: clamp(18rem, 30vw, 33rem);
+  background: radial-gradient(circle, #a9e8d0 0%, #a9e8d0 18%, transparent 72%);
+  animation-delay: -19s;
+  animation-duration: 40s;
+}
+
+.halo {
+  inset: 0;
+  border-radius: 0;
+  background:
+    radial-gradient(ellipse at 50% 0%, rgb(145 186 255 / 8%), transparent 55%),
+    radial-gradient(ellipse at 100% 100%, rgb(197 181 255 / 7%), transparent 48%);
+  opacity: 0.8;
+}
+
+.ambient[data-ambient-variant="public"] {
+  opacity: 0.9;
+}
+
+.ambient[data-ambient-variant="public"] .orb {
+  opacity: 0.26;
+  filter: blur(88px);
+}
+
+.ambient[data-ambient-variant="dashboard"] {
+  opacity: 0.48;
+}
+
+.ambient[data-ambient-variant="dashboard"] .orb {
+  width: clamp(14rem, 22vw, 24rem);
+  filter: blur(88px);
+  opacity: 0.14;
+}
+
+:global(.dark) .ambient {
+  opacity: 0.56;
+}
+
+:global(.dark) .ambient[data-ambient-variant="public"] .orb {
+  opacity: 0.19;
+}
+
+:global(.dark) .ambient[data-ambient-variant="dashboard"] .orb {
+  opacity: 0.11;
+}
+
+@keyframes ambient-drift {
+  from {
+    transform: translate3d(-2%, -1%, 0) scale(0.96);
+  }
+
+  to {
+    transform: translate3d(4%, 3%, 0) scale(1.06);
+  }
+}
+
+@media (max-width: 640px) {
+  .orb {
+    filter: blur(64px);
+  }
+
+  .orbBlue {
+    top: -12rem;
+    left: -13rem;
+  }
+
+  .orbLavender {
+    right: -17rem;
+  }
+
+  .orbMint {
+    bottom: -17rem;
+    left: 10%;
+  }
+
+  .ambient[data-ambient-variant="dashboard"] .orb {
+    filter: blur(68px);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .orb {
+    animation: none;
+    will-change: auto;
+  }
+}
