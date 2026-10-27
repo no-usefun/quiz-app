@@ -1,6 +1,7 @@
 "use client";
 
 import LoadingIndicator from "@/components/LoadingIndicator";
+import SkeletonBlock from "@/components/SkeletonBlock";
 // frontend/src/app/test/[testCode]/page.tsx
 
 import { use, useCallback, useEffect, useRef, useState, useSyncExternalStore } from "react";
@@ -1967,10 +1968,26 @@ export default function TestArenaPage({
 
   if (isLoadingTest) {
     return (
-      <main className="flex min-h-screen items-center justify-center bg-[#f5f5f4] p-4 font-sans text-[#111111] dark:bg-slate-950 dark:text-slate-100">
-        <div className="w-full max-w-md space-y-4 rounded-[14px] border border-[#d1dee8]/70 bg-white p-8 text-center shadow-xl dark:border-slate-700 dark:bg-slate-900">
-          <LoadingIndicator label="Loading assessment" size="lg" className="mx-auto py-2" />
+      <main className="min-h-screen bg-[#f5f5f4] font-sans text-[#111111] dark:bg-slate-950 dark:text-slate-100" aria-busy="true" aria-label="Loading assessment">
+        <header className="flex flex-wrap items-center justify-between gap-3 border-b border-[#d1dee8]/70 bg-white px-4 py-3 dark:border-slate-700 dark:bg-slate-900 sm:px-6">
+          <div className="flex items-center gap-3"><span className="flex h-10 w-10 items-center justify-center rounded-xl bg-[#eef4ff] text-[#165dfb] dark:bg-slate-800 dark:text-blue-300"><Clock className="h-5 w-5" /></span><div className="space-y-2"><SkeletonBlock className="h-3.5 w-36 rounded" /><SkeletonBlock className="h-2.5 w-24 rounded" /></div></div>
+          <div className="flex items-center gap-3"><span className="hidden items-center gap-2 sm:flex"><ShieldCheck className="h-4 w-4 text-emerald-600 dark:text-emerald-300" /><SkeletonBlock className="h-3 w-24 rounded" /></span><SkeletonBlock className="h-9 w-24 rounded-lg" /></div>
+        </header>
+        <div className="mx-auto grid max-w-[1400px] gap-4 p-4 md:p-6 lg:grid-cols-[minmax(0,1fr)_280px] lg:gap-6 lg:p-8">
+          <section className="min-w-0 space-y-5 rounded-[16px] border border-[#d1dee8]/70 bg-white p-5 shadow-sm dark:border-slate-700 dark:bg-slate-900 sm:p-7">
+            <div className="flex flex-wrap items-center justify-between gap-3"><SkeletonBlock className="h-4 w-36 rounded" /><SkeletonBlock className="h-6 w-24 rounded-full" /></div>
+            <div className="space-y-3"><SkeletonBlock className="h-5 w-4/5 max-w-full rounded" /><SkeletonBlock className="h-4 w-3/5 max-w-full rounded" /></div>
+            <div className="space-y-3">
+              {[1, 2, 3, 4].map((option) => <div key={option} className="flex items-center gap-3 rounded-[12px] border border-[#d1dee8]/70 p-4 dark:border-slate-700"><span className="h-4 w-4 shrink-0 rounded-full border-2 border-slate-300 dark:border-slate-600" /><SkeletonBlock className={`h-3.5 max-w-full rounded ${option === 2 ? "w-3/5" : "w-4/5"}`} /></div>)}
+            </div>
+            <div className="flex flex-wrap items-center justify-between gap-3 border-t border-[#d1dee8]/60 pt-4 dark:border-slate-700"><span className="inline-flex items-center gap-2 text-slate-500 dark:text-slate-400"><ChevronLeft className="h-4 w-4" /><SkeletonBlock className="h-3 w-16 rounded" /></span><span className="inline-flex items-center gap-2 text-slate-500 dark:text-slate-400"><SkeletonBlock className="h-3 w-20 rounded" /><ChevronRight className="h-4 w-4" /></span></div>
+          </section>
+          <aside className="space-y-4 rounded-[16px] border border-[#d1dee8]/70 bg-white p-5 shadow-sm dark:border-slate-700 dark:bg-slate-900">
+            <div className="flex items-center gap-3"><ShieldCheck className="h-5 w-5 text-emerald-600 dark:text-emerald-300" /><SkeletonBlock className="h-4 w-32 rounded" /></div>
+            {[Activity, AppWindow, Flag].map((EventIcon, index) => <div key={index} className="flex items-center gap-3 rounded-lg bg-slate-50 p-3 dark:bg-slate-800"><EventIcon className="h-4 w-4 text-slate-500 dark:text-slate-400" /><SkeletonBlock className="h-3 w-3/4 rounded" /></div>)}
+          </aside>
         </div>
+        <p className="sr-only" role="status">Preparing the assessment content</p>
       </main>
     );
   }
