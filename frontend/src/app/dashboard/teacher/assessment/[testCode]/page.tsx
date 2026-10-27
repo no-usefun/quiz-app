@@ -23,6 +23,7 @@ import { Logo } from "@/components/Logo";
 import { ENDPOINTS } from "@/lib/api/endpoints";
 import LanExamPreflight from "@/components/LanExamPreflight";
 import { isLanExamMode } from "@/lib/examMode";
+import { TeacherProctoringReportModal } from "@/components/TeacherProctoringReportModal";
 
 type SortKey = "rank" | "name" | "score" | "timeTaken";
 type SortDir = "asc" | "desc";
@@ -50,6 +51,7 @@ type AssessmentData = {
 
 type StudentRecord = {
   id: number | string;
+  attemptId?: number;
   name: string;
   avatar: string;
   score: number;
@@ -224,6 +226,7 @@ export default function TeacherAssessmentPage({
   const [loading, setLoading] = useState(true);
 
   const [query, setQuery] = useState("");
+  const [inspectingAttemptId, setInspectingAttemptId] = useState<number | null>(null);
   const [sortKey, setSortKey] = useState<SortKey>("rank");
   const [sortDir, setSortDir] = useState<SortDir>("asc");
   const [exported, setExported] = useState(false);
@@ -394,8 +397,12 @@ export default function TeacherAssessmentPage({
           .join("")
           .toUpperCase() || "ST";
 
+      const rawAttemptId = Number(entry.attemptId);
+      const attemptId = Number.isSafeInteger(rawAttemptId) && rawAttemptId > 0 ? rawAttemptId : undefined;
+
       return {
         id: entry.studentId ?? entry.rank ?? index + 1,
+        attemptId,
         name,
         avatar,
         score: percentage,
@@ -1267,9 +1274,16 @@ export default function TeacherAssessmentPage({
                           {student.avatar}
                         </div>
 
-                        <p className="truncate text-xs font-bold text-midnight-navy">
-                          {student.name}
-                        </p>
+                        <div className="min-w-0">
+                          <p className="truncate text-xs font-bold text-midnight-navy">
+                            {student.name}
+                          </p>
+                          {student.attemptId ? (
+                            <button type="button" onClick={() => setInspectingAttemptId(student.attemptId!)} className="mt-1 text-[9px] font-bold text-[#165dfb] hover:underline">
+                              AI audit report
+                            </button>
+                          ) : null}
+                        </div>
                       </div>
 
                       <div className="flex flex-col items-center justify-center leading-tight">
@@ -1296,6 +1310,11 @@ export default function TeacherAssessmentPage({
           </section>
         </div>
       </div>
+      <TeacherProctoringReportModal
+        isOpen={inspectingAttemptId !== null}
+        attemptId={inspectingAttemptId}
+        onClose={() => setInspectingAttemptId(null)}
+      />
     </main>
   );
 }
