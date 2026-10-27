@@ -9,5 +9,10 @@ public record ProctoringEventRequest(
         @NotBlank(message = "Event type is required")
         String type,
         LocalDateTime occurredAt,
-        Map<String, Object> metadata) {
+        Map<String, Object> metadata,
+        String clientEventId) {
+
+    public ProctoringEventRequest(String type, LocalDateTime occurredAt, Map<String, Object> metadata) {
+        this(type, occurredAt, metadata, null);
+    }
 }
