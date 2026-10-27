@@ -1,5 +1,6 @@
 "use client";
 
+import LoadingIndicator from "@/components/LoadingIndicator";
 // frontend/src/app/test/[testCode]/page.tsx
 
 import { use, useCallback, useEffect, useRef, useState, useSyncExternalStore } from "react";
@@ -1917,12 +1918,10 @@ export default function TestArenaPage({
               ? "Exam Submitted"
               : submissionNotice
                 ? "Submission Needs Attention"
-                : "Submitting Assessment"}
+                : <LoadingIndicator label="Submitting assessment" size="sm" />}
           </h1>
           {!isSubmitted && !submissionNotice && (
-            <p className="text-xs font-medium leading-relaxed text-[#78716b] dark:text-slate-400">
-              Your submission is being processed. You can return to the dashboard while it completes.
-            </p>
+            <p className="sr-only">Your submission is being processed.</p>
           )}
           {submissionNotice && !isSubmitted && (
             <>
@@ -1962,17 +1961,7 @@ export default function TestArenaPage({
     return (
       <main className="flex min-h-screen items-center justify-center bg-[#f5f5f4] p-4 font-sans text-[#111111] dark:bg-slate-950 dark:text-slate-100">
         <div className="w-full max-w-md space-y-4 rounded-[14px] border border-[#d1dee8]/70 bg-white p-8 text-center shadow-xl dark:border-slate-700 dark:bg-slate-900">
-          <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-[10px] border border-[#d1dee8]/70 bg-[#f5f5f4] text-[#165dfb] dark:border-slate-700 dark:bg-slate-800 dark:text-blue-300">
-            <Clock className="h-6 w-6 animate-pulse" />
-          </div>
-
-          <h1 className="text-xl font-bold text-[#111111] dark:text-slate-100">
-            Loading Assessment
-          </h1>
-
-          <p className="text-xs font-medium leading-relaxed text-[#78716b] dark:text-slate-400">
-            Preparing your secure assessment package.
-          </p>
+          <LoadingIndicator label="Loading assessment" size="lg" className="mx-auto py-2" />
         </div>
       </main>
     );
@@ -2248,7 +2237,7 @@ export default function TestArenaPage({
                 disabled={isSubmitting}
                 className="inline-flex shrink-0 items-center justify-center rounded-[10px] bg-[#8c381c] px-3 py-2 text-[10px] font-bold text-white hover:bg-[#6e2b14] disabled:cursor-not-allowed disabled:opacity-50"
               >
-                {isSubmitting ? "Submitting..." : "Retry Submission"}
+                {isSubmitting ? <LoadingIndicator label="Submitting assessment" size="sm" /> : "Retry Submission"}
               </button>
             </div>
           </div>
@@ -2417,8 +2406,8 @@ export default function TestArenaPage({
               >
                 {currentIndex === questions.length - 1 ? (
                   <>
-                    <span className="sm:hidden">{isSubmitting ? "Submitting..." : "Submit"}</span>
-                    <span className="hidden sm:inline">{isSubmitting ? "Submitting..." : "Submit Assessment"}</span>
+                    <span className="sm:hidden">{isSubmitting ? <LoadingIndicator label="Submitting assessment" size="sm" /> : "Submit"}</span>
+                    <span className="hidden sm:inline">{isSubmitting ? <LoadingIndicator label="Submitting assessment" size="sm" /> : "Submit Assessment"}</span>
                     <ChevronRight className="h-3.5 w-3.5 shrink-0" />
                   </>
                 ) : (
