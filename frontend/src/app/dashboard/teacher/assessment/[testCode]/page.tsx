@@ -83,6 +83,7 @@ type AssessmentData = {
 
 type StudentRecord = {
   id: number | string;
+  attemptId?: number;
   name: string;
   registrationNumber: string;
   avatar: string;
@@ -564,6 +565,11 @@ export default function TeacherAssessmentPage({
         ""
       ).trim();
       const status = typeof entry.status === "string" ? entry.status : null;
+      const rawAttemptId = Number(entry.attemptId);
+      const attemptId =
+        Number.isSafeInteger(rawAttemptId) && rawAttemptId > 0
+          ? rawAttemptId
+          : undefined;
       const avatar =
         name
           .split(/\s+/)
@@ -581,6 +587,7 @@ export default function TeacherAssessmentPage({
 
       return {
         id,
+        attemptId,
         name,
         registrationNumber,
         avatar,
@@ -1912,8 +1919,11 @@ export default function TeacherAssessmentPage({
       {selectedProctoringStudent && (() => {
         const student = selectedProctoringStudent;
         const report = proctoringOverview?.studentReports.find((item) =>
+          (student.attemptId != null && item.attemptId != null &&
+            String(item.attemptId) === String(student.attemptId)) ||
           (item.studentId != null && String(item.studentId) === String(student.id)) ||
-          (item.studentName != null && item.studentName.trim().toLowerCase() === student.name.trim().toLowerCase())
+          (item.studentName != null &&
+            item.studentName.trim().toLowerCase() === student.name.trim().toLowerCase())
         );
         const events = Array.isArray(report?.events) ? report.events : [];
         const countEvent = (type: string) => events.filter((event) =>
