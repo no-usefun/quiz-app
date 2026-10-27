@@ -20,6 +20,7 @@ import {
 } from "lucide-react";
 
 import { type ProctoringEvent, useProctoring } from "@/hooks/useProctoring";
+import { AIProctoringSession } from "@/components/AIProctoringSession";
 import { ApiClientError, api, getAuthToken } from "@/lib/api/client";
 import { ENDPOINTS } from "@/lib/api/endpoints";
 import type {
@@ -1576,6 +1577,16 @@ export default function TestArenaPage({
           </ul>
         </div>
       </aside>
+      {activeAttemptId && (
+        <AIProctoringSession
+          attemptId={Number(activeAttemptId)}
+          testCode={cleanCode}
+          enabled={!isSubmitted}
+          onAutoSubmit={() => {
+            void finishAssessment(answersRef.current, timeTakenRef.current);
+          }}
+        />
+      )}
     </div>
   );
 }

@@ -18,6 +18,8 @@ import {
   Check,
 } from "lucide-react";
 import { Logo } from "@/components/Logo";
+import { CameraReferenceCapture } from "@/components/CameraReferenceCapture";
+import { checkAIHealth } from "@/lib/proctoring/aiProctoringClient";
 
 import { ApiClientError, api, getAuthToken } from "@/lib/api/client";
 import { ENDPOINTS } from "@/lib/api/endpoints";
@@ -67,6 +69,7 @@ function LobbyInner({ testCode }: { testCode: string }) {
 
   const [availability, setAvailability] =
     useState<QuizAvailabilityResponse | null>(null);
+  const [referencePhoto, setReferencePhoto] = useState<string | null>(null);
 
   const [loading, setLoading] = useState(true);
   const [isStarting, setIsStarting] = useState(false);
@@ -144,6 +147,7 @@ function LobbyInner({ testCode }: { testCode: string }) {
 
   const status = availability?.status;
   const isLive = status === "LIVE" && availability?.available === true;
+  const aiRequired = availability?.aiProctoringEnabled === true;
 
   const handleStartAssessment = async () => {
     if (!isLive) {
@@ -158,10 +162,22 @@ function LobbyInner({ testCode }: { testCode: string }) {
       return;
     }
 
+    const existingPhoto = referencePhoto || (typeof window !== "undefined" ? sessionStorage.getItem("dynoquizz_reference_photo") : null);
+    if (aiRequired && !existingPhoto) {
+      setStartError("Capture your reference photo before starting this AI-proctored assessment.");
+      return;
+    }
+    sessionStorage.setItem(`dynoquizz_ai_proctoring_${cleanCode}`, String(aiRequired));
+
     setIsStarting(true);
     setStartError(null);
 
     try {
+      if (aiRequired) {
+        const aiHealth = await checkAIHealth();
+        if (!aiHealth.isOnline) throw new Error("AI proctoring is currently unavailable. Please retry in a moment or contact your instructor.");
+        if (!aiHealth.biometricReady) throw new Error("The biometric verification model is not ready. Please retry shortly.");
+      }
       // Fullscreen is required before the server creates the attempt.
       // Starting an attempt outside fullscreen would bypass the exam UI
       // protection, so a denied fullscreen request stops the flow here.
@@ -457,6 +473,10 @@ function LobbyInner({ testCode }: { testCode: string }) {
               <span>Authoritative deadline is stored before Arena entry</span>
             </div>
           </div>
+
+          {aiRequired && <p className="text-sm text-[#78716b]">Allow camera access and capture your reference photo to continue.</p>}
+
+          {aiRequired && <CameraReferenceCapture onCapture={(photo) => { setReferencePhoto(photo); sessionStorage.setItem("dynoquizz_reference_photo", photo); localStorage.removeItem("dynoquizz_reference_photo"); setStartError(null); }} disabled={isStarting} />}
 
           {startError && (
             <div className="rounded-[10px] bg-[#fbeee8] border border-[#8c381c]/30 p-3 text-xs text-[#8c381c] font-semibold flex items-center gap-2 shadow-xs">
