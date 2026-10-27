@@ -1910,15 +1910,23 @@ export default function TestArenaPage({
           transition={{ duration: 0.2, ease: "easeOut" }}
           className="w-full max-w-md space-y-4 rounded-[14px] border border-[#d1dee8]/70 bg-white p-6 text-center shadow-xl dark:border-slate-700 dark:bg-slate-900 md:p-8"
         >
-          <div className="mx-auto flex h-10 w-10 items-center justify-center rounded-[10px] border border-[#d1dee8]/70 bg-[#e2ede8] text-[#1d5237] dark:border-slate-700 dark:bg-emerald-950/70 dark:text-emerald-200">
-            <CheckCircle2 className="h-6 w-6 text-[#1d5237]" />
-          </div>
+          {isSubmitted ? (
+            <div className="mx-auto flex h-10 w-10 items-center justify-center rounded-[10px] border border-[#d1dee8]/70 bg-[#e2ede8] text-[#1d5237] dark:border-slate-700 dark:bg-emerald-950/70 dark:text-emerald-200">
+              <CheckCircle2 className="h-6 w-6 text-[#1d5237]" />
+            </div>
+          ) : submissionNotice ? (
+            <div className="mx-auto flex h-10 w-10 items-center justify-center rounded-[10px] border border-rose-200 bg-rose-50 text-rose-700 dark:border-rose-900 dark:bg-rose-950/60 dark:text-rose-200">
+              <AlertTriangle className="h-6 w-6" />
+            </div>
+          ) : (
+            <LoadingIndicator label="Submitting assessment" size="lg" className="mx-auto py-1" />
+          )}
           <h1 className="text-xl font-bold text-[#111111] dark:text-slate-100">
             {isSubmitted
               ? "Exam Submitted"
               : submissionNotice
                 ? "Submission Needs Attention"
-                : <LoadingIndicator label="Submitting assessment" size="sm" />}
+                : <span className="sr-only">Submitting assessment</span>}
           </h1>
           {!isSubmitted && !submissionNotice && (
             <p className="sr-only">Your submission is being processed.</p>
