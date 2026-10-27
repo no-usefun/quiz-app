@@ -1,6 +1,5 @@
 "use client";
 
-import LoadingIndicator from "@/components/LoadingIndicator";
 import SkeletonBlock from "@/components/SkeletonBlock";
 import { use, useEffect, useState } from "react";
 import Link from "next/link";
@@ -13,6 +12,7 @@ import {
   BookOpen,
   BarChart3,
   AlertCircle,
+  Lock,
 } from "lucide-react";
 import { TopNav } from "@/components/TopNav";
 import { ENDPOINTS } from "@/lib/api/endpoints";
