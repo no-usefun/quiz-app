@@ -19,6 +19,7 @@ import {
   Trophy,
 } from "lucide-react";
 
+import SkeletonBlock from "@/components/SkeletonBlock";
 import { Logo } from "@/components/Logo";
 import { ThemeToggle } from "@/components/ThemeToggle";
 
@@ -663,10 +664,10 @@ export default function StudentResultPage({
   if (loading) {
     return (
       <main className="student-result-page min-h-screen bg-slate-50 px-4 py-6 text-slate-900 dark:bg-slate-950 dark:text-slate-100 sm:px-6" aria-busy="true" aria-label="Loading assessment results">
-        <div className="mx-auto max-w-4xl animate-pulse space-y-5">
+        <div className="mx-auto max-w-4xl space-y-5">
           <div className="flex items-center justify-between border-b border-slate-200 pb-4 dark:border-slate-800">
-            <div className="h-4 w-32 rounded bg-slate-200 dark:bg-slate-700" />
-            <div className="h-8 w-24 rounded-full bg-slate-200 dark:bg-slate-700" />
+            <SkeletonBlock className="h-4 w-32 rounded" />
+            <SkeletonBlock className="h-8 w-24 rounded-full" />
           </div>
           <section className="rounded-2xl border border-slate-200 bg-white p-5 dark:border-slate-800 dark:bg-slate-900 sm:p-7">
             <div className="flex flex-col gap-6 sm:flex-row sm:items-center">
@@ -674,29 +675,29 @@ export default function StudentResultPage({
               <div className="grid flex-1 grid-cols-1 gap-3 sm:grid-cols-3">
                 {["accuracy", "score", "time"].map((item) => (
                   <div key={item} className="space-y-3 rounded-xl border border-slate-200 p-4 dark:border-slate-800">
-                    <div className="mx-auto h-3 w-16 rounded bg-slate-200 dark:bg-slate-700" />
-                    <div className="mx-auto h-6 w-20 rounded bg-slate-200 dark:bg-slate-700" />
-                    <div className="mx-auto h-2 w-14 rounded bg-slate-100 dark:bg-slate-800" />
+                    <SkeletonBlock className="mx-auto h-3 w-16 rounded" />
+                    <SkeletonBlock className="mx-auto h-6 w-20 rounded" />
+                    <SkeletonBlock className="mx-auto h-2 w-14 rounded" />
                   </div>
                 ))}
               </div>
             </div>
           </section>
           <div className="flex flex-wrap items-center justify-between gap-3">
-            <div className="h-5 w-56 rounded bg-slate-200 dark:bg-slate-700" />
-            <div className="h-8 w-64 rounded-full bg-slate-200 dark:bg-slate-700" />
+            <SkeletonBlock className="h-5 w-56 rounded" />
+            <SkeletonBlock className="h-8 w-64 rounded-full" />
           </div>
           {[1, 2, 3].map((question) => (
             <section key={question} className="space-y-4 rounded-2xl border border-slate-200 bg-white p-5 dark:border-slate-800 dark:bg-slate-900">
               <div className="flex items-center justify-between gap-3">
-                <div className="h-4 w-3/5 rounded bg-slate-200 dark:bg-slate-700" />
-                <div className="h-6 w-24 rounded-full bg-slate-200 dark:bg-slate-700" />
+                <SkeletonBlock className="h-4 w-3/5 rounded" />
+                <SkeletonBlock className="h-6 w-24 rounded-full" />
               </div>
               <div className="grid gap-3 sm:grid-cols-2">
-                <div className="h-20 rounded-xl bg-slate-100 dark:bg-slate-800" />
-                <div className="h-20 rounded-xl bg-slate-100 dark:bg-slate-800" />
+                <SkeletonBlock className="h-20 w-full rounded-xl" />
+                <SkeletonBlock className="h-20 w-full rounded-xl" />
               </div>
-              <div className="h-14 rounded-xl bg-slate-100 dark:bg-slate-800" />
+              <SkeletonBlock className="h-14 w-full rounded-xl" />
             </section>
           ))}
           <p className="sr-only">Loading assessment results…</p>
