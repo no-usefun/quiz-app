@@ -1525,3 +1525,33 @@ html.dark .role-instructor-panel:hover { background-color: #1b2739; }
   .role-panel-cta svg,
   .signup-role-cta svg { transition: none !important; }
 }
+
+
+/* Match login and signup role selector hover states. */
+html:not(.dark) .signup-role-student-panel:hover {
+  background-color: #ffffff !important;
+}
+html:not(.dark) .signup-role-instructor-panel:hover {
+  background-color: #0b1220 !important;
+}
+html.dark .public-signup-role-selection .signup-role-student-panel:hover {
+  background-color: #111827 !important;
+}
+html.dark .public-signup-role-selection .signup-role-instructor-panel:hover {
+  background-color: #1b2739 !important;
+}
+
+/* The dark-mode input reset gives every input its own opaque surface. The
+   time-limit number field is intentionally embedded in a shared input shell. */
+html.dark .teacher-assessment-builder .assessment-time-limit-field input[type="number"] {
+  background-color: transparent !important;
+  border-color: transparent !important;
+  box-shadow: none !important;
+  appearance: textfield;
+  -moz-appearance: textfield;
+}
+html.dark .teacher-assessment-builder .assessment-time-limit-field input[type="number"]::-webkit-inner-spin-button,
+html.dark .teacher-assessment-builder .assessment-time-limit-field input[type="number"]::-webkit-outer-spin-button {
+  margin: 0;
+  -webkit-appearance: none;
+}
