@@ -1,6 +1,5 @@
 "use client";
 
-import LoadingIndicator from "@/components/LoadingIndicator";
 import SkeletonBlock from "@/components/SkeletonBlock";
 import { use, useEffect, useMemo, useState, useSyncExternalStore } from "react";
 import Link from "next/link";
