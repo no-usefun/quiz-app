@@ -1402,3 +1402,73 @@ public class StudentAttemptService {
                                 attempt.getSubmittedAt(),
                                 resultsAvailable);
         }
+
+        public QuizAvailabilityResponse getQuizAvailability(String quizCode, Long studentId) {
+
+                String normalizedCode = quizCode == null
+                                ? null
+                                : quizCode.trim().toUpperCase();
+
+                Optional<Quiz> quizOptional = quizRepository.findByQuizCode(normalizedCode);
+
+                if (studentId == null) {
+                        throw new BadRequestException(
+                                        "STUDENT_AUTHENTICATION_REQUIRED",
+                                        "Student authentication is required");
+                }
+
+                if (quizOptional.isEmpty()) {
+                        return new QuizAvailabilityResponse(
+                                        normalizedCode,
+                                        false,
+                                        QuizAvailabilityStatus.NOT_FOUND,
+                                        null,
+                                        null,
+                                        false);
+                }
+
+                Quiz quiz = quizOptional.get();
+
+                if (quiz.getStatus() != QuizStatus.PUBLISHED) {
+                        return buildAvailabilityResponse(
+                                        quiz,
+                                        QuizAvailabilityStatus.NOT_PUBLISHED,
+                                        false);
+                }
+
+                LocalDateTime now = LocalDateTime.now(clock.withZone(QUIZ_TIMEZONE));
+
+                if (now.isBefore(quiz.getStartTime())) {
+                        return buildAvailabilityResponse(
+                                        quiz,
+                                        QuizAvailabilityStatus.NOT_STARTED,
+                                        false);
+                }
+
+                if (!now.isBefore(quiz.getEndTime())) {
+                        return buildAvailabilityResponse(
+                                        quiz,
+                                        QuizAvailabilityStatus.ENDED,
+                                        false);
+                }
+
+                return buildAvailabilityResponse(
+                                quiz,
+                                QuizAvailabilityStatus.LIVE,
+                                true);
+        }
+
+        private QuizAvailabilityResponse buildAvailabilityResponse(
+                        Quiz quiz,
+                        QuizAvailabilityStatus status,
+                        boolean available) {
+
+                return new QuizAvailabilityResponse(
+                                quiz.getQuizCode(),
+                                available,
+                                status,
+                                quiz.getStartTime(),
+                                quiz.getEndTime(),
+                                quiz.isAiProctoringEnabled());
+        }
+}
