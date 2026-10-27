@@ -139,7 +139,7 @@ function Toggle({
   return (
     <div className="flex items-start justify-between gap-4 rounded-[10px] border border-[#d1dee8]/70 bg-[#e6e3e2]/40 px-4 py-3.5 transition-colors shadow-xs">
       <div className="flex-1 min-w-0 text-left">
-        <p className="text-xs font-bold text-[#111111]">{label}</p>
+        <p className="text-xs font-bold text-[#111111] dark:text-slate-100">{label}</p>
         {description && (
           <p className="mt-0.5 text-[10px] text-[#78716b] font-medium">
             {description}
@@ -358,7 +358,7 @@ function ProfilePanel({
           role="status"
           className="rounded-[10px] border border-[#165dfb]/20 bg-[#165dfb]/5 p-4"
         >
-          <h2 className="text-sm font-bold text-[#111111]">
+          <h2 className="text-sm font-bold text-[#111111] dark:text-slate-100">
             Complete your Quizly profile
           </h2>
           <p className="mt-1 text-xs leading-relaxed text-[#78716b]">
@@ -434,7 +434,7 @@ function ProfilePanel({
         </div>
 
         <div>
-          <p className="text-xs font-bold text-[#111111]">Profile Photo</p>
+          <p className="text-xs font-bold text-[#111111] dark:text-slate-100">Profile Photo</p>
           <p className="mt-0.5 text-[10px] text-[#78716b] font-medium">
             Profile image upload is not currently exposed by the backend UI.
           </p>
@@ -871,7 +871,7 @@ function SecurityPanel({
                 <button
                   type="button"
                   onClick={() => setShowCurrent((value) => !value)}
-                  className="text-[#78716b] hover:text-[#111111] cursor-pointer border-0 bg-transparent"
+                  className="text-[#78716b] hover:text-[#111111] cursor-pointer border-0 bg-transparent dark:text-slate-100"
                 >
                   {showCurrent ? (
                     <EyeOff className="h-4 w-4" />
@@ -894,7 +894,7 @@ function SecurityPanel({
                 <button
                   type="button"
                   onClick={() => setShowNew((value) => !value)}
-                  className="text-[#78716b] hover:text-[#111111] cursor-pointer border-0 bg-transparent"
+                  className="text-[#78716b] hover:text-[#111111] cursor-pointer border-0 bg-transparent dark:text-slate-100"
                 >
                   {showNew ? (
                     <EyeOff className="h-4 w-4" />
@@ -917,7 +917,7 @@ function SecurityPanel({
                 <button
                   type="button"
                   onClick={() => setShowConfirm((value) => !value)}
-                  className="text-[#78716b] hover:text-[#111111] cursor-pointer border-0 bg-transparent"
+                  className="text-[#78716b] hover:text-[#111111] cursor-pointer border-0 bg-transparent dark:text-slate-100"
                 >
                   {showConfirm ? (
                     <EyeOff className="h-4 w-4" />
@@ -940,7 +940,7 @@ function SecurityPanel({
 
         <div className="flex items-center justify-between gap-4 rounded-[10px] border border-[#d1dee8]/70 bg-[#e6e3e2]/40 p-3.5 text-left shadow-xs">
           <div>
-            <p className="text-xs font-bold text-[#111111]">
+            <p className="text-xs font-bold text-[#111111] dark:text-slate-100">
               Authenticator App
             </p>
             <p className="mt-0.5 text-[10px] text-[#78716b] font-medium">
@@ -951,7 +951,7 @@ function SecurityPanel({
           <button
             type="button"
             disabled
-            className="flex items-center gap-1.5 rounded-[10px] border border-[#d1dee8]/70 bg-white px-3.5 py-1.5 text-xs font-bold text-[#78716b] cursor-not-allowed opacity-60 shadow-xs"
+            className="flex items-center gap-1.5 rounded-[10px] border border-[#d1dee8]/70 bg-white px-3.5 py-1.5 text-xs font-bold text-[#78716b] cursor-not-allowed opacity-60 shadow-xs dark:bg-slate-900"
           >
             Unavailable
           </button>
@@ -1027,7 +1027,7 @@ function DangerPanel({ logout }: { logout: () => void }) {
     <div className="space-y-4">
       <div className="flex items-start justify-between gap-4 rounded-[10px] border border-[#73561a]/20 bg-[#f6efe1] p-4 text-left shadow-xs">
         <div className="flex gap-2.5">
-          <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-[8px] bg-white text-[#73561a] border border-[#d1dee8]/70 shadow-xs">
+          <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-[8px] bg-white text-[#73561a] border border-[#d1dee8]/70 shadow-xs dark:bg-slate-900">
             <LogOut className="h-4 w-4" />
           </div>
 
@@ -1042,7 +1042,7 @@ function DangerPanel({ logout }: { logout: () => void }) {
         <button
           type="button"
           onClick={() => logout()}
-          className="shrink-0 rounded-[10px] border border-[#73561a]/30 bg-white px-3 py-1.5 text-[10px] font-bold text-[#73561a] hover:bg-[#f6efe1]/30 active:scale-[0.98] transition-all cursor-pointer shadow-xs"
+          className="shrink-0 rounded-[10px] border border-[#73561a]/30 bg-white px-3 py-1.5 text-[10px] font-bold text-[#73561a] hover:bg-[#f6efe1]/30 active:scale-[0.98] transition-all cursor-pointer shadow-xs dark:bg-slate-900"
         >
           Sign out
         </button>
@@ -1050,7 +1050,7 @@ function DangerPanel({ logout }: { logout: () => void }) {
 
       <div className="rounded-[10px] border border-[#8c381c]/20 bg-[#fbeee8] p-4 text-left shadow-xs">
         <div className="mb-3 flex gap-2.5">
-          <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-[8px] bg-white text-[#8c381c] border border-[#d1dee8]/70 shadow-xs">
+          <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-[8px] bg-white text-[#8c381c] border border-[#d1dee8]/70 shadow-xs dark:bg-slate-900">
             <Trash2 className="h-4 w-4" />
           </div>
 
@@ -1064,7 +1064,7 @@ function DangerPanel({ logout }: { logout: () => void }) {
         </div>
 
         {error && (
-          <div className="mb-3 flex items-center gap-2 rounded-[10px] bg-white/60 border border-[#8c381c]/20 p-3 text-xs text-[#8c381c] font-semibold">
+          <div className="mb-3 flex items-center gap-2 rounded-[10px] bg-white/60 border border-[#8c381c]/20 p-3 text-xs text-[#8c381c] font-semibold dark:bg-slate-900">
             <AlertTriangle className="h-4 w-4 shrink-0" />
             <span>{error}</span>
           </div>
@@ -1073,7 +1073,7 @@ function DangerPanel({ logout }: { logout: () => void }) {
         <div className="space-y-2">
           <label className="block text-[10px] font-bold text-[#8c381c]">
             Type{" "}
-            <span className="rounded-[6px] bg-white px-1.5 py-0.5 font-mono text-[#8c381c] border border-[#8c381c]/20">
+            <span className="rounded-[6px] bg-white px-1.5 py-0.5 font-mono text-[#8c381c] border border-[#8c381c]/20 dark:bg-slate-900">
               {CONFIRM_PHRASE}
             </span>{" "}
             to confirm:
@@ -1084,7 +1084,7 @@ function DangerPanel({ logout }: { logout: () => void }) {
             value={confirmText}
             onChange={(event) => setConfirmText(event.target.value)}
             placeholder={CONFIRM_PHRASE}
-            className="w-full rounded-[10px] border border-[#8c381c]/30 bg-white px-3 py-2 text-xs text-[#8c381c] outline-none transition-colors placeholder:text-[#8c381c]/40 focus:border-[#8c381c]/75 font-medium shadow-xs"
+            className="w-full rounded-[10px] border border-[#8c381c]/30 bg-white px-3 py-2 text-xs text-[#8c381c] outline-none transition-colors placeholder:text-[#8c381c]/40 focus:border-[#8c381c]/75 font-medium shadow-xs dark:bg-slate-900"
           />
 
           <TextInput
@@ -1164,7 +1164,7 @@ export default function SettingsPage() {
     : "/";
 
   return (
-    <div className="min-h-screen bg-[#f5f5f4] font-sans text-[#111111] flex flex-col md:flex-row overflow-x-hidden">
+    <div className="min-h-screen bg-[#f5f5f4] font-sans text-[#111111] flex flex-col md:flex-row overflow-x-hidden transition-colors dark:bg-slate-950 dark:text-slate-100">
       <aside className="w-full md:w-64 bg-[#f5f5f4] border-b md:border-b-0 md:border-r border-[#d1dee8]/70 flex flex-col shrink-0">
         <div className="border-b border-[#d1dee8]/50 p-6">
           <Logo />
@@ -1173,7 +1173,7 @@ export default function SettingsPage() {
         <nav className="flex-1 p-4 space-y-1 text-left">
           <Link
             href={dashboardHref}
-            className="flex items-center gap-2.5 rounded-[10px] px-3.5 py-2.5 text-xs font-bold text-[#78716b] hover:bg-[#e6e3e2] hover:text-[#111111] active:scale-[0.98] transition-all"
+            className="flex items-center gap-2.5 rounded-[10px] px-3.5 py-2.5 text-xs font-bold text-[#78716b] hover:bg-[#e6e3e2] hover:text-[#111111] active:scale-[0.98] transition-all dark:text-slate-100"
           >
             <LayoutDashboard className="h-4 w-4 text-[#78716b]" />
             Dashboard
@@ -1190,14 +1190,14 @@ export default function SettingsPage() {
 
         <div className="p-4 border-t border-[#d1dee8]/50 text-left space-y-3">
           <div className="flex items-center gap-2.5 px-2.5 py-1">
-            <div className="flex h-8 w-8 items-center justify-center rounded-full bg-[#e6e3e2] border border-[#d1dee8]/70 text-xs font-bold text-[#111111]">
+            <div className="flex h-8 w-8 items-center justify-center rounded-full bg-[#e6e3e2] border border-[#d1dee8]/70 text-xs font-bold text-[#111111] dark:text-slate-100">
               {user?.fullName || user?.name
                 ? (user?.fullName || user?.name)?.charAt(0).toUpperCase() || "U"
                 : "U"}
             </div>
 
             <div className="min-w-0">
-              <p className="text-xs font-bold text-[#111111] truncate">
+              <p className="text-xs font-bold text-[#111111] truncate dark:text-slate-100">
                 {user?.fullName || user?.name || "User"}
               </p>
               <p className="text-[9px] text-[#78716b] font-medium uppercase">
@@ -1209,7 +1209,7 @@ export default function SettingsPage() {
           <button
             type="button"
             onClick={() => logout()}
-            className="w-full flex items-center justify-center gap-2 rounded-[10px] border border-[#d1dee8]/70 bg-white py-2 text-xs font-bold text-[#8c381c] hover:bg-[#fbeee8] active:scale-[0.98] transition-all cursor-pointer shadow-xs"
+            className="w-full flex items-center justify-center gap-2 rounded-[10px] border border-[#d1dee8]/70 bg-white py-2 text-xs font-bold text-[#8c381c] hover:bg-[#fbeee8] active:scale-[0.98] transition-all cursor-pointer shadow-xs dark:bg-slate-900"
           >
             <LogOut className="h-3.5 w-3.5 text-[#8c381c]" />
             Sign Out
@@ -1223,7 +1223,7 @@ export default function SettingsPage() {
             <span className="text-xs font-bold uppercase tracking-widest text-[#78716b]">
               Account Center
             </span>
-            <h1 className="mt-0.5 text-2xl font-extrabold tracking-tight text-[#111111]">
+            <h1 className="mt-0.5 text-2xl font-extrabold tracking-tight text-[#111111] dark:text-slate-100">
               Settings
             </h1>
             <p className="mt-0.5 text-xs text-[#78716b] font-medium">
@@ -1265,7 +1265,7 @@ export default function SettingsPage() {
             ))}
           </nav>
 
-          <div className="flex-1 w-full rounded-[14px] bg-white p-6 border border-[#d1dee8]/70 shadow-sm">
+          <div className="flex-1 w-full rounded-[14px] bg-white p-6 border border-[#d1dee8]/70 shadow-sm dark:bg-slate-900">
             <AnimatePresence mode="wait">
               <motion.div
                 key={activeTab}
