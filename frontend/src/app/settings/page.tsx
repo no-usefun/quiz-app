@@ -407,7 +407,7 @@ function ProfilePanel({
                 disabled={setPasswordSaving}
                 className="rounded-[10px] bg-[#165dfb] px-3.5 py-2 text-xs font-bold text-white shadow-xs disabled:opacity-50"
               >
-                {setPasswordSaving ? "Setting..." : "Set Password"}
+                {setPasswordSaving ? <LoadingIndicator label="Setting password" size="sm" /> : "Set Password"}
               </button>
             </div>
           </div>
@@ -967,7 +967,7 @@ function SecurityPanel({
           className="flex items-center gap-1.5 rounded-[10px] bg-[#165dfb] px-4 py-2 text-xs font-bold text-white hover:bg-[#165dfb]/90 active:scale-[0.98] transition-all cursor-pointer border-0 shadow-xs disabled:opacity-50"
         >
           <Save className="h-3.5 w-3.5" />
-          {saving ? "Updating..." : "Update Password"}
+          {saving ? <LoadingIndicator label="Updating password" size="sm" /> : "Update Password"}
         </button>
       </div>
     </div>
