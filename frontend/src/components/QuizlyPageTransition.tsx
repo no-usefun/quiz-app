@@ -3,6 +3,7 @@
 import type { ReactNode } from "react";
 import { motion, useReducedMotion } from "framer-motion";
 import { usePathname } from "next/navigation";
+import { AmbientBackground } from "@/components/effects/AmbientBackground";
 
 /**
  * Consistent, lightweight Quizly page-entry animation.
@@ -20,7 +21,8 @@ export function QuizlyPageTransition({ children }: { children: ReactNode }) {
       animate={{ opacity: 1 }}
       transition={{ duration: reduceMotion ? 0 : 0.24, ease: "easeOut" }}
     >
-      {children}
+      <AmbientBackground />
+      <div className="relative z-10 min-h-screen">{children}</div>
     </motion.div>
   );
 }
