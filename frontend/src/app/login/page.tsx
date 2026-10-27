@@ -172,17 +172,45 @@ function LoginContent() {
     let googleAuthUrl: URL;
     try {
       if (!configuredApiBase) {
-        throw new Error("NEXT_PUBLIC_API_URL is not configured.");
+        throw new Error(
+          "Google sign-in is not configured: NEXT_PUBLIC_API_URL must point to the Spring Boot backend.",
+        );
       }
-      googleAuthUrl = new URL("/oauth2/authorization/google", configuredApiBase);
-      if (googleAuthUrl.protocol !== "http:" && googleAuthUrl.protocol !== "https:") {
-        throw new Error("The configured authentication server URL must use HTTP or HTTPS.");
+
+      const backendBaseUrl = new URL(configuredApiBase);
+      if (
+        backendBaseUrl.protocol !== "http:" &&
+        backendBaseUrl.protocol !== "https:"
+      ) {
+        throw new Error(
+          "Google sign-in requires the backend URL to use HTTP or HTTPS.",
+        );
       }
+
+      // OAuth must start at the backend origin itself, not through Next.js's
+      // same-origin /backend proxy. That lets Spring Security save and recover
+      // the OAuth authorization request/session on the same backend host.
+      const backendPath = backendBaseUrl.pathname.replace(/\\/+$/, "");
+      if (backendPath && backendPath !== "/") {
+        throw new Error(
+          "NEXT_PUBLIC_API_URL must be the backend origin only (for example, http://localhost:8080), without an API path or /backend proxy prefix.",
+        );
+      }
+
+      if (backendBaseUrl.origin === window.location.origin) {
+        throw new Error(
+          "Google sign-in is pointing at the frontend instead of the backend. Set NEXT_PUBLIC_API_URL to the Spring Boot server address (for example, http://localhost:8080 or your deployed backend URL), then restart Next.js.",
+        );
+      }
+
+      googleAuthUrl = new URL("/oauth2/authorization/google", backendBaseUrl);
       googleAuthUrl.searchParams.set("role", selectedBackendRole);
-    } catch {
+    } catch (configurationError) {
       setGoogleLoading(false);
       setError(
-        "Google sign-in is not configured with a valid backend URL. Check NEXT_PUBLIC_API_URL and the deployed OAuth configuration.",
+        configurationError instanceof Error
+          ? configurationError.message
+          : "Google sign-in is not configured correctly. Check NEXT_PUBLIC_API_URL.",
       );
       return;
     }
