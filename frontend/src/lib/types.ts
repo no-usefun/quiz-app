@@ -242,6 +242,18 @@ export interface DraftAttemptAnswersResponse {
   status: AttemptStatus;
 }
 
+export interface ProctoringAccessVerificationResponse {
+  attemptId: number;
+  studentId?: string | null;
+  studentEmail?: string | null;
+  testCode?: string | null;
+  status: string;
+  valid: boolean;
+  message: string;
+  warningCount?: number | null;
+  maxWarnings?: number | null;
+}
+
 
 export interface StudentSubmissionResponse {
   attemptId: number;

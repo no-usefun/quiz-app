@@ -31,6 +31,7 @@ interface AIProctoringHUDProps {
   voiceActive: boolean;
   loudVoice: boolean;
   warningCount: number;
+  maxWarnings?: number;
   isOnline: boolean;
 }
 
@@ -59,6 +60,7 @@ export function AIProctoringHUD({
   voiceActive,
   loudVoice,
   warningCount,
+  maxWarnings = 3,
   isOnline,
 }: AIProctoringHUDProps) {
   const alerts: string[] = [];
@@ -163,7 +165,7 @@ export function AIProctoringHUD({
           </div>
           <div className="col-span-2 flex items-center justify-between rounded-lg border border-[#d1dee8]/70 bg-[#f8fafc] px-2 py-1.5">
             <span className="text-[10px] font-semibold text-[#78716b]">Warnings recorded</span>
-            <span className={`text-xs font-extrabold ${warningCount > 0 ? "text-rose-600" : "text-emerald-700"}`}>{warningCount}</span>
+            <span className={`text-xs font-extrabold ${warningCount > 0 ? "text-rose-600" : "text-emerald-700"}`}>{warningCount}/{maxWarnings}</span>
           </div>
         </div>
         {telemetryReceived && alerts.length > 0 && (

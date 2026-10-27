@@ -32,6 +32,7 @@ import { ENDPOINTS } from "@/lib/api/endpoints";
 import type {
   AttemptStateResponse,
   DraftAttemptAnswersResponse,
+  ProctoringAccessVerificationResponse,
   QuizPackageResponse,
   QuestionResponse,
   SubmitAnswerRequest,
@@ -551,6 +552,35 @@ export default function TestArenaPage({
   // The backend package is authoritative. Do not use browser storage as the
   // source of truth for a policy that determines whether proctoring is required.
   const [aiProctoringEnabled, setAiProctoringEnabled] = useState<boolean | null>(null);
+  const [maxWarnings, setMaxWarnings] = useState(3);
+
+  useEffect(() => {
+    if (!activeAttemptId) return;
+    let cancelled = false;
+
+    void api.get<ProctoringAccessVerificationResponse>(
+      ENDPOINTS.proctoring.verifyAccess(activeAttemptId),
+      { cache: "no-store" },
+    ).then((verification) => {
+      const configuredLimit = Number(verification.maxWarnings);
+      if (
+        !cancelled &&
+        verification.valid &&
+        Number.isSafeInteger(configuredLimit) &&
+        configuredLimit > 0
+      ) {
+        setMaxWarnings(configuredLimit);
+      }
+    }).catch((error: unknown) => {
+      // The Spring Boot service defaults to three warnings; retain that fallback
+      // if an older deployment does not expose the configured threshold.
+      console.warn("[Proctoring] Could not load configured warning limit:", error);
+    });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [activeAttemptId]);
 
   const studentUser =
     typeof window !== "undefined"
@@ -2699,6 +2729,7 @@ export default function TestArenaPage({
             voiceActive={proctoring.voiceActive}
             loudVoice={proctoring.loudVoice}
             warningCount={proctoring.warningCount}
+             maxWarnings={maxWarnings}
             isOnline={proctoring.isOnline}
           />
         )}
@@ -2793,6 +2824,7 @@ export default function TestArenaPage({
           proctoring.warningCount,
           proctoring.activeWarningModal.count,
         )}
+        maxWarnings={maxWarnings}
         reason={proctoring.activeWarningModal.reason}
         autoSubmitted={proctoring.activeWarningModal.autoSubmitted}
         faceDetected={proctoring.faceDetected}
