@@ -13,6 +13,11 @@ export function QuizlyPageTransition({ children }: { children: ReactNode }) {
   const pathname = usePathname();
   const reduceMotion = useReducedMotion();
 
+  const ambientDisabled =
+    pathname.startsWith("/test/") ||
+    pathname.startsWith("/join/") ||
+    pathname === "/join";
+
   return (
     <motion.div
       key={pathname}
@@ -22,7 +27,7 @@ export function QuizlyPageTransition({ children }: { children: ReactNode }) {
       transition={{ duration: reduceMotion ? 0 : 0.24, ease: "easeOut" }}
     >
       <AmbientBackground />
-      <div className="relative z-20 min-h-screen">{children}</div>
+      <div className={`relative z-20 min-h-screen${ambientDisabled ? "" : " ambient-content"}`}>{children}</div>
     </motion.div>
   );
 }
