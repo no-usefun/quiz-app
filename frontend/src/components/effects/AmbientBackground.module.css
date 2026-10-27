@@ -1,13 +1,14 @@
 .ambient {
   position: fixed;
   inset: 0;
-  z-index: 0;
+  z-index: 10;
   overflow: hidden;
   pointer-events: none;
   contain: strict;
   isolation: isolate;
   color: var(--color-cobalt-stamp, #165dfb);
-  opacity: 0.72;
+  opacity: 0.5;
+  mix-blend-mode: soft-light;
 }
 
 .orb,
