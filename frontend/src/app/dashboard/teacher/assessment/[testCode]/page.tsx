@@ -315,7 +315,7 @@ function Th({
     <button
       type="button"
       onClick={() => onSort(col)}
-      className={`flex items-center gap-1 text-[9px] font-bold uppercase tracking-wider text-steel-blue-gray dark:text-slate-500 dark:text-slate-400 hover:text-midnight-navy dark:text-slate-900 dark:text-slate-100 transition-colors cursor-pointer bg-transparent border-0 ${className}`}
+      className={`flex items-center gap-1 text-[9px] font-bold uppercase tracking-wider text-steel-blue-gray dark:text-slate-500 dark:text-slate-400 hover:text-midnight-navy dark:text-slate-100 transition-colors cursor-pointer bg-transparent border-0 ${className}`}
     >
       {label}
       <SortIcon col={col} active={sortKey} dir={sortDir} />
@@ -1226,7 +1226,7 @@ export default function TeacherAssessmentPage({
 
   if (!assessmentData) {
     return (
-      <main className="min-h-screen bg-frost-surface flex items-center justify-center p-4 font-sans text-midnight-navy dark:text-slate-900 dark:text-slate-100">
+      <main className="min-h-screen bg-frost-surface flex items-center justify-center p-4 font-sans text-midnight-navy dark:text-slate-100">
         <div className="w-full max-w-md rounded-[14px] bg-paper-white dark:bg-white dark:bg-slate-900 border border-mist-blue/70 p-7 text-center shadow-sm">
           <AlertTriangle className="mx-auto h-10 w-10 text-pastel-pink-text" />
           <h1 className="mt-4 text-lg font-bold">Unable to load assessment</h1>
@@ -1247,13 +1247,13 @@ export default function TeacherAssessmentPage({
   }
 
   return (
-    <main className="assessment-governance min-h-screen bg-frost-surface text-midnight-navy dark:text-slate-900 dark:text-slate-100 p-4 md:p-6 lg:p-8 font-sans selection:bg-frost-surface selection:text-signal-green">
+    <main className="assessment-governance min-h-screen bg-frost-surface text-midnight-navy dark:text-slate-100 p-4 md:p-6 lg:p-8 font-sans selection:bg-frost-surface selection:text-signal-green">
       <div className="mx-auto flex min-h-[90vh] max-w-[1400px] flex-col rounded-cards bg-paper-white dark:bg-white dark:bg-slate-900 shadow-xl border border-mist-blue overflow-hidden text-left">
         <header className="flex w-full flex-wrap items-center justify-between gap-3 border-b border-mist-blue/30 px-4 py-4 bg-paper-white dark:bg-white dark:bg-slate-900 sm:px-6">
           <div className="flex items-center gap-3">
             <Link
               href="/dashboard/teacher"
-              className="flex items-center gap-2 text-xs font-bold text-steel-blue-gray dark:text-slate-500 dark:text-slate-400 hover:text-midnight-navy dark:text-slate-900 dark:text-slate-100 transition-colors"
+              className="flex items-center gap-2 text-xs font-bold text-steel-blue-gray dark:text-slate-500 dark:text-slate-400 hover:text-midnight-navy dark:text-slate-100 transition-colors"
             >
               <ArrowLeft className="h-3.5 w-3.5" />
               Dashboard
@@ -1312,7 +1312,7 @@ export default function TeacherAssessmentPage({
                 Assessment Governance
               </p>
 
-              <h1 className="text-xl font-bold text-midnight-navy dark:text-slate-900 dark:text-slate-100 mt-0.5">
+              <h1 className="text-xl font-bold text-midnight-navy dark:text-slate-100 mt-0.5">
                 {assessmentData.title}
               </h1>
 
@@ -1445,7 +1445,7 @@ export default function TeacherAssessmentPage({
           )}
 
           <section className="assessment-result-visibility rounded-[20px] border border-[#dce7ff] dark:border-slate-700 bg-white dark:bg-slate-900/90 p-4 sm:p-5 space-y-3 shadow-[0_5px_20px_rgba(71,100,180,0.06)]">
-            <h3 className="text-xs font-extrabold uppercase tracking-wider text-midnight-navy dark:text-slate-900 dark:text-slate-100 flex items-center gap-2 border-b border-[#e6edfb] dark:border-slate-700 pb-3">
+            <h3 className="text-xs font-extrabold uppercase tracking-wider text-midnight-navy dark:text-slate-100 flex items-center gap-2 border-b border-[#e6edfb] dark:border-slate-700 pb-3">
               <Eye className="h-4 w-4 text-[#3984ff]" />
               Student Result Visibility
             </h3>
@@ -1479,7 +1479,7 @@ export default function TeacherAssessmentPage({
                   disabled={settingsSaving}
                   className={`assessment-result-visibility-option flex items-center justify-between gap-3 rounded-[15px] border p-3.5 text-left transition-all duration-200 ${
                     item.active
-                      ? "is-active border-[#b8ccf5] bg-[#f8fbff] text-midnight-navy dark:text-slate-900 dark:text-slate-100 ring-1 ring-[#dce8ff]"
+                      ? "is-active border-[#b8ccf5] bg-[#f8fbff] text-midnight-navy dark:text-slate-100 ring-1 ring-[#dce8ff]"
                       : "is-inactive border-[#e2e8f0] bg-white dark:bg-slate-900 text-steel-blue-gray dark:text-slate-500 dark:text-slate-400 hover:border-[#cbd5e1] hover:bg-slate-50"
                   } ${
                     settingsSaving
@@ -1492,7 +1492,7 @@ export default function TeacherAssessmentPage({
                       {item.label === "Show Leaderboard" ? <Trophy className="h-5 w-5" /> : <BarChart3 className="h-5 w-5" />}
                     </span>
                     <span className="min-w-0 text-left">
-                    <span className="assessment-result-visibility-label block text-xs font-bold text-midnight-navy dark:text-slate-900 dark:text-slate-100">
+                    <span className="assessment-result-visibility-label block text-xs font-bold text-midnight-navy dark:text-slate-100">
                       {item.label}
                     </span>
                     <span className="assessment-result-visibility-hint block text-[10px] text-steel-blue-gray dark:text-slate-500 dark:text-slate-400 mt-0.5 font-medium">
@@ -1519,7 +1519,7 @@ export default function TeacherAssessmentPage({
 
           <section className="rounded-[14px] border border-slate-200 bg-white dark:bg-slate-900 p-4 space-y-3 shadow-sm">
             <div className="border-b border-[#d1dee8]/40 pb-2">
-              <h3 className="text-xs font-bold uppercase tracking-wider text-midnight-navy dark:text-slate-900 dark:text-slate-100">Student Result Details</h3>
+              <h3 className="text-xs font-bold uppercase tracking-wider text-midnight-navy dark:text-slate-100">Student Result Details</h3>
               <p className="mt-1 text-[10px] font-medium text-steel-blue-gray dark:text-slate-500 dark:text-slate-400">Relevant scoring and review rules from the assessment settings. These are displayed for clarity; changing them here does not alter the completed attempt scores.</p>
             </div>
             <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-3">
@@ -1545,7 +1545,7 @@ export default function TeacherAssessmentPage({
               ].map((item) => (
                 <div key={item.label} className="rounded-[10px] border border-slate-200 bg-white dark:bg-slate-900 p-3">
                   <p className="text-[9px] font-bold uppercase tracking-wider text-steel-blue-gray dark:text-slate-500 dark:text-slate-400">{item.label}</p>
-                  <p className="mt-1 text-xs font-semibold text-midnight-navy dark:text-slate-900 dark:text-slate-100">{item.value}</p>
+                  <p className="mt-1 text-xs font-semibold text-midnight-navy dark:text-slate-100">{item.value}</p>
                 </div>
               ))}
             </div>
@@ -1605,7 +1605,7 @@ export default function TeacherAssessmentPage({
                   {stat.icon}
                 </div>
                 <div className="text-left">
-                  <p className="text-lg font-bold text-midnight-navy dark:text-slate-900 dark:text-slate-100">
+                  <p className="text-lg font-bold text-midnight-navy dark:text-slate-100">
                     {stat.value}
                   </p>
                   <p className="text-[9px] text-steel-blue-gray dark:text-slate-500 dark:text-slate-400 font-bold uppercase tracking-wider">
@@ -1621,7 +1621,7 @@ export default function TeacherAssessmentPage({
             <section className="rounded-[16px] border border-slate-200 bg-white dark:bg-slate-900 p-4 sm:p-6 shadow-sm text-left">
               <div className="mb-4 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
                 <div>
-                  <h2 className="flex items-center gap-2 text-xs font-extrabold uppercase tracking-wider text-midnight-navy dark:text-slate-900 dark:text-slate-100"><BarChart3 className="h-4 w-4 text-[#8b5cf6]" />Class Performance</h2>
+                  <h2 className="flex items-center gap-2 text-xs font-extrabold uppercase tracking-wider text-midnight-navy dark:text-slate-100"><BarChart3 className="h-4 w-4 text-[#8b5cf6]" />Class Performance</h2>
                   <p className="mt-1 text-xs text-steel-blue-gray dark:text-slate-500 dark:text-slate-400">A quick breakdown of marks across all submitted attempts.</p>
                 </div>
                 <div className="flex items-center gap-2 sm:gap-3">
@@ -1667,7 +1667,7 @@ export default function TeacherAssessmentPage({
                           style={{ width: `${barWidth}%` }}
                         />
                       </div>
-                      <span className="text-right text-xs font-bold tabular-nums text-midnight-navy dark:text-slate-900 dark:text-slate-100">{band.count}</span>
+                      <span className="text-right text-xs font-bold tabular-nums text-midnight-navy dark:text-slate-100">{band.count}</span>
                     </div>
                   );
                 })}
@@ -1682,7 +1682,7 @@ export default function TeacherAssessmentPage({
                 <Trophy className="h-5 w-5" />
               </div>
               <div>
-                <h2 className="text-sm font-extrabold text-midnight-navy dark:text-slate-900 dark:text-slate-100 uppercase tracking-wider">Top Performers</h2>
+                <h2 className="text-sm font-extrabold text-midnight-navy dark:text-slate-100 uppercase tracking-wider">Top Performers</h2>
                 <p className="mt-0.5 text-[11px] text-steel-blue-gray dark:text-slate-500 dark:text-slate-400">Celebrating the highest-scoring submissions.</p>
               </div>
             </div>
@@ -1706,7 +1706,7 @@ export default function TeacherAssessmentPage({
                       {student.avatar}
                     </div>
 
-                    <p className="font-bold text-midnight-navy dark:text-slate-900 dark:text-slate-100 truncate pr-6 text-xs text-left">
+                    <p className="font-bold text-midnight-navy dark:text-slate-100 truncate pr-6 text-xs text-left">
                       {student.name}
                     </p>
 
@@ -1715,7 +1715,7 @@ export default function TeacherAssessmentPage({
                     </p>
 
                     <div className="mt-3 text-left">
-                      <p className="text-xl font-bold text-midnight-navy dark:text-slate-900 dark:text-slate-100">
+                      <p className="text-xl font-bold text-midnight-navy dark:text-slate-100">
                         {formatMarks(student.finalScore)} /{" "}
                         {formatMarks(student.totalMarks)}
                       </p>
@@ -1742,7 +1742,7 @@ export default function TeacherAssessmentPage({
                     <Trophy className="h-5 w-5" />
                   </div>
                   <div>
-                    <h2 className="text-base font-extrabold tracking-tight text-midnight-navy dark:text-slate-900 dark:text-slate-100">Student Leaderboard</h2>
+                    <h2 className="text-base font-extrabold tracking-tight text-midnight-navy dark:text-slate-100">Student Leaderboard</h2>
                     <p className="mt-0.5 text-[11px] text-steel-blue-gray dark:text-slate-500 dark:text-slate-400">
                       Ranked by score, with completion time as the tie-breaker.
                     </p>
@@ -1760,7 +1760,7 @@ export default function TeacherAssessmentPage({
                   placeholder="Search name or registration no."
                   value={query}
                   onChange={(event) => setQuery(event.target.value)}
-                  className="w-full rounded-[10px] border border-[#d1dee8]/80 dark:border-slate-700 bg-paper-white dark:bg-white dark:bg-slate-900 py-2.5 pl-9 pr-4 text-xs font-medium text-midnight-navy dark:text-slate-900 dark:text-slate-100 outline-none transition-all placeholder:text-steel-blue-gray/70 focus:border-[#165dfb] focus:ring-2 focus:ring-[#165dfb]/15"
+                  className="w-full rounded-[10px] border border-[#d1dee8]/80 dark:border-slate-700 bg-paper-white dark:bg-white dark:bg-slate-900 py-2.5 pl-9 pr-4 text-xs font-medium text-midnight-navy dark:text-slate-100 outline-none transition-all placeholder:text-steel-blue-gray/70 focus:border-[#165dfb] focus:ring-2 focus:ring-[#165dfb]/15"
                 />
               </div>
             </div>
@@ -1848,12 +1848,12 @@ export default function TeacherAssessmentPage({
                       </span>
 
                       <div className="flex min-w-0 items-center gap-2">
-                        <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-frost-surface border border-mist-blue/30 text-midnight-navy dark:text-slate-900 dark:text-slate-100 font-bold text-[10px] shadow-xs">
+                        <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-frost-surface border border-mist-blue/30 text-midnight-navy dark:text-slate-100 font-bold text-[10px] shadow-xs">
                           {student.avatar}
                         </div>
 
                         <div className="min-w-0">
-                          <p className="truncate text-xs font-bold text-midnight-navy dark:text-slate-900 dark:text-slate-100">
+                          <p className="truncate text-xs font-bold text-midnight-navy dark:text-slate-100">
                             {student.name}
                           </p>
                           {student.status && (
@@ -1869,13 +1869,13 @@ export default function TeacherAssessmentPage({
                       </span>
 
                       <div className="flex flex-col items-center justify-center leading-tight">
-                        <span className="text-xs font-bold tabular-nums text-midnight-navy dark:text-slate-900 dark:text-slate-100">
+                        <span className="text-xs font-bold tabular-nums text-midnight-navy dark:text-slate-100">
                           {formatMarks(student.finalScore)} / {formatMarks(student.totalMarks)}
                         </span>
                       </div>
 
                       <div className="flex flex-col items-center gap-1">
-                        <span className="text-xs font-bold tabular-nums text-midnight-navy dark:text-slate-900 dark:text-slate-100">{formatPercentage(student.percentage)}%</span>
+                        <span className="text-xs font-bold tabular-nums text-midnight-navy dark:text-slate-100">{formatPercentage(student.percentage)}%</span>
                         <span className="h-1.5 w-16 overflow-hidden rounded-full bg-[#e3ebfb]">
                           <span className="block h-full rounded-full bg-gradient-to-r from-[#3984ff] to-[#7c5cff]" style={{ width: `${Math.max(0, Math.min(100, student.percentage))}%` }} />
                         </span>
@@ -1947,7 +1947,7 @@ export default function TeacherAssessmentPage({
             <section role="dialog" aria-modal="true" aria-labelledby="student-proctoring-title" className="max-h-[90vh] w-full max-w-4xl overflow-y-auto rounded-2xl border border-amber-200 bg-white dark:bg-slate-900 p-4 shadow-2xl sm:p-6">
               <div className="flex items-start justify-between gap-4 border-b border-slate-100 pb-4">
                 <div>
-                  <h2 id="student-proctoring-title" className="flex items-center gap-2 text-base font-extrabold text-midnight-navy dark:text-slate-900 dark:text-slate-100">
+                  <h2 id="student-proctoring-title" className="flex items-center gap-2 text-base font-extrabold text-midnight-navy dark:text-slate-100">
                     <ShieldAlert className="h-5 w-5 text-amber-700" />
                     Proctoring issues
                   </h2>
@@ -1975,17 +1975,17 @@ export default function TeacherAssessmentPage({
                     ].map(([label, value]) => (
                       <div key={String(label)} className="rounded-xl border border-slate-200 bg-slate-50 p-3">
                         <p className="text-[9px] font-bold uppercase tracking-wide text-steel-blue-gray dark:text-slate-500 dark:text-slate-400">{label}</p>
-                        <p className="mt-1 text-sm font-extrabold text-midnight-navy dark:text-slate-900 dark:text-slate-100">{value}</p>
+                        <p className="mt-1 text-sm font-extrabold text-midnight-navy dark:text-slate-100">{value}</p>
                       </div>
                     ))}
                   </div>
                   <div>
-                    <h3 className="mb-2 text-xs font-extrabold uppercase tracking-wide text-midnight-navy dark:text-slate-900 dark:text-slate-100">Browser activity</h3>
+                    <h3 className="mb-2 text-xs font-extrabold uppercase tracking-wide text-midnight-navy dark:text-slate-100">Browser activity</h3>
                     <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-4">
                       {browserMetrics.map(([label, count]) => (
                         <div key={label} className="rounded-lg border border-slate-200 p-3">
                           <p className="text-[10px] font-semibold text-steel-blue-gray dark:text-slate-500 dark:text-slate-400">{label}</p>
-                          <p className={`mt-1 text-lg font-extrabold ${count > 0 ? "text-rose-700" : "text-midnight-navy dark:text-slate-900 dark:text-slate-100"}`}>{count}</p>
+                          <p className={`mt-1 text-lg font-extrabold ${count > 0 ? "text-rose-700" : "text-midnight-navy dark:text-slate-100"}`}>{count}</p>
                         </div>
                       ))}
                     </div>
@@ -1993,15 +1993,15 @@ export default function TeacherAssessmentPage({
                   <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
                     <div className="rounded-lg border border-slate-200 p-3">
                       <p className="text-[9px] font-bold uppercase tracking-wide text-steel-blue-gray dark:text-slate-500 dark:text-slate-400">Termination reason</p>
-                      <p className="mt-1 text-xs font-semibold text-midnight-navy dark:text-slate-900 dark:text-slate-100">{report.terminationReason ? humanizeEvent(report.terminationReason) : "None reported"}</p>
+                      <p className="mt-1 text-xs font-semibold text-midnight-navy dark:text-slate-100">{report.terminationReason ? humanizeEvent(report.terminationReason) : "None reported"}</p>
                     </div>
                     <div className="rounded-lg border border-slate-200 p-3">
                       <p className="text-[9px] font-bold uppercase tracking-wide text-steel-blue-gray dark:text-slate-500 dark:text-slate-400">Total violations</p>
-                      <p className="mt-1 text-xs font-semibold text-midnight-navy dark:text-slate-900 dark:text-slate-100">{report.totalViolationsCount ?? events.length}</p>
+                      <p className="mt-1 text-xs font-semibold text-midnight-navy dark:text-slate-100">{report.totalViolationsCount ?? events.length}</p>
                     </div>
                   </div>
                   <div>
-                    <h3 className="mb-2 text-xs font-extrabold uppercase tracking-wide text-midnight-navy dark:text-slate-900 dark:text-slate-100">Recorded event timeline ({events.length})</h3>
+                    <h3 className="mb-2 text-xs font-extrabold uppercase tracking-wide text-midnight-navy dark:text-slate-100">Recorded event timeline ({events.length})</h3>
                     {events.length === 0 ? (
                       <p className="rounded-lg bg-slate-50 p-3 text-xs text-steel-blue-gray dark:text-slate-500 dark:text-slate-400">No event timeline was included in the report. Zero counters cannot confirm that no browser activity occurred.</p>
                     ) : (
@@ -2017,8 +2017,8 @@ export default function TeacherAssessmentPage({
                             {events.map((event, index) => (
                               <tr key={String(event.id ?? index)}>
                                 <td className="whitespace-nowrap px-3 py-2 text-[10px] text-steel-blue-gray dark:text-slate-500 dark:text-slate-400">{formatDateTime(event.timestamp)}</td>
-                                <td className="px-3 py-2 text-[10px] font-bold text-midnight-navy dark:text-slate-900 dark:text-slate-100">{humanizeEvent(event.eventType)}</td>
-                                <td className="px-3 py-2 text-[10px] text-midnight-navy dark:text-slate-900 dark:text-slate-100">{event.severity || "—"}</td>
+                                <td className="px-3 py-2 text-[10px] font-bold text-midnight-navy dark:text-slate-100">{humanizeEvent(event.eventType)}</td>
+                                <td className="px-3 py-2 text-[10px] text-midnight-navy dark:text-slate-100">{event.severity || "—"}</td>
                                 <td className="px-3 py-2 text-[10px] text-steel-blue-gray dark:text-slate-500 dark:text-slate-400">{event.details || "—"}</td>
                               </tr>
                             ))}
