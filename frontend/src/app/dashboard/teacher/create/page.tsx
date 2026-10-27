@@ -2038,7 +2038,7 @@ function CreateAssessmentContent() {
                 </div>
                 <div className="text-left">
                   <label className={labelClass}>Time Limit (minutes)</label>
-                  <div className="flex min-w-0 items-center gap-2 rounded-[10px] border border-[#d1dee8]/80 bg-white px-3 py-2.5 transition-colors hover:border-[#b9cbd9] focus-within:border-[#165dfb] focus-within:ring-4 focus-within:ring-[#165dfb]/10 shadow-xs dark:border-slate-700 dark:bg-slate-900">
+                  <div className="assessment-time-limit-field flex min-w-0 items-center gap-2 rounded-[10px] border border-[#d1dee8]/80 bg-white px-3 py-2.5 transition-colors hover:border-[#b9cbd9] focus-within:border-[#165dfb] focus-within:ring-4 focus-within:ring-[#165dfb]/10 shadow-xs dark:border-slate-700 dark:bg-slate-900">
                     <Clock className="h-4 w-4 shrink-0 text-[#78716b] dark:text-slate-400" />
                     <input
                       type="number"
