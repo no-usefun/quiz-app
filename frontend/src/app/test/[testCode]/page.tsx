@@ -2036,7 +2036,7 @@ export default function TestArenaPage({
 
   return (
     <div
-      className="relative flex h-[100dvh] w-screen overflow-hidden bg-[#f5f5f4] p-0 font-sans text-[#111111] select-none dark:bg-slate-950 dark:text-slate-100"
+      className="relative flex h-[100dvh] w-full overflow-hidden bg-[#f5f5f4] p-0 font-sans text-[#111111] select-none dark:bg-slate-950 dark:text-slate-100"
       style={{ WebkitUserSelect: "none", userSelect: "none" }}
     >
       <AnimatePresence>
