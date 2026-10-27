@@ -1,5 +1,6 @@
 "use client";
 
+import LoadingIndicator from "@/components/LoadingIndicator";
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -684,8 +685,8 @@ function PreferencesPanel({
         )}
 
         {loadingPreferences ? (
-          <div className="rounded-[10px] border border-[#d1dee8]/70 bg-[#e6e3e2]/40 px-4 py-4 text-xs font-medium text-[#78716b]">
-            Loading notification settings...
+          <div className="flex min-h-14 items-center justify-center rounded-[10px] border border-[#d1dee8]/70 bg-[#e6e3e2]/40 px-4 py-4 dark:border-slate-700 dark:bg-slate-800/60" aria-busy="true">
+            <LoadingIndicator label="Loading notification settings" size="md" />
           </div>
         ) : (
           <div className="space-y-2">
