@@ -1121,16 +1121,7 @@ export default function StudentResultPage({
                       </span>
                     </div>
 
-                    {detail.explanation && (
-                      <div className="rounded-[10px] border border-slate-200 bg-slate-50 p-3 text-[11px] text-slate-900 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100">
-                        <p className="mb-1 text-[9px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">
-                          Explanation
-                        </p>
-                        <p className="leading-relaxed font-medium">
-                          {detail.explanation}
-                        </p>
-                      </div>
-                    )}
+
                   </div>
                 );
                 })}
