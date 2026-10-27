@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useEffect, useRef, useState, useCallback } from "react";
+import SkeletonBlock from "@/components/SkeletonBlock";
 import { Camera, CheckCircle2, AlertTriangle, RefreshCw, Loader2, Shield } from "lucide-react";
 import { checkAIHealth } from "@/lib/proctoring/aiProctoringClient";
 
@@ -266,9 +267,10 @@ export function CameraReferenceCapture({
             )}
 
             {!cameraActive && !cameraError && (
-              <div className="flex flex-col items-center gap-2 text-stone-400">
-                <Loader2 className="h-6 w-6 animate-spin text-[#165dfb]" />
-                <span className="text-xs font-medium">Initializing camera...</span>
+              <div className="flex w-full flex-col items-center gap-4 px-8 text-stone-400" aria-busy="true">
+                <Camera className="h-8 w-8 text-[#93b4ff]" />
+                <div className="w-full max-w-[220px] space-y-2" aria-hidden="true"><SkeletonBlock className="h-3 w-3/4 rounded bg-white/15" /><SkeletonBlock className="h-2.5 w-full rounded bg-white/10" /><SkeletonBlock className="h-2.5 w-2/3 rounded bg-white/10" /></div>
+                <span className="sr-only" role="status">Initializing camera</span>
               </div>
             )}
 
@@ -311,7 +313,7 @@ export function CameraReferenceCapture({
             className="shrink-0 inline-flex items-center gap-1.5 rounded-[10px] bg-[#165dfb] px-4 py-2 text-xs font-bold text-white hover:bg-[#124bce] active:scale-95 shadow-xs disabled:opacity-50 transition-all cursor-pointer"
           >
             {isProcessing ? (
-              <Loader2 className="h-3.5 w-3.5 animate-spin" />
+              <SkeletonBlock className="h-3 w-8 rounded bg-white/50" />
             ) : (
               <Camera className="h-3.5 w-3.5" />
             )}
