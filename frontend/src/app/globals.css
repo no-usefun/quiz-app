@@ -1477,3 +1477,49 @@ pre {
     padding-right: max(0px, env(safe-area-inset-right));
   }
 }
+
+ 
+/* Consistent role-selector cards and actions across login and signup. */
+.role-student-panel,
+.signup-role-student-panel,
+.role-instructor-panel,
+.signup-role-instructor-panel {
+  isolation: isolate;
+  transition: background-color 220ms ease, color 220ms ease;
+}
+.role-student-panel:hover { background-color: #ffffff; }
+.role-instructor-panel:hover { background-color: #0b1220; }
+.role-panel-title,
+.signup-role-title { font-size: 1.875rem; line-height: 1.1; }
+.role-panel-description,
+.signup-role-description { line-height: 1.625; }
+.role-panel-cta,
+.signup-role-cta {
+  min-height: 3rem;
+  font-weight: 600;
+  transition: background-color 200ms ease, box-shadow 200ms ease, color 200ms ease;
+}
+.role-panel-cta:hover,
+.signup-role-cta:hover { box-shadow: 0 8px 20px rgba(15, 23, 42, 0.14); }
+.role-panel-cta svg,
+.signup-role-cta svg { transition: transform 200ms ease; }
+.role-panel-cta:hover svg,
+.signup-role-cta:hover svg { transform: translateX(2px); }
+.role-student-panel:hover .role-panel-icon,
+.role-instructor-panel:hover .role-panel-icon { transform: translateY(-2px); }
+.role-panel-cta:focus-visible,
+.signup-role-cta:focus-visible { outline: 2px solid #165dfb !important; outline-offset: 3px !important; }
+@media (min-width: 640px) {
+  .role-panel-title,
+  .signup-role-title { font-size: 2.25rem; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .role-student-panel,
+  .signup-role-student-panel,
+  .role-instructor-panel,
+  .signup-role-instructor-panel,
+  .role-panel-cta,
+  .signup-role-cta,
+  .role-panel-cta svg,
+  .signup-role-cta svg { transition: none !important; }
+}
