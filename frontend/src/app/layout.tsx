@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import localFont from "next/font/local";
 import "./globals.css";
 import { ThemeProvider } from "@/components/ThemeProvider";
+import { QuizlyPageTransition } from "@/components/QuizlyPageTransition";
 
 const geistSans = localFont({
   src: "./fonts/geist.woff2",
@@ -29,7 +30,7 @@ export default function RootLayout({
       <body
         className={`${geistSans.variable} font-sans antialiased bg-[#f5f5f4] text-[#111111] selection:bg-[#e6e3e2] selection:text-[#165dfb] dark:bg-slate-950 dark:text-slate-100 transition-colors`}
       >
-        <ThemeProvider>{children}</ThemeProvider>
+        <ThemeProvider><QuizlyPageTransition>{children}</QuizlyPageTransition></ThemeProvider>
       </body>
     </html>
   );

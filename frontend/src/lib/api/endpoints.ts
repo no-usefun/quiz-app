@@ -48,6 +48,9 @@ export const ENDPOINTS = {
     attemptState: (attemptId: number | string) =>
       `${API_BASE}/api/v1/student/attempts/${attemptId}/state`,
 
+    draftAnswers: (attemptId: number | string) =>
+      `${API_BASE}/api/v1/student/attempts/${attemptId}/answers/draft`,
+
     submissions: `${API_BASE}/api/v1/student/submissions`,
 
     attemptResult: (attemptId: number | string) =>
@@ -80,6 +83,7 @@ export const ENDPOINTS = {
   },
 
   proctoring: {
+    aiHealth: `${API_BASE}/api/v1/proctoring/ai-health`,
     // Unified event contract expected from the backend AI-proctoring integration.
     recordEvent: (attemptId: number | string) =>
       `${API_BASE}/api/v1/attempts/${attemptId}/events`,

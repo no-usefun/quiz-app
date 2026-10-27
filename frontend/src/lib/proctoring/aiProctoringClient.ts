@@ -1,5 +1,7 @@
 // AI Proctoring Microservice HTTP & WebSocket Client
 
+import { ENDPOINTS } from "@/lib/api/endpoints";
+
 const isDevelopment = process.env.NODE_ENV === "development";
 
 export const AI_PROCTORING_BASE_URL = (
@@ -99,39 +101,95 @@ export interface StopSessionResult {
  * Check if the Python AI microservice is online and loaded with biometric models.
  * No fake fallbacks allowed.
  */
-export async function checkAIHealth(): Promise<{ isOnline: boolean; biometricReady: boolean; details?: AIHealthResponse }> {
+export async function checkAIHealth(): Promise<{
+  isOnline: boolean;
+  biometricReady: boolean;
+  backendAvailable?: boolean;
+  backendMessage?: string;
+  details?: AIHealthResponse;
+}> {
   // Never point a deployed browser at the student's own localhost by default.
   // Production deployments must explicitly configure the AI service URL.
   if (!AI_PROCTORING_BASE_URL) {
-    return { isOnline: false, biometricReady: false };
+    return {
+      isOnline: false,
+      biometricReady: false,
+      backendMessage: "NEXT_PUBLIC_AI_PROCTORING_URL is not configured.",
+    };
   }
 
-  try {
-    const res = await fetch(`${AI_PROCTORING_BASE_URL}/health`, {
-      method: "GET",
-      headers: {
-        Accept: "application/json",
-        // Required by browser requests when the configured service is an ngrok tunnel.
-        ...(AI_PROCTORING_BASE_URL.includes(".ngrok-free.dev")
-          ? { "ngrok-skip-browser-warning": "true" }
-          : {}),
-      },
-      signal: AbortSignal.timeout(2500),
-    });
-    if (res.ok) {
-      const data = (await res.json()) as AIHealthResponse;
-      const isOnline = data.status === "UP" || data.status === "DEGRADED";
-      // A usable AI session needs both face detection and the SFace identity model.
-      const biometricReady =
-        data.biometricAvailable === true &&
-        data.models?.yunet === true &&
-        data.models?.sface === true;
-      return { isOnline, biometricReady, details: data };
-    }
-  } catch {
-    // Offline
-  }
-  return { isOnline: false, biometricReady: false };
+  const [directHealth, backendHealth] = await Promise.all([
+    (async () => {
+      try {
+        const response = await fetch(`${AI_PROCTORING_BASE_URL}/health`, {
+          method: "GET",
+          headers: {
+            Accept: "application/json",
+            ...(AI_PROCTORING_BASE_URL.includes(".ngrok-free.dev")
+              ? { "ngrok-skip-browser-warning": "true" }
+              : {}),
+          },
+          signal: AbortSignal.timeout(2500),
+        });
+        if (!response.ok) return null;
+        return (await response.json()) as AIHealthResponse;
+      } catch {
+        return null;
+      }
+    })(),
+    (async () => {
+      try {
+        const response = await fetch(ENDPOINTS.proctoring.aiHealth, {
+          method: "GET",
+          headers: { Accept: "application/json" },
+          cache: "no-store",
+          signal: AbortSignal.timeout(3000),
+        });
+        const payload = await response.json().catch(() => null) as {
+          reachable?: boolean;
+          status?: string;
+          biometricAvailable?: boolean;
+          models?: Record<string, boolean>;
+          message?: string;
+        } | null;
+        return { ok: response.ok, payload };
+      } catch {
+        return { ok: false, payload: null };
+      }
+    })(),
+  ]);
+
+  const backendAvailable =
+    backendHealth.ok && backendHealth.payload?.reachable === true;
+  const backendMessage =
+    backendHealth.payload?.message ||
+    (backendAvailable
+      ? undefined
+      : "The quiz backend cannot confirm that its AI proctoring service is reachable.");
+
+  const directIsOnline =
+    directHealth?.status === "UP" || directHealth?.status === "DEGRADED";
+  const directBiometricReady =
+    directHealth?.biometricAvailable === true &&
+    directHealth.models?.yunet === true &&
+    directHealth.models?.sface === true;
+  const backendBiometricReady =
+    backendHealth.payload?.biometricAvailable === true &&
+    backendHealth.payload.models?.yunet === true &&
+    backendHealth.payload.models?.sface === true;
+
+  return {
+    isOnline: Boolean(directIsOnline && backendAvailable),
+    biometricReady: Boolean(
+      directIsOnline &&
+      backendAvailable &&
+      directBiometricReady &&
+      backendBiometricReady,
+    ),
+    backendAvailable,
+    backendMessage,
+    ...(directHealth ? { details: directHealth } : {}),
+  };
 }
 
 /**
@@ -142,9 +200,14 @@ export async function startProctoringSession(
   params: StartSessionParams
 ): Promise<StartSessionResult> {
   const health = await checkAIHealth();
+  if (health.backendAvailable === false) {
+    throw new Error(
+      `BACKEND_UNAVAILABLE: The quiz backend could not confirm AI service readiness. ${health.backendMessage || "Please retry shortly."}`
+    );
+  }
   if (!health.isOnline) {
     throw new Error(
-      "AI_PROCTORING_OFFLINE: The AI Proctoring service is currently unavailable. Contact your test administrator."
+      `AI_PROCTORING_OFFLINE: The AI Proctoring service is currently unavailable. ${health.backendMessage || "Contact your test administrator."}`
     );
   }
   if (!health.biometricReady) {
@@ -307,12 +370,9 @@ export async function submitProctoringSummary(
     identityMismatches: number;
   },
 ): Promise<void> {
-  const baseUrl = (
-    process.env.NEXT_PUBLIC_API_URL || "http://localhost:8080"
-  ).replace(/\/+$/, "");
   const token = params.authToken?.trim();
   const response = await fetch(
-    `${baseUrl}/api/v1/attempts/${params.attemptId}/proctoring-summary`,
+    ENDPOINTS.proctoring.summary(params.attemptId),
     {
       method: "POST",
       headers: {

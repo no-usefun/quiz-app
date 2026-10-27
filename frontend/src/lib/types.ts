@@ -144,6 +144,8 @@ export interface QuizResponse {
   autoSubmit: boolean;
   /** Persisted quiz policy; student endpoints must return this explicitly. */
   aiProctoringEnabled?: boolean;
+  /** Backend-configured shared tab-switch/fullscreen violation threshold. */
+  maxTabSwitch?: number | null;
   startTime?: string | null;
   endTime?: string | null;
   resultVisibility: ResultVisibility;
@@ -232,6 +234,12 @@ export interface AttemptStateResponse {
   currentQuestion?: number | null;
   answers: AttemptSavedAnswer[];
   totalTimeTaken?: number | null;
+}
+
+export interface DraftAttemptAnswersResponse {
+  attemptId: number;
+  saved: boolean;
+  status: AttemptStatus;
 }
 
 

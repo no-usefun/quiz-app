@@ -1318,6 +1318,7 @@ function CreateAssessmentContent() {
       allowReview: Boolean(allowReview),
       allowResume: Boolean(allowResume),
       autoSubmit: true,
+      maxTabSwitch: Math.max(0, Number(maxTabSwitch) || 0),
       startTime: formatToLocalDateTime(startTime),
       endTime: formatToLocalDateTime(endTime),
       resultVisibility: getResultVisibility(),
@@ -1542,47 +1543,6 @@ function CreateAssessmentContent() {
       if (!rawQuizId) throw new Error("Quiz response missing quizId");
       const numericQuizId = Number(rawQuizId);
 
-      /*
-       * CreateQuizRequest currently does not expose maxTabSwitch, while the
-       * settings endpoint does. Persist that value immediately after creation
-       * so a newly created quiz does not fall back to the backend default.
-       */
-      if (!isEditing) {
-        try {
-          const followUpSettingsRes = await fetch(
-            ENDPOINTS.teacher.settings(numericQuizId),
-            {
-              method: "PUT",
-              headers: {
-                "Content-Type": "application/json",
-                ...(token ? { Authorization: `Bearer ${token}` } : {}),
-              },
-              body: JSON.stringify({
-                maxTabSwitch: Math.max(0, Number(maxTabSwitch) || 0),
-                aiProctoringEnabled,
-              }),
-            },
-          );
-
-          if (!followUpSettingsRes.ok) {
-            throw new Error(
-              `Settings update failed with status ${followUpSettingsRes.status}`,
-            );
-          }
-        } catch (error) {
-          console.error(
-            "[Quizly] Could not persist quiz settings after creation.",
-            error,
-          );
-          // Keep the created, unpublished assessment recoverable if the
-          // follow-up settings request fails.
-          saveFullDraftBundle(numericQuizId, quizCode);
-          throw new Error(
-            "The assessment was created, but its security settings could not be saved. It has not been published. Reopen the saved draft, verify AI proctoring and other settings, then retry.",
-          );
-        }
-      }
-
       // Persist full state bundle (metadata + questions) for instant edit hydration
       saveFullDraftBundle(numericQuizId, quizCode);
       if (draftId && String(draftId) !== String(numericQuizId)) {
@@ -1805,40 +1765,6 @@ function CreateAssessmentContent() {
         returnedQuizId = createData.quizId ?? createData.id ?? null;
 
         returnedQuizCode = createData.quizCode ?? createData.testCode ?? "";
-      }
-
-      /*
-       * CreateQuizRequest does not expose maxTabSwitch. New drafts therefore
-       * start with the backend default (3) unless this setting is persisted
-       * through the settings endpoint before the edit page reloads from the
-       * authoritative teacher-detail response.
-       *
-       * Existing drafts already send maxTabSwitch through buildUpdatePayload.
-       */
-      if (!isEditing && returnedQuizId) {
-        const maxTabSwitchRes = await fetch(
-          ENDPOINTS.teacher.settings(returnedQuizId),
-          {
-            method: "PUT",
-            headers: {
-              "Content-Type": "application/json",
-              ...(token ? { Authorization: `Bearer ${token}` } : {}),
-            },
-            body: JSON.stringify({
-              maxTabSwitch: Math.max(0, Number(maxTabSwitch) || 0),
-              aiProctoringEnabled,
-            }),
-          },
-        );
-
-        if (!maxTabSwitchRes.ok) {
-          const errorData = await maxTabSwitchRes.json().catch(() => ({}));
-          throw new Error(
-            errorData?.message ||
-              errorData?.error ||
-              `Draft was created, but the max tab-switch limit could not be saved (HTTP ${maxTabSwitchRes.status}).`,
-          );
-        }
       }
 
       // Persist full state bundle (metadata + questions with isCorrect)
