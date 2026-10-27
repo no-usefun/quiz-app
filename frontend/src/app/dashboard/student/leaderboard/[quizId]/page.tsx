@@ -286,8 +286,8 @@ export default function StudentLeaderboardPage({
             aria-label={refreshing ? "Refreshing leaderboard" : "Refresh leaderboard"}
             className="inline-flex shrink-0 items-center justify-center gap-1.5 whitespace-nowrap rounded-[10px] border border-slate-200 bg-white px-3 py-2 text-xs font-bold leading-none text-slate-900 shadow-xs transition-all hover:border-[#165dfb] hover:text-[#165dfb] disabled:cursor-not-allowed disabled:opacity-50 sm:px-3.5"
           >
-            <RefreshCw className={"h-3.5 w-3.5 shrink-0 " + (refreshing ? "animate-spin" : "")} />
-            <span className="whitespace-nowrap">Refresh</span>
+            <RefreshCw className="h-3.5 w-3.5 shrink-0" />
+            {refreshing ? <><SkeletonBlock className="h-3 w-12 rounded" /><span className="sr-only">Refreshing leaderboard</span></> : <span className="whitespace-nowrap">Refresh</span>}
           </button>
         </div>
 
