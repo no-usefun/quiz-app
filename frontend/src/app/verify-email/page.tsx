@@ -1,6 +1,7 @@
 "use client";
 
 import LoadingIndicator from "@/components/LoadingIndicator";
+import SkeletonBlock from "@/components/SkeletonBlock";
 import { FormEvent, Suspense, useEffect, useState } from "react";
 import Link from "next/link";
 import { CheckCircle2, AlertCircle, MailCheck, ArrowRight } from "lucide-react";
@@ -112,8 +113,14 @@ function VerifyEmailContent() {
 
   if (loading) {
     return (
-      <main className="flex min-h-screen items-center justify-center bg-neutral-50 dark:bg-slate-950" aria-busy="true">
-        <LoadingIndicator label="Loading email verification" size="lg" />
+      <main className="min-h-screen bg-neutral-50 px-4 py-8 font-sans dark:bg-slate-950 sm:px-8" aria-busy="true" aria-label="Loading email verification">
+        <div className="mx-auto flex min-h-[calc(100vh-4rem)] max-w-md items-center">
+          <section className="w-full rounded-2xl border border-neutral-100 bg-white p-7 shadow-[0_18px_55px_-24px_rgba(15,23,42,0.25)] dark:border-slate-700 dark:bg-slate-900 sm:p-8">
+            <div className="mb-6"><div className="mb-4 flex h-11 w-11 items-center justify-center rounded-xl bg-neutral-100 text-neutral-900 dark:bg-slate-800 dark:text-slate-100"><MailCheck className="h-5 w-5" /></div><SkeletonBlock className="h-5 w-44 rounded" /><SkeletonBlock className="mt-2 h-3 w-3/4 rounded" /></div>
+            <div className="space-y-4"><SkeletonBlock className="h-10 w-full rounded-lg" /><SkeletonBlock className="h-10 w-full rounded-lg" /></div>
+            <p className="sr-only" role="status">Loading email verification</p>
+          </section>
+        </div>
       </main>
     );
   }
@@ -208,7 +215,7 @@ function VerifyEmailContent() {
 
 export default function VerifyEmailPage() {
   return (
-    <Suspense fallback={<div className="flex min-h-screen items-center justify-center bg-neutral-50 dark:bg-slate-950"><LoadingIndicator label="Loading email verification" size="lg" /></div>}>
+    <Suspense fallback={<main className="min-h-screen bg-neutral-50 px-4 py-8 font-sans dark:bg-slate-950"><div className="mx-auto flex min-h-[calc(100vh-4rem)] max-w-md items-center"><section className="w-full space-y-4 rounded-2xl border border-neutral-100 bg-white p-7 dark:border-slate-700 dark:bg-slate-900"><div className="flex items-center gap-3"><MailCheck className="h-5 w-5 text-[#165dfb] dark:text-blue-300" /><SkeletonBlock className="h-5 w-36 rounded" /></div><SkeletonBlock className="h-3 w-4/5 rounded" /><SkeletonBlock className="h-10 w-full rounded-lg" /></section></div></main>}>
       <VerifyEmailContent />
     </Suspense>
   );
