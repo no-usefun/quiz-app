@@ -18,6 +18,7 @@ import {
   ArrowDown,
   CalendarDays,
 } from "lucide-react";
+import SkeletonBlock from "@/components/SkeletonBlock";
 import { TopNav } from "@/components/TopNav";
 import { useSession } from "@/hooks/useSession";
 import { computeQuizDisplayState, QuizDisplayState } from "@/lib/quizStatus";
@@ -876,18 +877,18 @@ export default function TeacherDashboard() {
 
           <div className="grid gap-3.5">
             {loading ? (
-              <div className="grid animate-pulse gap-3.5" aria-busy="true" aria-label="Loading assessments roster">
+              <div className="grid gap-3.5" aria-busy="true" aria-label="Loading assessments roster">
                 {[1, 2, 3].map((item) => (
                   <article key={item} className="rounded-[14px] border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-800 dark:bg-slate-900 sm:p-5">
                     <div className="flex items-center justify-between gap-4">
-                      <div className="h-4 w-2/5 rounded bg-slate-200 dark:bg-slate-700" />
-                      <div className="h-6 w-20 rounded-full bg-slate-100 dark:bg-slate-800" />
+                      <div className="flex min-w-0 items-center gap-3"><FileQuestion aria-hidden="true" className="h-4 w-4 shrink-0 text-slate-400 dark:text-slate-500" /><SkeletonBlock className="h-4 w-2/5 rounded" /></div>
+                      <SkeletonBlock className="h-6 w-20 rounded-full" />
                     </div>
-                    <div className="mt-4 h-3 w-3/5 rounded bg-slate-100 dark:bg-slate-800" />
+                    <SkeletonBlock className="mt-4 h-3 w-3/5 rounded" />
                     <div className="mt-4 flex flex-wrap gap-2">
-                      <div className="h-8 w-20 rounded-lg bg-slate-100 dark:bg-slate-800" />
-                      <div className="h-8 w-24 rounded-lg bg-slate-100 dark:bg-slate-800" />
-                      <div className="h-8 w-16 rounded-lg bg-slate-100 dark:bg-slate-800" />
+                      <SkeletonBlock className="h-8 w-20 rounded-lg" />
+                      <SkeletonBlock className="h-8 w-24 rounded-lg" />
+                      <SkeletonBlock className="h-8 w-16 rounded-lg" />
                     </div>
                   </article>
                 ))}
