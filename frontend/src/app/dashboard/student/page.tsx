@@ -200,7 +200,7 @@ export default function StudentDashboard() {
   const hasMoreResults = results.length > INITIAL_RESULTS_COUNT;
 
   return (
-    <div className="min-h-screen bg-[#f8fafc] font-sans text-slate-900 dark:text-slate-100 flex flex-col transition-colors dark:bg-slate-950 dark:text-slate-100">
+    <div className="min-h-screen bg-[#f8fafc] font-sans text-slate-900 dark:text-slate-100 flex flex-col transition-colors dark:bg-slate-950">
       <TopNav role="student" />
 
       <main className="flex-1 p-4 md:p-8 space-y-6 text-left max-w-7xl mx-auto w-full">
