@@ -10,6 +10,7 @@ import {
   TrendingUp,
   AlertTriangle,
   ShieldAlert,
+  ShieldCheck,
   Award,
   Download,
   Search,
