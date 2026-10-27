@@ -1202,6 +1202,13 @@ html.dark .assessment-governance .assessment-leaderboard-row > div > button:hove
 @keyframes assessment-skeleton-shimmer {
   100% { transform: translateX(105%); }
 }
+@media (prefers-reduced-motion: reduce) {
+  .assessment-governance .assessment-skeleton::after {
+    animation: none !important;
+    transform: none;
+    background: transparent;
+  }
+}
 
 html.dark .assessment-governance .assessment-skeleton {
   background-color: #29364a;
@@ -1559,6 +1566,7 @@ html.dark .teacher-assessment-builder .assessment-time-limit-field input[type="n
 
 /* Quizly shared skeleton shimmer. Keep placeholders content-shaped rather than
    using a generic rotating loader. */
+/* Reduced motion: suppress all assessment skeleton shimmers. */
 .quizly-skeleton {
   background-color: #e7ebf1;
   background-image: linear-gradient(
