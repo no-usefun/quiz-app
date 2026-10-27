@@ -1625,14 +1625,14 @@ export default function TeacherAssessmentPage({
                   <p className="mt-1 text-xs text-steel-blue-gray dark:text-slate-500 dark:text-slate-400">A quick breakdown of marks across all submitted attempts.</p>
                 </div>
                 <div className="flex items-center gap-2 sm:gap-3">
-                  <div className="min-w-[112px] rounded-[12px] border border-slate-200 bg-white dark:bg-slate-900 px-3.5 py-2.5 shadow-sm dark:border-slate-700 dark:bg-slate-900">
+                  <div className="min-w-[112px] rounded-[12px] border border-slate-200 bg-white dark:bg-slate-900 px-3.5 py-2.5 shadow-sm dark:border-slate-700">
                     <div className="flex items-center gap-2">
                       <TrendingUp className="h-4 w-4 text-[#2563eb] dark:text-blue-300" />
                       <p className="text-lg font-extrabold tabular-nums text-[#155eef] dark:text-blue-200">{formatMarks(averageMarks)}</p>
                     </div>
                     <p className="mt-0.5 text-[9px] font-extrabold uppercase tracking-wider text-[#3265b8] dark:text-blue-300">Average marks</p>
                   </div>
-                  <div className="min-w-[100px] rounded-[12px] border border-slate-200 bg-white dark:bg-slate-900 px-3.5 py-2.5 shadow-sm dark:border-slate-700 dark:bg-slate-900">
+                  <div className="min-w-[100px] rounded-[12px] border border-slate-200 bg-white dark:bg-slate-900 px-3.5 py-2.5 shadow-sm dark:border-slate-700">
                     <div className="flex items-center gap-2">
                       <Users className="h-4 w-4 text-[#059669] dark:text-emerald-300" />
                       <p className="text-lg font-extrabold tabular-nums text-[#047857] dark:text-emerald-200">{submitted.length}</p>
@@ -1735,7 +1735,7 @@ export default function TeacherAssessmentPage({
           </section>
 
           <section className="flex flex-1 flex-col">
-            <div className="assessment-leaderboard-toolbar mb-4 flex flex-col gap-3 rounded-[20px] border border-[#dce7ff] dark:border-slate-700 bg-gradient-to-r from-[#f7faff] dark:from-slate-900 dark:from-slate-900 via-white dark:via-slate-900 to-[#f8f5ff] dark:to-slate-800 p-4 sm:flex-row sm:items-center sm:justify-between shadow-[0_4px_16px_rgba(71,100,180,0.05)]">
+            <div className="assessment-leaderboard-toolbar mb-4 flex flex-col gap-3 rounded-[20px] border border-[#dce7ff] dark:border-slate-700 bg-gradient-to-r from-[#f7faff] dark:from-slate-900 via-white dark:via-slate-900 to-[#f8f5ff] dark:to-slate-800 p-4 sm:flex-row sm:items-center sm:justify-between shadow-[0_4px_16px_rgba(71,100,180,0.05)]">
               <div className="text-left">
                 <div className="flex items-center gap-2">
                   <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-gradient-to-br from-[#dceaff] to-[#c7d2fe] text-[#315ce8] shadow-sm">
