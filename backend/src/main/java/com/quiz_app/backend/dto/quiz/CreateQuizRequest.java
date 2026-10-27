@@ -67,4 +67,3 @@ public record CreateQuizRequest(
                 allowedRegistrationNumbers, questions, aiProctoringEnabled, null);
     }
 }
-}
