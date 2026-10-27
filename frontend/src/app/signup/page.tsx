@@ -442,7 +442,7 @@ function SignupContent() {
                 setError("");
                 router.push("/signup?role=student" + (searchParams.get("redirect") ? "&redirect=" + encodeURIComponent(searchParams.get("redirect") || "") : ""));
               }}
-              className="signup-role-cta group/btn inline-flex w-full items-center justify-center gap-2 rounded-lg bg-[#111827] text-white py-3 px-5 text-sm font-medium shadow-sm ring-offset-2 transition-all hover:bg-black hover:shadow-md active:scale-[0.99] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#165dfb] cursor-pointer border-0"
+              className="signup-role-cta group/btn inline-flex w-full items-center justify-center gap-2 rounded-lg bg-[#111827] text-white py-3 px-5 text-sm font-medium shadow-sm transition-all hover:bg-black hover:shadow-md active:scale-[0.99] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#165dfb] cursor-pointer border-0"
             >
               Continue as Student
               <ArrowRight className="h-4 w-4 transition-transform duration-200 group-hover/btn:translate-x-0.5" />
@@ -481,7 +481,7 @@ function SignupContent() {
                 setError("");
                 router.push("/signup?role=teacher" + (searchParams.get("redirect") ? "&redirect=" + encodeURIComponent(searchParams.get("redirect") || "") : ""));
               }}
-              className="signup-role-cta group/btn inline-flex w-full items-center justify-center gap-2 rounded-lg bg-white text-[#0F172A] py-3 px-5 text-sm font-medium shadow-sm ring-offset-2 transition-all duration-200 hover:bg-neutral-100 hover:shadow-md active:scale-[0.99] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#165dfb] cursor-pointer border-0"
+              className="signup-role-cta group/btn inline-flex w-full items-center justify-center gap-2 rounded-lg bg-white text-[#0F172A] py-3 px-5 text-sm font-medium shadow-sm transition-all duration-200 hover:bg-neutral-100 hover:shadow-md active:scale-[0.99] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#165dfb] cursor-pointer border-0"
             >
               Continue as Instructor
               <ArrowRight className="h-4 w-4 transition-transform duration-200 group-hover/btn:translate-x-0.5" />
@@ -905,7 +905,7 @@ export default function SignupPage() {
   return (
     <Suspense
       fallback={
-        <div className="flex min-h-screen items-center justify-center gap-2 bg-neutral-50 text-sm text-neutral-400 font-medium">
+        <div className="flex min-h-screen items-center justify-center gap-2 bg-neutral-50 text-sm text-neutral-400 font-medium dark:bg-slate-950">
           <span className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-neutral-200 border-t-neutral-400" />
           <LoadingIndicator label="Loading signup" size="lg" />
         </div>
