@@ -731,10 +731,10 @@ export default function TeacherDashboard() {
 
         <motion.section initial={reduceMotion ? false : { opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.32, delay: 0.07, ease: "easeOut" }} className="grid grid-cols-2 sm:grid-cols-4 gap-3.5">
           {[
-            { label: "Total Assessments", value: loading ? <span aria-hidden="true" className="inline-block h-6 w-10 animate-pulse rounded bg-slate-200 dark:bg-slate-700" /> : tests.length },
-            { label: "Live Sessions", value: loading ? <span aria-hidden="true" className="inline-block h-6 w-10 animate-pulse rounded bg-slate-200 dark:bg-slate-700" /> : liveCount },
-            { label: "Draft Assessments", value: loading ? <span aria-hidden="true" className="inline-block h-6 w-10 animate-pulse rounded bg-slate-200 dark:bg-slate-700" /> : draftCount },
-            { label: "Completed", value: loading ? <span aria-hidden="true" className="inline-block h-6 w-10 animate-pulse rounded bg-slate-200 dark:bg-slate-700" /> : completedCount },
+            { label: "Total Assessments", value: loading ? <SkeletonBlock className="h-6 w-10 rounded" /> : tests.length },
+            { label: "Live Sessions", value: loading ? <SkeletonBlock className="h-6 w-10 rounded" /> : liveCount },
+            { label: "Draft Assessments", value: loading ? <SkeletonBlock className="h-6 w-10 rounded" /> : draftCount },
+            { label: "Completed", value: loading ? <SkeletonBlock className="h-6 w-10 rounded" /> : completedCount },
           ].map((stat) => (
             <div key={stat.label} className="teacher-stat rounded-xl border border-slate-200 bg-white p-4 sm:p-5 transition-colors duration-150 hover:border-slate-300 dark:border-slate-700 dark:bg-slate-900 dark:hover:border-slate-600">
               <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">{stat.label}</span>
