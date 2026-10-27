@@ -1,5 +1,6 @@
 "use client";
 
+import LoadingIndicator from "@/components/LoadingIndicator";
 import { useState, useEffect, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
@@ -1916,9 +1917,7 @@ function CreateAssessmentContent() {
       <div className="teacher-assessment-builder min-h-screen bg-[#f5f5f4] dark:bg-slate-950 font-sans text-[#111111] dark:text-slate-100 p-4 md:p-6 lg:p-8 flex items-center justify-center text-left">
         <div className="flex items-center gap-3 rounded-[14px] border border-[#d1dee8]/70 dark:border-slate-700 bg-white dark:bg-slate-900 p-6 shadow-sm">
           <span className="h-4 w-4 animate-spin rounded-full border-2 border-[#165dfb]/30 border-t-[#165dfb]" />
-          <span className="text-xs font-bold text-[#78716b] dark:text-slate-400">
-            Loading draft assessment...
-          </span>
+          <span className="sr-only">Loading draft assessment...</span>
         </div>
       </div>
     );
@@ -2039,17 +2038,19 @@ function CreateAssessmentContent() {
                 </div>
                 <div className="text-left">
                   <label className={labelClass}>Time Limit (minutes)</label>
-                  <div className="flex items-center gap-2 rounded-[10px] border border-[#d1dee8]/80 dark:border-slate-700 bg-[#fbfbfa] dark:bg-slate-800 px-3 py-2.5 transition-all hover:border-[#b9cbd9] focus-within:border-[#165dfb] focus-within:bg-white dark:bg-slate-900 focus-within:ring-4 focus-within:ring-[#165dfb]/10 shadow-xs">
+                  <div className="flex min-w-0 items-center gap-2 rounded-[10px] border border-[#d1dee8]/80 bg-white px-3 py-2.5 transition-colors hover:border-[#b9cbd9] focus-within:border-[#165dfb] focus-within:ring-4 focus-within:ring-[#165dfb]/10 shadow-xs dark:border-slate-700 dark:bg-slate-900">
                     <Clock className="h-4 w-4 shrink-0 text-[#78716b] dark:text-slate-400" />
                     <input
                       type="number"
                       value={timeLimit}
                       onChange={(e) => setTimeLimit(Number(e.target.value))}
                       min="1"
-                      className="bg-transparent outline-none w-full text-xs font-bold text-[#111111] dark:text-slate-100"
+                      aria-label="Time limit in minutes"
+                      inputMode="numeric"
+                      className="min-w-0 flex-1 appearance-none bg-transparent outline-none text-xs font-bold text-[#111111] dark:text-slate-100"
                       required
                     />
-                    <span className="text-[10px] font-bold uppercase text-[#a8a29d] dark:text-slate-500">
+                    <span className="shrink-0 whitespace-nowrap text-[10px] font-bold uppercase leading-none text-[#a8a29d] dark:text-slate-400">
                       min
                     </span>
                   </div>
@@ -2616,7 +2617,7 @@ questionText,optionA,optionB,optionC,optionD,optionE,optionF,correctAnswer,marks
               <span className="h-3 w-3 animate-spin rounded-full border-2 border-[#78716b]/30 border-t-[#78716b]" />
             )}
             {savingDraft
-              ? "Saving..."
+              ? <LoadingIndicator label="Saving assessment draft" size="sm" />
               : draftId
                 ? "Save Changes"
                 : "Save as Draft"}
@@ -2645,9 +2646,7 @@ export default function CreateAssessmentPage() {
         <div className="min-h-screen bg-[#f5f5f4] dark:bg-slate-950 font-sans text-[#111111] dark:text-slate-100 p-4 md:p-6 lg:p-8 flex items-center justify-center text-left">
           <div className="flex items-center gap-3 rounded-[14px] border border-[#d1dee8]/70 dark:border-slate-700 bg-white dark:bg-slate-900 p-6 shadow-sm">
             <span className="h-4 w-4 animate-spin rounded-full border-2 border-[#165dfb]/30 border-t-[#165dfb]" />
-            <span className="text-xs font-bold text-[#78716b] dark:text-slate-400">
-              Loading assessment builder...
-            </span>
+            <span className="sr-only">Loading assessment builder...</span>
           </div>
         </div>
       }
