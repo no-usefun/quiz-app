@@ -1,6 +1,7 @@
 "use client";
 
 import LoadingIndicator from "@/components/LoadingIndicator";
+import SkeletonBlock from "@/components/SkeletonBlock";
 import { FormEvent, useState } from "react";
 import Link from "next/link";
 import { ArrowLeft, Lock, CheckCircle2, AlertTriangle } from "lucide-react";
@@ -172,8 +173,13 @@ export default function ResetPasswordPage() {
   return (
     <Suspense
       fallback={
-        <main className="min-h-screen bg-[#f5f5f4] px-4 py-8 text-sm font-medium text-[#78716b]">
-          <div className="flex min-h-[60vh] items-center justify-center"><LoadingIndicator label="Loading password reset" size="lg" /></div>
+        <main className="flex min-h-screen items-center justify-center bg-[#f5f5f4] px-4 py-8 font-sans dark:bg-slate-950">
+          <section className="w-full max-w-md space-y-5 rounded-2xl border border-[#d1dee8]/70 bg-white p-7 shadow-sm dark:border-slate-700 dark:bg-slate-900 sm:p-8" aria-busy="true">
+            <div className="flex items-center gap-3"><span className="flex h-10 w-10 items-center justify-center rounded-xl bg-[#eef4ff] text-[#165dfb] dark:bg-slate-800 dark:text-blue-300"><Lock className="h-5 w-5" /></span><div className="flex-1 space-y-2"><SkeletonBlock className="h-5 w-36 rounded" /><SkeletonBlock className="h-3 w-52 max-w-full rounded" /></div></div>
+            {[1, 2].map((field) => <div key={field} className="space-y-2"><SkeletonBlock className="h-3 w-24 rounded" /><SkeletonBlock className="h-11 w-full rounded-lg" /></div>)}
+            <SkeletonBlock className="h-11 w-full rounded-lg" />
+            <p className="sr-only" role="status">Loading password reset form</p>
+          </section>
         </main>
       }
     >
