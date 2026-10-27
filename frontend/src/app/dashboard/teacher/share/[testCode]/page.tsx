@@ -1,5 +1,6 @@
 "use client";
 
+import LoadingIndicator from "@/components/LoadingIndicator";
 import { use, useEffect, useState } from "react";
 import Link from "next/link";
 import {
@@ -247,8 +248,8 @@ export default function ShareAssessmentPage({
     return (
       <div className="min-h-screen bg-[#f5f5f4] flex flex-col font-sans">
         <TopNav role="teacher" />
-        <main className="flex-1 flex items-center justify-center text-xs font-bold text-[#78716b]">
-          Synchronizing assessment details from server...
+        <main className="flex-1 flex items-center justify-center" aria-busy="true">
+          <LoadingIndicator label="Synchronizing assessment details" size="lg" />
         </main>
       </div>
     );
