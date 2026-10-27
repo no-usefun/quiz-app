@@ -1927,11 +1927,11 @@ function CreateAssessmentContent() {
   return (
     <div className="teacher-assessment-builder min-h-screen bg-[#f5f5f4] dark:bg-slate-950 font-sans text-[#111111] dark:text-slate-100 p-4 md:p-6 lg:p-8 text-left">
       <div className="mx-auto max-w-4xl space-y-6">
-        <header className="sticky top-0 z-20 -mx-4 flex flex-wrap items-center justify-between gap-3 border-b border-[#d1dee8]/60 dark:border-slate-700 bg-[#f5f5f4] dark:bg-slate-950/85 px-4 py-4 backdrop-blur-md md:-mx-6 md:px-6 dark:border-slate-700 dark:bg-slate-950/90">
+        <header className="sticky top-0 z-20 -mx-4 flex flex-wrap items-center justify-between gap-3 border-b border-[#d1dee8]/60 dark:border-slate-700 bg-[#f5f5f4] dark:bg-slate-950/85 px-4 py-4 backdrop-blur-md md:-mx-6 md:px-6 dark:bg-slate-950/90">
           <div className="flex items-center gap-3">
             <Link
               href="/dashboard/teacher"
-              className="group flex h-9 w-9 shrink-0 items-center justify-center rounded-[10px] border border-[#d1dee8]/80 dark:border-slate-700 bg-white dark:bg-slate-900 text-[#78716b] dark:text-slate-400 shadow-xs transition-all hover:border-[#b9cbd9] hover:bg-white dark:bg-slate-900 hover:text-[#111111] dark:text-slate-100 active:scale-95"
+              className="group flex h-9 w-9 shrink-0 items-center justify-center rounded-[10px] border border-[#d1dee8]/80 dark:border-slate-700 bg-white dark:bg-slate-900 text-[#78716b] dark:text-slate-400 shadow-xs transition-all hover:border-[#b9cbd9] hover:bg-white hover:text-[#111111] dark:text-slate-100 active:scale-95"
             >
               <ArrowLeft className="h-4 w-4 transition-transform group-hover:-translate-x-0.5" />
             </Link>
@@ -2039,7 +2039,7 @@ function CreateAssessmentContent() {
                 </div>
                 <div className="text-left">
                   <label className={labelClass}>Time Limit (minutes)</label>
-                  <div className="flex items-center gap-2 rounded-[10px] border border-[#d1dee8]/80 dark:border-slate-700 bg-[#fbfbfa] dark:bg-slate-800 dark:bg-slate-800 px-3 py-2.5 transition-all hover:border-[#b9cbd9] focus-within:border-[#165dfb] focus-within:bg-white dark:bg-slate-900 focus-within:ring-4 focus-within:ring-[#165dfb]/10 shadow-xs">
+                  <div className="flex items-center gap-2 rounded-[10px] border border-[#d1dee8]/80 dark:border-slate-700 bg-[#fbfbfa] dark:bg-slate-800 px-3 py-2.5 transition-all hover:border-[#b9cbd9] focus-within:border-[#165dfb] focus-within:bg-white dark:bg-slate-900 focus-within:ring-4 focus-within:ring-[#165dfb]/10 shadow-xs">
                     <Clock className="h-4 w-4 shrink-0 text-[#78716b] dark:text-slate-400" />
                     <input
                       type="number"
@@ -2133,7 +2133,7 @@ function CreateAssessmentContent() {
                     key={idx}
                     className="group relative overflow-hidden rounded-[14px] border border-[#d1dee8]/70 dark:border-slate-700 bg-white dark:bg-slate-900 shadow-sm transition-all hover:border-[#b9cbd9] hover:shadow-md"
                   >
-                    <div className="flex items-center justify-between gap-3 border-b border-[#d1dee8]/50 dark:border-slate-700 bg-[#fbfbfa] dark:bg-slate-800 dark:bg-slate-800 px-5 py-3">
+                    <div className="flex items-center justify-between gap-3 border-b border-[#d1dee8]/50 dark:border-slate-700 bg-[#fbfbfa] dark:bg-slate-800 px-5 py-3">
                       <span className="inline-flex items-center gap-2 text-xs font-bold text-[#57534e] dark:text-slate-300">
                         <span className="flex h-6 w-6 items-center justify-center rounded-[8px] bg-[#eef4ff] dark:bg-blue-950/50 font-mono text-[10px] font-bold text-[#165dfb]">
                           {String(idx + 1).padStart(2, "0")}
@@ -2183,7 +2183,7 @@ function CreateAssessmentContent() {
                             )
                           }
                           placeholder="Type your question (optional if an image is provided)"
-                          className="w-full rounded-[10px] border border-[#d1dee8]/80 dark:border-slate-700 bg-[#fbfbfa] dark:bg-slate-800 dark:bg-slate-800 px-3.5 py-2.5 text-sm font-semibold text-[#111111] dark:text-slate-100 outline-none transition-all placeholder:font-medium placeholder:text-[#a8a29d] dark:text-slate-500 hover:border-[#b9cbd9] focus:border-[#165dfb] focus:bg-white dark:bg-slate-900 focus:ring-4 focus:ring-[#165dfb]/10 shadow-xs"
+                          className="w-full rounded-[10px] border border-[#d1dee8]/80 dark:border-slate-700 bg-[#fbfbfa] dark:bg-slate-800 px-3.5 py-2.5 text-sm font-semibold text-[#111111] dark:text-slate-100 outline-none transition-all placeholder:font-medium placeholder:text-[#a8a29d] dark:text-slate-500 hover:border-[#b9cbd9] focus:border-[#165dfb] focus:bg-white dark:bg-slate-900 focus:ring-4 focus:ring-[#165dfb]/10 shadow-xs"
                         />
                         <select
                           value={
@@ -2252,7 +2252,7 @@ function CreateAssessmentContent() {
                             width={640}
                             height={360}
                             unoptimized
-                            className="max-h-48 max-w-full rounded-[10px] border border-[#d1dee8]/70 dark:border-slate-700 object-contain bg-[#fbfbfa] dark:bg-slate-800 dark:bg-slate-800 p-1"
+                            className="max-h-48 max-w-full rounded-[10px] border border-[#d1dee8]/70 dark:border-slate-700 object-contain bg-[#fbfbfa] dark:bg-slate-800 p-1"
                             onError={(e) => {
                               e.currentTarget.style.display = "none";
                             }}
@@ -2433,7 +2433,7 @@ function CreateAssessmentContent() {
                     Use one question per row and keep the header row. The importer maps columns by header name, so older 12-column templates still work. Leave unused options and image URLs blank.
                   </p>
 
-                  <div className="overflow-x-auto rounded-[10px] border border-[#d1dee8]/70 dark:border-slate-700 bg-[#fbfbfa] dark:bg-slate-800 dark:bg-slate-800">
+                  <div className="overflow-x-auto rounded-[10px] border border-[#d1dee8]/70 dark:border-slate-700 bg-[#fbfbfa] dark:bg-slate-800">
                     <pre className="min-w-[980px] p-3 text-[9px] leading-relaxed text-[#111111] dark:text-slate-100 font-mono whitespace-pre-wrap">
 questionText,optionA,optionB,optionC,optionD,optionE,optionF,correctAnswer,marks,questionType,negativeMarks,questionTimerSeconds,difficulty,explanation,imageUrl,optionAImageUrl,optionBImageUrl,optionCImageUrl,optionDImageUrl,optionEImageUrl,optionFImageUrl
 &quot;What is the time complexity of binary search?&quot;,&quot;O(n)&quot;,&quot;O(log n)&quot;,&quot;O(n^2)&quot;,&quot;O(1)&quot;,&quot;&quot;,&quot;&quot;,&quot;B&quot;,&quot;1&quot;,&quot;MCQ&quot;,&quot;0.25&quot;,&quot;60&quot;,&quot;EASY&quot;,&quot;Binary search halves the search space.&quot;,&quot;&quot;,&quot;&quot;,&quot;&quot;,&quot;&quot;,&quot;&quot;,&quot;&quot;,&quot;&quot;
@@ -2590,7 +2590,7 @@ questionText,optionA,optionB,optionC,optionD,optionE,optionF,correctAnswer,marks
                       value={acceptedDomain}
                       onChange={(e) => setAcceptedDomain(e.target.value)}
                       placeholder="e.g., @vitap.ac.in"
-                      className="w-full rounded-[10px] border border-[#d1dee8]/80 dark:border-slate-700 bg-[#fbfbfa] dark:bg-slate-800 dark:bg-slate-800 px-3.5 py-2.5 text-xs font-bold text-[#111111] dark:text-slate-100 outline-none transition-all placeholder:font-medium placeholder:text-[#a8a29d] dark:text-slate-500 hover:border-[#b9cbd9] focus:border-[#165dfb] focus:bg-white dark:bg-slate-900 focus:ring-4 focus:ring-[#165dfb]/10 shadow-xs"
+                      className="w-full rounded-[10px] border border-[#d1dee8]/80 dark:border-slate-700 bg-[#fbfbfa] dark:bg-slate-800 px-3.5 py-2.5 text-xs font-bold text-[#111111] dark:text-slate-100 outline-none transition-all placeholder:font-medium placeholder:text-[#a8a29d] dark:text-slate-500 hover:border-[#b9cbd9] focus:border-[#165dfb] focus:bg-white dark:bg-slate-900 focus:ring-4 focus:ring-[#165dfb]/10 shadow-xs"
                     />
                     <p className="mt-1 text-[11px] text-[#78716b] dark:text-slate-400">
                       Only students with a matching email domain can join. Leave
