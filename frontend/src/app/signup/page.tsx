@@ -555,19 +555,71 @@ function SignupContent() {
               type="button"
               onClick={() => {
                 const backendRole = activeRole === "teacher" ? "TEACHER" : "STUDENT";
-                setGoogleLoading(true);
                 setError("");
+
+                const configuredApiBase = process.env.NEXT_PUBLIC_API_URL?.trim();
+                let googleAuthUrl: URL;
+                try {
+                  if (!configuredApiBase) {
+                    throw new Error(
+                      "Google sign-in is not configured: NEXT_PUBLIC_API_URL must point to the Spring Boot backend.",
+                    );
+                  }
+
+                  const backendBaseUrl = new URL(configuredApiBase);
+                  if (
+                    backendBaseUrl.protocol !== "http:" &&
+                    backendBaseUrl.protocol !== "https:"
+                  ) {
+                    throw new Error(
+                      "Google sign-in requires the backend URL to use HTTP or HTTPS.",
+                    );
+                  }
+
+                  // Start OAuth on the backend origin, not through the Next.js
+                  // /backend API proxy, so Spring Security can recover the same
+                  // session that stored the OAuth authorization request.
+                  const backendPath = backendBaseUrl.pathname.endsWith("/")
+                    ? backendBaseUrl.pathname.slice(0, -1)
+                    : backendBaseUrl.pathname;
+                  if (backendPath && backendPath !== "/") {
+                    throw new Error(
+                      "NEXT_PUBLIC_API_URL must be the backend origin only, without an API path or /backend proxy prefix.",
+                    );
+                  }
+
+                  if (backendBaseUrl.origin === window.location.origin) {
+                    throw new Error(
+                      "Google sign-in is pointing at the frontend instead of the backend. Set NEXT_PUBLIC_API_URL to your Spring Boot server URL, then restart Next.js.",
+                    );
+                  }
+
+                  googleAuthUrl = new URL(
+                    "/oauth2/authorization/google",
+                    backendBaseUrl,
+                  );
+                  googleAuthUrl.searchParams.set("role", backendRole);
+                } catch (configurationError) {
+                  setGoogleLoading(false);
+                  setError(
+                    configurationError instanceof Error
+                      ? configurationError.message
+                      : "Google sign-in is not configured correctly. Check NEXT_PUBLIC_API_URL.",
+                  );
+                  return;
+                }
+
+                setGoogleLoading(true);
                 sessionStorage.setItem("dynoquizz_google_role", backendRole);
 
                 const redirect = searchParams.get("redirect") || "";
                 if (redirect) {
                   sessionStorage.setItem("dynoquizz_post_login_redirect", redirect);
+                } else {
+                  sessionStorage.removeItem("dynoquizz_post_login_redirect");
                 }
 
-                window.location.href =
-                  ENDPOINTS.auth.googleLogin +
-                  "?role=" +
-                  encodeURIComponent(backendRole);
+                window.location.assign(googleAuthUrl.toString());
               }}
               disabled={loading || googleLoading}
               aria-busy={googleLoading}
