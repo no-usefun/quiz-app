@@ -6,6 +6,7 @@ import {
   ArrowLeft,
   AlertTriangle,
   Clock,
+  ChevronDown,
   Lock,
   Trophy,
   RefreshCw,
@@ -446,9 +447,9 @@ export default function StudentLeaderboardPage({
                   <p className="mt-1 text-[10px] text-slate-500 dark:text-slate-400">{displayEntries.length} of {entries.length} students</p>
                 </div>
                 <div className="flex w-full flex-col gap-2 sm:max-w-xl sm:flex-row">
-                  <label className="block sm:w-52">
+                  <label className="relative block min-w-0 sm:w-52">
                     <span className="sr-only">Sort leaderboard</span>
-                    <select value={sortBy} onChange={(event) => setSortBy(event.target.value as typeof sortBy)} aria-label="Sort leaderboard" className="h-10 w-full rounded-[10px] border border-[#d1dee8] bg-white px-3 text-xs font-semibold text-slate-700 outline-none transition focus:border-[#165dfb] focus:ring-2 focus:ring-[#165dfb]/10 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200">
+                    <select value={sortBy} onChange={(event) => setSortBy(event.target.value as typeof sortBy)} aria-label="Sort leaderboard" className="h-10 w-full appearance-none rounded-[10px] border border-[#d1dee8] bg-white py-2 pl-3 pr-9 text-xs font-semibold text-slate-700 outline-none transition focus:border-[#165dfb] focus:ring-2 focus:ring-[#165dfb]/10 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100 cursor-pointer">
                       <option value="self">Your result first (default)</option>
                       <option value="rank-asc">Rank: ascending</option>
                       <option value="rank-desc">Rank: descending</option>
@@ -459,6 +460,7 @@ export default function StudentLeaderboardPage({
                       <option value="name-asc">Name: A–Z</option>
                       <option value="name-desc">Name: Z–A</option>
                     </select>
+                    <ChevronDown aria-hidden="true" className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-500 dark:text-slate-300" />
                   </label>
                   <label className="relative block min-w-0 flex-1">
                     <span className="sr-only">Search students</span>
