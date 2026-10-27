@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useEffect, useState } from "react";
+import SkeletonBlock from "@/components/SkeletonBlock";
 import {
   X,
   ShieldAlert,
@@ -10,7 +11,6 @@ import {
   Users,
   Volume2,
   Clock,
-  Loader2,
   AlertCircle,
   EyeOff,
   Maximize2,
@@ -172,9 +172,25 @@ export function TeacherProctoringReportModal({
         {/* Content Body */}
         <div className="flex-1 overflow-y-auto p-6 space-y-6">
           {loading && (
-            <div className="flex flex-col items-center justify-center py-12 gap-2 text-stone-500">
-              <Loader2 className="h-6 w-6 animate-spin text-[#165dfb]" />
-              <span className="text-xs font-semibold">Loading Proctoring Telemetry...</span>
+            <div className="space-y-5" aria-busy="true" aria-label="Loading proctoring telemetry">
+              <p className="sr-only" role="status">Loading proctoring telemetry</p>
+              <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
+                {[
+                  { label: "Risk Assessment", icon: ShieldAlert },
+                  { label: "Warnings Issued", icon: AlertCircle },
+                  { label: "Identity Integrity", icon: ShieldCheck },
+                ].map(({ label, icon: MetricIcon }) => (
+                  <section key={label} className="flex min-h-36 flex-col justify-between rounded-[12px] border border-[#d1dee8] bg-[#f5f5f4]/50 p-4">
+                    <span className="flex items-center gap-2 text-[11px] font-bold uppercase tracking-wider text-[#78716b]"><MetricIcon className="h-4 w-4" />{label}</span>
+                    <SkeletonBlock className="my-2 h-8 w-20 rounded" />
+                    <SkeletonBlock className="h-5 w-24 rounded-full" />
+                  </section>
+                ))}
+              </div>
+              <section className="space-y-4 rounded-[12px] border border-[#d1dee8] p-4">
+                <div className="flex items-center gap-2"><Users className="h-4 w-4 text-[#165dfb]" /><SkeletonBlock className="h-4 w-36 rounded" /></div>
+                {[1, 2, 3].map((row) => <div key={row} className="flex items-center gap-3 border-t border-[#d1dee8]/60 pt-3"><Clock className="h-4 w-4 shrink-0 text-[#78716b]" /><div className="flex-1 space-y-2"><SkeletonBlock className="h-3 w-3/4 rounded" /><SkeletonBlock className="h-2.5 w-1/2 rounded" /></div><SkeletonBlock className="h-6 w-16 rounded-full" /></div>)}
+              </section>
             </div>
           )}
 
