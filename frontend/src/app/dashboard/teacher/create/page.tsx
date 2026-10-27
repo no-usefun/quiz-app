@@ -1,6 +1,7 @@
 "use client";
 
 import LoadingIndicator from "@/components/LoadingIndicator";
+import SkeletonBlock from "@/components/SkeletonBlock";
 import { useState, useEffect, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
@@ -1914,10 +1915,35 @@ function CreateAssessmentContent() {
 
   if (loadingDraft) {
     return (
-      <div className="teacher-assessment-builder min-h-screen bg-[#f5f5f4] dark:bg-slate-950 font-sans text-[#111111] dark:text-slate-100 p-4 md:p-6 lg:p-8 flex items-center justify-center text-left">
-        <div className="flex items-center gap-3 rounded-[14px] border border-[#d1dee8]/70 dark:border-slate-700 bg-white dark:bg-slate-900 p-6 shadow-sm">
-          <span className="h-4 w-4 animate-spin rounded-full border-2 border-[#165dfb]/30 border-t-[#165dfb]" />
-          <span className="sr-only">Loading draft assessment...</span>
+      <div className="teacher-assessment-builder min-h-screen bg-[#f5f5f4] dark:bg-slate-950 font-sans text-[#111111] dark:text-slate-100 p-4 md:p-6 lg:p-8 text-left" aria-busy="true">
+        <div className="mx-auto max-w-4xl space-y-6">
+          <header className="flex flex-wrap items-center justify-between gap-3 border-b border-[#d1dee8]/60 dark:border-slate-700 px-1 py-4">
+            <div className="flex items-center gap-3">
+              <span className="flex h-9 w-9 items-center justify-center rounded-[10px] border border-[#d1dee8]/80 bg-white text-[#78716b] dark:border-slate-700 dark:bg-slate-900 dark:text-slate-300"><ArrowLeft className="h-4 w-4" /></span>
+              <div className="space-y-2"><p className="text-[10px] font-bold uppercase tracking-widest text-[#78716b] dark:text-slate-400">Assessment Builder</p><SkeletonBlock className="h-5 w-48 rounded" /></div>
+            </div>
+            <div className="flex items-center gap-2"><SkeletonBlock className="h-8 w-24 rounded-full" /><SkeletonBlock className="h-10 w-36 rounded-[10px]" /></div>
+          </header>
+          <section className="space-y-5 rounded-[14px] border border-[#d1dee8]/70 bg-white p-5 shadow-sm dark:border-slate-700 dark:bg-slate-900 sm:p-7">
+            <div className="space-y-2"><p className={labelClass}>Assessment title</p><SkeletonBlock className="h-10 w-full rounded-[10px]" /></div>
+            <div className="space-y-2"><p className={labelClass}>Description</p><SkeletonBlock className="h-20 w-full rounded-[10px]" /></div>
+            <div className="grid gap-4 sm:grid-cols-3">
+              {[1, 2, 3].map((field) => <div key={field} className="space-y-2"><p className={labelClass}>{field === 1 ? "Subject name" : field === 2 ? "Subject code" : "Time limit"}</p><div className="flex h-10 items-center gap-2 rounded-[10px] border border-[#d1dee8]/70 px-3 dark:border-slate-700">{field === 3 ? <Clock className="h-4 w-4 text-slate-400" /> : null}<SkeletonBlock className="h-3.5 w-3/4 rounded" /></div></div>)}
+            </div>
+            <div className="grid gap-4 sm:grid-cols-2">
+              {[1, 2].map((field) => <div key={field} className="space-y-2"><p className={labelClass}>{field === 1 ? "Start time" : "End time"}</p><div className="flex h-10 items-center gap-2 rounded-[10px] border border-[#d1dee8]/70 px-3 dark:border-slate-700"><Clock className="h-4 w-4 text-slate-400" /><SkeletonBlock className="h-3.5 w-2/3 rounded" /></div></div>)}
+            </div>
+          </section>
+          <section className="flex items-center gap-3 rounded-[14px] border border-[#d1dee8]/70 bg-white p-5 dark:border-slate-700 dark:bg-slate-900">
+            <span className="flex h-10 w-10 items-center justify-center rounded-[10px] bg-[#eef4ff] text-[#165dfb] dark:bg-slate-800 dark:text-blue-300"><Lock className="h-5 w-5" /></span>
+            <div className="flex-1 space-y-2"><SkeletonBlock className="h-3.5 w-28 rounded" /><SkeletonBlock className="h-3 w-3/4 max-w-full rounded" /></div>
+            <SkeletonBlock className="h-6 w-11 rounded-full" />
+          </section>
+          <section className="space-y-4 rounded-[14px] border border-[#d1dee8]/70 bg-white p-5 dark:border-slate-700 dark:bg-slate-900">
+            <div className="flex items-center gap-3"><FileQuestion className="h-5 w-5 text-[#165dfb] dark:text-blue-300" /><SkeletonBlock className="h-4 w-28 rounded" /><SkeletonBlock className="ml-auto h-6 w-8 rounded-full" /></div>
+            {[1, 2].map((question) => <div key={question} className="space-y-3 rounded-[10px] border border-[#d1dee8]/70 p-4 dark:border-slate-700"><SkeletonBlock className="h-3.5 w-2/3 rounded" /><div className="grid gap-3 sm:grid-cols-2"><SkeletonBlock className="h-10 w-full rounded-lg" /><SkeletonBlock className="h-10 w-full rounded-lg" /></div></div>)}
+          </section>
+          <p className="sr-only" role="status">Loading draft assessment</p>
         </div>
       </div>
     );
