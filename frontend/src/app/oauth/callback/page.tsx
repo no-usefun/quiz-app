@@ -1,8 +1,9 @@
 "use client";
 
 import { Suspense, useEffect, useState } from "react";
+import SkeletonBlock from "@/components/SkeletonBlock";
 import { useRouter, useSearchParams } from "next/navigation";
-import { ArrowLeft, CheckCircle2, Loader2, ShieldAlert } from "lucide-react";
+import { ArrowLeft, CheckCircle2, ShieldAlert, ShieldCheck } from "lucide-react";
 import { ApiClientError, api, clearApiCache } from "@/lib/api/client";
 import { ENDPOINTS } from "@/lib/api/endpoints";
 
@@ -370,7 +371,7 @@ function OAuthCallbackContent() {
       <section className="w-full max-w-md rounded-[16px] border border-[#d1dee8]/70 bg-white p-7 text-center shadow-sm dark:border-slate-800 dark:bg-slate-900 dark:shadow-none">
         {status === "processing" && (
           <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-[#e6e3e2] text-[#165dfb]">
-            <Loader2 className="h-6 w-6 animate-spin" />
+            <ShieldCheck className="h-6 w-6" />
           </div>
         )}
 
@@ -386,15 +387,19 @@ function OAuthCallbackContent() {
           </div>
         )}
 
-        <h1 className="mt-4 text-xl font-extrabold">
-          {status === "processing"
-            ? <span className="sr-only">Signing you in</span>
-            : status === "success"
-              ? "Signed in"
-              : "Google sign-in failed"}
-        </h1>
-
-        <p className={`mt-2 text-sm leading-relaxed text-[#78716b] dark:text-slate-300 ${status === "processing" ? "sr-only" : ""}`}>{message}</p>
+        {status === "processing" ? (
+          <div className="mt-4 space-y-3" aria-hidden="true">
+            <SkeletonBlock className="mx-auto h-5 w-36 rounded" />
+            <SkeletonBlock className="mx-auto h-3 w-4/5 rounded" />
+            <SkeletonBlock className="mx-auto h-3 w-3/5 rounded" />
+          </div>
+        ) : (
+          <>
+            <h1 className="mt-4 text-xl font-extrabold">{status === "success" ? "Signed in" : "Google sign-in failed"}</h1>
+            <p className="mt-2 text-sm leading-relaxed text-[#78716b] dark:text-slate-300">{message}</p>
+          </>
+        )}
+        {status === "processing" && <p className="sr-only" role="status">Signing you in</p>}
 
         {status === "error" && (
           <div className="mt-5 flex flex-col gap-2">
