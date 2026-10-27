@@ -706,8 +706,8 @@ export default function TeacherDashboard() {
       <main className="flex-1 p-4 md:p-8 space-y-6 max-w-7xl mx-auto w-full">
         <motion.section initial={reduceMotion ? false : { opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.32, ease: "easeOut" }} className="teacher-dashboard-hero relative overflow-hidden rounded-2xl border border-slate-200 bg-white p-5 sm:px-7 sm:py-6 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 dark:border-slate-700 dark:bg-slate-900">
           <div>
-            <span className="text-xs font-bold uppercase tracking-widest text-[#78716b]">
-              Educator Control Center
+            <span className="text-xs font-bold uppercase tracking-widest text-[#78716b] dark:text-slate-400">
+              Teacher Dashboard
             </span>
 
             <h1 className="text-2xl font-extrabold tracking-tight text-[#111111] mt-0.5 dark:text-slate-100">
@@ -715,8 +715,7 @@ export default function TeacherDashboard() {
             </h1>
 
             <p className="text-xs text-[#78716b] font-medium mt-0.5 dark:text-slate-400">
-              Manage your assessments, invite candidates, and review live
-              results telemetry.
+              Create assessments, share access codes, monitor submissions, and review results.
             </p>
           </div>
 
@@ -747,7 +746,7 @@ export default function TeacherDashboard() {
           <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
             <div className="flex items-center gap-2">
               <h2 className="text-sm font-extrabold text-[#111111] uppercase tracking-wider dark:text-slate-100">
-                Assessments Roster (
+                Your Assessments (
                 {statusFilter === "ALL" && !searchQuery.trim()
                   ? tests.length
                   : `${sortedTests.length} of ${tests.length}`}
@@ -844,7 +843,7 @@ export default function TeacherDashboard() {
               <span className="sr-only">Search assessments</span>
               <Search
                 aria-hidden="true"
-                className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[#78716b]"
+                className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[#78716b] dark:text-slate-400"
               />
               <input
                 type="text"
@@ -855,20 +854,20 @@ export default function TeacherDashboard() {
                 onChange={(event) => handleSearchChange(event.target.value)}
                 placeholder="Search title, subject, test code, ID..."
                 aria-label="Search assessments by title, subject, code, or ID"
-                className="w-full rounded-[10px] border border-[#d1dee8]/80 bg-white py-2.5 pl-9 pr-10 text-xs font-medium text-[#111111] shadow-xs outline-none transition focus:border-[#165dfb]/60 focus:ring-2 focus:ring-[#165dfb]/10 placeholder:text-[#a8a29e]"
+                className="w-full rounded-[10px] border border-[#d1dee8]/80 bg-white py-2.5 pl-9 pr-10 text-xs font-medium text-[#111111] shadow-xs outline-none transition focus:border-[#165dfb]/60 focus:ring-2 focus:ring-[#165dfb]/10 placeholder:text-[#a8a29e] dark:bg-slate-900 dark:text-slate-100"
               />
               {searchQuery && (
                 <button
                   type="button"
                   aria-label="Clear assessment search"
                   onClick={() => handleSearchChange("")}
-                  className="absolute right-2 top-1/2 flex h-7 w-7 -translate-y-1/2 items-center justify-center rounded-full text-[#78716b] transition hover:bg-[#f5f5f4] hover:text-[#111111] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#165dfb]"
+                  className="absolute right-2 top-1/2 flex h-7 w-7 -translate-y-1/2 items-center justify-center rounded-full text-[#78716b] transition hover:bg-[#f5f5f4] hover:text-[#111111] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#165dfb] dark:text-slate-100"
                 >
                   <X aria-hidden="true" className="h-3.5 w-3.5" />
                 </button>
               )}
             </label>
-            <p className="text-[10px] font-medium text-[#78716b]" aria-live="polite">
+            <p className="text-[10px] font-medium text-[#78716b] dark:text-slate-400" aria-live="polite">
               {searchQuery.trim()
                 ? `Found ${sortedTests.length} matching assessment${sortedTests.length === 1 ? "" : "s"}`
                 : `Showing ${Math.min(visibleCount, sortedTests.length)} of ${sortedTests.length} assessments`}
@@ -907,17 +906,17 @@ export default function TeacherDashboard() {
                 </button>
               </div>
             ) : tests.length === 0 ? (
-              <div className="rounded-[14px] bg-white border border-[#d1dee8]/70 p-10 text-center space-y-3 shadow-sm">
-                <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-[12px] bg-[#f5f5f4] text-[#78716b] border border-[#d1dee8]/70">
-                  <FileQuestion className="h-6 w-6 text-[#78716b]" />
+              <div className="rounded-[14px] bg-white border border-[#d1dee8]/70 p-10 text-center space-y-3 shadow-sm dark:bg-slate-900">
+                <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-[12px] bg-[#f5f5f4] text-[#78716b] border border-[#d1dee8]/70 dark:text-slate-400">
+                  <FileQuestion className="h-6 w-6 text-[#78716b] dark:text-slate-400" />
                 </div>
 
                 <div>
-                  <p className="font-bold text-[#111111] text-sm">
+                  <p className="font-bold text-[#111111] text-sm dark:text-slate-100">
                     No assessments created yet
                   </p>
 
-                  <p className="text-xs text-[#78716b] mt-0.5 font-medium max-w-sm mx-auto">
+                  <p className="text-xs text-[#78716b] mt-0.5 font-medium max-w-sm mx-auto dark:text-slate-400">
                     Click &ldquo;Create Assessment&rdquo; to build your first
                     proctored test.
                   </p>
@@ -932,17 +931,17 @@ export default function TeacherDashboard() {
                 </Link>
               </div>
             ) : visibleTests.length === 0 ? (
-              <div className="rounded-[14px] bg-white border border-[#d1dee8]/70 p-10 text-center space-y-3 shadow-sm">
-                <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-[12px] bg-[#f5f5f4] text-[#78716b] border border-[#d1dee8]/70">
-                  <FileQuestion className="h-6 w-6 text-[#78716b]" />
+              <div className="rounded-[14px] bg-white border border-[#d1dee8]/70 p-10 text-center space-y-3 shadow-sm dark:bg-slate-900">
+                <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-[12px] bg-[#f5f5f4] text-[#78716b] border border-[#d1dee8]/70 dark:text-slate-400">
+                  <FileQuestion className="h-6 w-6 text-[#78716b] dark:text-slate-400" />
                 </div>
 
                 <div>
-                  <p className="font-bold text-[#111111] text-sm">
+                  <p className="font-bold text-[#111111] text-sm dark:text-slate-100">
                     No matching assessments
                   </p>
 
-                  <p className="text-xs text-[#78716b] mt-0.5 font-medium max-w-sm mx-auto">
+                  <p className="text-xs text-[#78716b] mt-0.5 font-medium max-w-sm mx-auto dark:text-slate-400">
                     Try a different search, status filter, or sort option.
                   </p>
                 </div>
@@ -950,7 +949,7 @@ export default function TeacherDashboard() {
                 <button
                   type="button"
                   onClick={handleClearRosterFilters}
-                  className="inline-flex items-center gap-1.5 rounded-[10px] border border-[#d1dee8]/80 bg-white px-4 py-2 text-xs font-bold text-[#111111] hover:bg-[#f5f5f4] hover:border-[#b9cbd9] shadow-xs active:scale-[0.98] transition-all cursor-pointer"
+                  className="inline-flex items-center gap-1.5 rounded-[10px] border border-[#d1dee8]/80 bg-white px-4 py-2 text-xs font-bold text-[#111111] hover:bg-[#f5f5f4] hover:border-[#b9cbd9] shadow-xs active:scale-[0.98] transition-all cursor-pointer dark:bg-slate-900 dark:text-slate-100"
                 >
                   Clear Search & Filters
                 </button>
@@ -1027,22 +1026,22 @@ export default function TeacherDashboard() {
                           {displayState}
                         </span>
 
-                        <h3 className="min-w-0 flex-1 font-extrabold text-[#111111] text-sm leading-5 break-words">
+                        <h3 className="min-w-0 flex-1 font-extrabold text-[#111111] text-sm leading-5 break-words dark:text-slate-100">
                           {name}
                         </h3>
                       </div>
 
-                      <div className="flex flex-wrap items-center gap-3 text-[11px] text-[#78716b] font-medium">
+                      <div className="flex flex-wrap items-center gap-3 text-[11px] text-[#78716b] font-medium dark:text-slate-400">
                         {test.subject && (
                           <span className="flex items-center gap-1">
-                            <BookOpen className="h-3 w-3 text-[#78716b]/80" />
+                            <BookOpen className="h-3 w-3 text-[#78716b]/80 dark:text-slate-400" />
                             {test.subject}
                             {test.subjectCode ? ` (${test.subjectCode})` : ""}
                           </span>
                         )}
 
                         <span className="flex items-center gap-1">
-                          <Users className="h-3 w-3 text-[#78716b]/80" />
+                          <Users className="h-3 w-3 text-[#78716b]/80 dark:text-slate-400" />
                           {test.totalStudents > 0
                             ? `${test.totalStudents} Students`
                             : "Open to all students"}
@@ -1050,7 +1049,7 @@ export default function TeacherDashboard() {
 
                         {formatAssessmentDate(test.createdAt ?? test.startTime) && (
                           <span className="flex items-center gap-1">
-                            <CalendarDays className="h-3 w-3 text-[#78716b]/80" />
+                            <CalendarDays className="h-3 w-3 text-[#78716b]/80 dark:text-slate-400" />
                             {formatAssessmentDate(test.createdAt ?? test.startTime)}
                           </span>
                         )}
@@ -1095,9 +1094,9 @@ export default function TeacherDashboard() {
                         <>
                           <Link
                             href={`/dashboard/teacher/create?draftId=${test.quizId}`}
-                            className="flex items-center gap-1 rounded-[10px] border border-[#d1dee8]/80 bg-white px-3 py-1.5 text-xs font-bold text-[#111111] hover:bg-[#f5f5f4] hover:border-[#b9cbd9] shadow-xs active:scale-[0.98] transition-all cursor-pointer"
+                            className="flex items-center gap-1 rounded-[10px] border border-[#d1dee8]/80 bg-white px-3 py-1.5 text-xs font-bold text-[#111111] hover:bg-[#f5f5f4] hover:border-[#b9cbd9] shadow-xs active:scale-[0.98] transition-all cursor-pointer dark:bg-slate-900 dark:text-slate-100"
                           >
-                            <Settings className="h-3 w-3 text-[#78716b]" />
+                            <Settings className="h-3 w-3 text-[#78716b] dark:text-slate-400" />
                             Edit Draft
                           </Link>
 
@@ -1115,7 +1114,7 @@ export default function TeacherDashboard() {
                       {displayState === "Scheduled" && (
                         <Link
                           href={`/dashboard/teacher/share/${code}`}
-                          className="flex items-center gap-1 rounded-[10px] border border-[#d1dee8]/80 bg-[#f5f5f4] px-3 py-1.5 text-xs font-bold text-[#111111] hover:bg-[#e6e3e2] hover:border-[#b9cbd9] shadow-xs active:scale-[0.98] transition-all cursor-pointer"
+                          className="flex items-center gap-1 rounded-[10px] border border-[#d1dee8]/80 bg-[#f5f5f4] px-3 py-1.5 text-xs font-bold text-[#111111] hover:bg-[#e6e3e2] hover:border-[#b9cbd9] shadow-xs active:scale-[0.98] transition-all cursor-pointer dark:text-slate-100"
                         >
                           Share
                         </Link>
@@ -1125,7 +1124,7 @@ export default function TeacherDashboard() {
                         <>
                           <Link
                             href={`/dashboard/teacher/share/${code}`}
-                            className="flex items-center gap-1 rounded-[10px] border border-[#d1dee8]/80 bg-[#f5f5f4] px-3 py-1.5 text-xs font-bold text-[#111111] hover:bg-[#e6e3e2] hover:border-[#b9cbd9] shadow-xs active:scale-[0.98] transition-all cursor-pointer"
+                            className="flex items-center gap-1 rounded-[10px] border border-[#d1dee8]/80 bg-[#f5f5f4] px-3 py-1.5 text-xs font-bold text-[#111111] hover:bg-[#e6e3e2] hover:border-[#b9cbd9] shadow-xs active:scale-[0.98] transition-all cursor-pointer dark:text-slate-100"
                           >
                             Share
                           </Link>
@@ -1153,7 +1152,7 @@ export default function TeacherDashboard() {
                         <>
                           <Link
                             href={`/dashboard/teacher/assessment/${code}`}
-                            className="flex items-center gap-1 rounded-[10px] border border-[#d1dee8]/80 bg-white px-3 py-1.5 text-xs font-bold text-[#111111] hover:bg-[#f5f5f4] hover:border-[#b9cbd9] shadow-xs active:scale-[0.98] transition-all cursor-pointer"
+                            className="flex items-center gap-1 rounded-[10px] border border-[#d1dee8]/80 bg-white px-3 py-1.5 text-xs font-bold text-[#111111] hover:bg-[#f5f5f4] hover:border-[#b9cbd9] shadow-xs active:scale-[0.98] transition-all cursor-pointer dark:bg-slate-900 dark:text-slate-100"
                           >
                             Results & Leaderboard
                           </Link>
@@ -1187,7 +1186,7 @@ export default function TeacherDashboard() {
                                 onClick={() =>
                                   void handleUnpublishResults(quizId)
                                 }
-                                className="flex items-center gap-1 rounded-[10px] border border-[#d1dee8]/80 bg-white px-3 py-1.5 text-xs font-bold text-[#78716b] hover:bg-[#f5f5f4] hover:border-[#b9cbd9] shadow-xs active:scale-[0.98] transition-all cursor-pointer disabled:opacity-50"
+                                className="flex items-center gap-1 rounded-[10px] border border-[#d1dee8]/80 bg-white px-3 py-1.5 text-xs font-bold text-[#78716b] hover:bg-[#f5f5f4] hover:border-[#b9cbd9] shadow-xs active:scale-[0.98] transition-all cursor-pointer disabled:opacity-50 dark:bg-slate-900 dark:text-slate-400"
                               >
                                 Unpublish Results
                               </button>
@@ -1206,7 +1205,7 @@ export default function TeacherDashboard() {
               <button
                 type="button"
                 onClick={handleLoadMore}
-                className="inline-flex items-center justify-center rounded-[10px] border border-[#d1dee8]/80 bg-white px-5 py-2 text-xs font-bold text-[#111111] hover:bg-[#f5f5f4] hover:border-[#b9cbd9] shadow-xs active:scale-[0.98] transition-all cursor-pointer"
+                className="inline-flex items-center justify-center rounded-[10px] border border-[#d1dee8]/80 bg-white px-5 py-2 text-xs font-bold text-[#111111] hover:bg-[#f5f5f4] hover:border-[#b9cbd9] shadow-xs active:scale-[0.98] transition-all cursor-pointer dark:bg-slate-900 dark:text-slate-100"
               >
                 Show More Assessments
               </button>
@@ -1217,12 +1216,12 @@ export default function TeacherDashboard() {
 
       {quizToEnd && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4 text-left">
-          <div className="w-full max-w-sm rounded-[14px] border border-[#d1dee8]/80 bg-white p-6 shadow-2xl space-y-4 animate-in fade-in zoom-in-95 duration-150">
-            <h3 className="text-base font-extrabold text-[#111111]">
+          <div className="w-full max-w-sm rounded-[14px] border border-[#d1dee8]/80 bg-white p-6 shadow-2xl space-y-4 animate-in fade-in zoom-in-95 duration-150 dark:bg-slate-900">
+            <h3 className="text-base font-extrabold text-[#111111] dark:text-slate-100">
               End Assessment?
             </h3>
 
-            <p className="text-xs text-[#78716b] leading-relaxed">
+            <p className="text-xs text-[#78716b] leading-relaxed dark:text-slate-400">
               Are you sure you want to end &ldquo;
               {quizToEnd.title}
               &rdquo;? Active student attempts will be concluded and the quiz
@@ -1243,7 +1242,7 @@ export default function TeacherDashboard() {
                   setActionError(null);
                 }}
                 disabled={actionLoadingQuizId === quizToEnd.quizId}
-                className="rounded-[10px] border border-[#d1dee8]/80 bg-white px-3.5 py-1.5 text-xs font-bold text-[#78716b] hover:bg-[#f5f5f4] hover:border-[#b9cbd9] shadow-xs transition-all disabled:opacity-50 cursor-pointer"
+                className="rounded-[10px] border border-[#d1dee8]/80 bg-white px-3.5 py-1.5 text-xs font-bold text-[#78716b] hover:bg-[#f5f5f4] hover:border-[#b9cbd9] shadow-xs transition-all disabled:opacity-50 cursor-pointer dark:bg-slate-900 dark:text-slate-400"
               >
                 Cancel
               </button>
