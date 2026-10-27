@@ -1,6 +1,7 @@
 "use client";
 
 import LoadingIndicator from "@/components/LoadingIndicator";
+import SkeletonBlock from "@/components/SkeletonBlock";
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -685,8 +686,27 @@ function PreferencesPanel({
         )}
 
         {loadingPreferences ? (
-          <div className="flex min-h-14 items-center justify-center rounded-[10px] border border-[#d1dee8]/70 bg-[#e6e3e2]/40 px-4 py-4 dark:border-slate-700 dark:bg-slate-800/60" aria-busy="true">
-            <LoadingIndicator label="Loading notification settings" size="md" />
+          <div className="space-y-2" aria-busy="true" aria-label="Loading notification preferences">
+            <p className="sr-only" role="status">Loading notification preferences</p>
+            {[
+              { icon: Mail, width: "w-2/5" },
+              { icon: Bell, width: "w-1/2" },
+              { icon: Shield, width: "w-2/5" },
+              { icon: Lock, width: "w-1/3" },
+            ].map(({ icon: PreferenceIcon, width }, index) => (
+              <div key={index} className="flex items-start justify-between gap-4 rounded-[10px] border border-[#d1dee8]/70 bg-[#e6e3e2]/40 px-4 py-3.5 shadow-xs dark:border-slate-700 dark:bg-slate-800/60">
+                <div className="flex min-w-0 flex-1 items-start gap-3">
+                  <div className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-white/70 text-[#78716b] dark:bg-slate-700 dark:text-slate-300">
+                    <PreferenceIcon className="h-4 w-4" />
+                  </div>
+                  <div className="min-w-0 flex-1 space-y-2 pt-1">
+                    <SkeletonBlock className={`h-3 rounded ${width} max-w-full`} />
+                    <SkeletonBlock className="h-2.5 w-4/5 max-w-full rounded" />
+                  </div>
+                </div>
+                <SkeletonBlock className="mt-0.5 h-6 w-11 shrink-0 rounded-full" />
+              </div>
+            ))}
           </div>
         ) : (
           <div className="space-y-2">
