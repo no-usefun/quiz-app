@@ -190,7 +190,9 @@ function LoginContent() {
       // OAuth must start at the backend origin itself, not through Next.js's
       // same-origin /backend proxy. That lets Spring Security save and recover
       // the OAuth authorization request/session on the same backend host.
-      const backendPath = backendBaseUrl.pathname.replace(/\\/+$/, "");
+      const backendPath = backendBaseUrl.pathname.endsWith("/")
+        ? backendBaseUrl.pathname.slice(0, -1)
+        : backendBaseUrl.pathname;
       if (backendPath && backendPath !== "/") {
         throw new Error(
           "NEXT_PUBLIC_API_URL must be the backend origin only (for example, http://localhost:8080), without an API path or /backend proxy prefix.",
