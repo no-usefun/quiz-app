@@ -553,7 +553,7 @@ function SignupContent() {
           <>
             <button
               type="button"
-              onClick={() => {
+              onClick={async () => {
                 const backendRole = activeRole === "teacher" ? "TEACHER" : "STUDENT";
                 setError("");
 
@@ -610,6 +610,34 @@ function SignupContent() {
                 }
 
                 setGoogleLoading(true);
+                try {
+                  const preflightResponse = await fetch(
+                    `/api/oauth/google/start?role=${encodeURIComponent(backendRole)}`,
+                    {
+                      cache: "no-store",
+                      headers: { Accept: "application/json" },
+                    },
+                  );
+                  const preflight = (await preflightResponse.json()) as {
+                    ok?: boolean;
+                    message?: string;
+                  };
+                  if (!preflightResponse.ok || preflight.ok !== true) {
+                    setGoogleLoading(false);
+                    setError(
+                      preflight.message ||
+                        "Google sign-in could not be started. Check the backend OAuth configuration.",
+                    );
+                    return;
+                  }
+                } catch {
+                  setGoogleLoading(false);
+                  setError(
+                    "Could not verify Google sign-in with the backend. Check the connection and NEXT_PUBLIC_API_URL, then try again.",
+                  );
+                  return;
+                }
+
                 sessionStorage.setItem("dynoquizz_google_role", backendRole);
 
                 const redirect = searchParams.get("redirect") || "";
