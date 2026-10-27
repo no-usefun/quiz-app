@@ -1,13 +1,15 @@
 .ambient {
   position: fixed;
   inset: 0;
-  z-index: 10;
+  /* Blend over opaque page canvases so the effect remains visible without
+     changing each route's existing background styles. */
+  z-index: 30;
   overflow: hidden;
   pointer-events: none;
   contain: strict;
   isolation: isolate;
   color: var(--color-cobalt-stamp, #165dfb);
-  opacity: 0.5;
+  opacity: 0.28;
   mix-blend-mode: soft-light;
 }
 
@@ -62,7 +64,7 @@
 }
 
 .ambient[data-ambient-variant="public"] {
-  opacity: 0.9;
+  opacity: 0.45;
 }
 
 .ambient[data-ambient-variant="public"] .orb {
@@ -71,7 +73,7 @@
 }
 
 .ambient[data-ambient-variant="dashboard"] {
-  opacity: 0.48;
+  opacity: 0.22;
 }
 
 .ambient[data-ambient-variant="dashboard"] .orb {
@@ -81,7 +83,7 @@
 }
 
 :global(.dark) .ambient {
-  opacity: 0.56;
+  opacity: 0.25;
 }
 
 :global(.dark) .ambient[data-ambient-variant="public"] .orb {
