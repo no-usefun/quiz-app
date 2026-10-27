@@ -1,6 +1,7 @@
 "use client";
 
 import LoadingIndicator from "@/components/LoadingIndicator";
+import SkeletonBlock from "@/components/SkeletonBlock";
 // src/app/test/[testCode]/lobby/page.tsx
 
 import { use, useEffect, useRef, useState, Suspense } from "react";
@@ -12,6 +13,8 @@ import {
   Loader2,
   AlertCircle,
   ArrowLeft,
+  ShieldCheck,
+  Clock,
 } from "lucide-react";
 import { Logo } from "@/components/Logo";
 import { ThemeToggle } from "@/components/ThemeToggle";
@@ -510,9 +513,19 @@ function LobbyInner({ testCode }: { testCode: string }) {
 
   if (loading) {
     return (
-      <div className="flex min-h-[60vh] items-center justify-center">
-        <LoadingIndicator label="Checking assessment availability" size="lg" />
-      </div>
+      <section className="mx-auto w-full max-w-2xl space-y-5 rounded-[16px] border border-mist-blue/70 bg-paper-white p-5 shadow-sm dark:border-slate-700 dark:bg-slate-900 sm:p-7" aria-busy="true" aria-label="Loading assessment lobby">
+        <div className="flex items-center gap-3">
+          <span className="flex h-11 w-11 items-center justify-center rounded-[12px] bg-[#eef4ff] text-[#165dfb] dark:bg-slate-800 dark:text-blue-300"><ShieldCheck className="h-5 w-5" /></span>
+          <div className="flex-1 space-y-2"><SkeletonBlock className="h-4 w-44 rounded" /><SkeletonBlock className="h-3 w-56 max-w-full rounded" /></div>
+        </div>
+        <div className="rounded-[12px] border border-mist-blue/70 p-4 dark:border-slate-700">
+          <div className="flex items-center gap-3"><Clock className="h-4 w-4 shrink-0 text-steel-blue-gray dark:text-slate-400" /><SkeletonBlock className="h-3 w-32 rounded" /></div>
+          <div className="mt-4 space-y-2"><SkeletonBlock className="h-3 w-4/5 rounded" /><SkeletonBlock className="h-3 w-3/5 rounded" /></div>
+        </div>
+        <div className="grid gap-3 sm:grid-cols-2"><div className="flex items-center gap-3 rounded-[10px] bg-frost-surface p-3 dark:bg-slate-800"><ShieldCheck className="h-4 w-4 text-emerald-600 dark:text-emerald-300" /><SkeletonBlock className="h-3 w-3/4 rounded" /></div><div className="flex items-center gap-3 rounded-[10px] bg-frost-surface p-3 dark:bg-slate-800"><Clock className="h-4 w-4 text-steel-blue-gray dark:text-slate-400" /><SkeletonBlock className="h-3 w-2/3 rounded" /></div></div>
+        <SkeletonBlock className="h-11 w-full rounded-[10px]" />
+        <p className="sr-only" role="status">Checking assessment availability</p>
+      </section>
     );
   }
 
@@ -716,7 +729,7 @@ export default function AssessmentLobbyPage({
       <main className="flex-1 flex items-center justify-center p-4 md:p-8">
         <Suspense
           fallback={
-            <LoadingIndicator label="Loading assessment lobby" size="sm" />
+            <div className="w-full max-w-2xl space-y-4 rounded-[16px] border border-mist-blue/70 bg-paper-white p-5 dark:border-slate-700 dark:bg-slate-900"><div className="flex items-center gap-3"><ShieldCheck className="h-5 w-5 text-emerald-600 dark:text-emerald-300" /><SkeletonBlock className="h-4 w-40 rounded" /></div><SkeletonBlock className="h-3 w-4/5 rounded" /><SkeletonBlock className="h-11 w-full rounded-[10px]" /></div>
           }
         >
           <LobbyInner testCode={testCode} />
