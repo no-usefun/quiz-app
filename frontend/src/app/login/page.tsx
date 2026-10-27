@@ -1,10 +1,11 @@
 "use client";
 
 import LoadingIndicator from "@/components/LoadingIndicator";
+import SkeletonBlock from "@/components/SkeletonBlock";
 import { Suspense, useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
-import { ArrowLeft, ArrowRight, Eye, EyeOff, GraduationCap, Presentation } from "lucide-react";
+import { ArrowLeft, ArrowRight, Eye, EyeOff, GraduationCap, Presentation, Lock } from "lucide-react";
 import { ApiClientError, api, clearApiCache } from "@/lib/api/client";
 import { ENDPOINTS } from "@/lib/api/endpoints";
 import { isLanExamMode } from "@/lib/examMode";
@@ -428,7 +429,30 @@ function LoginContent() {
 
 export default function LoginPage() {
   return (
-    <Suspense fallback={<div className="flex min-h-screen items-center justify-center gap-3 bg-neutral-50 text-sm font-medium text-neutral-400 dark:bg-slate-950 dark:text-slate-400"><span className="h-5 w-5 animate-spin rounded-full border-2 border-blue-200 border-t-blue-600 dark:border-slate-700 dark:border-t-blue-400" aria-hidden="true" /><span>Preparing login…</span></div>}>
+    <Suspense
+      fallback={
+        <>
+          <PublicNavbar />
+          <main className="public-auth min-h-[calc(100vh-4rem)] bg-neutral-50 px-4 py-8 font-sans dark:bg-slate-950 sm:px-8" aria-busy="true">
+            <div className="mx-auto flex min-h-[calc(100vh-8rem)] max-w-md items-center">
+              <section className="w-full space-y-6 rounded-2xl border border-neutral-200 bg-white p-7 shadow-sm dark:border-slate-700 dark:bg-slate-900 sm:p-8">
+                <div className="flex items-center gap-3">
+                  <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-[#eef4ff] text-[#165dfb] dark:bg-slate-800 dark:text-blue-300"><Lock className="h-5 w-5" /></span>
+                  <div className="flex-1 space-y-2"><SkeletonBlock className="h-5 w-40 rounded" /><SkeletonBlock className="h-3 w-56 max-w-full rounded" /></div>
+                </div>
+                <div className="space-y-4">
+                  {[1, 2].map((field) => <div key={field} className="space-y-2"><SkeletonBlock className="h-3 w-20 rounded" /><SkeletonBlock className="h-11 w-full rounded-lg" /></div>)}
+                </div>
+                <SkeletonBlock className="h-11 w-full rounded-lg" />
+                <div className="flex items-center gap-3"><SkeletonBlock className="h-px flex-1 rounded" /><SkeletonBlock className="h-3 w-8 rounded" /><SkeletonBlock className="h-px flex-1 rounded" /></div>
+                <SkeletonBlock className="h-11 w-full rounded-lg" />
+              </section>
+            </div>
+            <p className="sr-only" role="status">Preparing login form</p>
+          </main>
+        </>
+      }
+    >
       <LoginContent />
     </Suspense>
   );
