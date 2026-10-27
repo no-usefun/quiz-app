@@ -700,21 +700,21 @@ export default function TeacherDashboard() {
   };
 
   return (
-    <div className="teacher-dashboard min-h-screen bg-[#f5f5f4] font-sans text-[#111111] flex flex-col text-left">
+    <div className="teacher-dashboard min-h-screen bg-[#f5f5f4] font-sans text-[#111111] flex flex-col text-left transition-colors dark:bg-slate-950 dark:text-slate-100">
       <TopNav role="teacher" />
 
       <main className="flex-1 p-4 md:p-8 space-y-6 max-w-7xl mx-auto w-full">
-        <motion.section initial={reduceMotion ? false : { opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.32, ease: "easeOut" }} className="teacher-dashboard-hero relative overflow-hidden rounded-2xl border border-slate-200 bg-white p-5 sm:px-7 sm:py-6 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+        <motion.section initial={reduceMotion ? false : { opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.32, ease: "easeOut" }} className="teacher-dashboard-hero relative overflow-hidden rounded-2xl border border-slate-200 bg-white p-5 sm:px-7 sm:py-6 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 dark:border-slate-700 dark:bg-slate-900">
           <div>
             <span className="text-xs font-bold uppercase tracking-widest text-[#78716b]">
               Educator Control Center
             </span>
 
-            <h1 className="text-2xl font-extrabold tracking-tight text-[#111111] mt-0.5">
+            <h1 className="text-2xl font-extrabold tracking-tight text-[#111111] mt-0.5 dark:text-slate-100">
               Welcome back, {displayName}
             </h1>
 
-            <p className="text-xs text-[#78716b] font-medium mt-0.5">
+            <p className="text-xs text-[#78716b] font-medium mt-0.5 dark:text-slate-400">
               Manage your assessments, invite candidates, and review live
               results telemetry.
             </p>
@@ -736,9 +736,9 @@ export default function TeacherDashboard() {
             { label: "Draft Assessments", value: loading ? <span aria-hidden="true" className="inline-block h-6 w-10 animate-pulse rounded bg-slate-200 dark:bg-slate-700" /> : draftCount },
             { label: "Completed", value: loading ? <span aria-hidden="true" className="inline-block h-6 w-10 animate-pulse rounded bg-slate-200 dark:bg-slate-700" /> : completedCount },
           ].map((stat) => (
-            <div key={stat.label} className="teacher-stat rounded-xl border border-slate-200 bg-white p-4 sm:p-5 transition-colors duration-150 hover:border-slate-300">
-              <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500">{stat.label}</span>
-              <p className="mt-2 text-2xl font-bold tabular-nums text-slate-900">{stat.value}</p>
+            <div key={stat.label} className="teacher-stat rounded-xl border border-slate-200 bg-white p-4 sm:p-5 transition-colors duration-150 hover:border-slate-300 dark:border-slate-700 dark:bg-slate-900 dark:hover:border-slate-600">
+              <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">{stat.label}</span>
+              <p className="mt-2 text-2xl font-bold tabular-nums text-slate-900 dark:text-slate-100">{stat.value}</p>
             </div>
           ))}
         </motion.section>
@@ -746,7 +746,7 @@ export default function TeacherDashboard() {
         <motion.section initial={reduceMotion ? false : { opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.32, delay: 0.14, ease: "easeOut" }} className="space-y-4">
           <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
             <div className="flex items-center gap-2">
-              <h2 className="text-sm font-extrabold text-[#111111] uppercase tracking-wider">
+              <h2 className="text-sm font-extrabold text-[#111111] uppercase tracking-wider dark:text-slate-100">
                 Assessments Roster (
                 {statusFilter === "ALL" && !searchQuery.trim()
                   ? tests.length
@@ -776,7 +776,7 @@ export default function TeacherDashboard() {
                       "inline-flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-[10px] font-bold transition-all " +
                       (statusFilter === value
                         ? "border-[#165dfb] bg-[#165dfb] text-white shadow-xs"
-                        : "border-[#d1dee8]/80 bg-white text-[#78716b] hover:border-[#165dfb]/40 hover:text-[#111111]")
+                        : "border-[#d1dee8]/80 bg-white text-[#78716b] hover:border-[#165dfb]/40 hover:text-[#111111] dark:border-slate-700 dark:bg-slate-900 dark:text-slate-300 dark:hover:text-slate-100")
                     }
                   >
                     <span>{label}</span>
@@ -792,7 +792,7 @@ export default function TeacherDashboard() {
                 ))}
               </div>
 
-              <div className="flex h-8 w-full items-center justify-between gap-1 rounded-[10px] border border-[#d1dee8]/80 bg-white px-2 text-[10px] font-bold text-[#78716b] shadow-xs sm:w-auto sm:justify-start">
+              <div className="flex h-8 w-full items-center justify-between gap-1 rounded-[10px] border border-[#d1dee8]/80 bg-white px-2 text-[10px] font-bold text-[#78716b] shadow-xs sm:w-auto sm:justify-start dark:border-slate-700 dark:bg-slate-900 dark:text-slate-300">
                 <label htmlFor="assessment-sort-field" className="pl-1 whitespace-nowrap">
                   Sort
                 </label>
@@ -803,7 +803,7 @@ export default function TeacherDashboard() {
                     handleSortChange(event.target.value as TeacherDashboardSortField)
                   }
                   aria-label="Sort assessments by"
-                  className="min-w-0 flex-1 cursor-pointer border-0 bg-transparent px-1 py-0 text-[10px] font-bold text-[#111111] outline-none sm:min-w-[122px] sm:flex-none"
+                  className="min-w-0 flex-1 cursor-pointer border-0 bg-transparent px-1 py-0 text-[10px] font-bold text-[#111111] outline-none sm:min-w-[122px] sm:flex-none dark:text-slate-100"
                 >
                   <option value="CREATED">Created date</option>
                   <option value="TITLE">Assessment title</option>
