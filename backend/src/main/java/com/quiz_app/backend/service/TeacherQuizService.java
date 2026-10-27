@@ -289,7 +289,8 @@ public class TeacherQuizService {
 
                                 quiz.getStatus(),
                                 quiz.getExamState(),
-                                quiz.isAiProctoringEnabled());
+                                quiz.isAiProctoringEnabled(),
+                                quiz.getMaxTabSwitch());
         }
 
         private void validateQuiz(CreateQuizRequest request) {
@@ -795,7 +796,8 @@ public class TeacherQuizService {
                                                 .toList(),
                                 quiz.getStatus(),
                                 quiz.getExamState(),
-                                quiz.isAiProctoringEnabled());
+                                quiz.isAiProctoringEnabled(),
+                                quiz.getMaxTabSwitch());
         }
 
         @Transactional(readOnly = true)
@@ -998,7 +1000,3 @@ public class TeacherQuizService {
 
                         Set<String> registrations = request.allowedRegistrationNumbers()
                                         .stream()
-                                        .filter(Objects::nonNull)
-                                        .map(String::trim)
-                                        .filter(value -> !value.isBlank())
-                                        .collect(Collectors.toCollection(LinkedHashSet::new));
