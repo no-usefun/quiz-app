@@ -1,5 +1,6 @@
 "use client";
 
+import LoadingIndicator from "@/components/LoadingIndicator";
 // src/app/test/[testCode]/lobby/page.tsx
 
 import { use, useEffect, useRef, useState, Suspense } from "react";
@@ -510,10 +511,7 @@ function LobbyInner({ testCode }: { testCode: string }) {
   if (loading) {
     return (
       <div className="flex min-h-[60vh] items-center justify-center">
-        <div className="flex items-center gap-2 text-xs font-bold text-[#78716b]">
-          <Loader2 className="h-4 w-4 animate-spin text-[#165dfb]" />
-          Checking Assessment Availability...
-        </div>
+        <LoadingIndicator label="Checking assessment availability" size="lg" />
       </div>
     );
   }
