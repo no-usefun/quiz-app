@@ -851,6 +851,171 @@ export default function TestArenaPage({
 
   const lastBackendWarningCountRef = useRef(0);
 
+  const buildServerAnswerCheckpoint = useCallback(
+    (
+      nextAnswers: ActiveAnswerState,
+      nextTimeTaken: Record<number, number>,
+    ): SubmitAnswerRequest[] => {
+      return questions.map((question) => {
+        const questionId = Number(question.questionId);
+        return {
+          questionId,
+          selectedOptionIds: (nextAnswers[questionId] ?? [])
+            .map(Number)
+            .filter((optionId) => Number.isSafeInteger(optionId) && optionId > 0),
+          responseTimeSeconds: Math.max(
+            0,
+            Math.floor(Number(nextTimeTaken[questionId] ?? 0) || 0),
+          ),
+        };
+      });
+    },
+    [questions],
+  );
+
+  const sendServerAnswerCheckpoint = useCallback(
+    async (
+      nextAnswers: ActiveAnswerState = answersRef.current,
+      nextTimeTaken: Record<number, number> = timeTakenRef.current,
+      allowWhileSubmitting = false,
+    ): Promise<boolean> => {
+      if (
+        !activeAttemptId ||
+        !test ||
+        isLoadingTest ||
+        isSubmitted ||
+        (submissionInFlightRef.current && !allowWhileSubmitting)
+      ) {
+        return false;
+      }
+
+      const payloadAnswers = buildServerAnswerCheckpoint(nextAnswers, nextTimeTaken);
+      // Never checkpoint a partial question set: the server persists this entire
+      // sheet, including empty selections that represent unanswered questions.
+      if (
+        payloadAnswers.length === 0 ||
+        payloadAnswers.length !== test.questions.length ||
+        payloadAnswers.some((answer) =>
+          !Number.isSafeInteger(answer.questionId) || answer.questionId <= 0
+        )
+      ) {
+        return false;
+      }
+
+      const signature = JSON.stringify(payloadAnswers);
+      const queuedRequest = serverAnswerCheckpointQueueRef.current.then(async () => {
+        if (signature === lastServerAnswerCheckpointSignatureRef.current) {
+          return true;
+        }
+        if (
+          !activeAttemptId ||
+          !test ||
+          isSubmitted ||
+          (submissionInFlightRef.current && !allowWhileSubmitting)
+        ) {
+          return false;
+        }
+
+        try {
+          await api.put<DraftAttemptAnswersResponse>(
+            ENDPOINTS.student.draftAnswers(activeAttemptId),
+            { answers: payloadAnswers },
+            { signal: AbortSignal.timeout(4000) },
+          );
+          lastServerAnswerCheckpointSignatureRef.current = signature;
+          return true;
+        } catch (checkpointError) {
+          // Keep the local retry draft. The periodic checkpoint or final submit
+          // can retry if this transient request fails.
+          console.warn("[Assessment Draft] Server answer checkpoint failed:", checkpointError);
+          return false;
+        }
+      });
+
+      serverAnswerCheckpointQueueRef.current = queuedRequest.then(
+        () => undefined,
+        () => undefined,
+      );
+      return queuedRequest;
+    },
+    [
+      activeAttemptId,
+      buildServerAnswerCheckpoint,
+      isLoadingTest,
+      isSubmitted,
+      test,
+    ],
+  );
+
+  const flushServerAnswerCheckpoint = useCallback(
+    async (
+      nextAnswers: ActiveAnswerState = answersRef.current,
+      nextTimeTaken: Record<number, number> = timeTakenRef.current,
+      allowWhileSubmitting = false,
+    ) => {
+      if (serverAnswerCheckpointTimerRef.current) {
+        clearTimeout(serverAnswerCheckpointTimerRef.current);
+        serverAnswerCheckpointTimerRef.current = null;
+      }
+      return sendServerAnswerCheckpoint(
+        nextAnswers,
+        nextTimeTaken,
+        allowWhileSubmitting,
+      );
+    },
+    [sendServerAnswerCheckpoint],
+  );
+
+  const scheduleServerAnswerCheckpoint = useCallback(
+    (
+      nextAnswers: ActiveAnswerState,
+      nextTimeTaken: Record<number, number>,
+    ) => {
+      if (!activeAttemptId || isSubmitted || submissionInFlightRef.current) return;
+      if (serverAnswerCheckpointTimerRef.current) {
+        clearTimeout(serverAnswerCheckpointTimerRef.current);
+      }
+      serverAnswerCheckpointTimerRef.current = setTimeout(() => {
+        serverAnswerCheckpointTimerRef.current = null;
+        void sendServerAnswerCheckpoint(nextAnswers, nextTimeTaken);
+      }, 400);
+    },
+    [activeAttemptId, isSubmitted, sendServerAnswerCheckpoint],
+  );
+
+  useEffect(() => {
+    lastServerAnswerCheckpointSignatureRef.current = null;
+  }, [activeAttemptId]);
+
+  useEffect(() => {
+    if (!activeAttemptId || !test || isLoadingTest || isSubmitted) return;
+
+    const checkpointInterval = window.setInterval(() => {
+      void flushServerAnswerCheckpoint(
+        answersRef.current,
+        timeTakenRef.current,
+      );
+    }, 8000);
+    const checkpointOnPageHide = () => {
+      void flushServerAnswerCheckpoint(
+        answersRef.current,
+        timeTakenRef.current,
+      );
+    };
+    window.addEventListener("pagehide", checkpointOnPageHide);
+
+    return () => {
+      window.clearInterval(checkpointInterval);
+      window.removeEventListener("pagehide", checkpointOnPageHide);
+    };
+  }, [
+    activeAttemptId,
+    flushServerAnswerCheckpoint,
+    isLoadingTest,
+    isSubmitted,
+    test,
+  ]);
+
   useEffect(() => {
     if (typeof window === "undefined" || isSubmitted || !activeAttemptId) {
       return;
@@ -1450,171 +1615,6 @@ export default function TestArenaPage({
 
     return () => window.clearInterval(interval);
   }, [currentQuestion, isSubmitted]);
-  const buildServerAnswerCheckpoint = useCallback(
-    (
-      nextAnswers: ActiveAnswerState,
-      nextTimeTaken: Record<number, number>,
-    ): SubmitAnswerRequest[] => {
-      return questions.map((question) => {
-        const questionId = Number(question.questionId);
-        return {
-          questionId,
-          selectedOptionIds: (nextAnswers[questionId] ?? [])
-            .map(Number)
-            .filter((optionId) => Number.isSafeInteger(optionId) && optionId > 0),
-          responseTimeSeconds: Math.max(
-            0,
-            Math.floor(Number(nextTimeTaken[questionId] ?? 0) || 0),
-          ),
-        };
-      });
-    },
-    [questions],
-  );
-
-  const sendServerAnswerCheckpoint = useCallback(
-    async (
-      nextAnswers: ActiveAnswerState = answersRef.current,
-      nextTimeTaken: Record<number, number> = timeTakenRef.current,
-      allowWhileSubmitting = false,
-    ): Promise<boolean> => {
-      if (
-        !activeAttemptId ||
-        !test ||
-        isLoadingTest ||
-        isSubmitted ||
-        (submissionInFlightRef.current && !allowWhileSubmitting)
-      ) {
-        return false;
-      }
-
-      const payloadAnswers = buildServerAnswerCheckpoint(nextAnswers, nextTimeTaken);
-      // Never checkpoint a partial question set: the server persists this entire
-      // sheet, including empty selections that represent unanswered questions.
-      if (
-        payloadAnswers.length === 0 ||
-        payloadAnswers.length !== test.questions.length ||
-        payloadAnswers.some((answer) =>
-          !Number.isSafeInteger(answer.questionId) || answer.questionId <= 0
-        )
-      ) {
-        return false;
-      }
-
-      const signature = JSON.stringify(payloadAnswers);
-      const queuedRequest = serverAnswerCheckpointQueueRef.current.then(async () => {
-        if (signature === lastServerAnswerCheckpointSignatureRef.current) {
-          return true;
-        }
-        if (
-          !activeAttemptId ||
-          !test ||
-          isSubmitted ||
-          (submissionInFlightRef.current && !allowWhileSubmitting)
-        ) {
-          return false;
-        }
-
-        try {
-          await api.put<DraftAttemptAnswersResponse>(
-            ENDPOINTS.student.draftAnswers(activeAttemptId),
-            { answers: payloadAnswers },
-            { signal: AbortSignal.timeout(4000) },
-          );
-          lastServerAnswerCheckpointSignatureRef.current = signature;
-          return true;
-        } catch (checkpointError) {
-          // Keep the local retry draft. The periodic checkpoint or final submit
-          // can retry if this transient request fails.
-          console.warn("[Assessment Draft] Server answer checkpoint failed:", checkpointError);
-          return false;
-        }
-      });
-
-      serverAnswerCheckpointQueueRef.current = queuedRequest.then(
-        () => undefined,
-        () => undefined,
-      );
-      return queuedRequest;
-    },
-    [
-      activeAttemptId,
-      buildServerAnswerCheckpoint,
-      isLoadingTest,
-      isSubmitted,
-      test,
-    ],
-  );
-
-  const flushServerAnswerCheckpoint = useCallback(
-    async (
-      nextAnswers: ActiveAnswerState = answersRef.current,
-      nextTimeTaken: Record<number, number> = timeTakenRef.current,
-      allowWhileSubmitting = false,
-    ) => {
-      if (serverAnswerCheckpointTimerRef.current) {
-        clearTimeout(serverAnswerCheckpointTimerRef.current);
-        serverAnswerCheckpointTimerRef.current = null;
-      }
-      return sendServerAnswerCheckpoint(
-        nextAnswers,
-        nextTimeTaken,
-        allowWhileSubmitting,
-      );
-    },
-    [sendServerAnswerCheckpoint],
-  );
-
-  const scheduleServerAnswerCheckpoint = useCallback(
-    (
-      nextAnswers: ActiveAnswerState,
-      nextTimeTaken: Record<number, number>,
-    ) => {
-      if (!activeAttemptId || isSubmitted || submissionInFlightRef.current) return;
-      if (serverAnswerCheckpointTimerRef.current) {
-        clearTimeout(serverAnswerCheckpointTimerRef.current);
-      }
-      serverAnswerCheckpointTimerRef.current = setTimeout(() => {
-        serverAnswerCheckpointTimerRef.current = null;
-        void sendServerAnswerCheckpoint(nextAnswers, nextTimeTaken);
-      }, 400);
-    },
-    [activeAttemptId, isSubmitted, sendServerAnswerCheckpoint],
-  );
-
-  useEffect(() => {
-    lastServerAnswerCheckpointSignatureRef.current = null;
-  }, [activeAttemptId]);
-
-  useEffect(() => {
-    if (!activeAttemptId || !test || isLoadingTest || isSubmitted) return;
-
-    const checkpointInterval = window.setInterval(() => {
-      void flushServerAnswerCheckpoint(
-        answersRef.current,
-        timeTakenRef.current,
-      );
-    }, 8000);
-    const checkpointOnPageHide = () => {
-      void flushServerAnswerCheckpoint(
-        answersRef.current,
-        timeTakenRef.current,
-      );
-    };
-    window.addEventListener("pagehide", checkpointOnPageHide);
-
-    return () => {
-      window.clearInterval(checkpointInterval);
-      window.removeEventListener("pagehide", checkpointOnPageHide);
-    };
-  }, [
-    activeAttemptId,
-    flushServerAnswerCheckpoint,
-    isLoadingTest,
-    isSubmitted,
-    test,
-  ]);
-
   const persistCurrentState = (
     nextAnswers: ActiveAnswerState = answersRef.current,
     nextTimeTaken: Record<number, number> = timeTakenRef.current,
