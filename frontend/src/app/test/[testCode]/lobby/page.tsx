@@ -716,10 +716,7 @@ export default function AssessmentLobbyPage({
       <main className="flex-1 flex items-center justify-center p-4 md:p-8">
         <Suspense
           fallback={
-            <div className="flex items-center gap-2 text-xs font-bold text-[#78716b]">
-              <Loader2 className="h-4 w-4 animate-spin text-[#165dfb]" />
-              Loading...
-            </div>
+            <LoadingIndicator label="Loading assessment lobby" size="sm" />
           }
         >
           <LobbyInner testCode={testCode} />
