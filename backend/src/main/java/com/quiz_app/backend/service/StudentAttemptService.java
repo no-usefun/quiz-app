@@ -20,6 +20,8 @@ import com.quiz_app.backend.dto.attempt.AttemptResponse;
 import com.quiz_app.backend.dto.attempt.AttemptResultDetailResponse;
 import com.quiz_app.backend.dto.attempt.AttemptResultResponse;
 import com.quiz_app.backend.dto.attempt.AttemptStateResponse;
+import com.quiz_app.backend.dto.attempt.DraftAttemptAnswersRequest;
+import com.quiz_app.backend.dto.attempt.DraftAttemptAnswersResponse;
 import com.quiz_app.backend.dto.attempt.LeaderboardEntryResponse;
 import com.quiz_app.backend.dto.attempt.ProctoringEventRequest;
 import com.quiz_app.backend.dto.attempt.StudentSubmissionResponse;
@@ -361,7 +363,7 @@ public class StudentAttemptService {
                                         "Attempt ID is required");
                 }
 
-                QuizAttempt attempt = quizAttemptRepository.findById(attemptId)
+                QuizAttempt attempt = quizAttemptRepository.findByIdForUpdate(attemptId)
                                 .orElseThrow(() -> {
                                         throw new AccessDeniedApplicationException(
                                                         "ATTEMPT_NOT_OWNED",
@@ -410,7 +412,7 @@ public class StudentAttemptService {
                                         "Student authentication is required");
                 }
 
-                QuizAttempt attempt = quizAttemptRepository.findById(attemptId)
+                QuizAttempt attempt = quizAttemptRepository.findByIdForUpdate(attemptId)
                                 .orElseThrow(() -> {
                                         throw new AccessDeniedApplicationException(
                                                         "ATTEMPT_NOT_OWNED",
@@ -798,7 +800,6 @@ public class StudentAttemptService {
                         QuizAttempt attempt,
                         Quiz quiz,
                         LocalDateTime submittedAt) {
-
                 long elapsedSeconds = Duration.between(
                                 attempt.getStartedAt(),
                                 submittedAt).getSeconds();
@@ -863,17 +864,70 @@ public class StudentAttemptService {
         }
 
         @Transactional
+        public DraftAttemptAnswersResponse saveDraftAnswers(
+                        Long attemptId,
+                        DraftAttemptAnswersRequest request,
+                        Long studentId) {
+                if (attemptId == null || studentId == null || request == null) {
+                        throw new BadRequestException(
+                                        "INVALID_DRAFT_REQUEST",
+                                        "Attempt ID, authenticated student, and draft answers are required");
+                }
+
+                QuizAttempt attempt = quizAttemptRepository.findByIdForUpdate(attemptId)
+                                .orElseThrow(() -> new AccessDeniedApplicationException(
+                                                "ATTEMPT_NOT_OWNED",
+                                                "You are not authorized to access this attempt"));
+                if (attempt.getStudent() == null || !attempt.getStudent().getId().equals(studentId)) {
+                        throw new AccessDeniedApplicationException(
+                                        "ATTEMPT_NOT_OWNED",
+                                        "You are not authorized to access this attempt");
+                }
+                if (attempt.getStatus() != AttemptStatus.IN_PROGRESS) {
+                        throw new ConflictException(
+                                        "ATTEMPT_NOT_ACTIVE",
+                                        "Draft answers can only be saved for an active attempt");
+                }
+
+                List<SubmitAnswerRequest> answers = request.answers() == null
+                                ? List.of()
+                                : request.answers();
+                Set<Long> questionIds = answers.stream()
+                                .map(SubmitAnswerRequest::questionId)
+                                .filter(java.util.Objects::nonNull)
+                                .collect(Collectors.toSet());
+                if (questionIds.size() != answers.size()) {
+                        throw new BadRequestException(
+                                        "INVALID_DRAFT_ANSWERS",
+                                        "Draft contains duplicate or invalid question IDs");
+                }
+
+                saveSubmittedAnswers(attempt, answers);
+                return new DraftAttemptAnswersResponse(
+                                attempt.getId(), true, attempt.getStatus());
+        }
+
+        @Transactional
         public void recordProctoringEvent(
                         Long attemptId,
                         Long studentId,
                         ProctoringEventRequest request) {
 
-                QuizAttempt attempt = getOwnedAttempt(attemptId, studentId);
+                if (attemptId == null || studentId == null || request == null
+                                || request.type() == null || request.type().isBlank()) {
+                        throw new BadRequestException(
+                                        "INVALID_EVENT_REQUEST",
+                                        "Attempt ID, authenticated student, and event type are required");
+                }
 
-                if (attempt.getStatus() != AttemptStatus.IN_PROGRESS) {
-                        throw new ConflictException(
-                                        "ATTEMPT_NOT_ACTIVE",
-                                        "Proctoring events can only be recorded for an active attempt");
+                QuizAttempt attempt = quizAttemptRepository.findByIdForUpdate(attemptId)
+                                .orElseThrow(() -> new AccessDeniedApplicationException(
+                                                "ATTEMPT_NOT_OWNED",
+                                                "You are not authorized to access this attempt"));
+                if (attempt.getStudent() == null || !attempt.getStudent().getId().equals(studentId)) {
+                        throw new AccessDeniedApplicationException(
+                                        "ATTEMPT_NOT_OWNED",
+                                        "You are not authorized to access this attempt");
                 }
 
                 String eventType = request.type().trim().toLowerCase(java.util.Locale.ROOT);
@@ -882,16 +936,41 @@ public class StudentAttemptService {
                                 "copy_attempt", "cut_attempt", "paste_attempt",
                                 "focus_loss", "keyboard_attempt",
                                 "refresh_count", "reconnect_count");
-
                 if (!allowedTypes.contains(eventType)) {
                         throw new BadRequestException(
                                         "INVALID_PROCTORING_EVENT",
                                         "Unsupported proctoring event type");
                 }
 
+                String clientEventId = request.clientEventId();
+                if (clientEventId != null) {
+                        clientEventId = clientEventId.trim();
+                        if (clientEventId.isBlank()) {
+                                clientEventId = null;
+                        } else if (clientEventId.length() > 100) {
+                                throw new BadRequestException(
+                                                "INVALID_CLIENT_EVENT_ID",
+                                                "Client event ID must not exceed 100 characters");
+                        }
+                }
+
+                // A retry of an accepted event is harmless even if that event closed the attempt.
+                if (clientEventId != null
+                                && proctoringEventRepository
+                                                .findByAttemptIdAndClientEventId(attemptId, clientEventId).isPresent()) {
+                        return;
+                }
+
+                if (attempt.getStatus() != AttemptStatus.IN_PROGRESS) {
+                        throw new ConflictException(
+                                        "ATTEMPT_NOT_ACTIVE",
+                                        "Proctoring events can only be recorded for an active attempt");
+                }
+
                 QuizAttemptProctoringEvent event = new QuizAttemptProctoringEvent();
                 event.setAttempt(attempt);
                 event.setEventType(eventType);
+                event.setClientEventId(clientEventId);
                 event.setOccurredAt(request.occurredAt() == null
                                 ? LocalDateTime.now(clock.withZone(QUIZ_TIMEZONE))
                                 : request.occurredAt());
@@ -913,13 +992,15 @@ public class StudentAttemptService {
                         attempt.setReconnectCount(attempt.getReconnectCount() + 1);
                 }
 
-                if ("tab_switch".equals(eventType)) {
-                        long tabSwitchCount = proctoringEventRepository
-                                        .countByAttemptIdAndEventType(attemptId, "tab_switch");
-
-                        Integer maxTabSwitch = attempt.getQuiz().getMaxTabSwitch();
-                        if (maxTabSwitch != null && tabSwitchCount > maxTabSwitch) {
-                                attempt.setTerminationReason("TAB_SWITCH_LIMIT");
+                if ("tab_switch".equals(eventType) || "fullscreen_exit".equals(eventType)) {
+                        long policyCount = proctoringEventRepository.countByAttemptIdAndEventTypeIn(
+                                        attemptId, Set.of("tab_switch", "fullscreen_exit"));
+                        Integer configuredLimit = attempt.getQuiz().getMaxTabSwitch();
+                        int limit = configuredLimit == null
+                                        ? com.quiz_app.backend.entity.Quiz.DEFAULT_MAX_TAB_SWITCH
+                                        : configuredLimit;
+                        if (policyCount >= limit) {
+                                attempt.setTerminationReason("BROWSER_VIOLATION_LIMIT");
                                 quizAttemptRepository.save(attempt);
                                 finalizeAttempt(attempt, AttemptStatus.AUTO_SUBMITTED);
                                 return;
