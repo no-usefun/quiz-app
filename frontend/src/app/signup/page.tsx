@@ -1,5 +1,6 @@
 "use client";
 
+import LoadingIndicator from "@/components/LoadingIndicator";
 import { useState, useEffect, Suspense } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
@@ -441,7 +442,7 @@ function SignupContent() {
                 setError("");
                 router.push("/signup?role=student" + (searchParams.get("redirect") ? "&redirect=" + encodeURIComponent(searchParams.get("redirect") || "") : ""));
               }}
-              className="signup-role-cta group/btn inline-flex w-full items-center justify-center gap-2 rounded-lg bg-[#111827] text-white py-3 px-5 text-sm font-medium shadow-sm ring-offset-2 transition-all hover:bg-black hover:shadow-md active:scale-[0.99] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#111827] cursor-pointer border-0"
+              className="signup-role-cta group/btn inline-flex w-full items-center justify-center gap-2 rounded-lg bg-[#111827] text-white py-3 px-5 text-sm font-medium shadow-sm ring-offset-2 transition-all hover:bg-black hover:shadow-md active:scale-[0.99] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#165dfb] cursor-pointer border-0"
             >
               Continue as Student
               <ArrowRight className="h-4 w-4 transition-transform duration-200 group-hover/btn:translate-x-0.5" />
@@ -480,7 +481,7 @@ function SignupContent() {
                 setError("");
                 router.push("/signup?role=teacher" + (searchParams.get("redirect") ? "&redirect=" + encodeURIComponent(searchParams.get("redirect") || "") : ""));
               }}
-              className="signup-role-cta group/btn inline-flex w-full items-center justify-center gap-2 rounded-lg bg-white text-[#0F172A] py-3 px-5 text-sm font-medium shadow-sm ring-offset-2 ring-offset-[#0F172A] transition-all hover:bg-neutral-100 hover:shadow-md active:scale-[0.99] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white cursor-pointer border-0"
+              className="signup-role-cta group/btn inline-flex w-full items-center justify-center gap-2 rounded-lg bg-white text-[#0F172A] py-3 px-5 text-sm font-medium shadow-sm ring-offset-2 transition-all duration-200 hover:bg-neutral-100 hover:shadow-md active:scale-[0.99] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#165dfb] cursor-pointer border-0"
             >
               Continue as Instructor
               <ArrowRight className="h-4 w-4 transition-transform duration-200 group-hover/btn:translate-x-0.5" />
@@ -590,7 +591,7 @@ function SignupContent() {
               className="flex w-full items-center justify-center gap-2.5 rounded-lg border border-neutral-200 bg-white px-4 py-3 text-sm font-semibold text-neutral-900 transition-all hover:border-neutral-300 hover:bg-neutral-50 active:scale-[0.99] disabled:cursor-not-allowed disabled:opacity-60"
             >
               <GoogleIcon />
-              {googleLoading ? "Connecting to Google..." : "Continue with Google"}
+              {googleLoading ? <LoadingIndicator label="Connecting to Google" size="sm" /> : "Continue with Google"}
             </button>
             <div className="my-5 flex items-center gap-3">
               <div className="h-px flex-1 bg-neutral-100" />
@@ -873,10 +874,7 @@ function SignupContent() {
             className="mt-5 w-full cursor-pointer rounded-lg border-0 bg-[#165dfb] px-4 py-3 text-sm font-semibold text-white shadow-sm transition-all hover:bg-[#104bd0] active:scale-[0.99] disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#165dfb] focus-visible:ring-offset-2 dark:focus-visible:ring-offset-slate-900"
           >
             {loading ? (
-              <span className="inline-flex items-center justify-center gap-2">
-                <span className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-white/30 border-t-white" />
-                Creating account...
-              </span>
+              <LoadingIndicator label="Creating account" size="sm" />
             ) : (
               "Create Account"
             )}
@@ -909,7 +907,7 @@ export default function SignupPage() {
       fallback={
         <div className="flex min-h-screen items-center justify-center gap-2 bg-neutral-50 text-sm text-neutral-400 font-medium">
           <span className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-neutral-200 border-t-neutral-400" />
-          Loading...
+          <LoadingIndicator label="Loading signup" size="lg" />
         </div>
       }
     >
