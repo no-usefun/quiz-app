@@ -154,13 +154,13 @@ const PROBLEMS = [
   {
     icon: MonitorStop,
     title: "Tab Switching",
-    desc: "Candidates silently switch to answer-sharing tabs.",
+    desc: "Students may switch tabs during an assessment.",
     from: "left",
   },
   {
     icon: Clipboard,
     title: "Clipboard Abuse",
-    desc: "Copy-paste exploits bypass question comprehension.",
+    desc: "Copying or pasting can interrupt independent assessment work.",
     from: "bottom",
   },
   {
@@ -178,13 +178,13 @@ const PROBLEMS = [
   {
     icon: UserRound,
     title: "Answer Sharing",
-    desc: "Slow submission patterns signal collusion networks.",
+    desc: "Unusual response timing can be reviewed alongside other evidence.",
     from: "bottom",
   },
   {
     icon: BarChart3,
     title: "No Live Vision",
-    desc: "Teachers see nothing until final grades are submitted.",
+    desc: "Without live monitoring, teachers may only see results after submission.",
     from: "right",
   },
 ];
@@ -887,7 +887,7 @@ export default function Home() {
           style={{ color: C.ink }}
         >
           <WaveText
-            text="Secure. Fair. AI-Proctored Assessments."
+            text="Assessments with clear, reviewable monitoring."
             stagger={0.07}
           />
         </h1>
@@ -1090,7 +1090,7 @@ export default function Home() {
               style={{ color: C.ink }}
             >
               <WaveText
-                text="Your assessment has eyes on the important moments."
+                text="Review assessment activity with clearer context."
                 stagger={0.06}
               />
             </motion.h2>
@@ -1414,7 +1414,7 @@ export default function Home() {
                 style={{ color: C.ink }}
               >
                 <WaveText
-                  text="Teachers see the exam happening."
+                  text="Monitor assessment progress as students work."
                   stagger={0.06}
                 />
               </motion.h2>
@@ -1717,7 +1717,7 @@ export default function Home() {
               className="text-3xl font-extrabold -tracking-wide leading-tight"
               style={{ color: C.ink }}
             >
-              Not every correct answer tells the whole story.
+              Review scores alongside response context.
             </h2>
             <p
               className="text-sm font-medium leading-relaxed"
@@ -1883,13 +1883,13 @@ export default function Home() {
               {
                 icon: BarChart3,
                 title: "Real-Time Data",
-                desc: "Live streaming to teacher consoles. Every event lands in milliseconds.",
+                desc: "Activity events are streamed to teacher consoles and timestamped for review.",
                 bg: C.peach,
               },
               {
                 icon: Timer,
                 title: "Dynamic Scoring",
-                desc: "Time-correlated grading rewards quick independent responses and penalizes suspicious delays.",
+                desc: "When configured, scoring can account for response timing alongside answer correctness.",
                 bg: C.yellow,
               },
               {
