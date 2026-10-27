@@ -293,7 +293,7 @@ function LoginContent() {
       <>
       <PublicNavbar redirectTarget={redirectTarget} />
       <main className="public-role-selection min-h-[calc(100vh-4rem)] w-full grid grid-cols-1 md:grid-cols-2 font-sans transition-colors">
-        <section className="role-student-panel group relative flex flex-col items-center justify-center bg-[#F9FAFB] p-8 text-center transition-colors duration-300 hover:bg-white dark:bg-slate-950 sm:p-16">
+        <section className="role-student-panel group relative flex flex-col items-center justify-center bg-[#F9FAFB] p-8 text-center transition-colors duration-300 dark:bg-slate-950 sm:p-16">
           <div className="relative z-10 w-full max-w-xs space-y-6">
             <span className="role-panel-icon mx-auto flex h-12 w-12 items-center justify-center rounded-xl bg-[#111827]/5 text-[#111827] ring-1 ring-[#111827]/10 transition-transform duration-300 group-hover:-translate-y-0.5">
               <GraduationCap className="h-6 w-6" />
@@ -309,7 +309,7 @@ function LoginContent() {
           </div>
         </section>
 
-        <section className="role-instructor-panel group relative flex flex-col items-center justify-center border-t border-neutral-800 bg-[#0F172A] p-8 text-center transition-colors duration-300 hover:bg-[#0B1220] dark:border-slate-800 dark:bg-slate-950 sm:p-16 md:border-l md:border-t-0">
+        <section className="role-instructor-panel group relative flex flex-col items-center justify-center border-t border-neutral-800 bg-[#0F172A] p-8 text-center transition-colors duration-300 dark:border-slate-800 dark:bg-slate-950 sm:p-16 md:border-l md:border-t-0">
           <div className="relative z-10 w-full max-w-xs space-y-6">
             <span className="role-panel-icon mx-auto flex h-12 w-12 items-center justify-center rounded-xl bg-white/10 text-white ring-1 ring-white/15 transition-transform duration-300 group-hover:-translate-y-0.5">
               <Presentation className="h-6 w-6" />
