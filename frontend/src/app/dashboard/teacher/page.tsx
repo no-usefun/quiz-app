@@ -1254,10 +1254,12 @@ export default function TeacherDashboard() {
                 disabled={actionLoadingQuizId === quizToEnd.quizId}
                 className="inline-flex items-center gap-1.5 rounded-[10px] bg-[#8c381c] px-3.5 py-1.5 text-xs font-bold text-white hover:bg-[#6e2b14] shadow-xs active:scale-[0.98] transition-all disabled:opacity-50 cursor-pointer border-0"
               >
-                {actionLoadingQuizId === quizToEnd.quizId && (
-                  <span className="h-3 w-3 animate-spin rounded-full border-2 border-white/30 border-t-white" />
+                {actionLoadingQuizId === quizToEnd.quizId ? (
+                  <span className="sr-only">Ending assessment</span>
+                ) : (
+                  "End Assessment"
                 )}
-                End Assessment
+                {actionLoadingQuizId === quizToEnd.quizId && <SkeletonBlock className="h-3 w-20 rounded bg-white/50" />}
               </button>
             </div>
           </div>
