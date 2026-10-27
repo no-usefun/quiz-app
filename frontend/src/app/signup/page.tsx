@@ -398,8 +398,10 @@ function SignupContent() {
     "w-full rounded-lg border border-neutral-200 bg-neutral-50/70 px-3.5 py-2.5 text-sm text-neutral-900 outline-none transition-all placeholder:text-neutral-400 hover:border-neutral-300 focus:bg-white focus:border-neutral-900 focus:ring-4 focus:ring-neutral-900/10";
 
   const requirementClass = (valid: boolean) =>
-    `flex items-center gap-2 text-[11px] transition-colors ${
-      valid ? "text-green-600" : "text-neutral-400"
+    `flex items-center gap-2 text-[11px] font-medium transition-colors duration-200 ${
+      valid
+        ? "text-green-700 dark:text-green-400"
+        : "text-red-600 dark:text-red-400"
     }`;
 
   if (!activeRole) {
@@ -779,39 +781,41 @@ function SignupContent() {
 
             <div
               id="password-requirements"
+              aria-live="polite"
+              aria-atomic="false"
               className="grid grid-cols-1 gap-1 pt-1"
             >
               <p className={requirementClass(passwordRequirements.minLength)}>
                 <span className="w-3 text-center">
-                  {passwordRequirements.minLength ? "✓" : "○"}
+                  {passwordRequirements.minLength ? "✓" : "×"}
                 </span>
                 At least 8 characters
               </p>
 
               <p className={requirementClass(passwordRequirements.uppercase)}>
                 <span className="w-3 text-center">
-                  {passwordRequirements.uppercase ? "✓" : "○"}
+                  {passwordRequirements.uppercase ? "✓" : "×"}
                 </span>
                 At least 1 uppercase letter
               </p>
 
               <p className={requirementClass(passwordRequirements.lowercase)}>
                 <span className="w-3 text-center">
-                  {passwordRequirements.lowercase ? "✓" : "○"}
+                  {passwordRequirements.lowercase ? "✓" : "×"}
                 </span>
                 At least 1 lowercase letter
               </p>
 
               <p className={requirementClass(passwordRequirements.number)}>
                 <span className="w-3 text-center">
-                  {passwordRequirements.number ? "✓" : "○"}
+                  {passwordRequirements.number ? "✓" : "×"}
                 </span>
                 At least 1 number
               </p>
 
               <p className={requirementClass(passwordRequirements.special)}>
                 <span className="w-3 text-center">
-                  {passwordRequirements.special ? "✓" : "○"}
+                  {passwordRequirements.special ? "✓" : "×"}
                 </span>
                 At least 1 special character
               </p>
