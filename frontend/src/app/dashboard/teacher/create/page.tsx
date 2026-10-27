@@ -1957,7 +1957,7 @@ function CreateAssessmentContent() {
               {submitting && (
                 <span className="h-3 w-3 animate-spin rounded-full border-2 border-white/30 border-t-white" />
               )}
-              {submitting ? "Publishing..." : "Publish Assessment"}
+              {submitting ? <span className="sr-only">Publishing assessment</span> : "Publish Assessment"}
             </button>
           </div>
         </header>
@@ -2613,9 +2613,6 @@ questionText,optionA,optionB,optionC,optionD,optionE,optionF,correctAnswer,marks
             disabled={savingDraft || submitting}
             className="inline-flex items-center gap-2 rounded-[10px] border border-[#d1dee8]/80 dark:border-slate-700 bg-white dark:bg-slate-900 px-5 py-2.5 text-xs font-bold text-[#111111] dark:text-slate-100 shadow-sm hover:bg-[#f5f5f4] dark:bg-slate-950 hover:border-[#b9cbd9] active:scale-[0.98] transition-all disabled:cursor-not-allowed disabled:opacity-40"
           >
-            {savingDraft && (
-              <span className="h-3 w-3 animate-spin rounded-full border-2 border-[#78716b]/30 border-t-[#78716b]" />
-            )}
             {savingDraft
               ? <LoadingIndicator label="Saving assessment draft" size="sm" />
               : draftId
@@ -2631,7 +2628,7 @@ questionText,optionA,optionB,optionC,optionD,optionE,optionF,correctAnswer,marks
             {submitting && (
               <span className="h-3 w-3 animate-spin rounded-full border-2 border-white/30 border-t-white" />
             )}
-            {submitting ? "Publishing..." : "Publish Assessment"}
+            {submitting ? <span className="sr-only">Publishing assessment</span> : "Publish Assessment"}
           </button>
         </div>
       </div>
