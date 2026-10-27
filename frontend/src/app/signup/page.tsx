@@ -1,6 +1,7 @@
 "use client";
 
 import LoadingIndicator from "@/components/LoadingIndicator";
+import SkeletonBlock from "@/components/SkeletonBlock";
 import { useState, useEffect, Suspense } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
@@ -887,10 +888,25 @@ export default function SignupPage() {
   return (
     <Suspense
       fallback={
-        <div className="flex min-h-screen items-center justify-center gap-2 bg-neutral-50 text-sm text-neutral-400 font-medium dark:bg-slate-950">
-          <span className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-neutral-200 border-t-neutral-400" />
-          <LoadingIndicator label="Loading signup" size="lg" />
-        </div>
+        <>
+          <PublicNavbar />
+          <main className="public-auth min-h-[calc(100vh-4rem)] bg-neutral-50 px-4 py-8 font-sans dark:bg-slate-950 sm:px-8" aria-busy="true">
+            <div className="mx-auto flex min-h-[calc(100vh-8rem)] max-w-md items-center">
+              <section className="w-full space-y-6 rounded-2xl border border-neutral-200 bg-white p-7 shadow-sm dark:border-slate-700 dark:bg-slate-900 sm:p-8">
+                <div className="flex items-center gap-3">
+                  <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-[#eef4ff] text-[#165dfb] dark:bg-slate-800 dark:text-blue-300"><GraduationCap className="h-5 w-5" /></span>
+                  <div className="flex-1 space-y-2"><SkeletonBlock className="h-5 w-44 rounded" /><SkeletonBlock className="h-3 w-56 max-w-full rounded" /></div>
+                </div>
+                <div className="grid grid-cols-2 gap-3">
+                  {[1, 2].map((field) => <div key={field} className="space-y-2"><SkeletonBlock className="h-3 w-16 rounded" /><SkeletonBlock className="h-11 w-full rounded-lg" /></div>)}
+                </div>
+                {[1, 2, 3].map((field) => <div key={field} className="space-y-2"><SkeletonBlock className="h-3 w-24 rounded" /><SkeletonBlock className="h-11 w-full rounded-lg" /></div>)}
+                <SkeletonBlock className="h-11 w-full rounded-lg" />
+                <p className="sr-only" role="status">Preparing signup form</p>
+              </section>
+            </div>
+          </main>
+        </>
       }
     >
       <SignupContent />
