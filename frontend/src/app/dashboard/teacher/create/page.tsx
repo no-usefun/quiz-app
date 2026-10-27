@@ -1980,10 +1980,12 @@ function CreateAssessmentContent() {
               disabled={submitting}
               className="inline-flex items-center gap-2 rounded-[10px] bg-[#165dfb] px-4 py-2.5 text-xs font-bold text-white shadow-sm shadow-[#165dfb]/25 transition-all hover:bg-[#0f4fd8] hover:shadow-md active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-40"
             >
-              {submitting && (
-                <span className="h-3 w-3 animate-spin rounded-full border-2 border-white/30 border-t-white" />
-              )}
-              {submitting ? <span className="sr-only">Publishing assessment</span> : "Publish Assessment"}
+              {submitting ? (
+                <>
+                  <SkeletonBlock className="h-3 w-20 rounded bg-white/50" />
+                  <span className="sr-only" role="status">Publishing assessment</span>
+                </>
+              ) : "Publish Assessment"}
             </button>
           </div>
         </header>
@@ -2004,10 +2006,12 @@ function CreateAssessmentContent() {
                 disabled={retryingPublish}
                 className="inline-flex items-center gap-1.5 rounded-[10px] bg-[#8c381c] px-3 py-1.5 text-xs font-bold text-white hover:bg-[#6e2b14] active:scale-[0.98] disabled:opacity-50 transition-all cursor-pointer border-0 shrink-0 shadow-xs"
               >
-                {retryingPublish && (
-                  <span className="h-3 w-3 animate-spin rounded-full border-2 border-white/30 border-t-white" />
-                )}
-                Retry
+                {retryingPublish ? (
+                  <>
+                    <SkeletonBlock className="h-3 w-12 rounded bg-white/50" />
+                    <span className="sr-only" role="status">Retrying publish</span>
+                  </>
+                ) : "Retry"}
               </button>
             )}
           </div>
@@ -2651,10 +2655,12 @@ questionText,optionA,optionB,optionC,optionD,optionE,optionF,correctAnswer,marks
             disabled={submitting || savingDraft}
             className="inline-flex items-center gap-2 rounded-[10px] bg-[#165dfb] px-5 py-2.5 text-xs font-bold text-white shadow-sm shadow-[#165dfb]/25 transition-all hover:bg-[#0f4fd8] hover:shadow-md active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-40"
           >
-            {submitting && (
-              <span className="h-3 w-3 animate-spin rounded-full border-2 border-white/30 border-t-white" />
-            )}
-            {submitting ? <span className="sr-only">Publishing assessment</span> : "Publish Assessment"}
+            {submitting ? (
+              <>
+                <SkeletonBlock className="h-3 w-20 rounded bg-white/50" />
+                <span className="sr-only" role="status">Publishing assessment</span>
+              </>
+            ) : "Publish Assessment"}
           </button>
         </div>
       </div>
@@ -2666,10 +2672,20 @@ export default function CreateAssessmentPage() {
   return (
     <Suspense
       fallback={
-        <div className="min-h-screen bg-[#f5f5f4] dark:bg-slate-950 font-sans text-[#111111] dark:text-slate-100 p-4 md:p-6 lg:p-8 flex items-center justify-center text-left">
-          <div className="flex items-center gap-3 rounded-[14px] border border-[#d1dee8]/70 dark:border-slate-700 bg-white dark:bg-slate-900 p-6 shadow-sm">
-            <span className="h-4 w-4 animate-spin rounded-full border-2 border-[#165dfb]/30 border-t-[#165dfb]" />
-            <span className="sr-only">Loading assessment builder...</span>
+        <div className="teacher-assessment-builder min-h-screen bg-[#f5f5f4] p-4 font-sans text-[#111111] dark:bg-slate-950 dark:text-slate-100 md:p-6 lg:p-8" aria-busy="true">
+          <div className="mx-auto max-w-4xl space-y-6">
+            <header className="flex flex-wrap items-center justify-between gap-3 border-b border-[#d1dee8]/60 px-1 py-4 dark:border-slate-700">
+              <div className="flex items-center gap-3"><span className="flex h-9 w-9 items-center justify-center rounded-[10px] border border-[#d1dee8]/80 bg-white dark:border-slate-700 dark:bg-slate-900"><ArrowLeft className="h-4 w-4 text-[#78716b] dark:text-slate-300" /></span><div className="space-y-2"><p className="text-[10px] font-bold uppercase tracking-widest text-[#78716b] dark:text-slate-400">Assessment Builder</p><SkeletonBlock className="h-5 w-48 rounded" /></div></div>
+              <div className="flex items-center gap-2"><SkeletonBlock className="h-8 w-24 rounded-full" /><SkeletonBlock className="h-10 w-36 rounded-[10px]" /></div>
+            </header>
+            <section className="space-y-5 rounded-[14px] border border-[#d1dee8]/70 bg-white p-5 shadow-sm dark:border-slate-700 dark:bg-slate-900 sm:p-7">
+              <div className="space-y-2"><SkeletonBlock className="h-3 w-28 rounded" /><SkeletonBlock className="h-10 w-full rounded-[10px]" /></div>
+              <div className="space-y-2"><SkeletonBlock className="h-3 w-24 rounded" /><SkeletonBlock className="h-20 w-full rounded-[10px]" /></div>
+              <div className="grid gap-4 sm:grid-cols-3">{[1,2,3].map((item) => <div key={item} className="space-y-2"><SkeletonBlock className="h-3 w-24 rounded" /><div className="flex h-10 items-center gap-2 rounded-[10px] border border-[#d1dee8]/70 px-3 dark:border-slate-700">{item === 3 ? <Clock className="h-4 w-4 text-slate-400" /> : null}<SkeletonBlock className="h-3 w-3/4 rounded" /></div></div>)}</div>
+            </section>
+            <section className="flex items-center gap-3 rounded-[14px] border border-[#d1dee8]/70 bg-white p-5 dark:border-slate-700 dark:bg-slate-900"><Lock className="h-5 w-5 text-[#165dfb] dark:text-blue-300" /><div className="flex-1 space-y-2"><SkeletonBlock className="h-3 w-28 rounded" /><SkeletonBlock className="h-3 w-3/4 rounded" /></div><SkeletonBlock className="h-6 w-11 rounded-full" /></section>
+            <section className="space-y-4 rounded-[14px] border border-[#d1dee8]/70 bg-white p-5 dark:border-slate-700 dark:bg-slate-900"><div className="flex items-center gap-3"><FileQuestion className="h-5 w-5 text-[#165dfb] dark:text-blue-300" /><SkeletonBlock className="h-4 w-28 rounded" /></div><SkeletonBlock className="h-16 w-full rounded-[10px]" /><SkeletonBlock className="h-16 w-full rounded-[10px]" /></section>
+            <p className="sr-only" role="status">Preparing assessment builder</p>
           </div>
         </div>
       }
