@@ -1,5 +1,6 @@
 "use client";
 
+import LoadingIndicator from "@/components/LoadingIndicator";
 import { use, useEffect, useMemo, useState, useSyncExternalStore } from "react";
 import Link from "next/link";
 import { motion } from "framer-motion";
@@ -332,8 +333,8 @@ export default function LiveLeaderboard({
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-frost-surface flex items-center justify-center text-xs text-steel-blue-gray">
-        Loading leaderboard...
+      <div className="flex min-h-screen items-center justify-center bg-frost-surface dark:bg-slate-950" aria-busy="true">
+        <LoadingIndicator label="Loading leaderboard" size="lg" />
       </div>
     );
   }
