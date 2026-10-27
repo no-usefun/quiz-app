@@ -544,7 +544,7 @@ function ProfilePanel({
           className="flex items-center gap-1.5 rounded-[10px] bg-[#165dfb] px-4 py-2 text-xs font-bold text-white hover:bg-[#165dfb]/90 active:scale-[0.98] transition-all cursor-pointer border-0 shadow-xs disabled:opacity-50"
         >
           <Save className="h-3.5 w-3.5" />
-          {saving ? "Saving..." : "Save Changes"}
+          {saving ? <LoadingIndicator label="Saving settings" size="sm" /> : "Save Changes"}
         </button>
       </div>
     </div>
@@ -755,7 +755,7 @@ function PreferencesPanel({
           className="flex items-center gap-1.5 rounded-[10px] bg-[#165dfb] px-4 py-2 text-xs font-bold text-white hover:bg-[#165dfb]/90 active:scale-[0.98] transition-all cursor-pointer border-0 shadow-xs disabled:cursor-not-allowed disabled:opacity-50"
         >
           <Save className="h-3.5 w-3.5" />
-          {savingPreferences ? "Saving..." : "Save Notification Preferences"}
+          {savingPreferences ? <LoadingIndicator label="Saving notification preferences" size="sm" /> : "Save Notification Preferences"}
         </button>
       </div>
     </div>
