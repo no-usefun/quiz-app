@@ -1,5 +1,6 @@
 "use client";
 
+import LoadingIndicator from "@/components/LoadingIndicator";
 // join/page.tsx
 
 import { useState, useEffect, Suspense, useSyncExternalStore } from "react";
@@ -13,7 +14,6 @@ import {
   ShieldCheck,
   AlertCircle,
   UserCheck,
-  Loader2,
 } from "lucide-react";
 
 import { ApiClientError, api, getAuthToken } from "@/lib/api/client";
@@ -281,10 +281,7 @@ function JoinForm() {
         className="group flex w-full items-center justify-center gap-2 rounded-[10px] bg-signal-green px-4 py-3 text-xs font-bold text-white shadow-sm shadow-signal-green/25 transition-all duration-200 hover:bg-signal-green/90 hover:shadow-md active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-60 disabled:shadow-none cursor-pointer border-0"
       >
         {loading ? (
-          <>
-            <Loader2 className="h-4 w-4 animate-spin" />
-            Checking Assessment...
-          </>
+<LoadingIndicator label="Checking assessment" size="sm" />
         ) : (
           <>
             Join Assessment
@@ -376,10 +373,7 @@ export default function JoinPage() {
 
         <Suspense
           fallback={
-            <div className="flex items-center justify-center gap-2 text-xs text-steel-blue-gray font-medium text-center">
-              <Loader2 className="h-3.5 w-3.5 animate-spin" />
-              Loading code entry...
-            </div>
+            <LoadingIndicator label="Loading code entry" size="md" />
           }
         >
           <JoinForm />
