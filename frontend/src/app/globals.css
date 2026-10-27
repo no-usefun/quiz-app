@@ -1555,3 +1555,57 @@ html.dark .teacher-assessment-builder .assessment-time-limit-field input[type="n
   margin: 0;
   -webkit-appearance: none;
 }
+
+
+/* Quizly shared skeleton shimmer. Keep placeholders content-shaped rather than
+   using a generic rotating loader. */
+.quizly-skeleton {
+  background-color: #e7ebf1;
+  background-image: linear-gradient(
+    100deg,
+    rgba(148, 163, 184, 0.08) 15%,
+    rgba(148, 163, 184, 0.24) 35%,
+    rgba(148, 163, 184, 0.08) 55%
+  );
+  background-size: 220% 100%;
+  animation: quizly-skeleton-shimmer 1.35s ease-in-out infinite;
+  vertical-align: middle;
+}
+html.dark .quizly-skeleton {
+  background-color: #263449;
+  background-image: linear-gradient(
+    100deg,
+    rgba(71, 85, 105, 0.12) 15%,
+    rgba(148, 163, 184, 0.2) 35%,
+    rgba(71, 85, 105, 0.12) 55%
+  );
+}
+@keyframes quizly-skeleton-shimmer {
+  0% { background-position: 100% 0; }
+  100% { background-position: -120% 0; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .quizly-skeleton {
+    animation: none !important;
+    background-image: none;
+  }
+}
+
+/* Give login and signup the same real color-change hover. !important is
+   needed because the legacy dark-theme surface normalization also uses it. */
+html:not(.dark) .public-role-selection .role-student-panel:hover,
+html:not(.dark) .public-signup-role-selection .signup-role-student-panel:hover {
+  background-color: #ffffff !important;
+}
+html:not(.dark) .public-role-selection .role-instructor-panel:hover,
+html:not(.dark) .public-signup-role-selection .signup-role-instructor-panel:hover {
+  background-color: #0b1220 !important;
+}
+html.dark .public-role-selection .role-student-panel:hover,
+html.dark .public-signup-role-selection .signup-role-student-panel:hover {
+  background-color: #151e2e !important;
+}
+html.dark .public-role-selection .role-instructor-panel:hover,
+html.dark .public-signup-role-selection .signup-role-instructor-panel:hover {
+  background-color: #1b2739 !important;
+}
