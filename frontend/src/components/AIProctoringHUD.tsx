@@ -1,6 +1,7 @@
 "use client";
 
 import React, { RefObject } from "react";
+import SkeletonBlock from "@/components/SkeletonBlock";
 import {
   AlertTriangle,
   Camera,
@@ -106,8 +107,10 @@ export function AIProctoringHUD({
               <span>{cameraError}</span>
             </div>
           ) : !cameraActive ? (
-            <div className="absolute inset-0 flex items-center justify-center gap-2 text-xs text-white/80">
-              <Camera className="h-4 w-4" /> Connecting camera…
+            <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 px-6" aria-busy="true">
+              <Camera className="h-6 w-6 text-white/80" />
+              <div className="w-full max-w-[180px] space-y-2" aria-hidden="true"><SkeletonBlock className="h-2.5 w-3/4 rounded bg-white/20" /><SkeletonBlock className="h-2.5 w-full rounded bg-white/15" /></div>
+              <span className="sr-only" role="status">Connecting camera</span>
             </div>
           ) : telemetryReceived && alerts.length === 0 && faceDetected && identityVerified ? (
             <div className="absolute bottom-2 left-2 inline-flex items-center gap-1.5 rounded-md bg-emerald-700/90 px-2 py-1 text-[10px] font-semibold text-white">
