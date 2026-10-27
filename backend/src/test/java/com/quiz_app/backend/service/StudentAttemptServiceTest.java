@@ -281,6 +281,31 @@ class StudentAttemptServiceTest {
                 verify(quizAttemptRepository, never()).save(any(QuizAttempt.class));
         }
 
+        @Test
+        void recordProctoringEvent_shouldAutoSubmitOnConfiguredNthCombinedPolicyEvent() {
+                quiz.setMaxTabSwitch(5);
+                when(quizAttemptRepository.findByIdForUpdate(1000L)).thenReturn(Optional.of(attempt));
+                when(proctoringEventRepository.findByAttemptIdAndClientEventId(1000L, "event-5"))
+                                .thenReturn(Optional.empty());
+                when(proctoringEventRepository.countByAttemptIdAndEventTypeIn(
+                                1000L, java.util.Set.of("tab_switch", "fullscreen_exit")))
+                                .thenReturn(5L);
+                when(questionRepository.findByQuizIdOrderByDisplayOrder(10L))
+                                .thenReturn(List.of(question));
+                when(studentAnswerRepository.findByAttemptId(1000L)).thenReturn(List.of());
+                when(studentSelectedOptionRepository.findByAnswerId(500L)).thenReturn(List.of());
+                when(optionRepository.findByQuestionIdAndCorrectTrue(100L)).thenReturn(List.of(option1));
+                stubStudentAnswerSaveWithId(500L);
+
+                attemptService.recordProctoringEvent(
+                                1000L,
+                                1L,
+                                new ProctoringEventRequest("fullscreen_exit", null, Map.of(), "event-5"));
+
+                assertEquals(AttemptStatus.AUTO_SUBMITTED, attempt.getStatus());
+                assertEquals("BROWSER_VIOLATION_LIMIT", attempt.getTerminationReason());
+        }
+
         // =========================================================
         // START ATTEMPT
         // =========================================================
