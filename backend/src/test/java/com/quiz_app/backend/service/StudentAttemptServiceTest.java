@@ -225,9 +225,9 @@ class StudentAttemptServiceTest {
                 attempt.setTotalTimeTaken(0);
                 attempt.setFinalScore(BigDecimal.ZERO);
 
-                // The attempt row is now locked for submit, draft writes, and browser events.
-                lenient().when(quizAttemptRepository.findByIdForUpdate(1000L))
-                                .thenReturn(Optional.of(attempt));
+                // Delegate locked lookups to the ordinary stub unless a test overrides it.
+                lenient().when(quizAttemptRepository.findByIdForUpdate(anyLong()))
+                                .thenAnswer(invocation -> quizAttemptRepository.findById(invocation.getArgument(0)));
         }
 
         // =========================================================
