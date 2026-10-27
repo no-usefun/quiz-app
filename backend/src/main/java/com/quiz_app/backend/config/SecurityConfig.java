@@ -17,6 +17,7 @@ import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.web.SecurityFilterChain;
+import org.springframework.security.oauth2.client.web.HttpSessionOAuth2AuthorizationRequestRepository;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
 import org.springframework.web.cors.CorsConfiguration;
 import org.springframework.web.cors.CorsConfigurationSource;
@@ -102,7 +103,9 @@ public class SecurityConfig {
             if (successHandler == null || resolver == null) {
                 throw new IllegalStateException("OAuth2 is enabled but its security components are unavailable");
             }
-            http.oauth2Login(oauth2 -> oauth2.authorizationEndpoint(endpoint -> endpoint.authorizationRequestResolver(resolver))
+            http.oauth2Login(oauth2 -> oauth2.authorizationEndpoint(endpoint -> endpoint
+                            .authorizationRequestResolver(resolver)
+                            .authorizationRequestRepository(new HttpSessionOAuth2AuthorizationRequestRepository()))
                     .successHandler(successHandler));
         }
 
