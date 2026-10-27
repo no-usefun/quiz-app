@@ -1,6 +1,7 @@
 "use client";
 
 import LoadingIndicator from "@/components/LoadingIndicator";
+import SkeletonBlock from "@/components/SkeletonBlock";
 // join/page.tsx
 
 import { useState, useEffect, Suspense, useSyncExternalStore } from "react";
@@ -373,7 +374,12 @@ export default function JoinPage() {
 
         <Suspense
           fallback={
-            <LoadingIndicator label="Loading code entry" size="md" />
+            <div className="space-y-4" aria-busy="true" aria-label="Loading assessment access form">
+              <p className="sr-only" role="status">Loading assessment access form</p>
+              <div className="space-y-2"><SkeletonBlock className="h-3 w-32 rounded" /><div className="flex h-11 items-center gap-3 rounded-[10px] border border-mist-blue/70 px-3 dark:border-slate-700"><KeyRound className="h-4 w-4 text-steel-blue-gray dark:text-slate-400" /><SkeletonBlock className="h-3.5 w-2/3 rounded" /></div></div>
+              <div className="space-y-2"><SkeletonBlock className="h-3 w-36 rounded" /><div className="flex h-11 items-center gap-3 rounded-[10px] border border-mist-blue/70 px-3 dark:border-slate-700"><UserCheck className="h-4 w-4 text-steel-blue-gray dark:text-slate-400" /><SkeletonBlock className="h-3.5 w-3/4 rounded" /></div></div>
+              <SkeletonBlock className="h-11 w-full rounded-[10px]" />
+            </div>
           }
         >
           <JoinForm />
