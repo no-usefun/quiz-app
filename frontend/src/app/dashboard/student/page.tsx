@@ -13,6 +13,7 @@ import {
   CheckCircle2,
 } from "lucide-react";
 
+import SkeletonBlock from "@/components/SkeletonBlock";
 import { TopNav } from "@/components/TopNav";
 import { useSession } from "@/hooks/useSession";
 import { ApiClientError, api } from "@/lib/api/client";
@@ -326,10 +327,27 @@ export default function StudentDashboard() {
           <div className="rounded-[14px] bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 overflow-hidden shadow-sm">
             <ul className="divide-y divide-[#d1dee8]/50">
               {loading ? (
-                <li className="flex items-center justify-center gap-2 p-8 text-center text-xs font-medium text-slate-500 dark:text-slate-400">
-                  <span className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-[#d1dee8] border-t-[#165dfb]" />
-                  <span className="sr-only">Loading assessment history...</span>
-                </li>
+                <>
+                  <li className="sr-only" role="status">Loading assessment history</li>
+                  {[1, 2, 3].map((row) => (
+                    <li key={row} className="flex items-center gap-4 px-5 py-4" aria-hidden="true">
+                      <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-[10px] bg-[#eef4ff] text-[#165dfb] ring-1 ring-[#165dfb]/10 dark:bg-slate-800 dark:text-blue-300">
+                        {row === 1 ? <ClipboardList className="h-5 w-5" /> : row === 2 ? <CalendarDays className="h-5 w-5" /> : <Clock className="h-5 w-5" />}
+                      </div>
+                      <div className="min-w-0 flex-1 space-y-2">
+                        <SkeletonBlock className={`h-3.5 max-w-full rounded ${row === 2 ? "w-2/5" : "w-3/5"}`} />
+                        <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
+                          <span className="inline-flex items-center gap-1.5"><CalendarDays className="h-3 w-3 text-slate-400" /><SkeletonBlock className="h-2.5 w-14 rounded" /></span>
+                          <span className="inline-flex items-center gap-1.5"><Clock className="h-3 w-3 text-slate-400" /><SkeletonBlock className="h-2.5 w-10 rounded" /></span>
+                        </div>
+                      </div>
+                      <div className="flex shrink-0 items-center gap-2">
+                        <SkeletonBlock className="h-6 w-12 rounded-full" />
+                        <ChevronRight className="h-4 w-4 text-slate-300 dark:text-slate-600" />
+                      </div>
+                    </li>
+                  ))}
+                </>
               ) : fetchError ? (
                 <li className="flex flex-col items-center justify-center gap-3 p-12 text-center">
                   <div className="flex h-12 w-12 items-center justify-center rounded-[12px] bg-slate-50 text-[#a8a29d] ring-1 ring-[#d1dee8]/80 shadow-xs">
