@@ -395,7 +395,7 @@ function SignupContent() {
   };
 
   const fieldClass =
-    "w-full rounded-lg border border-neutral-200 bg-neutral-50/70 px-3.5 py-2.5 text-sm text-neutral-900 outline-none transition-all placeholder:text-neutral-400 hover:border-neutral-300 focus:bg-white focus:border-neutral-900 focus:ring-4 focus:ring-neutral-900/10";
+    "w-full rounded-lg border border-neutral-200 bg-neutral-50 px-3.5 py-2.5 text-sm text-neutral-900 outline-none transition-all placeholder:text-neutral-400 hover:border-neutral-300 focus:border-[#165dfb] focus:bg-white focus:ring-2 focus:ring-[#165dfb]/20 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100 dark:placeholder:text-slate-500 dark:hover:border-slate-600 dark:focus:border-blue-400 dark:focus:bg-slate-950 dark:focus:ring-blue-400/20";
 
   const requirementClass = (valid: boolean) =>
     `flex items-center gap-2 text-[11px] font-medium transition-colors duration-200 ${
@@ -495,17 +495,9 @@ function SignupContent() {
   return (
     <>
     <PublicNavbar redirectTarget={searchParams?.get("redirect") || undefined} />
-    <main className="relative min-h-[calc(100vh-4rem)] flex flex-col items-center justify-center p-6 sm:p-12 bg-neutral-50 text-[#111827] font-sans">
-      <div
-        aria-hidden
-        className="pointer-events-none absolute inset-0"
-        style={{
-          backgroundImage:
-            "radial-gradient(circle at 50% 0%, rgba(17,24,39,0.05), transparent 55%)",
-        }}
-      />
-
-      <div className="relative w-full max-w-md bg-white rounded-2xl shadow-[0_18px_50px_-20px_rgba(15,23,42,0.18)] ring-1 ring-neutral-900/5 border border-neutral-100 p-8 space-y-6">
+    <main className="public-auth min-h-[calc(100vh-4rem)] bg-neutral-50 px-4 py-8 font-sans text-[#111827] transition-colors dark:bg-slate-950 dark:text-slate-100 sm:px-8">
+      <div className="mx-auto flex min-h-[calc(100vh-8rem)] max-w-md items-center">
+      <div className="w-full space-y-6 rounded-2xl border border-neutral-200 bg-white p-7 shadow-sm transition-colors dark:border-slate-700 dark:bg-slate-900 dark:shadow-none sm:p-8">
         <div>
           <div className="mb-5">
             <button
@@ -535,13 +527,13 @@ function SignupContent() {
             )}
           </span>
 
-          <h1 className="text-2xl font-bold tracking-tight text-neutral-900">
+          <h1 className="text-2xl font-bold tracking-tight text-neutral-900 dark:text-slate-100">
             {activeRole === "teacher"
               ? "Sign up as Instructor"
               : "Sign up as Student"}
           </h1>
 
-          <p className="text-sm text-neutral-500 mt-1.5 leading-relaxed">
+          <p className="mt-1.5 text-sm leading-relaxed text-neutral-500 dark:text-slate-400">
             {lanExamMode
               ? "Create an account on the local exam server using email and password."
               : activeRole === "teacher"
@@ -553,7 +545,7 @@ function SignupContent() {
         {error && (
           <div
             role="alert"
-            className="flex gap-2.5 rounded-lg bg-red-50 p-3.5 text-sm text-red-700 font-medium border border-red-200/70"
+            className="flex gap-2.5 rounded-lg border border-red-200 bg-red-50 p-3.5 text-sm font-medium text-red-700 dark:border-rose-900 dark:bg-rose-950/70 dark:text-rose-200"
           >
             <span
               aria-hidden
@@ -567,7 +559,7 @@ function SignupContent() {
         {success && (
           <div
             role="status"
-            className="fixed right-4 top-4 z-[100] max-w-sm rounded-xl border border-emerald-200 bg-white px-4 py-3 text-sm font-medium text-emerald-800 shadow-lg"
+            className="fixed right-4 top-4 z-[100] max-w-sm rounded-xl border border-emerald-200 bg-white px-4 py-3 text-sm font-medium text-emerald-800 shadow-lg dark:border-emerald-900 dark:bg-slate-900 dark:text-emerald-300"
           >
             {success}
           </div>
@@ -613,7 +605,7 @@ function SignupContent() {
         <form onSubmit={handleSignupSubmit} className="space-y-4">
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1.5">
-              <label className="text-xs font-semibold text-neutral-700 block">
+              <label className="text-xs font-semibold text-neutral-700 dark:text-slate-300 block">
                 First name
               </label>
 
@@ -878,7 +870,7 @@ function SignupContent() {
             disabled={
               loading || !isPasswordValid || !passwordsMatch || !!success
             }
-            className="w-full rounded-lg bg-linear-to-b from-neutral-800 to-neutral-900 py-3 px-4 text-sm font-semibold text-white shadow-sm transition-all hover:from-neutral-900 hover:to-black hover:shadow-md active:scale-[0.99] disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-neutral-900 focus-visible:ring-offset-2 cursor-pointer border-0 mt-5"
+            className="mt-5 w-full cursor-pointer rounded-lg border-0 bg-[#165dfb] px-4 py-3 text-sm font-semibold text-white shadow-sm transition-all hover:bg-[#104bd0] active:scale-[0.99] disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#165dfb] focus-visible:ring-offset-2 dark:focus-visible:ring-offset-slate-900"
           >
             {loading ? (
               <span className="inline-flex items-center justify-center gap-2">
@@ -892,18 +884,19 @@ function SignupContent() {
         </form>
 
         <div className="pt-1">
-          <div className="h-px w-full bg-neutral-100" />
+          <div className="h-px w-full bg-neutral-100 dark:bg-slate-700" />
 
-          <p className="text-center text-sm text-neutral-500 pt-4">
+          <p className="pt-4 text-center text-sm text-neutral-500 dark:text-slate-400">
             Already have an account?{" "}
             <Link
               href={"/login?role=" + activeRole + (searchParams.get("redirect") ? "&redirect=" + encodeURIComponent(searchParams.get("redirect") || "") : "")}
-              className="font-semibold text-neutral-900 underline-offset-4 hover:underline"
+              className="font-semibold text-neutral-900 underline-offset-4 hover:underline dark:text-slate-100"
             >
               Log in
             </Link>
           </p>
         </div>
+      </div>
       </div>
     </main>
     </>
