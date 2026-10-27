@@ -1913,7 +1913,7 @@ function CreateAssessmentContent() {
 
   if (loadingDraft) {
     return (
-      <div className="teacher-assessment-builder min-h-screen bg-[#f5f5f4] dark:bg-slate-950 font-sans text-[#111111] dark:text-slate-100 p-4 md:p-6 lg:p-8 flex items-center justify-center text-left dark:bg-slate-950 dark:text-slate-100">
+      <div className="teacher-assessment-builder min-h-screen bg-[#f5f5f4] dark:bg-slate-950 font-sans text-[#111111] dark:text-slate-100 p-4 md:p-6 lg:p-8 flex items-center justify-center text-left">
         <div className="flex items-center gap-3 rounded-[14px] border border-[#d1dee8]/70 dark:border-slate-700 bg-white dark:bg-slate-900 p-6 shadow-sm">
           <span className="h-4 w-4 animate-spin rounded-full border-2 border-[#165dfb]/30 border-t-[#165dfb]" />
           <span className="text-xs font-bold text-[#78716b] dark:text-slate-400">
@@ -1925,7 +1925,7 @@ function CreateAssessmentContent() {
   }
 
   return (
-    <div className="teacher-assessment-builder min-h-screen bg-[#f5f5f4] dark:bg-slate-950 font-sans text-[#111111] dark:text-slate-100 p-4 md:p-6 lg:p-8 text-left dark:bg-slate-950 dark:text-slate-100">
+    <div className="teacher-assessment-builder min-h-screen bg-[#f5f5f4] dark:bg-slate-950 font-sans text-[#111111] dark:text-slate-100 p-4 md:p-6 lg:p-8 text-left">
       <div className="mx-auto max-w-4xl space-y-6">
         <header className="sticky top-0 z-20 -mx-4 flex flex-wrap items-center justify-between gap-3 border-b border-[#d1dee8]/60 dark:border-slate-700 bg-[#f5f5f4] dark:bg-slate-950/85 px-4 py-4 backdrop-blur-md md:-mx-6 md:px-6 dark:border-slate-700 dark:bg-slate-950/90">
           <div className="flex items-center gap-3">
@@ -2642,7 +2642,7 @@ export default function CreateAssessmentPage() {
   return (
     <Suspense
       fallback={
-        <div className="min-h-screen bg-[#f5f5f4] dark:bg-slate-950 font-sans text-[#111111] dark:text-slate-100 p-4 md:p-6 lg:p-8 flex items-center justify-center text-left dark:bg-slate-950 dark:text-slate-100">
+        <div className="min-h-screen bg-[#f5f5f4] dark:bg-slate-950 font-sans text-[#111111] dark:text-slate-100 p-4 md:p-6 lg:p-8 flex items-center justify-center text-left">
           <div className="flex items-center gap-3 rounded-[14px] border border-[#d1dee8]/70 dark:border-slate-700 bg-white dark:bg-slate-900 p-6 shadow-sm">
             <span className="h-4 w-4 animate-spin rounded-full border-2 border-[#165dfb]/30 border-t-[#165dfb]" />
             <span className="text-xs font-bold text-[#78716b] dark:text-slate-400">
