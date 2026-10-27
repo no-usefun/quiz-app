@@ -291,6 +291,7 @@ export interface LeaderboardEntryResponse {
 
 export interface QuizAvailabilityResponse {
   quizCode: string;
+  aiProctoringEnabled?: boolean;
   available: boolean;
   status: QuizAvailabilityStatus;
   startTime?: string | null;
