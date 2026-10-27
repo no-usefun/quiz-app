@@ -1,5 +1,6 @@
 "use client";
 
+import LoadingIndicator from "@/components/LoadingIndicator";
 import { use, useEffect, useState, useSyncExternalStore } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
@@ -11,7 +12,6 @@ import {
   ArrowLeft,
   UserCheck,
   AlertCircle,
-  Loader2,
   ShieldCheck,
   CheckCircle2,
 } from "lucide-react";
@@ -257,10 +257,7 @@ export default function TestLandingPage({ params }: TestLandingPageProps) {
   if (loading) {
     return (
       <main className="flex min-h-screen items-center justify-center bg-frost-surface text-midnight-navy p-4 font-sans">
-        <div className="flex items-center gap-2 text-xs font-bold text-steel-blue-gray">
-          <Loader2 className="h-4 w-4 animate-spin text-signal-green" />
-          Checking assessment availability...
-        </div>
+        <LoadingIndicator label="Checking assessment availability" size="lg" />
       </main>
     );
   }
