@@ -1,5 +1,6 @@
 "use client";
 
+import LoadingIndicator from "@/components/LoadingIndicator";
 import { FormEvent, useState } from "react";
 import Link from "next/link";
 import { ArrowLeft, Lock, CheckCircle2, AlertTriangle } from "lucide-react";
@@ -156,7 +157,7 @@ function ResetPasswordForm() {
                   disabled={loading}
                   className="w-full rounded-[10px] bg-[#165dfb] px-4 py-2.5 text-xs font-bold text-white shadow-sm disabled:cursor-not-allowed disabled:opacity-50"
                 >
-                  {loading ? "Updating..." : "Reset Password"}
+                  {loading ? <LoadingIndicator label="Updating password" size="sm" /> : "Reset Password"}
                 </button>
               </form>
             </>
@@ -172,7 +173,7 @@ export default function ResetPasswordPage() {
     <Suspense
       fallback={
         <main className="min-h-screen bg-[#f5f5f4] px-4 py-8 text-sm font-medium text-[#78716b]">
-          Loading password reset...
+          <div className="flex min-h-[60vh] items-center justify-center"><LoadingIndicator label="Loading password reset" size="lg" /></div>
         </main>
       }
     >
