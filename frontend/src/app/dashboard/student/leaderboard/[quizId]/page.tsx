@@ -16,6 +16,7 @@ import {
   Award,
 } from "lucide-react";
 
+import SkeletonBlock from "@/components/SkeletonBlock";
 import { TopNav } from "@/components/TopNav";
 import { useSession } from "@/hooks/useSession";
 import { ApiClientError, api } from "@/lib/api/client";
@@ -226,27 +227,27 @@ export default function StudentLeaderboardPage({
       <div className="student-leaderboard-page min-h-screen bg-slate-50 dark:bg-slate-950">
         <TopNav role="student" />
         <main className="mx-auto min-h-[70vh] max-w-6xl space-y-5 p-4 md:p-8" aria-busy="true" aria-label="Loading leaderboard">
-          <div className="h-6 w-56 animate-pulse rounded bg-slate-200 dark:bg-slate-800" />
+          <SkeletonBlock className="h-6 w-56 rounded" />
           <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
             {[1, 2, 3].map((rank) => (
               <section key={rank} className="rounded-2xl border border-slate-200 bg-white p-5 dark:border-slate-800 dark:bg-slate-900">
                 <div className="flex items-center justify-between">
                   <span className="flex h-9 w-9 items-center justify-center rounded-full bg-slate-100 text-xs font-extrabold text-slate-500 dark:bg-slate-800 dark:text-slate-300">#{rank}</span>
-                  <span className="h-4 w-4 animate-pulse rounded-full bg-slate-200 dark:bg-slate-700" />
+                  <Trophy aria-hidden="true" className="h-4 w-4 text-amber-500/70 dark:text-amber-300/70" />
                 </div>
-                <div className="mt-5 h-4 w-2/3 animate-pulse rounded bg-slate-200 dark:bg-slate-700" />
-                <div className="mt-3 h-3 w-1/3 animate-pulse rounded bg-slate-100 dark:bg-slate-800" />
-                <div className="mt-6 h-7 w-20 animate-pulse rounded-full bg-slate-200 dark:bg-slate-700" />
+                <SkeletonBlock className="mt-5 h-4 w-2/3 rounded" />
+                <SkeletonBlock className="mt-3 h-3 w-1/3 rounded" />
+                <SkeletonBlock className="mt-6 h-7 w-20 rounded-full" />
               </section>
             ))}
           </div>
           <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white p-4 dark:border-slate-800 dark:bg-slate-900">
-            <div className="mb-4 h-5 w-36 animate-pulse rounded bg-slate-200 dark:bg-slate-700" />
+            <SkeletonBlock className="mb-4 h-5 w-36 rounded" />
             {[1, 2, 3, 4, 5].map((row) => (
               <div key={row} className="flex items-center gap-4 border-t border-slate-100 py-4 dark:border-slate-800">
-                <div className="h-4 w-8 animate-pulse rounded bg-slate-200 dark:bg-slate-700" />
-                <div className="h-4 flex-1 animate-pulse rounded bg-slate-100 dark:bg-slate-800" />
-                <div className="h-4 w-16 animate-pulse rounded bg-slate-100 dark:bg-slate-800" />
+                <SkeletonBlock className="h-4 w-8 rounded" />
+                <div className="flex-1 space-y-2"><SkeletonBlock className="h-3.5 w-3/4 rounded" /><SkeletonBlock className="h-2.5 w-1/2 rounded" /></div>
+                <div className="flex items-center gap-2"><Clock aria-hidden="true" className="h-3.5 w-3.5 text-slate-400" /><SkeletonBlock className="h-4 w-12 rounded" /></div>
               </div>
             ))}
           </section>
