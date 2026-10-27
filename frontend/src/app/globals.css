@@ -1487,8 +1487,8 @@ pre {
   isolation: isolate;
   transition: background-color 220ms ease, color 220ms ease;
 }
-.role-student-panel:hover { background-color: #ffffff; }
-.role-instructor-panel:hover { background-color: #0b1220; }
+html:not(.dark) .role-student-panel:hover { background-color: #ffffff; }
+html:not(.dark) .role-instructor-panel:hover { background-color: #0b1220; }
 .role-panel-title,
 .signup-role-title { font-size: 1.875rem; line-height: 1.1; }
 .role-panel-description,
