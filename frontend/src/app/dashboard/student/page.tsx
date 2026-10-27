@@ -328,7 +328,7 @@ export default function StudentDashboard() {
               {loading ? (
                 <li className="flex items-center justify-center gap-2 p-8 text-center text-xs font-medium text-slate-500 dark:text-slate-400">
                   <span className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-[#d1dee8] border-t-[#165dfb]" />
-                  Loading assessment history...
+                  <span className="sr-only">Loading assessment history...</span>
                 </li>
               ) : fetchError ? (
                 <li className="flex flex-col items-center justify-center gap-3 p-12 text-center">
