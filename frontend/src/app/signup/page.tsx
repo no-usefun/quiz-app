@@ -412,15 +412,6 @@ function SignupContent() {
       <main className="public-signup-role-selection relative min-h-[calc(100vh-4rem)] w-full grid grid-cols-1 md:grid-cols-2 font-sans transition-colors">
 
         <section className="signup-role-student-panel group relative flex flex-col items-center justify-center p-8 sm:p-16 bg-[#F9FAFB] text-center transition-colors duration-300 hover:bg-white">
-          <div
-            aria-hidden
-            className="pointer-events-none absolute inset-0 opacity-0 transition-opacity duration-500 group-hover:opacity-100"
-            style={{
-              backgroundImage:
-                "radial-gradient(circle at 50% 45%, rgba(17,24,39,0.06), transparent 60%)",
-            }}
-          />
-
           <div className="relative w-full max-w-xs space-y-6">
             <span className="signup-role-icon mx-auto flex h-12 w-12 items-center justify-center rounded-xl bg-[#111827]/5 text-[#111827] ring-1 ring-[#111827]/10 transition-transform duration-300 group-hover:-translate-y-0.5">
               <GraduationCap className="h-6 w-6" />
@@ -445,21 +436,12 @@ function SignupContent() {
               className="signup-role-cta group/btn inline-flex w-full items-center justify-center gap-2 rounded-lg bg-[#111827] text-white py-3 px-5 text-sm font-medium shadow-sm transition-all hover:bg-black hover:shadow-md active:scale-[0.99] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#165dfb] cursor-pointer border-0"
             >
               Continue as Student
-              <ArrowRight className="h-4 w-4 transition-transform duration-200 group-hover/btn:translate-x-0.5" />
+              <ArrowRight className="h-4 w-4" />
             </button>
           </div>
         </section>
 
         <section className="signup-role-instructor-panel group relative flex flex-col items-center justify-center p-8 sm:p-16 bg-[#0F172A] text-center border-t md:border-t-0 md:border-l border-neutral-800 transition-colors duration-300 hover:bg-[#0B1220]">
-          <div
-            aria-hidden
-            className="pointer-events-none absolute inset-0 opacity-0 transition-opacity duration-500 group-hover:opacity-100"
-            style={{
-              backgroundImage:
-                "radial-gradient(circle at 50% 45%, rgba(255,255,255,0.07), transparent 60%)",
-            }}
-          />
-
           <div className="relative w-full max-w-xs space-y-6">
             <span className="signup-role-icon mx-auto flex h-12 w-12 items-center justify-center rounded-xl bg-white/10 text-white ring-1 ring-white/15 transition-transform duration-300 group-hover:-translate-y-0.5">
               <Presentation className="h-6 w-6" />
@@ -484,7 +466,7 @@ function SignupContent() {
               className="signup-role-cta group/btn inline-flex w-full items-center justify-center gap-2 rounded-lg bg-white text-[#0F172A] py-3 px-5 text-sm font-medium shadow-sm transition-all duration-200 hover:bg-neutral-100 hover:shadow-md active:scale-[0.99] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#165dfb] cursor-pointer border-0"
             >
               Continue as Instructor
-              <ArrowRight className="h-4 w-4 transition-transform duration-200 group-hover/btn:translate-x-0.5" />
+              <ArrowRight className="h-4 w-4" />
             </button>
           </div>
         </section>
