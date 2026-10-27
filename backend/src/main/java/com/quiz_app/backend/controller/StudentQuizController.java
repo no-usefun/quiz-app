@@ -7,6 +7,7 @@ import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
@@ -15,6 +16,8 @@ import com.quiz_app.backend.dto.attempt.AttemptResponse;
 import com.quiz_app.backend.dto.attempt.AttemptResultDetailResponse;
 import com.quiz_app.backend.dto.attempt.AttemptResultResponse;
 import com.quiz_app.backend.dto.attempt.AttemptStateResponse;
+import com.quiz_app.backend.dto.attempt.DraftAttemptAnswersRequest;
+import com.quiz_app.backend.dto.attempt.DraftAttemptAnswersResponse;
 import com.quiz_app.backend.dto.attempt.LeaderboardEntryResponse;
 import com.quiz_app.backend.dto.attempt.ProctoringEventRequest;
 import com.quiz_app.backend.dto.attempt.StudentSubmissionResponse;
@@ -52,6 +55,16 @@ public class StudentQuizController {
                                 userDetails.getId());
 
                 return ResponseEntity.ok(response);
+        }
+
+        @PutMapping("/attempts/{attemptId}/answers/draft")
+        public ResponseEntity<DraftAttemptAnswersResponse> saveDraftAnswers(
+                        @PathVariable Long attemptId,
+                        @Valid @RequestBody DraftAttemptAnswersRequest request,
+                        Authentication authentication) {
+                CustomUserDetails userDetails = (CustomUserDetails) authentication.getPrincipal();
+                return ResponseEntity.ok(studentAttemptService.saveDraftAnswers(
+                                attemptId, request, userDetails.getId()));
         }
 
         @PostMapping("/attempts/{attemptId}/submit")
