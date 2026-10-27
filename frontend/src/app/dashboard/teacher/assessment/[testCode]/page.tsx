@@ -954,21 +954,13 @@ export default function TeacherAssessmentPage({
     .slice(0, 3);
 
   const scoreDistribution = useMemo(() => {
-    const totalMarks = Math.max(0, Number(assessmentData?.totalMarks) || 0);
     const bands = [
-      { min: 0, max: 20, color: "bg-[#fca5a5]" },
-      { min: 20, max: 40, color: "bg-[#fdba74]" },
-      { min: 40, max: 60, color: "bg-[#fcd34d]" },
-      { min: 60, max: 80, color: "bg-[#86b7ff]" },
-      { min: 80, max: 100, color: "bg-[#6ee7b7]" },
-    ].map((band, index) => {
-      const upperMarks = totalMarks * (band.max / 100);
-      const lowerMarks = totalMarks * (band.min / 100);
-      const label = index === 0
-        ? `0–${formatMarks(upperMarks)} marks`
-        : `>${formatMarks(lowerMarks)}–${formatMarks(upperMarks)} marks`;
-      return { ...band, label };
-    });
+      { min: 0, max: 20, label: "0–20%", color: "bg-gradient-to-r from-rose-400 via-rose-400 to-rose-500" },
+      { min: 20, max: 40, label: ">20–40%", color: "bg-gradient-to-r from-orange-300 via-amber-300 to-amber-400" },
+      { min: 40, max: 60, label: ">40–60%", color: "bg-gradient-to-r from-amber-300 via-yellow-300 to-lime-300" },
+      { min: 60, max: 80, label: ">60–80%", color: "bg-gradient-to-r from-sky-300 via-blue-300 to-blue-400" },
+      { min: 80, max: 100, label: ">80–100%", color: "bg-gradient-to-r from-emerald-300 via-emerald-400 to-teal-400" },
+    ];
 
     return bands.map((band, index) => ({
       ...band,
@@ -1622,7 +1614,7 @@ export default function TeacherAssessmentPage({
               <div className="mb-4 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
                 <div>
                   <h2 className="flex items-center gap-2 text-xs font-extrabold uppercase tracking-wider text-midnight-navy dark:text-slate-100"><BarChart3 className="h-4 w-4 text-[#8b5cf6]" />Class Performance</h2>
-                  <p className="mt-1 text-xs text-steel-blue-gray dark:text-slate-500 dark:text-slate-400">A quick breakdown of marks across all submitted attempts.</p>
+                  <p className="mt-1 text-xs text-steel-blue-gray dark:text-slate-500 dark:text-slate-400">A percentage-based view of submitted attempts.</p>
                 </div>
                 <div className="flex items-center gap-2 sm:gap-3">
                   <div className="min-w-[112px] rounded-[12px] border border-slate-200 bg-white dark:bg-slate-900 px-3.5 py-2.5 shadow-sm dark:border-slate-700">
@@ -1643,19 +1635,19 @@ export default function TeacherAssessmentPage({
               </div>
 
               <div className="mb-4 flex items-center justify-between border-b border-[#d1dee8]/50 dark:border-slate-700 pb-2">
-                <p className="text-[10px] font-bold uppercase tracking-wider text-steel-blue-gray dark:text-slate-500 dark:text-slate-400">Marks range</p>
+                <p className="text-[10px] font-bold uppercase tracking-wider text-steel-blue-gray dark:text-slate-500 dark:text-slate-400">Percentage range</p>
                 <p className="text-[10px] font-bold uppercase tracking-wider text-steel-blue-gray dark:text-slate-500 dark:text-slate-400">Students</p>
               </div>
 
-              <div className="space-y-3.5">
+              <div className="space-y-4">
                 {scoreDistribution.map((band) => {
                   const maximumCount = Math.max(1, ...scoreDistribution.map((item) => item.count));
                   const barWidth = (band.count / maximumCount) * 100;
                   return (
-                    <div key={band.label} className="grid grid-cols-[76px_minmax(0,1fr)_36px] items-center gap-3 sm:grid-cols-[90px_minmax(0,1fr)_44px]">
-                      <span className="text-[10px] font-semibold tabular-nums text-steel-blue-gray dark:text-slate-500 dark:text-slate-400 sm:text-xs">{band.label}</span>
+                    <div key={band.label} title={`${band.label}: ${band.count} students`} className="group grid grid-cols-[84px_minmax(0,1fr)_44px] items-center gap-3 sm:grid-cols-[104px_minmax(0,1fr)_48px]">
+                      <span className="inline-flex w-fit min-w-[76px] justify-center rounded-full border border-slate-200/80 bg-slate-50 px-2.5 py-1 text-[10px] font-bold tabular-nums text-slate-600 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200 sm:text-xs">{band.label}</span>
                       <div
-                        className="h-2.5 overflow-hidden rounded-full bg-frost-surface"
+                        className="relative h-4 overflow-hidden rounded-full border border-slate-200/60 bg-slate-100 p-0.5 dark:border-slate-700 dark:bg-slate-800"
                         role="progressbar"
                         aria-label={`Students scoring ${band.label}`}
                         aria-valuemin={0}
@@ -1663,16 +1655,16 @@ export default function TeacherAssessmentPage({
                         aria-valuenow={band.count}
                       >
                         <div
-                          className={`h-full rounded-full ${band.color} transition-[width] duration-500 ease-out`}
+                          className={`h-full rounded-full ${band.color} shadow-sm transition-[width] duration-700 ease-out group-hover:brightness-105`}
                           style={{ width: `${barWidth}%` }}
                         />
                       </div>
-                      <span className="text-right text-xs font-bold tabular-nums text-midnight-navy dark:text-slate-100">{band.count}</span>
+                      <span className="inline-flex min-w-9 justify-center rounded-full bg-slate-100 px-2 py-1 text-right text-xs font-extrabold tabular-nums text-midnight-navy dark:bg-slate-800 dark:text-slate-100">{band.count}</span>
                     </div>
                   );
                 })}
               </div>
-              <p className="mt-4 text-[10px] text-steel-blue-gray dark:text-slate-500 dark:text-slate-400">Bars compare student counts across marks ranges. Empty ranges remain visible.</p>
+              <p className="mt-4 text-[10px] text-steel-blue-gray dark:text-slate-500 dark:text-slate-400">Bars compare student counts across percentage ranges. Empty ranges remain visible.</p>
             </section>
           )}
 
