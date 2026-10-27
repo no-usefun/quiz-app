@@ -282,7 +282,7 @@ export default function StudentDashboard() {
             <div>
               <p className="text-2xl font-extrabold leading-none text-slate-900 dark:text-slate-100 tabular-nums">
                 {loading ? (
-                  <span className="inline-block h-6 w-10 animate-pulse rounded bg-[#e7e5e4] align-middle" />
+                  <SkeletonBlock className="h-6 w-10 rounded align-middle" />
                 ) : (
                   results.length
                 )}
@@ -302,7 +302,7 @@ export default function StudentDashboard() {
             <div>
               <p className="text-2xl font-extrabold leading-none text-slate-900 dark:text-slate-100 tabular-nums">
                 {loading ? (
-                  <span className="inline-block h-6 w-10 animate-pulse rounded bg-[#e7e5e4] align-middle" />
+                  <SkeletonBlock className="h-6 w-10 rounded align-middle" />
                 ) : (
                   releasedCount
                 )}
@@ -319,8 +319,8 @@ export default function StudentDashboard() {
           <h2 className="flex items-center gap-2 text-xs font-bold text-slate-900 dark:text-slate-100 uppercase tracking-wider">
             <span className="h-3.5 w-1 rounded-full bg-[#165dfb]" />
             Recent Assessments
-            <span className="rounded-full bg-[#eef4ff] px-2.5 py-0.5 text-[10px] font-bold text-[#165dfb]">
-              {results.length}
+            <span className="inline-flex min-h-5 items-center justify-center rounded-full bg-[#eef4ff] px-2.5 py-0.5 text-[10px] font-bold text-[#165dfb] dark:bg-slate-800 dark:text-blue-300">
+              {loading ? <SkeletonBlock className="h-2.5 w-4 rounded" /> : results.length}
             </span>
           </h2>
 
