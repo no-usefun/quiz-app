@@ -35,6 +35,7 @@ interface AIProctoringHUDProps {
   voiceActive: boolean;
   loudVoice: boolean;
   warningCount: number;
+  maxWarnings?: number;
   isOnline: boolean;
 }
 
@@ -57,6 +58,7 @@ export function AIProctoringHUD({
   voiceActive,
   loudVoice,
   warningCount,
+  maxWarnings = 5,
   isOnline,
 }: AIProctoringHUDProps) {
   return (
@@ -85,7 +87,7 @@ export function AIProctoringHUD({
           }`}
         >
           <ShieldAlert className="h-3 w-3" />
-          <span>Warnings: {warningCount}/3</span>
+          <span>Warnings: {warningCount}/{maxWarnings}</span>
         </div>
       </div>
 

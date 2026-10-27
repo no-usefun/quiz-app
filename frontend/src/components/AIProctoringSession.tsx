@@ -71,12 +71,14 @@ export function AIProctoringSession({
           voiceActive={proctoring.voiceActive}
           loudVoice={proctoring.loudVoice}
           warningCount={proctoring.warningCount}
+          maxWarnings={5}
           isOnline={proctoring.isOnline}
         />
       </div>
       <ProctoringWarningModal
         isOpen={proctoring.activeWarningModal.isOpen}
         warningCount={proctoring.activeWarningModal.count}
+        maxWarnings={5}
         reason={proctoring.activeWarningModal.reason}
         autoSubmitted={proctoring.activeWarningModal.autoSubmitted}
         faceDetected={proctoring.faceDetected}

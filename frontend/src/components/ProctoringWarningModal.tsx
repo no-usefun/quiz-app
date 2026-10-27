@@ -16,7 +16,7 @@ interface ProctoringWarningModalProps {
 export function ProctoringWarningModal({
   isOpen,
   warningCount,
-  maxWarnings = 3,
+  maxWarnings = 5,
   reason,
   autoSubmitted = false,
   faceDetected = false,
@@ -60,7 +60,7 @@ export function ProctoringWarningModal({
         <div className="rounded-[12px] bg-[#f5f5f4] border border-[#d1dee8]/70 p-4 text-xs text-[#78716b] space-y-2 text-left">
           {autoSubmitted ? (
             <p className="font-medium text-rose-700 leading-relaxed">
-              Your assessment has reached 3 recorded proctoring violations and has been automatically submitted for teacher investigation.
+              Your assessment reached the configured limit of {maxWarnings} recorded proctoring violations and was automatically submitted for teacher investigation.
             </p>
           ) : (
             <>
