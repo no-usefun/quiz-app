@@ -1360,3 +1360,120 @@ html.dark .public-role-selection .role-instructor-panel .role-panel-icon {
   color: #e5edf9 !important;
   box-shadow: inset 0 0 0 1px #475569 !important;
 }
+
+
+/* --------------------------------------------------------------------------
+   Responsive baseline
+   Shared guardrails for phone, tablet, laptop and wide desktop layouts.
+   Keep component-specific layout decisions in their own pages; these rules
+   prevent common overflow and narrow-screen failures without changing flows.
+   -------------------------------------------------------------------------- */
+html {
+  width: 100%;
+  min-width: 320px;
+  overflow-x: clip;
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
+}
+
+body {
+  width: 100%;
+  min-width: 320px;
+  overflow-x: clip;
+}
+
+img,
+video,
+canvas,
+iframe {
+  max-width: 100%;
+}
+
+main,
+section,
+article,
+aside,
+form,
+fieldset,
+[role="dialog"] {
+  min-width: 0;
+}
+
+input,
+select,
+textarea,
+button {
+  max-width: 100%;
+}
+
+pre {
+  max-width: 100%;
+  overflow-x: auto;
+  white-space: pre;
+}
+
+:where(td, th, p, label, a, button, [role="status"], [role="alert"]) {
+  overflow-wrap: anywhere;
+}
+
+/* Public authentication pages use one shared gutter and avoid cramped
+   two-column name fields on very narrow phones. */
+@media (max-width: 639px) {
+  .public-auth {
+    padding-inline: 1rem;
+  }
+
+  .public-auth > div {
+    width: 100%;
+    min-width: 0;
+  }
+
+  .public-auth form {
+    min-width: 0;
+  }
+}
+
+@media (max-width: 379px) {
+  .public-auth form > .grid.grid-cols-2 {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .public-auth [class*="p-8"] {
+    padding: 1.25rem;
+  }
+}
+
+/* Keep app-level data views within the viewport. Tables can scroll in their
+   own wrappers rather than widening the whole page. */
+@media (max-width: 767px) {
+  .teacher-dashboard,
+  .teacher-assessment-builder,
+  .assessment-governance {
+    width: 100%;
+    min-width: 0;
+  }
+
+  .teacher-dashboard table,
+  .teacher-assessment-builder table,
+  .assessment-governance table {
+    max-width: 100%;
+  }
+}
+
+/* Landscape phones have little vertical room; don't lock page sections to
+   viewport height outside the active exam shell. */
+@media (max-height: 500px) and (orientation: landscape) {
+  .public-auth > div {
+    align-items: flex-start;
+  }
+}
+
+/* Respect device safe areas for full-screen exam experiences. */
+@supports (padding: max(0px)) {
+  .assessment-governance,
+  .teacher-dashboard,
+  .teacher-assessment-builder {
+    padding-left: max(0px, env(safe-area-inset-left));
+    padding-right: max(0px, env(safe-area-inset-right));
+  }
+}
