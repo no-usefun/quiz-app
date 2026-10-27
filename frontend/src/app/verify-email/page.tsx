@@ -1,5 +1,6 @@
 "use client";
 
+import LoadingIndicator from "@/components/LoadingIndicator";
 import { FormEvent, Suspense, useEffect, useState } from "react";
 import Link from "next/link";
 import { CheckCircle2, AlertCircle, MailCheck, ArrowRight } from "lucide-react";
@@ -111,8 +112,8 @@ function VerifyEmailContent() {
 
   if (loading) {
     return (
-      <main className="flex min-h-screen items-center justify-center bg-neutral-50 text-sm text-neutral-400">
-        Loading verification...
+      <main className="flex min-h-screen items-center justify-center bg-neutral-50 dark:bg-slate-950" aria-busy="true">
+        <LoadingIndicator label="Loading email verification" size="lg" />
       </main>
     );
   }
@@ -161,7 +162,7 @@ function VerifyEmailContent() {
               disabled={verifying}
               className="mb-6 inline-flex w-full items-center justify-center gap-2 rounded-lg bg-neutral-900 px-4 py-3 text-sm font-bold text-white transition-all hover:bg-black disabled:cursor-not-allowed disabled:opacity-60"
             >
-              {verifying ? "Verifying..." : "Verify Email"}
+              {verifying ? <LoadingIndicator label="Verifying email" size="sm" /> : "Verify Email"}
               {!verifying && <ArrowRight className="h-4 w-4" />}
             </button>
           )}
@@ -186,7 +187,7 @@ function VerifyEmailContent() {
                 disabled={resending}
                 className="w-full rounded-lg border border-neutral-200 bg-white px-4 py-2.5 text-sm font-semibold text-neutral-900 transition-all hover:bg-neutral-50 disabled:cursor-not-allowed disabled:opacity-60"
               >
-                {resending ? "Sending..." : "Resend Email"}
+                {resending ? <LoadingIndicator label="Sending verification email" size="sm" /> : "Resend Email"}
               </button>
             </form>
           </div>
@@ -207,7 +208,7 @@ function VerifyEmailContent() {
 
 export default function VerifyEmailPage() {
   return (
-    <Suspense fallback={<div className="flex min-h-screen items-center justify-center bg-neutral-50 text-sm text-neutral-400">Loading verification...</div>}>
+    <Suspense fallback={<div className="flex min-h-screen items-center justify-center bg-neutral-50 dark:bg-slate-950"><LoadingIndicator label="Loading email verification" size="lg" /></div>}>
       <VerifyEmailContent />
     </Suspense>
   );
