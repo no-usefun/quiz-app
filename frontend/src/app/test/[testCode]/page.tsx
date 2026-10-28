@@ -1176,18 +1176,44 @@ export default function TestArenaPage({
       }
     };
 
+    let focusLossTimer: ReturnType<typeof setTimeout> | null = null;
+    let wasDocumentHidden = document.visibilityState === "hidden";
+
+    const clearFocusLossTimer = () => {
+      if (focusLossTimer) {
+        clearTimeout(focusLossTimer);
+        focusLossTimer = null;
+      }
+    };
+
     const handleVisibilityChange = () => {
       if (document.visibilityState === "hidden") {
-        void reportEvent("tab_switch", "Candidate switched tabs or minimized the assessment window.");
+        clearFocusLossTimer();
+        if (!wasDocumentHidden) {
+          wasDocumentHidden = true;
+          void reportEvent("tab_switch", "Candidate switched tabs or minimized the assessment window.");
+        }
+      } else {
+        wasDocumentHidden = false;
+        clearFocusLossTimer();
       }
     };
 
     const handleBlur = () => {
-      // visibilitychange is the single authoritative source for tab switches.
-      // This prevents blur + visibilitychange from counting one switch twice.
-      if (document.visibilityState !== "hidden") {
-        void reportEvent("focus_loss", "The assessment window lost focus while the page remained visible.");
-      }
+      // Blur fires before visibilitychange in some browsers. Wait briefly so a
+      // quick tab switch is classified as tab_switch rather than focus_loss.
+      if (document.visibilityState === "hidden") return;
+      clearFocusLossTimer();
+      focusLossTimer = setTimeout(() => {
+        focusLossTimer = null;
+        if (document.visibilityState !== "hidden" && !document.hasFocus()) {
+          void reportEvent("focus_loss", "The assessment window lost focus while the page remained visible.");
+        }
+      }, 180);
+    };
+
+    const handleFocus = () => {
+      clearFocusLossTimer();
     };
 
     const handleFullscreenChange = () => {
@@ -1237,23 +1263,27 @@ export default function TestArenaPage({
     const handleKeyDown = (event: KeyboardEvent) => {
       const key = event.key.toLowerCase();
       const command = event.ctrlKey || event.metaKey;
+      const macScreenshotShortcut =
+        event.metaKey && event.shiftKey && ["3", "4", "5"].includes(key);
+      const screenshotShortcut = key === "printscreen" || macScreenshotShortcut;
       const blocked =
         (command && ["c", "x", "v", "a", "p", "s", "u"].includes(key)) ||
-        key === "printscreen";
+        screenshotShortcut;
       if (!blocked) return;
 
       event.preventDefault();
-      const type: BrowserProctoringFlag =
-        key === "c" ? "copy_attempt" :
-        key === "x" ? "cut_attempt" :
-        key === "v" ? "paste_attempt" :
-        key === "printscreen" ? "screenshot_attempt" : "keyboard_attempt";
-      const message =
-        key === "c" ? "Copy shortcut was blocked during the assessment." :
-        key === "x" ? "Cut shortcut was blocked during the assessment." :
-        key === "v" ? "Paste shortcut was blocked during the assessment." :
-        key === "printscreen" ? "Screenshot keyboard shortcut detected during the assessment." :
-        "A restricted keyboard shortcut was blocked during the assessment.";
+      const type: BrowserProctoringFlag = screenshotShortcut
+        ? "screenshot_attempt"
+        : key === "c" ? "copy_attempt"
+        : key === "x" ? "cut_attempt"
+        : key === "v" ? "paste_attempt"
+        : "keyboard_attempt";
+      const message = screenshotShortcut
+        ? "A screenshot keyboard shortcut was detected during the assessment. OS-level capture may not be observable by the browser."
+        : key === "c" ? "Copy shortcut was blocked during the assessment."
+        : key === "x" ? "Cut shortcut was blocked during the assessment."
+        : key === "v" ? "Paste shortcut was blocked during the assessment."
+        : "A restricted keyboard shortcut was blocked during the assessment.";
       void reportEvent(type, message);
     };
 
@@ -1278,6 +1308,7 @@ export default function TestArenaPage({
 
     document.addEventListener("visibilitychange", handleVisibilityChange);
     window.addEventListener("blur", handleBlur);
+    window.addEventListener("focus", handleFocus);
     document.addEventListener("fullscreenchange", handleFullscreenChange);
     document.addEventListener("contextmenu", handleContextMenu);
     document.addEventListener("copy", handleCopy);
@@ -1292,6 +1323,8 @@ export default function TestArenaPage({
     return () => {
       document.removeEventListener("visibilitychange", handleVisibilityChange);
       window.removeEventListener("blur", handleBlur);
+      window.removeEventListener("focus", handleFocus);
+      clearFocusLossTimer();
       document.removeEventListener("fullscreenchange", handleFullscreenChange);
       document.removeEventListener("contextmenu", handleContextMenu);
       document.removeEventListener("copy", handleCopy);
@@ -1939,49 +1972,61 @@ export default function TestArenaPage({
     } catch (error) {
       setIsSubmitted(false);
 
-      if (error instanceof ApiClientError && error.status === 409) {
+      // A timeout, 5xx, or duplicate-submit conflict can happen after the
+      // server has already committed the submission. Reconcile all ambiguous
+      // outcomes against the authoritative attempt state before showing retry.
+      const shouldReconcile =
+        !(error instanceof ApiClientError) ||
+        error.status === 409 ||
+        error.status >= 500;
+
+      if (shouldReconcile) {
         try {
           const state = await api.get<AttemptStateResponse>(
             ENDPOINTS.student.attemptState(attemptId),
-            { retry: 2, retryDelayMs: 300, cache: "no-store" },
+            { retry: 1, retryDelayMs: 200, cache: "no-store" },
           );
 
           if (state.status !== "IN_PROGRESS") {
             setIsSubmitted(true);
-
-            // A proctoring event may have auto-submitted the attempt on the
-            // server before the browser's normal submit request completed.
-            // Reconcile local navigation state with that authoritative result.
-            cleanupAttemptRuntimeState(attemptId, cleanCode, { preservePendingSubmitDraft: state.status === "AUTO_SUBMITTED" });
+            cleanupAttemptRuntimeState(attemptId, cleanCode, {
+              preservePendingSubmitDraft: state.status === "AUTO_SUBMITTED",
+            });
 
             if (state.status === "AUTO_SUBMITTED") {
               setDeadlineNotice(
                 "The server has already automatically submitted this assessment attempt.",
               );
             }
-            // A deadline/proctoring finalization can win the race with the
-            // answer-sheet request. Keep its local draft and go straight to
-            // results so the result page can recover the saved selections.
+
             void proctoringCleanupRef.current();
             await exitFullscreen();
             router.replace(`/dashboard/student/result/${attemptId}`);
             return;
           }
         } catch (reconcileError) {
+          // Keep the local retry draft if the state endpoint is unavailable.
+          // Log only a concise summary to avoid opening Next.js's dev overlay.
           console.warn(
-            "[Assessment Submission] Could not reconcile attempt state:",
-            reconcileError,
+            "[Assessment Submission] Attempt status could not be confirmed.",
+            reconcileError instanceof ApiClientError
+              ? { status: reconcileError.status, code: reconcileError.errorCode }
+              : { message: reconcileError instanceof Error ? reconcileError.message : "Unknown error" },
           );
         }
       }
 
       if (error instanceof ApiClientError && error.status === 409) {
-        // We tried to submit an attempt that the server still reports as
-        // active. Surface a recoverable message without triggering Next's
-        // development error overlay for an expected API conflict.
-        console.warn("[Assessment Submission] Server rejected a duplicate/stale submission (409).");
+        console.warn("[Assessment Submission] Server still reports a conflict; attempt remains available for reconciliation.");
       } else {
-        console.error("[Assessment Submission] Failed:", error);
+        // In Next.js development, console.error with an Error object opens the
+        // full-screen error overlay even though this failure is handled here.
+        console.warn(
+          "[Assessment Submission] Failed; local answers have been retained.",
+          error instanceof ApiClientError
+            ? { status: error.status, code: error.errorCode, message: error.message }
+            : { message: error instanceof Error ? error.message : "Unknown error" },
+        );
       }
 
       if (error instanceof ApiClientError && error.status === 401) {
@@ -2504,11 +2549,9 @@ export default function TestArenaPage({
                   className={`relative flex h-9 min-w-9 shrink-0 items-center justify-center rounded-lg border px-2 text-[10px] font-extrabold tabular-nums transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#165dfb] focus-visible:ring-offset-2 focus-visible:ring-offset-white disabled:cursor-not-allowed disabled:opacity-40 dark:focus-visible:ring-offset-slate-900 ${
                     isCurrent
                       ? "border-blue-500 bg-blue-600 text-white shadow-[0_0_0_2px_rgba(59,130,246,0.22)] ring-2 ring-blue-400 ring-offset-1 dark:border-blue-300 dark:bg-blue-500 dark:text-white dark:ring-offset-slate-900"
-                      : marked
-                        ? "border-amber-300 bg-amber-50 text-amber-900 dark:border-amber-600 dark:bg-amber-950/70 dark:text-amber-200"
-                        : answered
-                          ? "border-emerald-300 bg-emerald-50 text-emerald-800 dark:border-emerald-700 dark:bg-emerald-950/70 dark:text-emerald-200"
-                          : "border-slate-200 bg-white text-slate-600 hover:border-blue-300 hover:bg-blue-50 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200 dark:hover:border-blue-500 dark:hover:bg-slate-700"
+                      : answered
+                        ? `border-emerald-300 bg-emerald-50 text-emerald-800 dark:border-emerald-700 dark:bg-emerald-950/70 dark:text-emerald-200 ${marked ? "ring-1 ring-amber-300/80 dark:ring-amber-600/80" : ""}`
+                        : `border-slate-200 bg-slate-100 text-slate-600 hover:border-blue-300 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200 dark:hover:border-blue-500 ${marked ? "ring-1 ring-amber-400/80 dark:ring-amber-500/80" : ""}`
                   }`}
                 >
                   {index + 1}
