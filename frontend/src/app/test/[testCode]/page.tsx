@@ -263,7 +263,7 @@ function parseBackendDeadline(value: string): number {
    * but interpret zone-less backend timestamps as India Standard Time.
    */
   const normalized = (value.includes("T") ? value : value.replace(" ", "T")).trim();
-  const hasExplicitTimezone = /(?:Z|[+-]\\d{2}:?\\d{2})$/i.test(normalized);
+  const hasExplicitTimezone = /(?:Z|[+-]\d{2}:?\d{2})$/i.test(normalized);
   const timestamp = new Date(
     hasExplicitTimezone ? normalized : `${normalized}+05:30`,
   ).getTime();
