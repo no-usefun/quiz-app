@@ -1138,7 +1138,7 @@ class TeacherQuizServiceTest {
                 verify(quiz).setAllowReview(true);
                 verify(quiz).setAllowResume(true);
                 verify(quiz).setAutoSubmit(true);
-                verify(quiz).setMaxTabSwitch(5);
+                verify(quiz).setMaxTabSwitch(3);
                 verify(quiz).setUpdatedAt(any(LocalDateTime.class));
                 verify(quizRepository).save(quiz);
 
