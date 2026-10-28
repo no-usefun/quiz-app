@@ -256,12 +256,17 @@ function formatRemainingTime(seconds: number): string {
 
 function parseBackendDeadline(value: string): number {
   /*
-   * Spring LocalDateTime is returned without an offset.
-   * Treat it as the browser's local wall-clock time. This matches the
-   * current India-focused backend/frontend contract.
+   * StudentAttemptService calculates deadlines in Asia/Kolkata and serializes
+   * LocalDateTime without an offset. Interpreting that value in the device's
+   * own timezone can make the browser timer disagree with the server (notably
+   * for LAN devices configured to another timezone). Preserve explicit zones,
+   * but interpret zone-less backend timestamps as India Standard Time.
    */
-  const normalized = value.includes("T") ? value : value.replace(" ", "T");
-  const timestamp = new Date(normalized).getTime();
+  const normalized = (value.includes("T") ? value : value.replace(" ", "T")).trim();
+  const hasExplicitTimezone = /(?:Z|[+-]\\d{2}:?\\d{2})$/i.test(normalized);
+  const timestamp = new Date(
+    hasExplicitTimezone ? normalized : `${normalized}+05:30`,
+  ).getTime();
 
   return Number.isFinite(timestamp) ? timestamp : NaN;
 }
@@ -1908,6 +1913,16 @@ export default function TestArenaPage({
     setIsSubmitting(true);
     setSubmissionNotice(null);
 
+    // Cancel a not-yet-started debounced draft write. The final submission
+    // below carries the entire answer sheet, including empty answers. Do not
+    // wait for a separate draft PUT here: it can be slow enough to cross the
+    // server deadline (the reported draft request took 4.2 seconds), causing a
+    // student-initiated submit to arrive late and be classified as automatic.
+    if (serverAnswerCheckpointTimerRef.current) {
+      clearTimeout(serverAnswerCheckpointTimerRef.current);
+      serverAnswerCheckpointTimerRef.current = null;
+    }
+
     persistAttemptDraft(
       activeAttemptId,
       latestAnswers,
@@ -1916,14 +1931,9 @@ export default function TestArenaPage({
     );
 
     try {
-      // Queue any outstanding server checkpoint before submitting. If it fails,
-      // the final request still carries the complete answer sheet.
-      await flushServerAnswerCheckpoint(
-        latestAnswers,
-        latestTimeTaken,
-        true,
-      );
-
+      // Send the complete answer sheet directly. Any already in-flight draft
+      // request must not overwrite terminal state; the backend contract requires
+      // draft/final writes to be serialized and rejects drafts after finalization.
       const completeAnswers = questions.map((question) => {
         const questionId = Number(question.questionId);
 
