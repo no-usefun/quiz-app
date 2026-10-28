@@ -598,7 +598,7 @@ public class StudentAttemptService {
                         answer.setAnsweredAt(
                                         selectedOptions.isEmpty()
                                                         ? null
-                                                        : LocalDateTime.now());
+                                                        : LocalDateTime.now(clock.withZone(QUIZ_TIMEZONE)));
 
                         answer = studentAnswerRepository.save(answer);
 
@@ -614,7 +614,7 @@ public class StudentAttemptService {
                                 selectedOption.setAnswer(answer);
                                 selectedOption.setOption(option);
                                 selectedOption.setCreatedAt(
-                                                LocalDateTime.now());
+                                                LocalDateTime.now(clock.withZone(QUIZ_TIMEZONE)));
 
                                 studentSelectedOptionRepository.save(
                                                 selectedOption);
