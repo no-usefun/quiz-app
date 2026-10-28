@@ -609,6 +609,20 @@ export default function TestArenaPage({
     return true;
   });
   const hasEnteredFullscreenRef = useRef(false);
+
+  const exitFullscreen = useCallback(async () => {
+    if (typeof document === "undefined" || !document.fullscreenElement) {
+      setIsFullscreen(false);
+      return;
+    }
+    try {
+      await document.exitFullscreen();
+    } catch {
+      // Browsers can reject fullscreen teardown during tab/window shutdown.
+    } finally {
+      setIsFullscreen(false);
+    }
+  }, []);
   const lastBrowserViolationTimeRef = useRef<Partial<Record<"tab_switch" | "fullscreen_exit", number>>>({});
   const lastAuditEventTimeRef = useRef<Partial<Record<BrowserProctoringFlag, number>>>({});
   const [flags, setFlags] = useState<BrowserProctoringFlags>(initialBrowserFlags);
@@ -741,7 +755,7 @@ export default function TestArenaPage({
     testCode: cleanCode,
     referenceImage: referencePhoto,
     authToken: getAuthToken() || undefined,
-    onAutoSubmit: () => {
+    onAutoSubmit: async () => {
       // The proctoring backend has already confirmed submission. Never send a
       // duplicate client-side submission for the same attempt.
       submissionInFlightRef.current = true;
@@ -753,6 +767,7 @@ export default function TestArenaPage({
       // Retain the draft for recovery rather than deleting the only remaining copy.
       cleanupAttemptRuntimeState(activeAttemptId, cleanCode, { preservePendingSubmitDraft: true });
       if (activeAttemptId) {
+        await exitFullscreen();
         router.replace(`/dashboard/student/result/${activeAttemptId}`);
       }
     },
@@ -810,16 +825,6 @@ export default function TestArenaPage({
     } catch {
       setIsFullscreen(false);
       return false;
-    }
-  }, []);
-
-  const exitFullscreen = useCallback(async () => {
-    if (typeof document === "undefined" || !document.fullscreenElement) return;
-    try {
-      await document.exitFullscreen();
-      setIsFullscreen(false);
-    } catch {
-      // Ignore browser fullscreen teardown failures.
     }
   }, []);
 
@@ -1118,6 +1123,7 @@ export default function TestArenaPage({
               preservePendingSubmitDraft: serverState.status === "AUTO_SUBMITTED",
             });
             void proctoringCleanupRef.current();
+            await exitFullscreen();
             router.replace(`/dashboard/student/result/${activeAttemptId}`);
           }
         } else {
@@ -1158,6 +1164,7 @@ export default function TestArenaPage({
                 preservePendingSubmitDraft: serverState.status === "AUTO_SUBMITTED",
               });
               void proctoringCleanupRef.current();
+              await exitFullscreen();
               router.replace(`/dashboard/student/result/${activeAttemptId}`);
             }
           } catch {
@@ -1190,6 +1197,8 @@ export default function TestArenaPage({
         hasEnteredFullscreenRef.current = true;
       } else if (
         hasEnteredFullscreenRef.current &&
+        !isSubmitted &&
+        !submissionInFlightRef.current &&
         document.visibilityState === "visible"
       ) {
         void reportEvent("fullscreen_exit", "Candidate exited required fullscreen mode.");
@@ -1907,6 +1916,7 @@ export default function TestArenaPage({
         );
       }
       setIsSubmitted(true);
+      await exitFullscreen();
 
       cleanupAttemptRuntimeState(attemptId, cleanCode);
 
@@ -1953,6 +1963,7 @@ export default function TestArenaPage({
             // answer-sheet request. Keep its local draft and go straight to
             // results so the result page can recover the saved selections.
             void proctoringCleanupRef.current();
+            await exitFullscreen();
             router.replace(`/dashboard/student/result/${attemptId}`);
             return;
           }
