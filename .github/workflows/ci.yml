@@ -1,0 +1,121 @@
+name: CI - Test Before Merge
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  backend-tests:
+    name: Backend Tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_DB: online_quiz_exam
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d online_quiz_exam"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 10
+    defaults:
+      run:
+        working-directory: backend
+    env:
+      DB_HOST: localhost
+      DB_PORT: 5432
+      DB_NAME: online_quiz_exam
+      DB_USERNAME: postgres
+      DB_PASSWORD: postgres
+      JWT_SECRET: ci-only-secret-key-ci-only-secret-key-ci-only-secret-key
+      JWT_EXPIRATION_MS: 86400000
+      EXAM_TIME_ZONE: Asia/Kolkata
+      AI_PROCTORING_BASE_URL: http://localhost:8000
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v5
+      - name: Set up Java 21
+        uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: "21"
+          cache: maven
+          cache-dependency-path: backend/pom.xml
+      - name: Install PostgreSQL client
+        run: sudo apt-get update && sudo apt-get install -y postgresql-client
+      - name: Initialize test database schema
+        run: psql "postgresql://postgres:postgres@localhost:5432/online_quiz_exam" -v ON_ERROR_STOP=1 -f ../database/schema.sql
+      - name: Run backend tests
+        run: bash ./mvnw --batch-mode --no-transfer-progress clean verify
+
+  frontend-checks:
+    name: Frontend Lint and Build
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v5
+      - name: Set up Node.js
+        uses: actions/setup-node@v5
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - name: Install dependencies
+        run: npm ci
+      - name: Lint frontend
+        run: npm run lint
+      - name: Build frontend
+        run: npm run build
+
+  ai-proctoring-tests:
+    name: AI Proctoring Tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    defaults:
+      run:
+        working-directory: ai-proctoring
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v5
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.11"
+          cache: pip
+          cache-dependency-path: ai-proctoring/requirements.txt
+      - name: Install AI service dependencies
+        run: python -m pip install --upgrade pip && pip install -r requirements.txt
+      - name: Run AI service tests
+        run: python -m pytest -q
+
+  docker-build:
+    name: Docker Image Build
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    needs: [backend-tests, ai-proctoring-tests]
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v5
+      - name: Build backend image
+        run: docker build -t quiz-backend:ci ./backend
+      - name: Build AI proctoring image
+        run: docker build -t quiz-ai-proctoring:ci ./ai-proctoring
