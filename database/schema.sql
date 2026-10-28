@@ -261,3 +261,16 @@ CREATE TABLE quiz_attempt_proctoring_events (
 
 CREATE INDEX idx_proctoring_events_attempt ON quiz_attempt_proctoring_events(attempt_id);
 CREATE INDEX idx_proctoring_events_occurred_at ON quiz_attempt_proctoring_events(occurred_at);
+
+-- Notification preferences used by user notification settings.
+CREATE TABLE user_notification_preferences (
+    preference_id BIGSERIAL PRIMARY KEY,
+    user_id BIGINT NOT NULL UNIQUE
+        REFERENCES users(user_id)
+        ON UPDATE CASCADE
+        ON DELETE CASCADE,
+    assessment_results BOOLEAN NOT NULL DEFAULT TRUE,
+    upcoming_assessments BOOLEAN NOT NULL DEFAULT TRUE,
+    proctoring_reports BOOLEAN NOT NULL DEFAULT FALSE,
+    browser_push BOOLEAN NOT NULL DEFAULT FALSE
+);
