@@ -886,7 +886,7 @@ public class StudentAttemptService {
                                 attempt.getId(),
                                 attempt.getQuiz().getId(),
                                 attempt.getStatus(),
-                                effectiveDeadline,
+                                effectiveDeadline.atZone(QUIZ_TIMEZONE).toOffsetDateTime(),
                                 attempt.getCurrentQuestion(),
                                 attempt.getTotalTimeTaken(),
                                 answers);
