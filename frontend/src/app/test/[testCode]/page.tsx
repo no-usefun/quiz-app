@@ -774,18 +774,21 @@ export default function TestArenaPage({
   // State controls rendering, while the ref is checked inside event handlers
   // to close the small window before React commits a hold-state update.
   const examInteractionBlocked =
-    aiProctoringEnabled === true &&
-    (!isAIProctoringReady ||
-      proctoring.identityHold ||
-      proctoring.serverAutoSubmitted);
+    isLoadingTest ||
+    (aiProctoringEnabled === true &&
+      (!isAIProctoringReady ||
+        proctoring.identityHold ||
+        proctoring.serverAutoSubmitted));
 
   const isInteractionLockedNow = useCallback(
     () =>
-      aiProctoringEnabled === true &&
-      (!isAIProctoringReady ||
-        proctoring.identityHoldRef.current ||
-        proctoring.serverAutoSubmitted),
+      isLoadingTest ||
+      (aiProctoringEnabled === true &&
+        (!isAIProctoringReady ||
+          proctoring.identityHoldRef.current ||
+          proctoring.serverAutoSubmitted)),
     [
+      isLoadingTest,
       aiProctoringEnabled,
       isAIProctoringReady,
       proctoring.identityHoldRef,
@@ -1364,6 +1367,37 @@ export default function TestArenaPage({
         // Clear any prior route/session policy before requesting the current
         // assessment package; never carry a previous quiz's AI setting forward.
         setAiProctoringEnabled(null);
+
+        // Render a fresh package that was already fetched in the lobby while
+        // authoritative requests run. This is display-only: all actions remain
+        // locked until the fresh package and server attempt state are verified.
+        let cachedPackage: QuizPackageResponse | null = null;
+        const packageCacheKey = `dynoquizz_package_prefetch_${cleanCode}`;
+        try {
+          const cachedRaw = sessionStorage.getItem(packageCacheKey);
+          if (cachedRaw) {
+            sessionStorage.removeItem(packageCacheKey);
+            const cachedEntry = JSON.parse(cachedRaw) as {
+              savedAt?: number;
+              data?: QuizPackageResponse;
+            };
+            const cacheAge = Date.now() - Number(cachedEntry.savedAt);
+            if (
+              Number.isFinite(cacheAge) &&
+              cacheAge >= 0 &&
+              cacheAge <= 120_000 &&
+              cachedEntry.data &&
+              Array.isArray(cachedEntry.data.questions) &&
+              cachedEntry.data.questions.length > 0
+            ) {
+              cachedPackage = cachedEntry.data;
+              setTest(cachedPackage);
+            }
+          }
+        } catch {
+          try { sessionStorage.removeItem(packageCacheKey); } catch { /* optional cache */ }
+        }
+        if (!cachedPackage) setTest(null);
 
         // Package loading and authoritative attempt validation are independent.
         // Start both requests together so their latency overlaps instead of
@@ -2191,7 +2225,7 @@ export default function TestArenaPage({
     );
   }
 
-  if (isLoadingTest) {
+  if (isLoadingTest && !test) {
     return (
       <main className="min-h-screen bg-[#f5f5f4] font-sans text-[#111111] dark:bg-slate-950 dark:text-slate-100" aria-busy="true" aria-label="Loading assessment">
         <header className="flex flex-wrap items-center justify-between gap-3 border-b border-[#d1dee8]/70 bg-white px-4 py-3 dark:border-slate-700 dark:bg-slate-900 sm:px-6">
@@ -2388,11 +2422,18 @@ export default function TestArenaPage({
                 title="Overall server-authoritative assessment deadline"
               >
                 <Clock className="h-3.5 w-3.5" />
-                <span className="hidden sm:inline">Time Remaining: </span><span className="sm:hidden">Time </span>{formatRemainingTime(timeLeft)}
+                <span className="hidden sm:inline">Time Remaining: </span><span className="sm:hidden">Time </span>{isLoadingTest ? "Verifying…" : formatRemainingTime(timeLeft)}
               </div>
             </div>
           </div>
         </header>
+
+        {isLoadingTest && test && (
+          <div role="status" aria-live="polite" className="flex items-center gap-2 border-b border-blue-200 bg-blue-50 px-4 py-2 text-xs font-semibold text-blue-800 dark:border-blue-900 dark:bg-blue-950/50 dark:text-blue-200">
+            <span className="h-2 w-2 animate-pulse rounded-full bg-blue-500" />
+            Restoring your assessment and verifying the active attempt…
+          </div>
+        )}
 
         <div className="h-1.5 w-full border-b border-[#d1dee8]/30 bg-[#e6e3e2]/40 dark:border-slate-800 dark:bg-slate-800">
           <div
