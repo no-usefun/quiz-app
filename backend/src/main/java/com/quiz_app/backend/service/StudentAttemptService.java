@@ -232,7 +232,7 @@ public class StudentAttemptService {
                                                 attempt.getStatus(),
                                                 attempt.getCurrentQuestion(),
                                                 attempt.getTotalTimeTaken(),
-                                                effectiveDeadline);
+                                                effectiveDeadline.atZone(QUIZ_TIMEZONE).toOffsetDateTime());
                         }
 
                         // A completed attempt cannot be started again.
@@ -279,7 +279,7 @@ public class StudentAttemptService {
                                 attempt.getStatus(),
                                 attempt.getCurrentQuestion(),
                                 attempt.getTotalTimeTaken(),
-                                effectiveDeadline);
+                                effectiveDeadline.atZone(QUIZ_TIMEZONE).toOffsetDateTime());
         }
 
         private void validateSelectionCount(
