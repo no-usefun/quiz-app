@@ -1365,6 +1365,16 @@ export default function TestArenaPage({
         // assessment package; never carry a previous quiz's AI setting forward.
         setAiProctoringEnabled(null);
 
+        // Package loading and authoritative attempt validation are independent.
+        // Start both requests together so their latency overlaps instead of
+        // making the student wait for two sequential network round trips.
+        const attemptStatePromise = api.get<AttemptStateResponse>(
+          ENDPOINTS.student.attemptState(activeAttemptId),
+          { retry: 2, retryDelayMs: 300, cache: "no-store" },
+        ).then(
+          (state) => ({ ok: true as const, state }),
+          (error: unknown) => ({ ok: false as const, error }),
+        );
         const packageData = await api.get<QuizPackageResponse>(
           ENDPOINTS.student.quizPackageByCode(cleanCode),
           {
@@ -1476,10 +1486,9 @@ export default function TestArenaPage({
 
         if (activeAttemptId) {
           try {
-            const serverState = await api.get<AttemptStateResponse>(
-              ENDPOINTS.student.attemptState(activeAttemptId),
-              { retry: 2, retryDelayMs: 300, cache: "no-store" },
-            );
+            const attemptStateResult = await attemptStatePromise;
+            if (!attemptStateResult.ok) throw attemptStateResult.error;
+            const serverState = attemptStateResult.state;
 
             if (!cancelled && serverState) {
               if (Number(serverState.quizId) !== Number(packageData.quizId)) {
@@ -2441,11 +2450,13 @@ export default function TestArenaPage({
                     (test?.allowReview === false && index < currentIndex)
                   }
                   className={`relative flex h-9 min-w-9 shrink-0 items-center justify-center rounded-lg border px-2 text-[10px] font-extrabold tabular-nums transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#165dfb] focus-visible:ring-offset-2 focus-visible:ring-offset-white disabled:cursor-not-allowed disabled:opacity-40 dark:focus-visible:ring-offset-slate-900 ${
-                    answered
-                      ? `border-emerald-300 bg-emerald-50 text-emerald-800 dark:border-emerald-700 dark:bg-emerald-950/70 dark:text-emerald-200 ${isCurrent ? "ring-2 ring-[#165dfb] ring-offset-1 dark:ring-offset-slate-900" : ""}`
+                    isCurrent
+                      ? "border-blue-500 bg-blue-600 text-white shadow-[0_0_0_2px_rgba(59,130,246,0.22)] ring-2 ring-blue-400 ring-offset-1 dark:border-blue-300 dark:bg-blue-500 dark:text-white dark:ring-offset-slate-900"
                       : marked
-                        ? `border-amber-300 bg-amber-50 text-amber-900 dark:border-amber-700 dark:bg-amber-950/70 dark:text-amber-200 ${isCurrent ? "ring-2 ring-[#165dfb] ring-offset-1 dark:ring-offset-slate-900" : ""}`
-                        : `border-slate-200 bg-white text-slate-600 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200 ${isCurrent ? "border-[#165dfb] ring-2 ring-[#165dfb] ring-offset-1 dark:ring-offset-slate-900" : ""}`
+                        ? "border-amber-300 bg-amber-50 text-amber-900 dark:border-amber-600 dark:bg-amber-950/70 dark:text-amber-200"
+                        : answered
+                          ? "border-emerald-300 bg-emerald-50 text-emerald-800 dark:border-emerald-700 dark:bg-emerald-950/70 dark:text-emerald-200"
+                          : "border-slate-200 bg-white text-slate-600 hover:border-blue-300 hover:bg-blue-50 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200 dark:hover:border-blue-500 dark:hover:bg-slate-700"
                   }`}
                 >
                   {index + 1}
