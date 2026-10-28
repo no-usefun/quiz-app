@@ -226,7 +226,7 @@ export default function StudentLeaderboardPage({
     return (
       <div className="student-leaderboard-page min-h-screen bg-slate-50 dark:bg-slate-950">
         <TopNav role="student" />
-        <main className="mx-auto min-h-[70vh] max-w-6xl space-y-5 p-4 md:p-8" aria-busy="true" aria-label="Loading leaderboard">
+        <main className="mx-auto min-h-[70vh] max-w-6xl space-y-5 p-3 sm:p-4 md:p-8" aria-busy="true" aria-label="Loading leaderboard">
           <SkeletonBlock className="h-6 w-56 rounded" />
           <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
             {[1, 2, 3].map((rank) => (
@@ -271,10 +271,10 @@ export default function StudentLeaderboardPage({
               <ArrowLeft className="h-3.5 w-3.5" />
               Student Dashboard
             </Link>
-            <h1 className="text-2xl font-extrabold tracking-tight">
+            <h1 className="text-xl font-extrabold tracking-tight sm:text-2xl">
               Assessment Leaderboard
             </h1>
-            <p className="mt-1 text-xs font-medium text-slate-500">
+            <p className="mt-1 text-xs font-medium leading-relaxed text-slate-500 dark:text-slate-400">
               Rankings published by the instructor for quiz #{quizId}.
             </p>
           </div>
@@ -343,15 +343,15 @@ export default function StudentLeaderboardPage({
                 { label: "Highest score", value: `${scoreStats.highest.toFixed(1)}%`, hint: "Top performance", icon: Award, tone: "text-[#92400e]", surface: "bg-[#fff0d8]" },
                 { label: "Median score", value: `${scoreStats.median.toFixed(1)}%`, hint: "Middle participant score", icon: Trophy, tone: "text-[#6b21a8]", surface: "bg-[#f3e8ff]" },
               ].map((stat) => (
-                <div key={stat.label} className="rounded-[14px] border border-slate-200 bg-white p-4 shadow-sm">
+                <div key={stat.label} className="rounded-[14px] border border-slate-200 bg-white p-3 shadow-sm transition-colors dark:border-slate-700 dark:bg-slate-900 sm:p-4">
                   <div className="flex items-start justify-between gap-2">
-                    <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500">{stat.label}</span>
+                    <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">{stat.label}</span>
                     <span className={`flex h-8 w-8 items-center justify-center rounded-[10px] ${stat.surface} ${stat.tone}`}>
                       <stat.icon className="h-4 w-4" />
                     </span>
                   </div>
-                  <p className="mt-3 text-2xl font-extrabold tracking-tight text-slate-900">{stat.value}</p>
-                  <p className="mt-1 text-[10px] font-medium text-slate-500">{stat.hint}</p>
+                  <p className="mt-3 text-xl font-extrabold tracking-tight text-slate-900 dark:text-slate-100 sm:text-2xl">{stat.value}</p>
+                  <p className="mt-1 text-[10px] font-medium text-slate-500 dark:text-slate-400">{stat.hint}</p>
                 </div>
               ))}
             </section>
@@ -375,7 +375,7 @@ export default function StudentLeaderboardPage({
                   return (
                     <div key={band.label} className="flex min-w-0 flex-col items-center gap-2">
                       <span className={`text-xs font-bold tabular-nums ${isStudentBand ? "text-[#165dfb] dark:text-blue-300" : "text-[#44403c] dark:text-slate-200"}`}>{band.count}{isStudentBand ? " · You" : ""}</span>
-                      <div className="flex h-28 w-full items-end justify-center rounded-t-[8px] bg-slate-50">
+                      <div className="flex h-28 w-full items-end justify-center rounded-t-[8px] bg-slate-50 dark:bg-slate-800/80">
                         <div className={`w-full max-w-16 rounded-t-[7px] ${isStudentBand ? "bg-[#165dfb] dark:bg-blue-400" : `${band.color} dark:bg-slate-600`} transition-[height] duration-500 ease-out`} style={{ height: `${height}px` }} />
                       </div>
                       <span className={`text-center text-[9px] font-bold sm:text-[10px] ${isStudentBand ? "text-[#165dfb] dark:text-blue-300" : "text-slate-500 dark:text-slate-400"}`}>{band.label}{isStudentBand ? " · You" : ""}</span>
@@ -472,7 +472,7 @@ export default function StudentLeaderboardPage({
               </div>
               <div className="overflow-x-auto">
               <div className="min-w-[620px]">
-              <div className="grid grid-cols-[4rem_1fr_8rem_8rem] gap-3 border-b border-[#d1dee8]/40 bg-[#fbfbfa] px-5 py-3 text-[10px] font-bold uppercase tracking-wider text-slate-500">
+              <div className="grid grid-cols-[4rem_1fr_8rem_8rem] gap-3 border-b border-[#d1dee8]/40 bg-[#fbfbfa] px-5 py-3 text-[10px] font-bold uppercase tracking-wider text-slate-500 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300">
                 <span>Rank</span>
                 <span>Student</span>
                 <span className="text-center">Score</span>
@@ -483,7 +483,7 @@ export default function StudentLeaderboardPage({
                 {displayEntries.map((entry) => (
                   <li
                     key={entry.studentId}
-                    className={`grid grid-cols-[4rem_1fr_8rem_8rem] items-center gap-3 px-5 py-3.5 transition-colors ${Number(entry.studentId) === currentStudentId ? "bg-[#eef4ff] ring-2 ring-inset ring-[#165dfb]/60 dark:bg-blue-950/60 dark:ring-blue-400/70" : "hover:bg-[#f8fafc] dark:hover:bg-slate-800"}`}
+                    className={`grid grid-cols-[4rem_1fr_8rem_8rem] items-center gap-3 px-5 py-3.5 transition-colors ${Number(entry.studentId) === currentStudentId ? "bg-gradient-to-r from-blue-50 to-indigo-50 ring-2 ring-inset ring-[#165dfb]/60 dark:from-blue-950/70 dark:to-indigo-950/50 dark:ring-blue-400/70" : "hover:bg-[#f8fafc] dark:hover:bg-slate-800/80"}`}
                   >
                     <span className="font-mono text-xs font-bold text-slate-500">
                       #{entry.rank}
