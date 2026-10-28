@@ -82,6 +82,14 @@ function LobbyInner({ testCode }: { testCode: string }) {
   const [isStarting, setIsStarting] = useState(false);
   const [startError, setStartError] = useState<string | null>(null);
 
+  // Warm the assessment route while the lobby performs its policy checks, so
+  // navigation after Start does not also wait for the route bundle.
+  useEffect(() => {
+    if (cleanCode) {
+      router.prefetch(`/test/${encodeURIComponent(cleanCode)}`);
+    }
+  }, [cleanCode, router]);
+
   useEffect(() => {
     if (!cleanCode) {
       // No code means there is no availability request to make; show the invalid-code state.
@@ -114,20 +122,31 @@ function LobbyInner({ testCode }: { testCode: string }) {
         setAvailability(null);
         setStartError(null);
 
-        const result = await api.get<QuizAvailabilityResponse>(
+        // Availability and proctoring-policy metadata are independent reads.
+        // Start both together to avoid serial network latency on the way into an exam.
+        const availabilityRequest = api.get<QuizAvailabilityResponse>(
           ENDPOINTS.student.availability(cleanCode),
-          {
-            retry: 2,
-            retryDelayMs: 300,
-            cache: "no-store",
-          },
+          { retry: 2, retryDelayMs: 300, cache: "no-store" },
+        ).then(
+          (value) => ({ ok: true as const, value }),
+          (error: unknown) => ({ ok: false as const, error }),
+        );
+        const packageRequest = api.get<unknown>(
+          ENDPOINTS.student.quizPackageByCode(cleanCode),
+          { retry: 0, cache: "no-store" },
+        ).then(
+          (value) => ({ ok: true as const, value }),
+          (error: unknown) => ({ ok: false as const, error }),
         );
 
+        const [availabilityResult, packageResult] = await Promise.all([
+          availabilityRequest,
+          packageRequest,
+        ]);
         if (cancelled) return;
+        if (!availabilityResult.ok) throw availabilityResult.error;
+        const result = availabilityResult.value;
 
-        // Different backend versions may expose the flag on availability or on
-        // the student-safe package. Read both so a false/missing availability
-        // default cannot hide AI that the teacher explicitly enabled.
         const availabilityRecord = result as QuizAvailabilityResponse & Record<string, unknown>;
         const readProctoringFlag = (value: unknown): boolean | undefined => {
           if (!value || typeof value !== "object") return undefined;
@@ -150,16 +169,11 @@ function LobbyInner({ testCode }: { testCode: string }) {
           return undefined;
         };
 
-        let packageFlag: boolean | undefined;
-        try {
-          const packageResponse = await api.get<unknown>(
-            ENDPOINTS.student.quizPackageByCode(cleanCode),
-            { retry: 0, cache: "no-store" },
-          );
-          packageFlag = readProctoringFlag(packageResponse);
-        } catch {
-          // Some backends only expose the package after an attempt is created.
-        }
+        // Package metadata is optional on some backend versions; availability
+        // remains the primary status source when the package read is unavailable.
+        const packageFlag = packageResult.ok
+          ? readProctoringFlag(packageResult.value)
+          : undefined;
 
         const availabilityFlag = readProctoringFlag(availabilityRecord);
         // Enabling wins if either authoritative student endpoint says true.
