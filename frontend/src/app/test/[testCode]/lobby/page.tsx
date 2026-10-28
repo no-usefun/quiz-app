@@ -147,6 +147,23 @@ function LobbyInner({ testCode }: { testCode: string }) {
         if (!availabilityResult.ok) throw availabilityResult.error;
         const result = availabilityResult.value;
 
+        // Keep a short-lived, same-tab copy of the package just fetched from
+        // the server. The exam screen can paint from it immediately, but still
+        // refreshes the authoritative package and verifies the active attempt.
+        if (packageResult.ok) {
+          try {
+            const packageRecord = packageResult.value as Record<string, unknown> | null;
+            if (packageRecord && Array.isArray(packageRecord.questions)) {
+              sessionStorage.setItem(
+                `dynoquizz_package_prefetch_${cleanCode}`,
+                JSON.stringify({ savedAt: Date.now(), data: packageResult.value }),
+              );
+            }
+          } catch {
+            // Storage is an optional performance optimization, never a blocker.
+          }
+        }
+
         const availabilityRecord = result as QuizAvailabilityResponse & Record<string, unknown>;
         const readProctoringFlag = (value: unknown): boolean | undefined => {
           if (!value || typeof value !== "object") return undefined;
