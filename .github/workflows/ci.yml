@@ -56,6 +56,8 @@ jobs:
           java-version: "21"
           cache: maven
           cache-dependency-path: backend/pom.xml
+      - name: Install PostgreSQL client
+        run: sudo apt-get update && sudo apt-get install -y postgresql-client
       - name: Initialize test database schema
         run: psql "postgresql://postgres:postgres@localhost:5432/online_quiz_exam" -v ON_ERROR_STOP=1 -f ../database/schema.sql
       - name: Run backend tests
