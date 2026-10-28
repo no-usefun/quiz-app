@@ -1692,28 +1692,34 @@ html.dark .student-leaderboard-page [class*="bg-[#eef4ff]"] {
 
 
 /* Assessment builder dark-mode input polish.
-   Keep question/option text fields on the same surface as their containing
-   cards; avoid the near-black inset strip visible inside option rows. */
+   Option text should sit directly on the option card surface. The option button
+   label describes the action, so "incorrect" means that option is currently
+   correct (clicking it would unmark it). */
 html.dark .teacher-assessment-builder input:not([type="checkbox"]):not([type="radio"]):not([type="file"]),
 html.dark .teacher-assessment-builder textarea,
 html.dark .teacher-assessment-builder select {
   color-scheme: dark;
 }
 
+html.dark .teacher-assessment-builder .group:has(button[aria-label^="Mark option"]) {
+  background-color: #172131 !important;
+  border-color: #334155;
+}
+
+html.dark .teacher-assessment-builder .group:has(button[aria-label$="incorrect"]) {
+  background-color: #1b3151 !important;
+  border-color: #5b8ff0;
+}
+
 html.dark .teacher-assessment-builder .group input[type="text"] {
+  appearance: none;
+  -webkit-appearance: none;
+  background: transparent !important;
   background-color: transparent !important;
   background-image: none !important;
-  color: #e2e8f0;
+  color: #e2e8f0 !important;
   -webkit-box-shadow: 0 0 0 1000px transparent inset !important;
-  box-shadow: 0 0 0 1000px transparent inset !important;
-}
-
-html.dark .teacher-assessment-builder .group:has(input[type="text"]) {
-  background-color: #1e293b;
-}
-
-html.dark .teacher-assessment-builder .group:has(input[type="text"]):has(button[aria-label*="correct"]) {
-  background-color: #172b4d;
+  box-shadow: none !important;
 }
 
 html.dark .teacher-assessment-builder input::placeholder,
