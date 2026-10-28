@@ -497,10 +497,10 @@ export default function TestArenaPage({
       return null;
     }
 
-    return (
-      localStorage.getItem(`dynoquizz_attemptId_${cleanCode}`) ||
-      localStorage.getItem("dynoquizz_attemptId")
-    );
+    // Use only the code-scoped attempt mapping. The legacy global key can
+    // point to a different quiz and accidentally restore the wrong attempt's
+    // local state when navigating between assessments.
+    return localStorage.getItem(`dynoquizz_attemptId_${cleanCode}`);
   });
 
   const [currentIndex, setCurrentIndex] = useState(0);
@@ -1975,10 +1975,10 @@ export default function TestArenaPage({
       // A timeout, 5xx, or duplicate-submit conflict can happen after the
       // server has already committed the submission. Reconcile all ambiguous
       // outcomes against the authoritative attempt state before showing retry.
+      // Reconcile every non-auth failure: some backends return a 4xx or
+      // generic error even when the server already finalized the attempt.
       const shouldReconcile =
-        !(error instanceof ApiClientError) ||
-        error.status === 409 ||
-        error.status >= 500;
+        !(error instanceof ApiClientError) || error.status !== 401;
 
       if (shouldReconcile) {
         try {
