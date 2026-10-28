@@ -1624,3 +1624,68 @@ html.dark .public-signup-role-selection .signup-role-instructor-panel:hover {
 .ambient-content > :is([class*="min-h-screen"], .public-auth, .public-landing) {
   background-color: transparent !important;
 }
+
+
+/* Mobile polish for the teacher assessment governance screen. Keep the page
+   readable at 360–430px widths and make controls easier to tap. */
+@media (max-width: 639px) {
+  .assessment-governance {
+    padding: 0.625rem !important;
+  }
+
+  .assessment-governance > .mx-auto {
+    width: 100%;
+    min-height: auto !important;
+    border-radius: 14px;
+  }
+
+  .assessment-governance header {
+    gap: 0.625rem;
+  }
+
+  .assessment-governance button,
+  .assessment-governance select,
+  .assessment-governance input {
+    min-height: 40px;
+  }
+
+  .assessment-governance :is(h1, h2, h3) {
+    overflow-wrap: anywhere;
+  }
+
+  .assessment-governance .assessment-leaderboard-table {
+    border-radius: 12px;
+  }
+
+  .assessment-governance .assessment-leaderboard-table-header,
+  .assessment-governance .assessment-leaderboard-row {
+    gap: 0.5rem;
+    padding-left: 0.75rem;
+    padding-right: 0.75rem;
+  }
+}
+
+/* Student leaderboard: semantic surfaces and clearer self-row contrast in
+   dark mode without changing the ranking data or sorting behavior. */
+html.dark .student-leaderboard-page .bg-white {
+  background-color: #151e2e;
+}
+
+html.dark .student-leaderboard-page [class*="bg-[#fbfbfa]"] {
+  background-color: #202938;
+}
+
+html.dark .student-leaderboard-page [class*="bg-[#eef4ff]"] {
+  background-color: #1d3154;
+}
+
+@media (max-width: 639px) {
+  .student-leaderboard-page main {
+    padding-left: 0.75rem;
+    padding-right: 0.75rem;
+  }
+
+  .student-leaderboard-page section {
+    min-width: 0;
+  }
+}
