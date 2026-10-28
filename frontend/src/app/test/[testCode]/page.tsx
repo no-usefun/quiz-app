@@ -2561,7 +2561,7 @@ export default function TestArenaPage({
                   }
                   className={`relative flex h-9 min-w-9 shrink-0 items-center justify-center rounded-lg border px-2 text-[10px] font-extrabold tabular-nums transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#165dfb] focus-visible:ring-offset-2 focus-visible:ring-offset-white disabled:cursor-not-allowed disabled:opacity-40 dark:focus-visible:ring-offset-slate-900 ${
                     answered
-                      ? `border-emerald-300 bg-emerald-50 text-emerald-800 dark:border-emerald-700 dark:bg-emerald-950/70 dark:text-emerald-200 ${isCurrent ? "ring-2 ring-blue-500 ring-offset-1 dark:ring-blue-400 dark:ring-offset-slate-900" : ""} ${marked ? "ring-1 ring-amber-300/90 dark:ring-amber-500/90" : ""}`
+                      ? `border-emerald-300 bg-emerald-50 text-emerald-800 dark:border-emerald-700 dark:bg-emerald-950/70 dark:text-emerald-200 ${isCurrent ? "ring-2 ring-blue-500 ring-offset-1 dark:ring-blue-400 dark:ring-offset-slate-900" : ""} `
                       : `border-slate-200 bg-slate-100 text-slate-600 hover:border-slate-300 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200 ${isCurrent ? "ring-2 ring-blue-500 ring-offset-1 dark:ring-blue-400 dark:ring-offset-slate-900" : ""}`
                   }`}
                 >
