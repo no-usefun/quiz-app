@@ -232,3 +232,16 @@ CREATE TABLE email_verification_tokens (
 CREATE INDEX idx_email_verification_tokens_user ON email_verification_tokens(user_id);
 CREATE INDEX idx_email_verification_tokens_expiry ON email_verification_tokens(expires_at);
 
+
+-- Password reset tokens used by the account recovery flow.
+CREATE TABLE password_reset_tokens (
+    token_id BIGSERIAL PRIMARY KEY,
+    user_id BIGINT NOT NULL REFERENCES users(user_id) ON UPDATE CASCADE ON DELETE CASCADE,
+    token_hash VARCHAR(255) NOT NULL UNIQUE,
+    expires_at TIMESTAMP NOT NULL,
+    used BOOLEAN NOT NULL DEFAULT FALSE,
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX idx_password_reset_tokens_user ON password_reset_tokens(user_id);
+CREATE INDEX idx_password_reset_tokens_expiry ON password_reset_tokens(expires_at);
