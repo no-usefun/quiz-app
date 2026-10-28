@@ -245,3 +245,19 @@ CREATE TABLE password_reset_tokens (
 
 CREATE INDEX idx_password_reset_tokens_user ON password_reset_tokens(user_id);
 CREATE INDEX idx_password_reset_tokens_expiry ON password_reset_tokens(expires_at);
+
+
+-- Idempotent AI proctoring events received for a quiz attempt.
+CREATE TABLE quiz_attempt_proctoring_events (
+    event_id BIGSERIAL PRIMARY KEY,
+    attempt_id BIGINT NOT NULL REFERENCES quiz_attempts(attempt_id) ON UPDATE CASCADE ON DELETE CASCADE,
+    event_type VARCHAR(40) NOT NULL,
+    occurred_at TIMESTAMP NOT NULL,
+    client_event_id VARCHAR(100),
+    metadata_json TEXT,
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT uq_proctoring_attempt_client_event UNIQUE (attempt_id, client_event_id)
+);
+
+CREATE INDEX idx_proctoring_events_attempt ON quiz_attempt_proctoring_events(attempt_id);
+CREATE INDEX idx_proctoring_events_occurred_at ON quiz_attempt_proctoring_events(occurred_at);
