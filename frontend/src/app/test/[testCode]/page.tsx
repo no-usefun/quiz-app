@@ -766,8 +766,10 @@ export default function TestArenaPage({
       // Server-triggered auto-submission did not receive the local answer sheet.
       // Retain the draft for recovery rather than deleting the only remaining copy.
       cleanupAttemptRuntimeState(activeAttemptId, cleanCode, { preservePendingSubmitDraft: true });
+      // Exit fullscreen regardless of navigation availability. SPA redirects do
+      // not automatically release the browser's fullscreen state.
+      await exitFullscreen();
       if (activeAttemptId) {
-        await exitFullscreen();
         router.replace(`/dashboard/student/result/${activeAttemptId}`);
       }
     },
@@ -1263,9 +1265,16 @@ export default function TestArenaPage({
     const handleKeyDown = (event: KeyboardEvent) => {
       const key = event.key.toLowerCase();
       const command = event.ctrlKey || event.metaKey;
+      // Use KeyboardEvent.code for number-row keys because event.key can
+      // become "#", "$", or "%" when Shift is pressed on a Mac layout.
       const macScreenshotShortcut =
-        event.metaKey && event.shiftKey && ["3", "4", "5"].includes(key);
-      const screenshotShortcut = key === "printscreen" || macScreenshotShortcut;
+        event.metaKey &&
+        event.shiftKey &&
+        ["Digit3", "Digit4", "Digit5"].includes(event.code);
+      const screenshotShortcut =
+        key === "printscreen" ||
+        event.code === "PrintScreen" ||
+        macScreenshotShortcut;
       const blocked =
         (command && ["c", "x", "v", "a", "p", "s", "u"].includes(key)) ||
         screenshotShortcut;
@@ -2522,6 +2531,10 @@ export default function TestArenaPage({
               <Flag className="h-3 w-3" />
               Marked {markedQuestionCount}
             </span>
+            <span className="inline-flex items-center gap-1.5 text-blue-800 dark:text-blue-300">
+              <span className="h-2.5 w-2.5 rounded-sm border border-slate-300 bg-slate-100 ring-1 ring-blue-500 dark:border-slate-600 dark:bg-slate-800 dark:ring-blue-400" />
+              Current
+            </span>
           </div>
 
           <div className="mt-2 flex gap-1.5 overflow-x-auto pb-1.5" aria-label="Questions">
@@ -2547,11 +2560,9 @@ export default function TestArenaPage({
                     (test?.allowReview === false && index < currentIndex)
                   }
                   className={`relative flex h-9 min-w-9 shrink-0 items-center justify-center rounded-lg border px-2 text-[10px] font-extrabold tabular-nums transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#165dfb] focus-visible:ring-offset-2 focus-visible:ring-offset-white disabled:cursor-not-allowed disabled:opacity-40 dark:focus-visible:ring-offset-slate-900 ${
-                    isCurrent
-                      ? "border-blue-500 bg-blue-600 text-white shadow-[0_0_0_2px_rgba(59,130,246,0.22)] ring-2 ring-blue-400 ring-offset-1 dark:border-blue-300 dark:bg-blue-500 dark:text-white dark:ring-offset-slate-900"
-                      : answered
-                        ? `border-emerald-300 bg-emerald-50 text-emerald-800 dark:border-emerald-700 dark:bg-emerald-950/70 dark:text-emerald-200 ${marked ? "ring-1 ring-amber-300/80 dark:ring-amber-600/80" : ""}`
-                        : `border-slate-200 bg-slate-100 text-slate-600 hover:border-blue-300 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200 dark:hover:border-blue-500 ${marked ? "ring-1 ring-amber-400/80 dark:ring-amber-500/80" : ""}`
+                    answered
+                      ? `border-emerald-300 bg-emerald-50 text-emerald-800 dark:border-emerald-700 dark:bg-emerald-950/70 dark:text-emerald-200 ${isCurrent ? "ring-2 ring-blue-500 ring-offset-1 dark:ring-blue-400 dark:ring-offset-slate-900" : ""} ${marked ? "ring-1 ring-amber-300/90 dark:ring-amber-500/90" : ""}`
+                      : `border-slate-200 bg-slate-100 text-slate-600 hover:border-slate-300 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200 ${isCurrent ? "ring-2 ring-blue-500 ring-offset-1 dark:ring-blue-400 dark:ring-offset-slate-900" : ""}`
                   }`}
                 >
                   {index + 1}
