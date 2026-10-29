@@ -1134,21 +1134,50 @@ export default function TestArenaPage({
             router.replace(`/dashboard/student/result/${activeAttemptId}`);
           }
         } else {
-          await api.post(
-            ENDPOINTS.student.proctoringEvents(activeAttemptId),
-            {
-              // The backend event contract currently has no screenshot_attempt type.
-              // Preserve the distinct signal in metadata until the backend contract is extended.
-              type: type === "screenshot_attempt" ? "keyboard_attempt" : type,
-              clientEventId: `browser-${activeAttemptId}-${type}-${now}`,
-              metadata: {
-                source: "browser",
-                details,
-                ...(type === "screenshot_attempt" ? { originalType: type } : {}),
-                detectedAt: new Date(now).toISOString(),
-              },
+          const eventPayload = {
+            type,
+            clientEventId: `browser-${activeAttemptId}-${type}-${now}`,
+            metadata: {
+              source: "browser",
+              details,
+              detectedAt: new Date(now).toISOString(),
             },
-          );
+          };
+
+          try {
+            // Send screenshot_attempt as its own event when the backend supports
+            // the updated contract. Older deployed backends reject that enum, so
+            // retain a compatibility fallback rather than silently losing the signal.
+            await api.post(
+              ENDPOINTS.student.proctoringEvents(activeAttemptId),
+              eventPayload,
+            );
+          } catch (eventError) {
+            const isUnsupportedScreenshotEvent =
+              type === "screenshot_attempt" &&
+              eventError instanceof ApiClientError &&
+              eventError.status === 400 &&
+              (
+                eventError.errorCode === "INVALID_PROCTORING_EVENT" ||
+                /unsupported proctoring event type/i.test(eventError.message)
+              );
+
+            if (!isUnsupportedScreenshotEvent) throw eventError;
+
+            await api.post(
+              ENDPOINTS.student.proctoringEvents(activeAttemptId),
+              {
+                ...eventPayload,
+                type: "keyboard_attempt",
+                clientEventId: `browser-${activeAttemptId}-screenshot_fallback-${now}`,
+                metadata: {
+                  ...eventPayload.metadata,
+                  originalType: "screenshot_attempt",
+                  compatibilityFallback: true,
+                },
+              },
+            );
+          }
         }
       } catch (error) {
         // A 409 here usually means the server has already closed/submitted the
