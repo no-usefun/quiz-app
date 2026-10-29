@@ -94,6 +94,7 @@ type StudentRecord = {
   timeTaken: string;
   timeTakenSeconds: number;
   status?: string | null;
+  terminationReason?: string | null;
 };
 
 type ProctoringEvent = {
@@ -565,6 +566,12 @@ export default function TeacherAssessmentPage({
         ""
       ).trim();
       const status = typeof entry.status === "string" ? entry.status : null;
+      const rawTerminationReason =
+        entry.terminationReason ?? entry.finalizationReason ?? entry.submissionReason;
+      const terminationReason =
+        typeof rawTerminationReason === "string" && rawTerminationReason.trim()
+          ? rawTerminationReason.trim()
+          : null;
       const rawAttemptId = Number(entry.attemptId);
       const attemptId =
         Number.isSafeInteger(rawAttemptId) && rawAttemptId > 0
@@ -592,6 +599,7 @@ export default function TeacherAssessmentPage({
         registrationNumber,
         avatar,
         status,
+        terminationReason,
         score: percentage,
         finalScore: rawFinalScore,
         totalMarks: rawTotalMarks,
@@ -1892,7 +1900,21 @@ export default function TeacherAssessmentPage({
                       <div className="flex justify-center">
                         <span className={`inline-flex items-center gap-1 rounded-full px-2 py-1 text-[9px] font-bold ${student.status === "SUBMITTED" ? "bg-emerald-100 text-emerald-700" : "bg-slate-100 text-slate-600"}`}>
                           <span className={`h-1.5 w-1.5 rounded-full ${student.status === "SUBMITTED" ? "bg-emerald-500" : "bg-slate-400"}`} />
-                          {(student.status || "UNKNOWN").replaceAll("_", " ")}
+                          {(() => {
+                            const status = String(student.status || "UNKNOWN").toUpperCase();
+                            const reason = String(student.terminationReason || "").toUpperCase();
+                            if (status === "SUBMITTED") return "Submitted";
+                            if (status === "AUTO_SUBMITTED") {
+                              if (/DEADLINE|TIME_LIMIT|TIMEOUT|EXPIRED/.test(reason)) {
+                                return "Auto-submitted · Deadline";
+                              }
+                              if (/PROCTOR|MALPRACTICE|VIOLATION|WARNING_LIMIT/.test(reason)) {
+                                return "Auto-submitted · Proctoring limit";
+                              }
+                              return "Auto-submitted";
+                            }
+                            return status.replaceAll("_", " ");
+                          })()}
                         </span>
                       </div>
 
