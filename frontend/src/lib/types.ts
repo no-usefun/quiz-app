@@ -197,6 +197,7 @@ export interface AttemptResponse {
   currentQuestion?: number | null;
   totalTimeTaken?: number | null;
   effectiveDeadline: string;
+  terminationReason?: string | null;
 }
 
 export interface SubmitAnswerRequest {
@@ -217,6 +218,7 @@ export interface SubmitAttemptResponse {
   totalMarks: number;
   totalTimeTaken: number;
   submittedAt: string;
+  terminationReason?: string | null;
 }
 
 export interface AttemptSavedAnswer {
@@ -234,6 +236,7 @@ export interface AttemptStateResponse {
   currentQuestion?: number | null;
   answers: AttemptSavedAnswer[];
   totalTimeTaken?: number | null;
+  terminationReason?: string | null;
 }
 
 export interface DraftAttemptAnswersResponse {
