@@ -2002,9 +2002,13 @@ export default function TestArenaPage({
       cleanupAttemptRuntimeState(attemptId, cleanCode);
 
       if (result.status === "AUTO_SUBMITTED") {
-        setDeadlineNotice(
-          "The server deadline was reached, so the attempt was automatically submitted.",
-        );
+        const reason = String(result.terminationReason || "").toUpperCase();
+        const notice = /DEADLINE|TIME_LIMIT|TIMEOUT|EXPIRED/.test(reason)
+          ? "The server deadline was reached, so the attempt was automatically submitted."
+          : /PROCTOR|MALPRACTICE|VIOLATION|WARNING_LIMIT/.test(reason)
+            ? "The configured proctoring or browser-violation limit was reached, so the attempt was automatically submitted."
+            : "The server confirmed that this attempt was automatically submitted.";
+        setDeadlineNotice(notice);
       }
 
       /*
@@ -2042,9 +2046,13 @@ export default function TestArenaPage({
             });
 
             if (state.status === "AUTO_SUBMITTED") {
-              setDeadlineNotice(
-                "The server has already automatically submitted this assessment attempt.",
-              );
+              const reason = String(state.terminationReason || "").toUpperCase();
+              const notice = /DEADLINE|TIME_LIMIT|TIMEOUT|EXPIRED/.test(reason)
+                ? "The server deadline was reached and this assessment was automatically submitted."
+                : /PROCTOR|MALPRACTICE|VIOLATION|WARNING_LIMIT/.test(reason)
+                  ? "The configured proctoring or browser-violation limit caused automatic submission."
+                  : "The server has already automatically submitted this assessment attempt.";
+              setDeadlineNotice(notice);
             }
 
             void proctoringCleanupRef.current();
