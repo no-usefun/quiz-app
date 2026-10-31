@@ -1,6 +1,7 @@
 "use client";
 
-import { use, useEffect, useMemo, useState } from "react";
+import SkeletonBlock from "@/components/SkeletonBlock";
+import { use, useEffect, useMemo, useState, useSyncExternalStore } from "react";
 import Link from "next/link";
 import { motion } from "framer-motion";
 import {
@@ -14,7 +15,12 @@ import {
   RefreshCw,
 } from "lucide-react";
 import { Logo } from "@/components/Logo";
+import { ThemeToggle } from "@/components/ThemeToggle";
 import { ENDPOINTS } from "@/lib/api/endpoints";
+
+const subscribeToHydration = () => () => {};
+const getClientHydrationSnapshot = () => true;
+const getServerHydrationSnapshot = () => false;
 
 type QuizSummary = {
   quizId: number | string;
@@ -66,24 +72,31 @@ function formatTimeTaken(seconds: number | null | undefined): string {
   return `${String(minutes).padStart(2, "0")}:${String(secs).padStart(2, "0")}`;
 }
 
-function normalizeQuiz(raw: any): QuizSummary | null {
-  if (!raw || typeof raw !== "object") return null;
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function normalizeQuiz(raw: unknown): QuizSummary | null {
+  if (!isRecord(raw)) return null;
 
   const quizId = raw.quizId ?? raw.id;
   const quizCode = String(raw.quizCode ?? raw.testCode ?? "").trim();
 
-  if (quizId == null || !quizCode) return null;
+  if (
+    (typeof quizId !== "string" && typeof quizId !== "number") ||
+    !quizCode
+  ) return null;
 
   return {
     quizId,
     quizCode,
-    title: raw.title ?? "Assessment Session",
+    title: String(raw.title ?? "Assessment Session"),
     totalStudents: Number(raw.totalStudents ?? 0),
     totalQuestions: Number(raw.totalQuestions ?? 0),
     totalMarks: Number(raw.totalMarks ?? 0),
     overallTimerSeconds: Number(raw.overallTimerSeconds ?? 0),
-    status: raw.status,
-    examState: raw.examState,
+    status: typeof raw.status === "string" ? raw.status : undefined,
+    examState: typeof raw.examState === "string" ? raw.examState : undefined,
     resultsPublished: Boolean(raw.resultsPublished),
   };
 }
@@ -127,15 +140,17 @@ export default function LiveLeaderboard({
   const [students, setStudents] = useState<StudentRow[]>([]);
   const [lastSync, setLastSync] = useState("--:--:--");
   const [refreshKey, setRefreshKey] = useState(0);
-  const [mounted, setMounted] = useState(false);
+  const mounted = useSyncExternalStore(
+    subscribeToHydration,
+    getClientHydrationSnapshot,
+    getServerHydrationSnapshot,
+  );
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   const displayCode = quiz?.quizCode || testCode;
 
-  useEffect(() => {
-    setMounted(true);
-  }, []);
+  
 
   useEffect(() => {
     let cancelled = false;
@@ -171,13 +186,14 @@ export default function LiveLeaderboard({
 
       const payload = await listRes.json();
 
-      const list: any[] = Array.isArray(payload)
+      const rawList: unknown[] = Array.isArray(payload)
         ? payload
-        : Array.isArray(payload?.content)
+        : isRecord(payload) && Array.isArray(payload.content)
           ? payload.content
-          : Array.isArray(payload?.data)
+          : isRecord(payload) && Array.isArray(payload.data)
             ? payload.data
             : [];
+      const list = rawList.filter(isRecord);
 
       let matched = list.find(
         (item) =>
@@ -269,13 +285,13 @@ export default function LiveLeaderboard({
 
         const resolvedQuiz = await fetchQuiz();
         await fetchLeaderboard(resolvedQuiz.quizId, resolvedQuiz.totalQuestions);
-      } catch (err: any) {
+      } catch (err: unknown) {
         if (cancelled) return;
 
         console.error("Failed to load teacher live leaderboard:", err);
         setStudents([]);
         setError(
-          err?.message ||
+          (err instanceof Error ? err.message : null) ||
             "We couldn't retrieve the assessment leaderboard from the server.",
         );
       } finally {
@@ -317,8 +333,30 @@ export default function LiveLeaderboard({
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-frost-surface flex items-center justify-center text-xs text-steel-blue-gray">
-        Loading leaderboard...
+      <div className="min-h-screen bg-frost-surface font-sans text-midnight-navy dark:bg-slate-950 dark:text-slate-100" aria-busy="true" aria-label="Loading teacher leaderboard">
+        <header className="sticky top-0 z-20 flex flex-wrap items-center justify-between gap-2 border-b border-mist-blue/60 bg-paper-white px-3 py-3.5 sm:px-6 dark:border-slate-700 dark:bg-slate-900">
+          <div className="flex items-center gap-3"><Link href="/dashboard/teacher" className="flex items-center gap-2 text-xs font-bold text-steel-blue-gray"><ArrowLeft className="h-3.5 w-3.5" />Dashboard</Link><span className="text-mist-blue/30">|</span><Logo /></div>
+          <div className="flex items-center gap-2"><ThemeToggle /><SkeletonBlock className="hidden h-7 w-32 rounded-full sm:block" /><span className="flex items-center gap-2 rounded-[10px] border border-mist-blue/70 bg-white px-3.5 py-1.5 dark:border-slate-700 dark:bg-slate-800"><RefreshCw className="h-3.5 w-3.5 text-slate-400" /><SkeletonBlock className="h-3 w-20 rounded" /></span></div>
+        </header>
+        <main className="mx-auto max-w-7xl space-y-5 px-4 py-6 text-left">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+            <div className="space-y-2"><span className="text-xs font-bold uppercase tracking-widest text-signal-green">Leaderboard</span><h1 className="text-2xl font-bold tracking-tight text-midnight-navy dark:text-slate-100">{displayCode}</h1><SkeletonBlock className="h-3 w-44 rounded" /></div>
+            <div className="flex flex-wrap items-center gap-3.5 rounded-full border border-mist-blue/80 bg-paper-white px-3.5 py-2 dark:border-slate-700 dark:bg-slate-900"><span className="flex items-center gap-2"><Activity className="h-3.5 w-3.5 text-signal-green" /><SkeletonBlock className="h-3 w-24 rounded" /></span><span className="flex items-center gap-2"><Clock className="h-3.5 w-3.5 text-signal-green" /><SkeletonBlock className="h-3 w-28 rounded" /></span></div>
+          </div>
+          <div className="grid grid-cols-2 gap-3.5 lg:grid-cols-4">
+            {[
+              { icon: <Users className="h-4 w-4 text-signal-green" />, label: "Target Students" },
+              { icon: <ShieldCheck className="h-4 w-4 text-pastel-mint-text" />, label: "Submitted" },
+              { icon: <Clock className="h-4 w-4 text-signal-green" />, label: "Exam Duration" },
+              { icon: <TrendingUp className="h-4 w-4 text-signal-green" />, label: "Class Avg Score" },
+            ].map((stat) => <section key={stat.label} className="flex items-center gap-3 rounded-[14px] border border-mist-blue/70 bg-paper-white p-4 shadow-sm dark:border-slate-700 dark:bg-slate-900"><span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-[10px] border border-mist-blue/20 bg-frost-surface dark:bg-slate-800">{stat.icon}</span><div className="space-y-2"><SkeletonBlock className="h-5 w-12 rounded" /><p className="text-[10px] font-bold uppercase tracking-wider text-steel-blue-gray dark:text-slate-400">{stat.label}</p></div></section>)}
+          </div>
+          <section className="overflow-hidden rounded-[14px] border border-mist-blue/70 bg-paper-white shadow-sm dark:border-slate-700 dark:bg-slate-900">
+            <div className="flex items-center justify-between border-b border-mist-blue/60 p-4 dark:border-slate-700"><div className="flex items-center gap-2"><Users className="h-4 w-4 text-signal-green" /><SkeletonBlock className="h-4 w-32 rounded" /></div><SkeletonBlock className="h-8 w-28 rounded-[10px]" /></div>
+            {[1,2,3,4,5].map((row) => <div key={row} className="grid grid-cols-[36px_minmax(0,1fr)_72px_60px] items-center gap-3 border-b border-mist-blue/40 px-4 py-4 last:border-0 dark:border-slate-800"><SkeletonBlock className="h-4 w-6 rounded" /><div className="flex min-w-0 items-center gap-3"><span className="flex h-8 w-8 items-center justify-center rounded-full bg-frost-surface text-steel-blue-gray dark:bg-slate-800 dark:text-slate-300"><Users className="h-4 w-4" /></span><div className="min-w-0 flex-1 space-y-2"><SkeletonBlock className="h-3 w-3/4 rounded" /><SkeletonBlock className="h-2.5 w-1/2 rounded" /></div></div><SkeletonBlock className="h-4 w-12 rounded" /><SkeletonBlock className="h-4 w-10 rounded" /></div>)}
+          </section>
+          <p className="sr-only" role="status">Loading leaderboard data</p>
+        </main>
       </div>
     );
   }
@@ -346,7 +384,7 @@ export default function LiveLeaderboard({
 
   return (
     <div className="min-h-screen bg-frost-surface font-sans text-midnight-navy selection:bg-frost-surface selection:text-signal-green">
-      <header className="sticky top-0 z-20 flex flex-wrap items-center justify-between gap-2 bg-paper-white border-b border-mist-blue/60 px-3 py-3.5 shadow-none sm:px-6">
+      <header className="sticky top-0 z-20 flex flex-wrap items-center justify-between gap-2 bg-paper-white border-b border-mist-blue/60 px-3 py-3.5 shadow-none sm:px-6 dark:border-slate-700">
         <div className="flex items-center gap-3">
           <Link
             href="/dashboard/teacher"
@@ -360,6 +398,7 @@ export default function LiveLeaderboard({
         </div>
 
         <div className="flex items-center gap-2">
+          <ThemeToggle />
           <span className="hidden sm:flex items-center gap-1.5 rounded-full bg-pastel-yellow px-3 py-1 text-xs font-bold text-pastel-yellow-text shadow-xs">
             PERSISTED SNAPSHOT
           </span>

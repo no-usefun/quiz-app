@@ -1,13 +1,12 @@
 "use client";
 
-import { useEffect, useState, useRef } from "react";
+import { useEffect, useState, useRef, useSyncExternalStore } from "react";
 import Link from "next/link";
 import {
   motion,
   useScroll,
   useTransform,
   AnimatePresence,
-  useInView,
 } from "framer-motion";
 import {
   ShieldCheck,
@@ -26,7 +25,6 @@ import {
   FileQuestion,
   Wifi,
   WifiOff,
-  Copy,
   MonitorStop,
   Clipboard,
   Fullscreen,
@@ -34,26 +32,28 @@ import {
   Brain,
   FileBarChart2,
   Layers,
-  Scan,
 } from "lucide-react";
 import { Logo, AppWordmark } from "@/components/Logo";
 import { useSession } from "@/hooks/useSession";
 import { WaveText } from "@/components/WaveText";
+import { ThemeToggle } from "@/components/ThemeToggle";
 
 // ─── Design tokens (inline for zero-class-collision safety) ──────────────────
 const C = {
-  ink: "#111111",
-  fog: "#78716b",
-  ice: "#d1dee8",
-  cobalt: "#165dfb",
-  paper: "#f5f5f4",
-  chalk: "#e6e3e2",
-  blue: "#e8f0ff",
-  lavender: "#eee9ff",
-  mint: "#e7f7ef",
-  peach: "#fff0e8",
-  yellow: "#fff8d9",
-  rose: "#fdebec",
+  // CSS custom properties resolve against next-themes so the landing page's
+  // inline preview styles use the same semantic palette in both themes.
+  ink: "var(--color-ink-black)",
+  fog: "var(--color-fog-gray)",
+  ice: "var(--color-ice-line)",
+  cobalt: "var(--color-cobalt-stamp)",
+  paper: "var(--color-paper-stone)",
+  chalk: "var(--color-chalk)",
+  blue: "var(--quizly-soft-blue)",
+  lavender: "var(--quizly-soft-lavender)",
+  mint: "var(--quizly-soft-mint)",
+  peach: "var(--quizly-soft-peach)",
+  yellow: "var(--quizly-soft-yellow)",
+  rose: "var(--quizly-soft-rose)",
 };
 
 // ─── Shared section scroll animation variant ─────────────────────────────────
@@ -154,13 +154,13 @@ const PROBLEMS = [
   {
     icon: MonitorStop,
     title: "Tab Switching",
-    desc: "Candidates silently switch to answer-sharing tabs.",
+    desc: "Students may switch tabs during an assessment.",
     from: "left",
   },
   {
     icon: Clipboard,
     title: "Clipboard Abuse",
-    desc: "Copy-paste exploits bypass question comprehension.",
+    desc: "Copying or pasting can interrupt independent assessment work.",
     from: "bottom",
   },
   {
@@ -178,13 +178,13 @@ const PROBLEMS = [
   {
     icon: UserRound,
     title: "Answer Sharing",
-    desc: "Slow submission patterns signal collusion networks.",
+    desc: "Unusual response timing can be reviewed alongside other evidence.",
     from: "bottom",
   },
   {
     icon: BarChart3,
     title: "No Live Vision",
-    desc: "Teachers see nothing until final grades are submitted.",
+    desc: "Without live monitoring, teachers may only see results after submission.",
     from: "right",
   },
 ];
@@ -286,9 +286,13 @@ const PROCTOR_CHECKS = [
   { label: "Unusual head movement", ok: false },
 ];
 
+const subscribeToHydration = () => () => {};
+const getClientHydrationSnapshot = () => true;
+const getServerHydrationSnapshot = () => false;
+
 function ProctoringMonitor() {
   const [step, setStep] = useState(0);
-  const [integrity, setIntegrity] = useState(98);
+  const integrity = step === 4 || step === 5 ? 72 : 98;
 
   useEffect(() => {
     const t = setInterval(() => {
@@ -297,9 +301,6 @@ function ProctoringMonitor() {
     return () => clearInterval(t);
   }, []);
 
-  useEffect(() => {
-    setIntegrity(step === 4 || step === 5 ? 72 : 98);
-  }, [step]);
 
   return (
     <div className="rounded-[8.8px] border border-[#d1dee8] bg-white overflow-hidden">
@@ -312,7 +313,7 @@ function ProctoringMonitor() {
         <div
           className="animate-scan absolute left-0 w-full h-0.5 pointer-events-none"
           style={{
-            background: `linear-gradient(90deg, transparent, ${C.cobalt}88, transparent)`,
+            background: `linear-gradient(90deg, transparent, color-mix(in srgb, ${C.cobalt} 55%, transparent), transparent)`,
           }}
         />
         {/* Face outline simulation */}
@@ -365,7 +366,7 @@ function ProctoringMonitor() {
             className="rounded px-1.5 py-0.5 text-[9px] font-bold"
             style={{
               background:
-                step === 4 || step === 5 ? "#ef444433" : `${C.cobalt}33`,
+                step === 4 || step === 5 ? "rgba(239,68,68,0.2)" : `color-mix(in srgb, ${C.cobalt} 20%, transparent)`,
               color: step === 4 || step === 5 ? "#ef4444" : C.cobalt,
             }}
           >
@@ -468,6 +469,8 @@ function LiveTelemetry() {
 
   useEffect(() => {
     if (tick === 0) {
+      // The landing-page proctoring preview intentionally simulates external candidate activity.
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- demo simulation reset
       setCandidates([
         {
           id: "c1",
@@ -748,7 +751,11 @@ function JoinCodeWidget() {
 // ─── Main Page ────────────────────────────────────────────────────────────────
 export default function Home() {
   const { user } = useSession();
-  const [mounted, setMounted] = useState(false);
+  const mounted = useSyncExternalStore(
+    subscribeToHydration,
+    getClientHydrationSnapshot,
+    getServerHydrationSnapshot,
+  );
   const [activeSlide, setActiveSlide] = useState(0);
   const [autoplay, setAutoplay] = useState(true);
   const sliderTimer = useRef<NodeJS.Timeout | null>(null);
@@ -757,9 +764,7 @@ export default function Home() {
   const heroY = useTransform(scrollY, [0, 500], [0, -70]);
   const heroOpacity = useTransform(scrollY, [0, 350], [1, 0]);
 
-  useEffect(() => {
-    setMounted(true);
-  }, []);
+  
 
   useEffect(() => {
     if (!autoplay) return;
@@ -782,9 +787,9 @@ export default function Home() {
       {/* ─── Sticky Navigation ─────────────────────────────────────────── */}
       <header
         className="sticky top-0 z-30 w-full border-b backdrop-blur-md"
-        style={{ background: "rgba(245,245,244,0.88)", borderColor: C.ice }}
+        style={{ background: "color-mix(in srgb, var(--color-paper-stone) 94%, transparent)", borderColor: C.ice }}
       >
-        <div className="mx-auto flex max-w-6xl items-center justify-between px-6 py-4">
+        <div className="mx-auto flex max-w-6xl items-center justify-between gap-2 px-3 py-3 sm:px-6 sm:py-4">
           <Logo />
           <nav
             className="hidden md:flex items-center gap-8 text-xs font-bold"
@@ -816,6 +821,7 @@ export default function Home() {
             </Link>
           </nav>
           <div className="flex items-center gap-2.5">
+            <ThemeToggle />
             {user ? (
               <Link
                 href={
@@ -836,7 +842,7 @@ export default function Home() {
                   style={{
                     borderColor: C.ice,
                     color: C.ink,
-                    background: "white",
+                    background: "var(--color-card-surface)",
                   }}
                 >
                   Log in
@@ -846,7 +852,7 @@ export default function Home() {
                   className="flex items-center gap-1.5 rounded-[8.8px] px-4 py-2 text-xs font-bold text-white border-0 transition-colors"
                   style={{ background: C.cobalt }}
                 >
-                  Create Account <ArrowRight className="h-3.5 w-3.5" />
+                  <span className="hidden sm:inline">Create Account</span><span className="sm:hidden">Sign up</span> <ArrowRight className="h-3.5 w-3.5" />
                 </Link>
               </>
             )}
@@ -881,7 +887,7 @@ export default function Home() {
           style={{ color: C.ink }}
         >
           <WaveText
-            text="Secure. Fair. AI-Proctored Assessments."
+            text="Assessments with clear, reviewable monitoring."
             stagger={0.07}
           />
         </h1>
@@ -916,7 +922,7 @@ export default function Home() {
           <Link
             href="/join"
             className="flex items-center gap-2 rounded-[8.8px] border px-6 py-3 text-xs font-bold transition-all hover:bg-[#e6e3e2]/40"
-            style={{ borderColor: C.ice, color: C.ink, background: "white" }}
+            style={{ borderColor: C.ice, color: C.ink, background: "var(--color-card-surface)" }}
           >
             Enter Session Code
           </Link>
@@ -1005,7 +1011,7 @@ export default function Home() {
                   key={title}
                   variants={variant}
                   className="rounded-[8.8px] border p-5 flex gap-4 items-start"
-                  style={{ background: "white", borderColor: C.ice }}
+                  style={{ background: "var(--color-card-surface)", borderColor: C.ice }}
                   whileHover={{ y: -3, transition: { duration: 0.2 } }}
                 >
                   <div
@@ -1043,7 +1049,7 @@ export default function Home() {
             <div
               className="inline-flex items-center gap-2 rounded-[8.8px] border px-5 py-3 text-xs font-bold"
               style={{
-                background: "white",
+                background: "var(--color-card-surface)",
                 borderColor: C.ice,
                 color: C.cobalt,
               }}
@@ -1084,7 +1090,7 @@ export default function Home() {
               style={{ color: C.ink }}
             >
               <WaveText
-                text="Your assessment has eyes on the important moments."
+                text="Review assessment activity with clearer context."
                 stagger={0.06}
               />
             </motion.h2>
@@ -1121,7 +1127,7 @@ export default function Home() {
             >
               <div
                 className="h-8 w-8 rounded-[8.8px] flex items-center justify-center border"
-                style={{ background: "white", borderColor: C.ice }}
+                style={{ background: "var(--color-card-surface)", borderColor: C.ice }}
               >
                 <Lock className="h-4 w-4" style={{ color: C.cobalt }} />
               </div>
@@ -1147,7 +1153,7 @@ export default function Home() {
               viewport={vp}
               whileHover={{ scale: 1.01, transition: { duration: 0.2 } }}
               className="relative z-10 w-full max-w-md rounded-[8.8px] border-2 p-6 flex flex-col gap-4"
-              style={{ background: "white", borderColor: C.cobalt }}
+              style={{ background: "var(--color-card-surface)", borderColor: C.cobalt }}
             >
               <div className="flex items-center justify-between">
                 <div
@@ -1206,7 +1212,7 @@ export default function Home() {
             >
               <div
                 className="h-8 w-8 rounded-[8.8px] flex items-center justify-center border"
-                style={{ background: "white", borderColor: C.ice }}
+                style={{ background: "var(--color-card-surface)", borderColor: C.ice }}
               >
                 <Timer className="h-4 w-4" style={{ color: C.cobalt }} />
               </div>
@@ -1279,11 +1285,11 @@ export default function Home() {
               >
                 <div
                   className="rounded-[8.8px] border p-4 text-left flex-1 min-w-0"
-                  style={{ background: "white", borderColor: C.ice }}
+                  style={{ background: "var(--color-card-surface)", borderColor: C.ice }}
                 >
                   <span
                     className="font-mono text-2xl font-black block mb-1"
-                    style={{ color: `${C.cobalt}30` }}
+                    style={{ color: `color-mix(in srgb, ${C.cobalt} 18%, transparent)` }}
                   >
                     {step.n}
                   </span>
@@ -1351,7 +1357,7 @@ export default function Home() {
                   <div
                     className="h-8 w-8 rounded-[8.8px] flex items-center justify-center"
                     style={{
-                      background: "white",
+                      background: "var(--color-card-surface)",
                       border: `1px solid ${C.ice}`,
                     }}
                   >
@@ -1360,7 +1366,7 @@ export default function Home() {
                   <span
                     className="rounded-full px-2 py-0.5 text-[8px] font-bold border"
                     style={{
-                      background: "white",
+                      background: "var(--color-card-surface)",
                       borderColor: C.ice,
                       color: accent,
                     }}
@@ -1408,7 +1414,7 @@ export default function Home() {
                 style={{ color: C.ink }}
               >
                 <WaveText
-                  text="Teachers see the exam happening."
+                  text="Monitor assessment progress as students work."
                   stagger={0.06}
                 />
               </motion.h2>
@@ -1491,7 +1497,7 @@ export default function Home() {
           <div className="flex-1 w-full max-w-md">
             <div
               className="rounded-[8.8px] border p-6"
-              style={{ background: "white", borderColor: C.ice }}
+              style={{ background: "var(--color-card-surface)", borderColor: C.ice }}
             >
               <p
                 className="text-[9px] font-bold uppercase tracking-widest text-center mb-6"
@@ -1601,7 +1607,7 @@ export default function Home() {
             viewport={vp}
             transition={{ duration: 0.5 }}
             className="relative max-w-2xl mx-auto overflow-hidden rounded-[8.8px] border text-left"
-            style={{ background: "white", borderColor: C.ice }}
+            style={{ background: "var(--color-card-surface)", borderColor: C.ice }}
             onMouseEnter={() => setAutoplay(false)}
             onMouseLeave={() => setAutoplay(true)}
           >
@@ -1711,7 +1717,7 @@ export default function Home() {
               className="text-3xl font-extrabold -tracking-wide leading-tight"
               style={{ color: C.ink }}
             >
-              Not every correct answer tells the whole story.
+              Review scores alongside response context.
             </h2>
             <p
               className="text-sm font-medium leading-relaxed"
@@ -1743,7 +1749,7 @@ export default function Home() {
               <div
                 key={c.name}
                 className="rounded-[8.8px] border p-4"
-                style={{ background: "white", borderColor: C.ice }}
+                style={{ background: "var(--color-card-surface)", borderColor: C.ice }}
               >
                 <div className="flex items-center justify-between mb-3">
                   <span
@@ -1877,13 +1883,13 @@ export default function Home() {
               {
                 icon: BarChart3,
                 title: "Real-Time Data",
-                desc: "Live streaming to teacher consoles. Every event lands in milliseconds.",
+                desc: "Activity events are streamed to teacher consoles and timestamped for review.",
                 bg: C.peach,
               },
               {
                 icon: Timer,
                 title: "Dynamic Scoring",
-                desc: "Time-correlated grading rewards quick independent responses and penalizes suspicious delays.",
+                desc: "When configured, scoring can account for response timing alongside answer correctness.",
                 bg: C.yellow,
               },
               {
@@ -1902,7 +1908,7 @@ export default function Home() {
               >
                 <div
                   className="h-8 w-8 rounded-[8.8px] flex items-center justify-center border"
-                  style={{ background: "white", borderColor: C.ice }}
+                  style={{ background: "var(--color-card-surface)", borderColor: C.ice }}
                 >
                   <Icon className="h-3.5 w-3.5" style={{ color: C.cobalt }} />
                 </div>
@@ -1967,7 +1973,7 @@ export default function Home() {
             <Link
               href="/join"
               className="flex items-center gap-2 rounded-[8.8px] border px-6 py-3 text-xs font-bold transition-all hover:bg-[#e6e3e2]/40"
-              style={{ borderColor: C.ice, color: C.ink, background: "white" }}
+              style={{ borderColor: C.ice, color: C.ink, background: "var(--color-card-surface)" }}
             >
               Enter Session Code
             </Link>

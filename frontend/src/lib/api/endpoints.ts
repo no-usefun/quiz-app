@@ -5,9 +5,10 @@
  * attempts, scoring, results, and permissions.
  */
 
-export const API_BASE = (
-  process.env.NEXT_PUBLIC_API_URL || "http://localhost:8080"
-).replace(/\/+$/, "");
+// Route browser API requests through the same-origin Next.js proxy in
+// both LAN and online modes. The proxy forwards requests to NEXT_PUBLIC_API_URL,
+// avoiding browser CORS issues while allowing the backend host to change by mode.
+export const API_BASE = "/backend";
 
 export const ENDPOINTS = {
   system: {
@@ -47,6 +48,9 @@ export const ENDPOINTS = {
     attemptState: (attemptId: number | string) =>
       `${API_BASE}/api/v1/student/attempts/${attemptId}/state`,
 
+    draftAnswers: (attemptId: number | string) =>
+      `${API_BASE}/api/v1/student/attempts/${attemptId}/answers/draft`,
+
     submissions: `${API_BASE}/api/v1/student/submissions`,
 
     attemptResult: (attemptId: number | string) =>
@@ -76,6 +80,21 @@ export const ENDPOINTS = {
 
     autoSubmitAttempt: (attemptId: number | string) =>
       `${API_BASE}/api/v1/student/attempts/${attemptId}/auto-submit`,
+  },
+
+  proctoring: {
+    aiHealth: `${API_BASE}/api/v1/proctoring/ai-health`,
+    // Unified event contract expected from the backend AI-proctoring integration.
+    recordEvent: (attemptId: number | string) =>
+      `${API_BASE}/api/v1/attempts/${attemptId}/events`,
+    verifyAccess: (attemptId: number | string) =>
+      `${API_BASE}/api/v1/attempts/${attemptId}/verify-access`,
+    summary: (attemptId: number | string) =>
+      `${API_BASE}/api/v1/attempts/${attemptId}/proctoring-summary`,
+    teacherQuizReport: (quizCode: string) =>
+      `${API_BASE}/api/v1/teacher/proctoring/quizzes/${encodeURIComponent(quizCode)}/report`,
+    teacherAttemptReport: (attemptId: number | string) =>
+      `${API_BASE}/api/v1/teacher/proctoring/attempts/${attemptId}`,
   },
 
   teacher: {
