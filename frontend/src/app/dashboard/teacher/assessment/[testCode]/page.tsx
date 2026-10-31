@@ -1968,7 +1968,7 @@ export default function TeacherAssessmentPage({
           ["Paste attempts", countEvent("PASTE_ATTEMPT")],
           ["Right-clicks", countEvent("RIGHT_CLICK")],
           ["Focus losses", countEvent("FOCUS_LOSS")],
-          ["Restricted shortcuts", countEvent("KEYBOARD_ATTEMPT")],
+          ["Restricted shortcuts", events.filter((event) => String(event.eventType || "").toUpperCase() === "KEYBOARD_ATTEMPT" && !/screenshot/i.test(String(event.details || ""))).length],
           ["Screenshot attempts", events.filter((event) =>
             String(event.eventType || "").toUpperCase() === "SCREENSHOT_ATTEMPT" ||
             String(event.details || "").toLowerCase().includes("screenshot")
