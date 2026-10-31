@@ -1,7 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { getAuthToken } from "@/lib/api/client";
+import { useSyncExternalStore } from "react";
 import { AIProctoringHUD } from "@/components/AIProctoringHUD";
 import { ProctoringWarningModal } from "@/components/ProctoringWarningModal";
 import { useAIProctoring } from "@/hooks/useAIProctoring";
@@ -13,30 +12,42 @@ interface AIProctoringSessionProps {
   onAutoSubmit: () => void;
 }
 
+const subscribeToSessionStorage = (_onStoreChange: () => void) => () => {};
+
+function useSessionStorageValue(key: string): string | null {
+  return useSyncExternalStore(
+    subscribeToSessionStorage,
+    () =>
+      typeof window === "undefined"
+        ? null
+        : window.sessionStorage.getItem(key),
+    () => null,
+  );
+}
+
 export function AIProctoringSession({
   attemptId,
   testCode,
   enabled,
   onAutoSubmit,
 }: AIProctoringSessionProps) {
-  const [referenceImage, setReferenceImage] = useState<string | null>(null);
-  const [authToken, setAuthToken] = useState<string | undefined>();
-  const [aiEnabled, setAiEnabled] = useState(false);
-
-  useEffect(() => {
-    if (typeof window === "undefined") return;
-    setReferenceImage(sessionStorage.getItem("dynoquizz_reference_photo"));
-    setAiEnabled(sessionStorage.getItem(`dynoquizz_ai_proctoring_${testCode}`) !== "false");
-    setAuthToken(getAuthToken() || undefined);
-  }, [testCode]);
+  const referenceImage = useSessionStorageValue("dynoquizz_reference_photo");
+  const aiEnabledPreference = useSessionStorageValue(
+    `dynoquizz_ai_proctoring_${testCode}`,
+  );
+  const aiEnabled = aiEnabledPreference !== "false";
 
   const proctoring = useAIProctoring({
     attemptId,
     testCode,
     referenceImage,
-    authToken,
     onAutoSubmit,
-    enabled: enabled && aiEnabled && Boolean(referenceImage) && Number.isSafeInteger(attemptId) && attemptId > 0,
+    enabled:
+      enabled &&
+      aiEnabled &&
+      Boolean(referenceImage) &&
+      Number.isSafeInteger(attemptId) &&
+      attemptId > 0,
   });
 
   if (!enabled || !aiEnabled || !referenceImage) return null;
