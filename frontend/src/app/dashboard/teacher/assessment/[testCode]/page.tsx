@@ -109,21 +109,32 @@ type ProctoringOverview = TeacherQuizProctoringOverviewResponse;
 function toProctoringOverview(payload: unknown): ProctoringOverview {
   const root = isApiRecord(payload) ? payload : {};
   const nested = isApiRecord(root.data) ? root.data : root;
-  const rawReports = nested.studentReports;
-  const studentReports = Array.isArray(rawReports)
-    ? rawReports.filter(isApiRecord) as ProctoringStudentReport[]
-    : [];
+  if (
+    typeof nested.quizCode !== "string" ||
+    typeof nested.quizTitle !== "string" ||
+    !Array.isArray(nested.studentReports)
+  ) {
+    throw new Error("The backend returned an invalid teacher proctoring overview.");
+  }
+
+  // These objects have been fetched from the endpoint whose response is
+  // TeacherQuizProctoringOverviewResponse. Keep the runtime envelope check
+  // while using the shared DTO type for the known report shape.
+  const studentReports = nested.studentReports
+    .filter(isApiRecord) as unknown as ProctoringStudentReport[];
+
   // The backend aggregate currently counts only selected risk-scored events.
-  // Count any recorded student event as flagged too, so browser audit evidence
-  // (copy/paste, focus loss, restricted shortcuts) is not hidden by a zero score.
+  // Count any recorded student event too, so browser audit evidence (copy/paste,
+  // focus loss, restricted shortcuts) is not hidden by a zero risk aggregate.
   const flaggedFromEvents = studentReports.filter((report) =>
     numericValue(report.warningCount) > 0 ||
     numericValue(report.riskScore) >= 30 ||
     (Array.isArray(report.events) && report.events.length > 0)
   ).length;
+
   return {
-    quizCode: typeof nested.quizCode === "string" ? nested.quizCode : undefined,
-    quizTitle: typeof nested.quizTitle === "string" ? nested.quizTitle : undefined,
+    quizCode: nested.quizCode,
+    quizTitle: nested.quizTitle,
     totalAttempts: numericValue(nested.totalAttempts),
     flaggedAttempts: Math.max(numericValue(nested.flaggedAttempts), flaggedFromEvents),
     autoSubmittedAttempts: numericValue(nested.autoSubmittedAttempts),
