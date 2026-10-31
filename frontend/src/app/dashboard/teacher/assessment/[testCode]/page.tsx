@@ -33,6 +33,11 @@ import { ThemeToggle } from "@/components/ThemeToggle";
 import { ENDPOINTS } from "@/lib/api/endpoints";
 import LanExamPreflight from "@/components/LanExamPreflight";
 import { isLanExamMode } from "@/lib/examMode";
+import type {
+  ProctoringEventDetailResponse,
+  TeacherProctoringReportResponse,
+  TeacherQuizProctoringOverviewResponse,
+} from "@/lib/types";
 
 type ApiRecord = Record<string, unknown>;
 
@@ -97,52 +102,9 @@ type StudentRecord = {
   terminationReason?: string | null;
 };
 
-type ProctoringEvent = {
-  id?: number | string;
-  eventType?: string;
-  details?: string;
-  severity?: string;
-  confidence?: number | null;
-  timestamp?: string | null;
-};
-
-type ProctoringStudentReport = {
-  attemptId?: number | string;
-  studentId?: number | string;
-  studentName?: string | null;
-  studentEmail?: string | null;
-  quizCode?: string;
-  quizTitle?: string;
-  status?: string | null;
-  warningCount?: number;
-  totalViolationsCount?: number;
-  riskScore?: number;
-  riskLevel?: string | null;
-  totalFaceChecks?: number;
-  identityMatches?: number;
-  identityMismatches?: number;
-  faceAbsenceCount?: number;
-  multipleFacesCount?: number;
-  multiplePersonsCount?: number;
-  lookingAwayCount?: number;
-  phoneDetectionsCount?: number;
-  voiceDetectionsCount?: number;
-  tabSwitchesCount?: number;
-  startedAt?: string | null;
-  submittedAt?: string | null;
-  terminationReason?: string | null;
-  events?: ProctoringEvent[] | null;
-};
-
-type ProctoringOverview = {
-  quizCode?: string;
-  quizTitle?: string;
-  totalAttempts?: number;
-  flaggedAttempts?: number;
-  autoSubmittedAttempts?: number;
-  averageRiskScore?: number;
-  studentReports: ProctoringStudentReport[];
-};
+type ProctoringEvent = ProctoringEventDetailResponse;
+type ProctoringStudentReport = TeacherProctoringReportResponse;
+type ProctoringOverview = TeacherQuizProctoringOverviewResponse;
 
 function toProctoringOverview(payload: unknown): ProctoringOverview {
   const root = isApiRecord(payload) ? payload : {};
