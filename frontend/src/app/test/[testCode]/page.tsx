@@ -557,7 +557,7 @@ export default function TestArenaPage({
   // The backend package is authoritative. Do not use browser storage as the
   // source of truth for a policy that determines whether proctoring is required.
   const [aiProctoringEnabled, setAiProctoringEnabled] = useState<boolean | null>(null);
-  const [maxWarnings, setMaxWarnings] = useState(3);
+  const [maxWarnings, setMaxWarnings] = useState<number | null>(null);
 
   useEffect(() => {
     if (!activeAttemptId) return;
@@ -577,8 +577,8 @@ export default function TestArenaPage({
         setMaxWarnings(configuredLimit);
       }
     }).catch((error: unknown) => {
-      // Spring Boot defaults to three warnings; use the value returned by
-      // verify-access whenever available so configured deployments stay accurate.
+      // The warning limit is deployment-configurable. Do not invent a fallback
+      // when the authoritative verify-access response is unavailable.
       console.warn("[Proctoring] Could not load configured warning limit:", error);
     });
 
@@ -2893,7 +2893,7 @@ export default function TestArenaPage({
             voiceActive={proctoring.voiceActive}
             loudVoice={proctoring.loudVoice}
             warningCount={proctoring.warningCount}
-             maxWarnings={maxWarnings}
+             maxWarnings={maxWarnings ?? undefined}
             isOnline={proctoring.isOnline}
           />
         )}
@@ -2988,7 +2988,7 @@ export default function TestArenaPage({
           proctoring.warningCount,
           proctoring.activeWarningModal.count,
         )}
-        maxWarnings={maxWarnings}
+        maxWarnings={maxWarnings ?? undefined}
         reason={proctoring.activeWarningModal.reason}
         autoSubmitted={proctoring.activeWarningModal.autoSubmitted}
         faceDetected={proctoring.faceDetected}
