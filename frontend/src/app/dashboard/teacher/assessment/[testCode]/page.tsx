@@ -383,7 +383,7 @@ export default function TeacherAssessmentPage({
     // teacher's entire quiz-list endpoint being available.
     let matched: ApiRecord | undefined;
 
-    if (/^\\d+$/.test(String(value))) {
+    if (/^\d+$/.test(String(value))) {
       try {
         const detailRes = await fetch(ENDPOINTS.teacher.quizDetail(value), {
           method: "GET",
