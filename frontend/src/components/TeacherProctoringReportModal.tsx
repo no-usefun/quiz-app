@@ -196,7 +196,7 @@ export function TeacherProctoringReportModal({
               <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
                 {[
                   { label: "Risk Assessment", icon: ShieldAlert },
-                  { label: "Warnings Issued", icon: AlertCircle },
+                  { label: "AI Warnings Issued", icon: AlertCircle },
                   { label: "Identity Integrity", icon: ShieldCheck },
                 ].map(({ label, icon: MetricIcon }) => (
                   <section key={label} className="flex min-h-36 flex-col justify-between rounded-[12px] border border-[#d1dee8] bg-[#f5f5f4]/50 p-4 dark:border-slate-700 dark:bg-slate-800/60">
