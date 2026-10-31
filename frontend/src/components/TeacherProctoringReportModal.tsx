@@ -25,55 +25,13 @@ import {
 } from "lucide-react";
 import { api, getAuthToken } from "@/lib/api/client";
 import { ENDPOINTS } from "@/lib/api/endpoints";
+import type { ProctoringEventDetailResponse, TeacherProctoringReportResponse } from "@/lib/types";
 
-interface ProctoringEventDetail {
-  id?: number | string;
-  eventId?: string;
-  clientEventId?: string;
-  eventType: string;
-  details: string;
-  severity: string;
-  confidence?: number;
-  timestamp: string | number;
-  frameTimestamp?: number;
-}
-
-interface ProctoringReportData {
-  attemptId: number;
-  studentId: number;
-  studentName: string;
-  studentEmail: string;
-  quizCode: string;
-  quizTitle: string;
-  status: string;
-  terminationReason?: string | null;
-  warningCount: number;
-  totalViolationsCount: number;
-  riskScore: number;
-  riskLevel: string;
-  totalFaceChecks: number;
-  identityMatches: number;
-  identityMismatches: number;
-  faceAbsenceCount: number;
-  multipleFacesCount: number;
-  multiplePersonsCount: number;
-  lookingAwayCount: number;
-  phoneDetectionsCount: number;
-  voiceDetectionsCount: number;
-  tabSwitchesCount: number;
-  startedAt: string;
-  submittedAt: string | null;
-  events: ProctoringEventDetail[];
-}
+type ProctoringEventDetail = ProctoringEventDetailResponse;
+type ProctoringReportData = TeacherProctoringReportResponse;
 
 function eventTimestamp(event: ProctoringEventDetail): Date | null {
-  const value = event.frameTimestamp ?? event.timestamp;
-  if (typeof value === "number") {
-    const milliseconds = value < 1e12 ? value * 1000 : value;
-    const date = new Date(milliseconds);
-    return Number.isNaN(date.getTime()) ? null : date;
-  }
-  const date = new Date(value);
+  const date = new Date(event.timestamp);
   return Number.isNaN(date.getTime()) ? null : date;
 }
 
@@ -81,8 +39,7 @@ function uniqueEvents(events: ProctoringEventDetail[]): ProctoringEventDetail[] 
   const seen = new Set<string>();
   return events.filter((event, index) => {
     const key = String(
-      event.eventId ?? event.clientEventId ?? event.id ??
-      `${event.eventType}|${eventTimestamp(event)?.getTime() ?? index}|${event.details}`
+      event.id ?? `${event.eventType}|${eventTimestamp(event)?.getTime() ?? index}|${event.details}`
     );
     if (seen.has(key)) return false;
     seen.add(key);
