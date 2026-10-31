@@ -1,5 +1,6 @@
 "use client";
 
+import LoadingIndicator from "@/components/LoadingIndicator";
 import { FormEvent, useState } from "react";
 import Link from "next/link";
 import { ArrowLeft, Mail, CheckCircle2, AlertTriangle } from "lucide-react";
@@ -117,7 +118,7 @@ export default function ForgotPasswordPage() {
               disabled={loading}
               className="w-full rounded-[10px] bg-[#165dfb] px-4 py-2.5 text-xs font-bold text-white shadow-sm disabled:cursor-not-allowed disabled:opacity-50"
             >
-              {loading ? "Sending..." : "Send Reset Link"}
+              {loading ? <LoadingIndicator label="Sending reset link" size="sm" /> : "Send Reset Link"}
             </button>
           </form>
         </section>

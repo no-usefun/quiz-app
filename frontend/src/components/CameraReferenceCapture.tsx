@@ -1,20 +1,31 @@
 "use client";
 
 import React, { useEffect, useRef, useState, useCallback } from "react";
-import { Camera, CheckCircle2, AlertTriangle, RefreshCw, Loader2, Shield } from "lucide-react";
+import SkeletonBlock from "@/components/SkeletonBlock";
+import { Camera, CheckCircle2, AlertTriangle, RefreshCw, Shield } from "lucide-react";
 import { checkAIHealth } from "@/lib/proctoring/aiProctoringClient";
 
 interface CameraReferenceCaptureProps {
   onCapture: (base64Image: string) => void;
+  onCaptureError?: (message: string) => void;
   disabled?: boolean;
+  captureRequested?: boolean;
 }
 
 export function CameraReferenceCapture({
   onCapture,
+  onCaptureError,
   disabled = false,
+  captureRequested = false,
 }: CameraReferenceCaptureProps) {
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
+  const cameraStartInFlightRef = useRef(false);
+  const onCaptureErrorRef = useRef(onCaptureError);
+
+  useEffect(() => {
+    onCaptureErrorRef.current = onCaptureError;
+  }, [onCaptureError]);
 
   const [cameraActive, setCameraActive] = useState(false);
   const [cameraError, setCameraError] = useState<string | null>(null);
@@ -53,7 +64,10 @@ export function CameraReferenceCapture({
   }, []);
 
   const startCamera = useCallback(async () => {
+    if (cameraStartInFlightRef.current) return;
+    cameraStartInFlightRef.current = true;
     stopCamera();
+    setCapturedPhoto(null);
     setCameraError(null);
 
     try {
@@ -85,6 +99,22 @@ export function CameraReferenceCapture({
           });
         }
         await videoRef.current.play().catch(() => {});
+        if (videoRef.current.readyState < 2) {
+          await new Promise<void>((resolve) => {
+            let settled = false;
+            const finish = () => {
+              if (settled) return;
+              settled = true;
+              videoRef.current?.removeEventListener("loadeddata", finish);
+              videoRef.current?.removeEventListener("canplay", finish);
+              window.clearTimeout(timeoutId);
+              resolve();
+            };
+            const timeoutId = window.setTimeout(finish, 2500);
+            videoRef.current?.addEventListener("loadeddata", finish, { once: true });
+            videoRef.current?.addEventListener("canplay", finish, { once: true });
+          });
+        }
       }
       setCameraActive(true);
     } catch (err: unknown) {
@@ -99,6 +129,9 @@ export function CameraReferenceCapture({
         msg = "Camera is currently in use by another application. Please close other software and retry.";
       }
       setCameraError(msg);
+      onCaptureErrorRef.current?.(msg);
+    } finally {
+      cameraStartInFlightRef.current = false;
     }
   }, [stopCamera]);
 
@@ -111,8 +144,8 @@ export function CameraReferenceCapture({
     };
   }, [startCamera, stopCamera]);
 
-  const handleCapture = () => {
-    if (!videoRef.current || !cameraActive) return;
+  const handleCapture = useCallback(() => {
+    if (!videoRef.current || !cameraActive || disabled) return;
 
     setIsProcessing(true);
     try {
@@ -133,11 +166,34 @@ export function CameraReferenceCapture({
       stopCamera();
     } catch (e) {
       console.error("Capture failed:", e);
-      setCameraError("Failed to capture reference image.");
+      const message = "Failed to capture a fresh reference image. Please retry camera access.";
+      setCameraError(message);
+      onCaptureErrorRef.current?.(message);
     } finally {
       setIsProcessing(false);
     }
-  };
+  }, [cameraActive, disabled, onCapture, stopCamera]);
+
+  const autoCaptureHandledRef = useRef(false);
+  useEffect(() => {
+    if (!captureRequested) {
+      autoCaptureHandledRef.current = false;
+      return;
+    }
+    if (disabled || autoCaptureHandledRef.current || cameraError) return;
+
+    // Starting the camera can be asynchronous, especially after a previous
+    // photo stopped its stream. Never reuse the previous captured image.
+    if (!cameraActive) {
+      if (!cameraStartInFlightRef.current) void startCamera();
+      return;
+    }
+
+    if (!videoRef.current || videoRef.current.readyState < 2) return;
+
+    autoCaptureHandledRef.current = true;
+    handleCapture();
+  }, [captureRequested, cameraActive, cameraError, disabled, handleCapture, startCamera]);
 
   const handleRetake = () => {
     setCapturedPhoto(null);
@@ -211,9 +267,10 @@ export function CameraReferenceCapture({
             )}
 
             {!cameraActive && !cameraError && (
-              <div className="flex flex-col items-center gap-2 text-stone-400">
-                <Loader2 className="h-6 w-6 animate-spin text-[#165dfb]" />
-                <span className="text-xs font-medium">Initializing camera...</span>
+              <div className="flex w-full flex-col items-center gap-4 px-8 text-stone-400" aria-busy="true">
+                <Camera className="h-8 w-8 text-[#93b4ff]" />
+                <div className="w-full max-w-[220px] space-y-2" aria-hidden="true"><SkeletonBlock className="h-3 w-3/4 rounded bg-white/15" /><SkeletonBlock className="h-2.5 w-full rounded bg-white/10" /><SkeletonBlock className="h-2.5 w-2/3 rounded bg-white/10" /></div>
+                <span className="sr-only" role="status">Initializing camera</span>
               </div>
             )}
 
@@ -255,12 +312,15 @@ export function CameraReferenceCapture({
             disabled={!cameraActive || isProcessing || disabled}
             className="shrink-0 inline-flex items-center gap-1.5 rounded-[10px] bg-[#165dfb] px-4 py-2 text-xs font-bold text-white hover:bg-[#124bce] active:scale-95 shadow-xs disabled:opacity-50 transition-all cursor-pointer"
           >
+            <Camera className="h-3.5 w-3.5" />
             {isProcessing ? (
-              <Loader2 className="h-3.5 w-3.5 animate-spin" />
+              <>
+                <SkeletonBlock className="h-3 w-14 rounded bg-white/50" />
+                <span className="sr-only" role="status">Capturing reference photo</span>
+              </>
             ) : (
-              <Camera className="h-3.5 w-3.5" />
+              "Take Photo"
             )}
-            Take Photo
           </button>
         )}
       </div>

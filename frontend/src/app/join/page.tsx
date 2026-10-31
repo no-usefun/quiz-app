@@ -1,8 +1,10 @@
 "use client";
 
+import LoadingIndicator from "@/components/LoadingIndicator";
+import SkeletonBlock from "@/components/SkeletonBlock";
 // join/page.tsx
 
-import { useState, useEffect, Suspense } from "react";
+import { useState, useEffect, Suspense, useSyncExternalStore } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { motion } from "framer-motion";
@@ -13,12 +15,16 @@ import {
   ShieldCheck,
   AlertCircle,
   UserCheck,
-  Loader2,
 } from "lucide-react";
 
 import { ApiClientError, api, getAuthToken } from "@/lib/api/client";
 import { ENDPOINTS } from "@/lib/api/endpoints";
 import type { QuizAvailabilityResponse } from "@/lib/types";
+import { ThemeToggle } from "@/components/ThemeToggle";
+
+const subscribeToHydration = () => () => {};
+const getClientHydrationSnapshot = () => true;
+const getServerHydrationSnapshot = () => false;
 
 function JoinForm() {
   const router = useRouter();
@@ -32,6 +38,8 @@ function JoinForm() {
 
   useEffect(() => {
     if (queryCode) {
+      // Keep the editable field in sync when the query parameter changes during navigation.
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- URL-to-form synchronization
       setTestCode(queryCode.toUpperCase());
     }
 
@@ -274,10 +282,7 @@ function JoinForm() {
         className="group flex w-full items-center justify-center gap-2 rounded-[10px] bg-signal-green px-4 py-3 text-xs font-bold text-white shadow-sm shadow-signal-green/25 transition-all duration-200 hover:bg-signal-green/90 hover:shadow-md active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-60 disabled:shadow-none cursor-pointer border-0"
       >
         {loading ? (
-          <>
-            <Loader2 className="h-4 w-4 animate-spin" />
-            Checking Assessment...
-          </>
+<LoadingIndicator label="Checking assessment" size="sm" />
         ) : (
           <>
             Join Assessment
@@ -303,15 +308,18 @@ function formatStartTime(value: string): string {
 }
 
 export default function JoinPage() {
-  const [mounted, setMounted] = useState(false);
+  const mounted = useSyncExternalStore(
+    subscribeToHydration,
+    getClientHydrationSnapshot,
+    getServerHydrationSnapshot,
+  );
 
-  useEffect(() => {
-    setMounted(true);
-  }, []);
+  
 
   return (
     <>
     <main className="relative flex min-h-[calc(100vh-4rem)] items-center justify-center bg-frost-surface text-midnight-navy p-4 font-sans selection:bg-frost-surface selection:text-signal-green overflow-hidden">
+      <div className="absolute right-4 top-4 z-20"><ThemeToggle /></div>
       <div
         aria-hidden
         className="pointer-events-none absolute inset-0"
@@ -366,9 +374,11 @@ export default function JoinPage() {
 
         <Suspense
           fallback={
-            <div className="flex items-center justify-center gap-2 text-xs text-steel-blue-gray font-medium text-center">
-              <Loader2 className="h-3.5 w-3.5 animate-spin" />
-              Loading code entry...
+            <div className="space-y-4" aria-busy="true" aria-label="Loading assessment access form">
+              <p className="sr-only" role="status">Loading assessment access form</p>
+              <div className="space-y-2"><SkeletonBlock className="h-3 w-32 rounded" /><div className="flex h-11 items-center gap-3 rounded-[10px] border border-mist-blue/70 px-3 dark:border-slate-700"><KeyRound className="h-4 w-4 text-steel-blue-gray dark:text-slate-400" /><SkeletonBlock className="h-3.5 w-2/3 rounded" /></div></div>
+              <div className="space-y-2"><SkeletonBlock className="h-3 w-36 rounded" /><div className="flex h-11 items-center gap-3 rounded-[10px] border border-mist-blue/70 px-3 dark:border-slate-700"><UserCheck className="h-4 w-4 text-steel-blue-gray dark:text-slate-400" /><SkeletonBlock className="h-3.5 w-3/4 rounded" /></div></div>
+              <SkeletonBlock className="h-11 w-full rounded-[10px]" />
             </div>
           }
         >

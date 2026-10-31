@@ -16,7 +16,7 @@ interface ProctoringWarningModalProps {
 export function ProctoringWarningModal({
   isOpen,
   warningCount,
-  maxWarnings = 5,
+  maxWarnings,
   reason,
   autoSubmitted = false,
   faceDetected = false,
@@ -24,10 +24,11 @@ export function ProctoringWarningModal({
 }: ProctoringWarningModalProps) {
   if (!isOpen) return null;
 
-  const remainingStrikes = Math.max(0, maxWarnings - warningCount);
+  const warningLimit = Number.isSafeInteger(maxWarnings) && Number(maxWarnings) > 0 ? Number(maxWarnings) : null;
+  const remainingStrikes = warningLimit == null ? null : Math.max(0, warningLimit - warningCount);
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4 animate-in fade-in duration-200">
+    <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/70 backdrop-blur-sm p-4 animate-in fade-in duration-200">
       <div className="relative w-full max-w-md rounded-[16px] border border-rose-200 bg-white p-6 shadow-2xl space-y-5 text-center">
         {/* Warning Icon Banner */}
         <div
@@ -49,7 +50,7 @@ export function ProctoringWarningModal({
           <h2 className="text-lg font-extrabold text-[#111111]">
             {autoSubmitted
               ? "Assessment Terminated: Malpractice Limit"
-              : `Proctoring Infraction Detected (Warning ${warningCount}/${maxWarnings})`}
+              : `Proctoring Infraction Detected (Warning ${warningCount}${warningLimit == null ? "" : `/${warningLimit}`})`}
           </h2>
           <p className="text-xs text-rose-600 font-bold tracking-wide">
             REASON: {reason || "Proctoring rule violation"}
@@ -60,7 +61,7 @@ export function ProctoringWarningModal({
         <div className="rounded-[12px] bg-[#f5f5f4] border border-[#d1dee8]/70 p-4 text-xs text-[#78716b] space-y-2 text-left">
           {autoSubmitted ? (
             <p className="font-medium text-rose-700 leading-relaxed">
-              Your assessment reached the configured limit of {maxWarnings} recorded proctoring violations and was automatically submitted for teacher investigation.
+              Your assessment reached the configured proctoring warning limit and has been automatically submitted for teacher investigation.
             </p>
           ) : (
             <>
@@ -73,9 +74,13 @@ export function ProctoringWarningModal({
                 <li>Do not use mobile phones or external devices.</li>
                 <li>Remain quiet and do not speak or read questions aloud.</li>
               </ul>
-              <p className="font-bold text-amber-700 pt-1">
-                You have {remainingStrikes} warning{remainingStrikes === 1 ? "" : "s"} remaining before auto-submission.
-              </p>
+              {remainingStrikes == null ? (
+                <p className="font-bold text-amber-700 pt-1">Your warnings are recorded by the server. Continue following the assessment guidelines.</p>
+              ) : (
+                <p className="font-bold text-amber-700 pt-1">
+                  You have {remainingStrikes} warning{remainingStrikes === 1 ? "" : "s"} remaining before auto-submission.
+                </p>
+              )}
               {faceDetected && (
                 <div className="flex items-center gap-1.5 rounded-[8px] bg-emerald-50 border border-emerald-200 p-2 text-emerald-800 text-[11px] font-semibold">
                   <CheckCircle2 className="h-4 w-4 text-emerald-600 shrink-0" />

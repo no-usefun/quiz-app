@@ -1,11 +1,17 @@
 // AI Proctoring Microservice HTTP & WebSocket Client
 
+import { ENDPOINTS } from "@/lib/api/endpoints";
+
+const isDevelopment = process.env.NODE_ENV === "development";
+
 export const AI_PROCTORING_BASE_URL = (
-  process.env.NEXT_PUBLIC_AI_PROCTORING_URL || "http://localhost:8000"
+  process.env.NEXT_PUBLIC_AI_PROCTORING_URL?.trim() ||
+  (isDevelopment ? "http://localhost:8000" : "")
 ).replace(/\/+$/, "");
 
 export const AI_PROCTORING_WS_URL = (
-  process.env.NEXT_PUBLIC_AI_PROCTORING_WS_URL || "ws://localhost:8000"
+  process.env.NEXT_PUBLIC_AI_PROCTORING_WS_URL?.trim() ||
+  (isDevelopment ? "ws://localhost:8000" : "")
 ).replace(/\/+$/, "");
 
 export interface AIHealthResponse {
@@ -22,11 +28,10 @@ export interface AIHealthResponse {
 
 export interface StartSessionParams {
   attemptId: number;
-  studentId?: string;
   testCode: string;
   referenceImage: string; // base64 JPEG/PNG
-  authToken?: string;
-  springBootUrl?: string;
+  /** Session JWT is sent only as an Authorization header, never in JSON. */
+  authToken: string;
 }
 
 export interface StartSessionResult {
@@ -70,6 +75,10 @@ export interface TelemetryResponse {
   malpracticeEvent: string | null;
   eventMessage: string | null;
   autoSubmitted: boolean;
+  /** Explicit server decision to block the candidate until identity is restored. */
+  identityHold?: boolean;
+  /** Server-provided reason such as NO_FACE, MULTIPLE_FACES, or IDENTITY_MISMATCH. */
+  identityHoldReason?: string | null;
 }
 
 export interface StopSessionParams {
@@ -92,27 +101,95 @@ export interface StopSessionResult {
  * Check if the Python AI microservice is online and loaded with biometric models.
  * No fake fallbacks allowed.
  */
-export async function checkAIHealth(): Promise<{ isOnline: boolean; biometricReady: boolean; details?: AIHealthResponse }> {
-  try {
-    const res = await fetch(`${AI_PROCTORING_BASE_URL}/health`, {
-      method: "GET",
-      headers: { Accept: "application/json" },
-      signal: AbortSignal.timeout(2500),
-    });
-    if (res.ok) {
-      const data = (await res.json()) as AIHealthResponse;
-      const isOnline = data.status === "UP" || data.status === "DEGRADED";
-      // A usable AI session needs both face detection and the SFace identity model.
-      const biometricReady =
-        data.biometricAvailable === true &&
-        data.models?.yunet === true &&
-        data.models?.sface === true;
-      return { isOnline, biometricReady, details: data };
-    }
-  } catch {
-    // Offline
+export async function checkAIHealth(): Promise<{
+  isOnline: boolean;
+  biometricReady: boolean;
+  backendAvailable?: boolean;
+  backendMessage?: string;
+  details?: AIHealthResponse;
+}> {
+  // Never point a deployed browser at the student's own localhost by default.
+  // Production deployments must explicitly configure the AI service URL.
+  if (!AI_PROCTORING_BASE_URL) {
+    return {
+      isOnline: false,
+      biometricReady: false,
+      backendMessage: "NEXT_PUBLIC_AI_PROCTORING_URL is not configured.",
+    };
   }
-  return { isOnline: false, biometricReady: false };
+
+  const [directHealth, backendHealth] = await Promise.all([
+    (async () => {
+      try {
+        const response = await fetch(`${AI_PROCTORING_BASE_URL}/health`, {
+          method: "GET",
+          headers: {
+            Accept: "application/json",
+            ...(AI_PROCTORING_BASE_URL.includes(".ngrok-free.dev")
+              ? { "ngrok-skip-browser-warning": "true" }
+              : {}),
+          },
+          signal: AbortSignal.timeout(2500),
+        });
+        if (!response.ok) return null;
+        return (await response.json()) as AIHealthResponse;
+      } catch {
+        return null;
+      }
+    })(),
+    (async () => {
+      try {
+        const response = await fetch(ENDPOINTS.proctoring.aiHealth, {
+          method: "GET",
+          headers: { Accept: "application/json" },
+          cache: "no-store",
+          signal: AbortSignal.timeout(3000),
+        });
+        const payload = await response.json().catch(() => null) as {
+          reachable?: boolean;
+          status?: string;
+          biometricAvailable?: boolean;
+          models?: Record<string, boolean>;
+          message?: string;
+        } | null;
+        return { ok: response.ok, payload };
+      } catch {
+        return { ok: false, payload: null };
+      }
+    })(),
+  ]);
+
+  const backendAvailable =
+    backendHealth.ok && backendHealth.payload?.reachable === true;
+  const backendMessage =
+    backendHealth.payload?.message ||
+    (backendAvailable
+      ? undefined
+      : "The quiz backend cannot confirm that its AI proctoring service is reachable.");
+
+  const directIsOnline =
+    directHealth?.status === "UP" || directHealth?.status === "DEGRADED";
+  const directBiometricReady =
+    directHealth?.biometricAvailable === true &&
+    directHealth.models?.yunet === true &&
+    directHealth.models?.sface === true;
+  const backendBiometricReady =
+    backendHealth.payload?.biometricAvailable === true &&
+    backendHealth.payload.models?.yunet === true &&
+    backendHealth.payload.models?.sface === true;
+
+  return {
+    isOnline: Boolean(directIsOnline && backendAvailable),
+    biometricReady: Boolean(
+      directIsOnline &&
+      backendAvailable &&
+      directBiometricReady &&
+      backendBiometricReady,
+    ),
+    backendAvailable,
+    backendMessage,
+    ...(directHealth ? { details: directHealth } : {}),
+  };
 }
 
 /**
@@ -123,9 +200,14 @@ export async function startProctoringSession(
   params: StartSessionParams
 ): Promise<StartSessionResult> {
   const health = await checkAIHealth();
+  if (health.backendAvailable === false) {
+    throw new Error(
+      `BACKEND_UNAVAILABLE: The quiz backend could not confirm AI service readiness. ${health.backendMessage || "Please retry shortly."}`
+    );
+  }
   if (!health.isOnline) {
     throw new Error(
-      "AI_PROCTORING_OFFLINE: The AI Proctoring service is currently unavailable. Contact your test administrator."
+      `AI_PROCTORING_OFFLINE: The AI Proctoring service is currently unavailable. ${health.backendMessage || "Contact your test administrator."}`
     );
   }
   if (!health.biometricReady) {
@@ -134,9 +216,16 @@ export async function startProctoringSession(
     );
   }
 
+  if (!params.authToken?.trim()) {
+    throw new Error("AUTH_REQUIRED: Your session has expired. Please sign in again before starting AI proctoring.");
+  }
+
   const headers: Record<string, string> = {
     "Content-Type": "application/json",
     Accept: "application/json",
+    ...(AI_PROCTORING_BASE_URL.includes(".ngrok-free.dev")
+      ? { "ngrok-skip-browser-warning": "true" }
+      : {}),
   };
   if (params.authToken) {
     headers["Authorization"] = params.authToken.startsWith("Bearer ")
@@ -147,17 +236,39 @@ export async function startProctoringSession(
   const res = await fetch(`${AI_PROCTORING_BASE_URL}/proctor/start`, {
     method: "POST",
     headers,
-    body: JSON.stringify(params),
+    body: JSON.stringify({
+      attemptId: params.attemptId,
+      testCode: params.testCode,
+      referenceImage: params.referenceImage,
+    }),
+    // Do not leave the exam lobby stuck forever if the AI service or its
+    // backend-access validation stops responding.
+    signal: AbortSignal.timeout(10000),
   });
 
   if (!res.ok) {
     const err = await res.json().catch(() => ({ detail: "Registration failed." }));
-    throw new Error(err.detail || "Reference photo registration failed. Ensure your face is clearly visible.");
+    const detail = typeof err.detail === "string" ? err.detail : "";
+    if (res.status === 401 || res.status === 403) {
+      throw new Error(`AUTHORIZATION_FAILED: ${detail || "Your session is not authorized to start this proctoring session. Sign in again or contact your instructor."}`);
+    }
+    if (res.status === 503 || /BACKEND_UNAVAILABLE/i.test(detail)) {
+      throw new Error(`BACKEND_UNAVAILABLE: The AI proctoring service could not validate your session with the quiz backend. Your assessment remains locked. Please retry shortly. ${detail}`.trim());
+    }
+    throw new Error(detail || `Proctoring startup failed (HTTP ${res.status}). Please retry or contact your instructor.`);
   }
 
   const result = (await res.json()) as StartSessionResult;
-  if (!result.referenceRegistered || !result.biometricReady) {
-    throw new Error("BIOMETRIC_REGISTRATION_FAILED: Could not establish biometric identity baseline.");
+  if (result.referenceRegistered !== true) {
+    throw new Error(
+      result.message ||
+        "BIOMETRIC_REGISTRATION_FAILED: The server did not confirm reference-photo registration. Retake the photo and try again.",
+    );
+  }
+  if (result.biometricReady !== true || !result.sessionId) {
+    throw new Error(
+      "BIOMETRIC_REGISTRATION_FAILED: The server did not confirm a ready proctoring session. Retake the photo and try again.",
+    );
   }
 
   return result;
@@ -169,14 +280,19 @@ export async function startProctoringSession(
 export async function analyzeFrameREST(
   payload: AnalyzeFramePayload
 ): Promise<TelemetryResponse> {
+  const { authToken, ...requestPayload } = payload;
   const headers: Record<string, string> = {
     "Content-Type": "application/json",
     Accept: "application/json",
+    // ngrok's free browser interstitial can otherwise replace API responses with HTML.
+    ...(AI_PROCTORING_BASE_URL.includes(".ngrok-free.dev")
+      ? { "ngrok-skip-browser-warning": "true" }
+      : {}),
   };
-  if (payload.authToken) {
-    headers["Authorization"] = payload.authToken.startsWith("Bearer ")
-      ? payload.authToken
-      : `Bearer ${payload.authToken}`;
+  if (authToken) {
+    headers["Authorization"] = authToken.startsWith("Bearer ")
+      ? authToken
+      : `Bearer ${authToken}`;
   }
   if (payload.ticket) {
     headers["X-Proctor-Ticket"] = payload.ticket;
@@ -185,7 +301,9 @@ export async function analyzeFrameREST(
   const res = await fetch(`${AI_PROCTORING_BASE_URL}/proctor/analyze-frame`, {
     method: "POST",
     headers,
-    body: JSON.stringify(payload),
+    body: JSON.stringify(requestPayload),
+    // A stalled inference request must not permanently block REST fallback.
+    signal: AbortSignal.timeout(5000),
   });
 
   if (!res.ok) {
@@ -205,14 +323,19 @@ export async function stopProctoringSession(
     const payload: StopSessionParams =
       typeof params === "string" ? { sessionId: params } : params;
 
+    const { authToken, ...requestPayload } = payload;
     const headers: Record<string, string> = {
       "Content-Type": "application/json",
       Accept: "application/json",
+      // Apply the ngrok compatibility header only to requests targeting the AI service.
+      ...(AI_PROCTORING_BASE_URL.includes(".ngrok-free.dev")
+        ? { "ngrok-skip-browser-warning": "true" }
+        : {}),
     };
-    if (payload.authToken) {
-      headers["Authorization"] = payload.authToken.startsWith("Bearer ")
-        ? payload.authToken
-        : `Bearer ${payload.authToken}`;
+    if (authToken) {
+      headers["Authorization"] = authToken.startsWith("Bearer ")
+        ? authToken
+        : `Bearer ${authToken}`;
     }
     if (payload.ticket) {
       headers["X-Proctor-Ticket"] = payload.ticket;
@@ -221,7 +344,7 @@ export async function stopProctoringSession(
     const res = await fetch(`${AI_PROCTORING_BASE_URL}/proctor/stop`, {
       method: "POST",
       headers,
-      body: JSON.stringify(payload),
+      body: JSON.stringify(requestPayload),
       signal: AbortSignal.timeout(3000),
     });
     if (res.ok) {
@@ -247,12 +370,9 @@ export async function submitProctoringSummary(
     identityMismatches: number;
   },
 ): Promise<void> {
-  const baseUrl = (
-    process.env.NEXT_PUBLIC_API_URL || "http://localhost:8080"
-  ).replace(/\/+$/, "");
   const token = params.authToken?.trim();
   const response = await fetch(
-    `${baseUrl}/api/v1/attempts/${params.attemptId}/proctoring-summary`,
+    ENDPOINTS.proctoring.summary(params.attemptId),
     {
       method: "POST",
       headers: {

@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useEffect, useState } from "react";
+import SkeletonBlock from "@/components/SkeletonBlock";
 import {
   X,
   ShieldAlert,
@@ -10,49 +11,45 @@ import {
   Users,
   Volume2,
   Clock,
-  Loader2,
   AlertCircle,
   EyeOff,
   Maximize2,
   UserCheck,
+  Copy,
+  ClipboardPaste,
+  Scissors,
+  MousePointerClick,
+  Focus,
+  Keyboard,
+  Camera,
 } from "lucide-react";
 import { api, getAuthToken } from "@/lib/api/client";
 import { ENDPOINTS } from "@/lib/api/endpoints";
+import type { ProctoringEventDetailResponse, TeacherProctoringReportResponse } from "@/lib/types";
 
-interface ProctoringEventDetail {
-  id: number;
-  eventType: string;
-  details: string;
-  severity: string;
-  confidence?: number;
-  timestamp: string;
+type ProctoringEventDetail = ProctoringEventDetailResponse;
+type ProctoringReportData = TeacherProctoringReportResponse;
+
+function eventTimestamp(event: ProctoringEventDetail): Date | null {
+  const date = new Date(event.timestamp);
+  return Number.isNaN(date.getTime()) ? null : date;
 }
 
-interface ProctoringReportData {
-  attemptId: number;
-  studentId: number;
-  studentName: string;
-  studentEmail: string;
-  quizCode: string;
-  quizTitle: string;
-  status: string;
-  warningCount: number;
-  totalViolationsCount: number;
-  riskScore: number;
-  riskLevel: string;
-  totalFaceChecks: number;
-  identityMatches: number;
-  identityMismatches: number;
-  faceAbsenceCount: number;
-  multipleFacesCount: number;
-  multiplePersonsCount: number;
-  lookingAwayCount: number;
-  phoneDetectionsCount: number;
-  voiceDetectionsCount: number;
-  tabSwitchesCount: number;
-  startedAt: string;
-  submittedAt: string | null;
-  events: ProctoringEventDetail[];
+function uniqueEvents(events: ProctoringEventDetail[]): ProctoringEventDetail[] {
+  const seen = new Set<string>();
+  return events.filter((event, index) => {
+    const key = String(
+      event.id ?? `${event.eventType}|${eventTimestamp(event)?.getTime() ?? index}|${event.details}`
+    );
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+}
+
+function countEventsByType(events: ProctoringEventDetail[], ...types: string[]): number {
+  const acceptedTypes = new Set(types.map((type) => type.toUpperCase()));
+  return events.filter((event) => acceptedTypes.has(String(event.eventType || "").toUpperCase())).length;
 }
 
 interface TeacherProctoringReportModalProps {
@@ -114,6 +111,17 @@ export function TeacherProctoringReportModal({
     };
   }, [isOpen, attemptId]);
 
+  const reportEvents = report ? uniqueEvents(report.events ?? []) : [];
+  const screenshotAttemptCount = reportEvents.filter((event) => {
+    const eventType = String(event.eventType || "").toUpperCase();
+    return eventType === "SCREENSHOT_ATTEMPT" ||
+      (eventType === "KEYBOARD_ATTEMPT" && /screenshot/i.test(event.details || ""));
+  }).length;
+  const restrictedShortcutCount = reportEvents.filter((event) =>
+    String(event.eventType || "").toUpperCase() === "KEYBOARD_ATTEMPT" &&
+    !/screenshot/i.test(event.details || "")
+  ).length;
+
   if (!isOpen) return null;
 
   return (
@@ -144,9 +152,25 @@ export function TeacherProctoringReportModal({
         {/* Content Body */}
         <div className="flex-1 overflow-y-auto p-6 space-y-6">
           {loading && (
-            <div className="flex flex-col items-center justify-center py-12 gap-2 text-stone-500">
-              <Loader2 className="h-6 w-6 animate-spin text-[#165dfb]" />
-              <span className="text-xs font-semibold">Loading Proctoring Telemetry...</span>
+            <div className="space-y-5" aria-busy="true" aria-label="Loading proctoring telemetry">
+              <p className="sr-only" role="status">Loading proctoring telemetry</p>
+              <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
+                {[
+                  { label: "Risk Assessment", icon: ShieldAlert },
+                  { label: "AI Warnings Issued", icon: AlertCircle },
+                  { label: "Identity Integrity", icon: ShieldCheck },
+                ].map(({ label, icon: MetricIcon }) => (
+                  <section key={label} className="flex min-h-36 flex-col justify-between rounded-[12px] border border-[#d1dee8] bg-[#f5f5f4]/50 p-4 dark:border-slate-700 dark:bg-slate-800/60">
+                    <span className="flex items-center gap-2 text-[11px] font-bold uppercase tracking-wider text-[#78716b]"><MetricIcon className="h-4 w-4" />{label}</span>
+                    <SkeletonBlock className="my-2 h-8 w-20 rounded" />
+                    <SkeletonBlock className="h-5 w-24 rounded-full" />
+                  </section>
+                ))}
+              </div>
+              <section className="space-y-4 rounded-[12px] border border-[#d1dee8] bg-white p-4 dark:border-slate-700 dark:bg-slate-900">
+                <div className="flex items-center gap-2"><Users className="h-4 w-4 text-[#165dfb]" /><SkeletonBlock className="h-4 w-36 rounded" /></div>
+                {[1, 2, 3].map((row) => <div key={row} className="flex items-center gap-3 border-t border-[#d1dee8]/60 pt-3 dark:border-slate-700"><Clock className="h-4 w-4 shrink-0 text-[#78716b]" /><div className="flex-1 space-y-2"><SkeletonBlock className="h-3 w-3/4 rounded" /><SkeletonBlock className="h-2.5 w-1/2 rounded" /></div><SkeletonBlock className="h-6 w-16 rounded-full" /></div>)}
+              </section>
             </div>
           )}
 
@@ -192,12 +216,11 @@ export function TeacherProctoringReportModal({
                     <span className="text-3xl font-extrabold text-[#111111]">
                       {report.warningCount}
                     </span>
-                    <span className="text-xs font-semibold text-[#78716b]">/ 3</span>
                   </div>
                   <span className="text-[10px] font-semibold text-[#78716b]">
-                    {report.status === "AUTO_SUBMITTED"
-                      ? "Terminated by Malpractice Limit"
-                      : "Within Allowed Threshold"}
+                    {report.terminationReason === "MALPRACTICE_WARNING_LIMIT"
+                      ? "Terminated: malpractice warning limit"
+                      : "Review recorded warnings and detections"}
                   </span>
                 </div>
 
@@ -227,7 +250,7 @@ export function TeacherProctoringReportModal({
                     Detection Category Breakdown
                   </h3>
                   <span className="text-[10px] font-extrabold text-[#78716b] bg-[#f5f5f4] px-2 py-0.5 rounded-full border border-[#d1dee8]">
-                    {report.totalViolationsCount || report.events.length} Total Infractions
+                    {reportEvents.length} Recorded Events
                   </span>
                 </div>
 
@@ -303,6 +326,55 @@ export function TeacherProctoringReportModal({
                       {report.identityMismatches || 0}
                     </span>
                   </div>
+
+                  <div className="p-2.5 rounded-[8px] bg-[#f5f5f4] flex items-center justify-between">
+                    <span className="text-[#78716b] flex items-center gap-1.5 font-medium">
+                      <Copy className="h-3.5 w-3.5 text-sky-600" /> Copy attempts
+                    </span>
+                    <span className="font-bold text-[#111111]">{countEventsByType(reportEvents, "COPY_ATTEMPT")}</span>
+                  </div>
+
+                  <div className="p-2.5 rounded-[8px] bg-[#f5f5f4] flex items-center justify-between">
+                    <span className="text-[#78716b] flex items-center gap-1.5 font-medium">
+                      <ClipboardPaste className="h-3.5 w-3.5 text-sky-600" /> Paste attempts
+                    </span>
+                    <span className="font-bold text-[#111111]">{countEventsByType(reportEvents, "PASTE_ATTEMPT")}</span>
+                  </div>
+
+                  <div className="p-2.5 rounded-[8px] bg-[#f5f5f4] flex items-center justify-between">
+                    <span className="text-[#78716b] flex items-center gap-1.5 font-medium">
+                      <Scissors className="h-3.5 w-3.5 text-sky-600" /> Cut attempts
+                    </span>
+                    <span className="font-bold text-[#111111]">{countEventsByType(reportEvents, "CUT_ATTEMPT")}</span>
+                  </div>
+
+                  <div className="p-2.5 rounded-[8px] bg-[#f5f5f4] flex items-center justify-between">
+                    <span className="text-[#78716b] flex items-center gap-1.5 font-medium">
+                      <MousePointerClick className="h-3.5 w-3.5 text-sky-600" /> Right clicks
+                    </span>
+                    <span className="font-bold text-[#111111]">{countEventsByType(reportEvents, "RIGHT_CLICK")}</span>
+                  </div>
+
+                  <div className="p-2.5 rounded-[8px] bg-[#f5f5f4] flex items-center justify-between">
+                    <span className="text-[#78716b] flex items-center gap-1.5 font-medium">
+                      <Focus className="h-3.5 w-3.5 text-sky-600" /> Focus losses
+                    </span>
+                    <span className="font-bold text-[#111111]">{countEventsByType(reportEvents, "FOCUS_LOSS")}</span>
+                  </div>
+
+                  <div className="p-2.5 rounded-[8px] bg-[#f5f5f4] flex items-center justify-between">
+                    <span className="text-[#78716b] flex items-center gap-1.5 font-medium">
+                      <Keyboard className="h-3.5 w-3.5 text-sky-600" /> Restricted shortcuts
+                    </span>
+                    <span className="font-bold text-[#111111]">{restrictedShortcutCount}</span>
+                  </div>
+
+                  <div className="p-2.5 rounded-[8px] bg-[#f5f5f4] flex items-center justify-between">
+                    <span className="text-[#78716b] flex items-center gap-1.5 font-medium">
+                      <Camera className="h-3.5 w-3.5 text-sky-600" /> Screenshot attempts
+                    </span>
+                    <span className="font-bold text-[#111111]">{screenshotAttemptCount}</span>
+                  </div>
                 </div>
               </div>
 
@@ -310,19 +382,19 @@ export function TeacherProctoringReportModal({
               <div className="space-y-3">
                 <h3 className="text-xs font-bold text-[#111111] uppercase tracking-wider flex items-center gap-1.5">
                   <Clock className="h-3.5 w-3.5 text-[#165dfb]" />
-                  Authoritative Infraction Log ({report.events.length})
+                  Authoritative Event Log ({reportEvents.length})
                 </h3>
 
-                {report.events.length === 0 ? (
+                {reportEvents.length === 0 ? (
                   <div className="rounded-[10px] border border-emerald-200 bg-emerald-50/60 p-4 text-center text-xs text-emerald-800 font-medium flex items-center justify-center gap-2">
                     <ShieldCheck className="h-4 w-4 text-emerald-600" />
                     Clean session: No malpractice infractions recorded during this assessment.
                   </div>
                 ) : (
                   <div className="space-y-2 max-h-60 overflow-y-auto pr-1">
-                    {report.events.map((ev) => (
+                    {reportEvents.map((ev, index) => (
                       <div
-                        key={ev.id}
+                        key={String(ev.id ?? `${ev.eventType}-${eventTimestamp(ev)?.getTime() ?? index}`)}
                         className="rounded-[10px] border border-[#d1dee8]/80 bg-[#f5f5f4]/40 p-3 text-xs flex items-start justify-between gap-3 hover:bg-[#f5f5f4] transition-colors"
                       >
                         <div className="space-y-1">
@@ -336,17 +408,16 @@ export function TeacherProctoringReportModal({
                             >
                               {ev.eventType}
                             </span>
-                            {ev.confidence !== undefined && ev.confidence > 0 && (
+                            {ev.confidence !== undefined && Number.isFinite(ev.confidence) && (
                               <span className="text-[9px] font-bold text-[#78716b] bg-white px-1.5 py-0.5 rounded border border-[#d1dee8]">
-                                {Math.round(ev.confidence * 100)}% conf
+                                Model confidence {Math.round(Math.max(0, Math.min(1, ev.confidence)) * 100)}%
                               </span>
                             )}
                             <span className="text-[10px] text-[#78716b] font-medium">
-                              {new Date(ev.timestamp).toLocaleTimeString("en-IN", {
-                                hour: "2-digit",
-                                minute: "2-digit",
-                                second: "2-digit",
-                              })}
+                              {eventTimestamp(ev)?.toLocaleString("en-IN", {
+                                dateStyle: "medium",
+                                timeStyle: "medium",
+                              }) ?? "Timestamp unavailable"}
                             </span>
                           </div>
                           <p className="text-[#111111] font-semibold text-[11px]">

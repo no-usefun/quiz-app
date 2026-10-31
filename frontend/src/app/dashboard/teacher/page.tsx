@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, useSyncExternalStore } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { motion, useReducedMotion } from "framer-motion";
@@ -16,7 +16,9 @@ import {
   X,
   ArrowUp,
   ArrowDown,
+  CalendarDays,
 } from "lucide-react";
+import SkeletonBlock from "@/components/SkeletonBlock";
 import { TopNav } from "@/components/TopNav";
 import { useSession } from "@/hooks/useSession";
 import { computeQuizDisplayState, QuizDisplayState } from "@/lib/quizStatus";
@@ -24,9 +26,71 @@ import { ENDPOINTS } from "@/lib/api/endpoints";
 import { api } from "@/lib/api/client";
 import { QuizResponse, TeacherQuizDetailResponse } from "@/lib/types";
 
+const subscribeToHydration = () => () => {};
+const getClientHydrationSnapshot = () => true;
+const getServerHydrationSnapshot = () => false;
+
 type TeacherDashboardQuiz = QuizResponse & {
   displayState: QuizDisplayState;
+  createdAt?: string | null;
+  updatedAt?: string | null;
 };
+
+function formatAssessmentDate(value?: string | null): string | null {
+  if (!value) return null;
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return null;
+  return new Intl.DateTimeFormat("en-IN", {
+    day: "2-digit",
+    month: "short",
+    year: "numeric",
+  }).format(date);
+}
+
+function extractQuizList(payload: unknown): QuizResponse[] {
+  if (Array.isArray(payload)) {
+    return payload as QuizResponse[];
+  }
+
+  if (payload && typeof payload === "object") {
+    const response = payload as Record<string, unknown>;
+
+    // Support common Spring/API response envelopes while keeping the API
+    // response contract explicit instead of calling .map on an unknown value.
+    for (const key of ["quizzes", "assessments", "items", "content", "results", "data"]) {
+      const value = response[key];
+      if (Array.isArray(value)) {
+        return value as QuizResponse[];
+      }
+      if (value && typeof value === "object") {
+        try {
+          return extractQuizList(value);
+        } catch {
+          // Try the next known envelope key.
+        }
+      }
+    }
+
+    const serverMessage =
+      typeof response.message === "string"
+        ? response.message
+        : typeof response.error === "string"
+          ? response.error
+          : null;
+
+    if (serverMessage) {
+      throw new Error(serverMessage);
+    }
+  }
+
+  if (typeof payload === "string" && payload.trim()) {
+    throw new Error(payload.trim().slice(0, 240));
+  }
+
+  throw new Error(
+    "The server returned an unexpected assessment-list response. Expected a list of quizzes.",
+  );
+}
 
 type TeacherDashboardStatusFilter =
   | "ALL"
@@ -61,7 +125,11 @@ export default function TeacherDashboard() {
   const [hasLoadedQuizData, setHasLoadedQuizData] = useState(false);
   const [cacheOwnerKey, setCacheOwnerKey] = useState<string | null>(null);
   const [copiedCode, setCopiedCode] = useState<string | null>(null);
-  const [mounted, setMounted] = useState(false);
+  const mounted = useSyncExternalStore(
+    subscribeToHydration,
+    getClientHydrationSnapshot,
+    getServerHydrationSnapshot,
+  );
   const [statusFilter, setStatusFilter] =
     useState<TeacherDashboardStatusFilter>("ALL");
   const [searchQuery, setSearchQuery] = useState("");
@@ -142,7 +210,8 @@ export default function TeacherDashboard() {
     setFetchError(null);
 
     try {
-      const data = await api.get<QuizResponse[]>(ENDPOINTS.teacher.quizzes);
+      const response = await api.get<unknown>(ENDPOINTS.teacher.quizzes);
+      const data = extractQuizList(response);
 
       /*
        * Once an assessment's configured end time has passed, treat it the
@@ -226,15 +295,15 @@ export default function TeacherDashboard() {
     }
   };
 
-  useEffect(() => {
-    setMounted(true);
-  }, []);
+  
 
   useEffect(() => {
     if (sessionLoading) {
       return;
     }
 
+    // This effect starts the async API/cache synchronization for the active teacher session.
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- async fetch updates dashboard state
     fetchQuizzes();
   }, [sessionLoading, user?.id, user?.userId, user?.email]);
 
@@ -556,11 +625,6 @@ export default function TeacherDashboard() {
 
   const visibleTests = sortedTests.slice(0, visibleCount);
   const hasMoreTests = visibleCount < sortedTests.length;
-
-  useEffect(() => {
-    setVisibleCount(5);
-  }, [tests.length]);
-
   const handleLoadMore = () => {
     setVisibleCount((current) => Math.min(current + 5, sortedTests.length));
   };
@@ -637,23 +701,22 @@ export default function TeacherDashboard() {
   };
 
   return (
-    <div className="min-h-screen bg-[#f5f5f4] font-sans text-[#111111] flex flex-col text-left">
+    <div className="teacher-dashboard min-h-screen bg-[#f5f5f4] font-sans text-[#111111] flex flex-col text-left transition-colors dark:bg-slate-950 dark:text-slate-100">
       <TopNav role="teacher" />
 
       <main className="flex-1 p-4 md:p-8 space-y-6 max-w-7xl mx-auto w-full">
-        <motion.section initial={reduceMotion ? false : { opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.32, ease: "easeOut" }} className="border-b border-[#d1dee8]/50 pb-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+        <motion.section initial={reduceMotion ? false : { opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.32, ease: "easeOut" }} className="teacher-dashboard-hero relative overflow-hidden rounded-2xl border border-slate-200 bg-white p-5 sm:px-7 sm:py-6 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 dark:border-slate-700 dark:bg-slate-900">
           <div>
-            <span className="text-xs font-bold uppercase tracking-widest text-[#78716b]">
-              Educator Control Center
+            <span className="text-xs font-bold uppercase tracking-widest text-[#78716b] dark:text-slate-400">
+              Teacher Dashboard
             </span>
 
-            <h1 className="text-2xl font-extrabold tracking-tight text-[#111111] mt-0.5">
+            <h1 className="text-2xl font-extrabold tracking-tight text-[#111111] mt-0.5 dark:text-slate-100">
               Welcome back, {displayName}
             </h1>
 
-            <p className="text-xs text-[#78716b] font-medium mt-0.5">
-              Manage your assessments, invite candidates, and review live
-              results telemetry.
+            <p className="text-xs text-[#78716b] font-medium mt-0.5 dark:text-slate-400">
+              Create assessments, share access codes, monitor submissions, and review results.
             </p>
           </div>
 
@@ -666,53 +729,25 @@ export default function TeacherDashboard() {
           </Link>
         </motion.section>
 
-        <motion.section initial={reduceMotion ? false : { opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.32, delay: 0.07, ease: "easeOut" }} className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-          <div className="rounded-[14px] border border-[#d1dee8]/70 bg-white p-4 sm:p-5 shadow-sm hover:shadow-md transition-all duration-200">
-            <span className="text-[10px] font-bold uppercase tracking-wider text-[#78716b]">
-              Total Assessments
-            </span>
-
-            <p className="text-2xl font-black text-[#111111] mt-1">
-              {loading ? "..." : tests.length}
-            </p>
-          </div>
-
-          <div className="rounded-[14px] border border-[#d1dee8]/70 bg-white p-4 sm:p-5 shadow-sm hover:shadow-md transition-all duration-200">
-            <span className="text-[10px] font-bold uppercase tracking-wider text-[#1d5237]">
-              Live Sessions
-            </span>
-
-            <p className="text-2xl font-black text-[#1d5237] mt-1">
-              {loading ? "..." : liveCount}
-            </p>
-          </div>
-
-          <div className="rounded-[14px] border border-[#d1dee8]/70 bg-white p-4 sm:p-5 shadow-sm hover:shadow-md transition-all duration-200">
-            <span className="text-[10px] font-bold uppercase tracking-wider text-[#92400e]">
-              Draft Assessments
-            </span>
-
-            <p className="text-2xl font-black text-[#92400e] mt-1">
-              {loading ? "..." : draftCount}
-            </p>
-          </div>
-
-          <div className="rounded-[14px] border border-[#d1dee8]/70 bg-white p-4 sm:p-5 shadow-sm hover:shadow-md transition-all duration-200">
-            <span className="text-[10px] font-bold uppercase tracking-wider text-[#6b21a8]">
-              Completed
-            </span>
-
-            <p className="text-2xl font-black text-[#6b21a8] mt-1">
-              {loading ? "..." : completedCount}
-            </p>
-          </div>
+        <motion.section initial={reduceMotion ? false : { opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.32, delay: 0.07, ease: "easeOut" }} className="grid grid-cols-2 sm:grid-cols-4 gap-3.5">
+          {[
+            { label: "Total Assessments", value: loading ? <SkeletonBlock className="h-6 w-10 rounded" /> : tests.length },
+            { label: "Live Sessions", value: loading ? <SkeletonBlock className="h-6 w-10 rounded" /> : liveCount },
+            { label: "Draft Assessments", value: loading ? <SkeletonBlock className="h-6 w-10 rounded" /> : draftCount },
+            { label: "Completed", value: loading ? <SkeletonBlock className="h-6 w-10 rounded" /> : completedCount },
+          ].map((stat) => (
+            <div key={stat.label} className="teacher-stat rounded-xl border border-slate-200 bg-white p-4 sm:p-5 transition-colors duration-150 hover:border-slate-300 dark:border-slate-700 dark:bg-slate-900 dark:hover:border-slate-600">
+              <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">{stat.label}</span>
+              <p className="mt-2 text-2xl font-bold tabular-nums text-slate-900 dark:text-slate-100">{stat.value}</p>
+            </div>
+          ))}
         </motion.section>
 
         <motion.section initial={reduceMotion ? false : { opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.32, delay: 0.14, ease: "easeOut" }} className="space-y-4">
           <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
             <div className="flex items-center gap-2">
-              <h2 className="text-sm font-extrabold text-[#111111] uppercase tracking-wider">
-                Assessments Roster (
+              <h2 className="text-sm font-extrabold text-[#111111] uppercase tracking-wider dark:text-slate-100">
+                Your Assessments (
                 {statusFilter === "ALL" && !searchQuery.trim()
                   ? tests.length
                   : `${sortedTests.length} of ${tests.length}`}
@@ -741,7 +776,7 @@ export default function TeacherDashboard() {
                       "inline-flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-[10px] font-bold transition-all " +
                       (statusFilter === value
                         ? "border-[#165dfb] bg-[#165dfb] text-white shadow-xs"
-                        : "border-[#d1dee8]/80 bg-white text-[#78716b] hover:border-[#165dfb]/40 hover:text-[#111111]")
+                        : "border-[#d1dee8]/80 bg-white text-[#78716b] hover:border-[#165dfb]/40 hover:text-[#111111] dark:border-slate-700 dark:bg-slate-900 dark:text-slate-300 dark:hover:text-slate-100")
                     }
                   >
                     <span>{label}</span>
@@ -757,7 +792,7 @@ export default function TeacherDashboard() {
                 ))}
               </div>
 
-              <div className="flex h-8 w-full items-center justify-between gap-1 rounded-[10px] border border-[#d1dee8]/80 bg-white px-2 text-[10px] font-bold text-[#78716b] shadow-xs sm:w-auto sm:justify-start">
+              <div className="flex h-8 w-full items-center justify-between gap-1 rounded-[10px] border border-[#d1dee8]/80 bg-white px-2 text-[10px] font-bold text-[#78716b] shadow-xs sm:w-auto sm:justify-start dark:border-slate-700 dark:bg-slate-900 dark:text-slate-300">
                 <label htmlFor="assessment-sort-field" className="pl-1 whitespace-nowrap">
                   Sort
                 </label>
@@ -768,7 +803,7 @@ export default function TeacherDashboard() {
                     handleSortChange(event.target.value as TeacherDashboardSortField)
                   }
                   aria-label="Sort assessments by"
-                  className="min-w-0 flex-1 cursor-pointer border-0 bg-transparent px-1 py-0 text-[10px] font-bold text-[#111111] outline-none sm:min-w-[122px] sm:flex-none"
+                  className="min-w-0 flex-1 cursor-pointer border-0 bg-transparent px-1 py-0 text-[10px] font-bold text-[#111111] outline-none sm:min-w-[122px] sm:flex-none dark:text-slate-100"
                 >
                   <option value="CREATED">Created date</option>
                   <option value="TITLE">Assessment title</option>
@@ -809,7 +844,7 @@ export default function TeacherDashboard() {
               <span className="sr-only">Search assessments</span>
               <Search
                 aria-hidden="true"
-                className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[#78716b]"
+                className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[#78716b] dark:text-slate-400"
               />
               <input
                 type="text"
@@ -820,20 +855,20 @@ export default function TeacherDashboard() {
                 onChange={(event) => handleSearchChange(event.target.value)}
                 placeholder="Search title, subject, test code, ID..."
                 aria-label="Search assessments by title, subject, code, or ID"
-                className="w-full rounded-[10px] border border-[#d1dee8]/80 bg-white py-2.5 pl-9 pr-10 text-xs font-medium text-[#111111] shadow-xs outline-none transition focus:border-[#165dfb]/60 focus:ring-2 focus:ring-[#165dfb]/10 placeholder:text-[#a8a29e]"
+                className="w-full rounded-[10px] border border-[#d1dee8]/80 bg-white py-2.5 pl-9 pr-10 text-xs font-medium text-[#111111] shadow-xs outline-none transition focus:border-[#165dfb]/60 focus:ring-2 focus:ring-[#165dfb]/10 placeholder:text-[#a8a29e] dark:bg-slate-900 dark:text-slate-100"
               />
               {searchQuery && (
                 <button
                   type="button"
                   aria-label="Clear assessment search"
                   onClick={() => handleSearchChange("")}
-                  className="absolute right-2 top-1/2 flex h-7 w-7 -translate-y-1/2 items-center justify-center rounded-full text-[#78716b] transition hover:bg-[#f5f5f4] hover:text-[#111111] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#165dfb]"
+                  className="absolute right-2 top-1/2 flex h-7 w-7 -translate-y-1/2 items-center justify-center rounded-full text-[#78716b] transition hover:bg-[#f5f5f4] hover:text-[#111111] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#165dfb] dark:text-slate-100"
                 >
                   <X aria-hidden="true" className="h-3.5 w-3.5" />
                 </button>
               )}
             </label>
-            <p className="text-[10px] font-medium text-[#78716b]" aria-live="polite">
+            <p className="text-[10px] font-medium text-[#78716b] dark:text-slate-400" aria-live="polite">
               {searchQuery.trim()
                 ? `Found ${sortedTests.length} matching assessment${sortedTests.length === 1 ? "" : "s"}`
                 : `Showing ${Math.min(visibleCount, sortedTests.length)} of ${sortedTests.length} assessments`}
@@ -842,8 +877,22 @@ export default function TeacherDashboard() {
 
           <div className="grid gap-3.5">
             {loading ? (
-              <div className="rounded-[14px] bg-white border border-[#d1dee8]/70 p-10 text-center text-xs text-[#78716b] shadow-sm">
-                Loading assessments roster...
+              <div className="grid gap-3.5" aria-busy="true" aria-label="Loading assessments roster">
+                {[1, 2, 3].map((item) => (
+                  <article key={item} className="rounded-[14px] border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-800 dark:bg-slate-900 sm:p-5">
+                    <div className="flex items-center justify-between gap-4">
+                      <div className="flex min-w-0 items-center gap-3"><FileQuestion aria-hidden="true" className="h-4 w-4 shrink-0 text-slate-400 dark:text-slate-500" /><SkeletonBlock className="h-4 w-2/5 rounded" /></div>
+                      <SkeletonBlock className="h-6 w-20 rounded-full" />
+                    </div>
+                    <SkeletonBlock className="mt-4 h-3 w-3/5 rounded" />
+                    <div className="mt-4 flex flex-wrap gap-2">
+                      <SkeletonBlock className="h-8 w-20 rounded-lg" />
+                      <SkeletonBlock className="h-8 w-24 rounded-lg" />
+                      <SkeletonBlock className="h-8 w-16 rounded-lg" />
+                    </div>
+                  </article>
+                ))}
+                <p className="sr-only">Loading assessments roster…</p>
               </div>
             ) : fetchError && tests.length === 0 ? (
               <div className="rounded-[14px] bg-[#fbeee8] border border-[#8c381c]/30 p-8 text-center space-y-3 shadow-sm">
@@ -858,17 +907,17 @@ export default function TeacherDashboard() {
                 </button>
               </div>
             ) : tests.length === 0 ? (
-              <div className="rounded-[14px] bg-white border border-[#d1dee8]/70 p-10 text-center space-y-3 shadow-sm">
-                <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-[12px] bg-[#f5f5f4] text-[#78716b] border border-[#d1dee8]/70">
-                  <FileQuestion className="h-6 w-6 text-[#78716b]" />
+              <div className="rounded-[14px] bg-white border border-[#d1dee8]/70 p-10 text-center space-y-3 shadow-sm dark:bg-slate-900">
+                <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-[12px] bg-[#f5f5f4] text-[#78716b] border border-[#d1dee8]/70 dark:text-slate-400">
+                  <FileQuestion className="h-6 w-6 text-[#78716b] dark:text-slate-400" />
                 </div>
 
                 <div>
-                  <p className="font-bold text-[#111111] text-sm">
+                  <p className="font-bold text-[#111111] text-sm dark:text-slate-100">
                     No assessments created yet
                   </p>
 
-                  <p className="text-xs text-[#78716b] mt-0.5 font-medium max-w-sm mx-auto">
+                  <p className="text-xs text-[#78716b] mt-0.5 font-medium max-w-sm mx-auto dark:text-slate-400">
                     Click &ldquo;Create Assessment&rdquo; to build your first
                     proctored test.
                   </p>
@@ -883,17 +932,17 @@ export default function TeacherDashboard() {
                 </Link>
               </div>
             ) : visibleTests.length === 0 ? (
-              <div className="rounded-[14px] bg-white border border-[#d1dee8]/70 p-10 text-center space-y-3 shadow-sm">
-                <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-[12px] bg-[#f5f5f4] text-[#78716b] border border-[#d1dee8]/70">
-                  <FileQuestion className="h-6 w-6 text-[#78716b]" />
+              <div className="rounded-[14px] bg-white border border-[#d1dee8]/70 p-10 text-center space-y-3 shadow-sm dark:bg-slate-900">
+                <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-[12px] bg-[#f5f5f4] text-[#78716b] border border-[#d1dee8]/70 dark:text-slate-400">
+                  <FileQuestion className="h-6 w-6 text-[#78716b] dark:text-slate-400" />
                 </div>
 
                 <div>
-                  <p className="font-bold text-[#111111] text-sm">
+                  <p className="font-bold text-[#111111] text-sm dark:text-slate-100">
                     No matching assessments
                   </p>
 
-                  <p className="text-xs text-[#78716b] mt-0.5 font-medium max-w-sm mx-auto">
+                  <p className="text-xs text-[#78716b] mt-0.5 font-medium max-w-sm mx-auto dark:text-slate-400">
                     Try a different search, status filter, or sort option.
                   </p>
                 </div>
@@ -901,7 +950,7 @@ export default function TeacherDashboard() {
                 <button
                   type="button"
                   onClick={handleClearRosterFilters}
-                  className="inline-flex items-center gap-1.5 rounded-[10px] border border-[#d1dee8]/80 bg-white px-4 py-2 text-xs font-bold text-[#111111] hover:bg-[#f5f5f4] hover:border-[#b9cbd9] shadow-xs active:scale-[0.98] transition-all cursor-pointer"
+                  className="inline-flex items-center gap-1.5 rounded-[10px] border border-[#d1dee8]/80 bg-white px-4 py-2 text-xs font-bold text-[#111111] hover:bg-[#f5f5f4] hover:border-[#b9cbd9] shadow-xs active:scale-[0.98] transition-all cursor-pointer dark:bg-slate-900 dark:text-slate-100"
                 >
                   Clear Search & Filters
                 </button>
@@ -947,14 +996,22 @@ export default function TeacherDashboard() {
                         handleCardClick();
                       }
                     }}
-                    initial={mounted ? { opacity: 0, y: 4 } : false}
-                    animate={mounted ? { opacity: 1, y: 0 } : false}
+                    initial={
+                      reduceMotion || !mounted
+                        ? false
+                        : { opacity: 0, y: 12, scale: 0.99 }
+                    }
+                    animate={
+                      reduceMotion || !mounted
+                        ? false
+                        : { opacity: 1, y: 0, scale: 1 }
+                    }
                     transition={{
-                      delay: idx * 0.03,
-                      duration: 0.2,
-                      ease: "easeOut",
+                      delay: reduceMotion ? 0 : idx * 0.075,
+                      duration: reduceMotion ? 0 : 0.35,
+                      ease: [0.22, 1, 0.36, 1],
                     }}
-                    className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4 rounded-[14px] bg-white border border-[#d1dee8]/70 p-4 sm:p-5 shadow-sm hover:border-[#165dfb]/40 hover:shadow-md hover:-translate-y-[1px] transition-all duration-200 cursor-pointer"
+                    className="teacher-assessment-card flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4 rounded-xl border border-slate-200 bg-white p-4 sm:p-5 transition-colors duration-150 hover:border-slate-300 hover:bg-slate-50/40 cursor-pointer dark:border-slate-700 dark:bg-slate-900 dark:hover:bg-slate-800/60"
                   >
                     <div className="min-w-0 flex-1 space-y-1.5">
                       <div className="flex items-center gap-2">
@@ -970,26 +1027,33 @@ export default function TeacherDashboard() {
                           {displayState}
                         </span>
 
-                        <h3 className="min-w-0 flex-1 font-extrabold text-[#111111] text-sm leading-5 break-words">
+                        <h3 className="min-w-0 flex-1 font-extrabold text-[#111111] text-sm leading-5 break-words dark:text-slate-100">
                           {name}
                         </h3>
                       </div>
 
-                      <div className="flex flex-wrap items-center gap-3 text-[11px] text-[#78716b] font-medium">
+                      <div className="flex flex-wrap items-center gap-3 text-[11px] text-[#78716b] font-medium dark:text-slate-400">
                         {test.subject && (
                           <span className="flex items-center gap-1">
-                            <BookOpen className="h-3 w-3 text-[#78716b]/80" />
+                            <BookOpen className="h-3 w-3 text-[#78716b]/80 dark:text-slate-400" />
                             {test.subject}
                             {test.subjectCode ? ` (${test.subjectCode})` : ""}
                           </span>
                         )}
 
                         <span className="flex items-center gap-1">
-                          <Users className="h-3 w-3 text-[#78716b]/80" />
+                          <Users className="h-3 w-3 text-[#78716b]/80 dark:text-slate-400" />
                           {test.totalStudents > 0
                             ? `${test.totalStudents} Students`
                             : "Open to all students"}
                         </span>
+
+                        {formatAssessmentDate(test.createdAt ?? test.startTime) && (
+                          <span className="flex items-center gap-1">
+                            <CalendarDays className="h-3 w-3 text-[#78716b]/80 dark:text-slate-400" />
+                            {formatAssessmentDate(test.createdAt ?? test.startTime)}
+                          </span>
+                        )}
 
                         <span>{test.totalQuestions || 0} Questions</span>
 
@@ -1031,9 +1095,9 @@ export default function TeacherDashboard() {
                         <>
                           <Link
                             href={`/dashboard/teacher/create?draftId=${test.quizId}`}
-                            className="flex items-center gap-1 rounded-[10px] border border-[#d1dee8]/80 bg-white px-3 py-1.5 text-xs font-bold text-[#111111] hover:bg-[#f5f5f4] hover:border-[#b9cbd9] shadow-xs active:scale-[0.98] transition-all cursor-pointer"
+                            className="flex items-center gap-1 rounded-[10px] border border-[#d1dee8]/80 bg-white px-3 py-1.5 text-xs font-bold text-[#111111] hover:bg-[#f5f5f4] hover:border-[#b9cbd9] shadow-xs active:scale-[0.98] transition-all cursor-pointer dark:bg-slate-900 dark:text-slate-100"
                           >
-                            <Settings className="h-3 w-3 text-[#78716b]" />
+                            <Settings className="h-3 w-3 text-[#78716b] dark:text-slate-400" />
                             Edit Draft
                           </Link>
 
@@ -1051,7 +1115,7 @@ export default function TeacherDashboard() {
                       {displayState === "Scheduled" && (
                         <Link
                           href={`/dashboard/teacher/share/${code}`}
-                          className="flex items-center gap-1 rounded-[10px] border border-[#d1dee8]/80 bg-[#f5f5f4] px-3 py-1.5 text-xs font-bold text-[#111111] hover:bg-[#e6e3e2] hover:border-[#b9cbd9] shadow-xs active:scale-[0.98] transition-all cursor-pointer"
+                          className="flex items-center gap-1 rounded-[10px] border border-[#d1dee8]/80 bg-[#f5f5f4] px-3 py-1.5 text-xs font-bold text-[#111111] hover:bg-[#e6e3e2] hover:border-[#b9cbd9] shadow-xs active:scale-[0.98] transition-all cursor-pointer dark:text-slate-100"
                         >
                           Share
                         </Link>
@@ -1061,7 +1125,7 @@ export default function TeacherDashboard() {
                         <>
                           <Link
                             href={`/dashboard/teacher/share/${code}`}
-                            className="flex items-center gap-1 rounded-[10px] border border-[#d1dee8]/80 bg-[#f5f5f4] px-3 py-1.5 text-xs font-bold text-[#111111] hover:bg-[#e6e3e2] hover:border-[#b9cbd9] shadow-xs active:scale-[0.98] transition-all cursor-pointer"
+                            className="flex items-center gap-1 rounded-[10px] border border-[#d1dee8]/80 bg-[#f5f5f4] px-3 py-1.5 text-xs font-bold text-[#111111] hover:bg-[#e6e3e2] hover:border-[#b9cbd9] shadow-xs active:scale-[0.98] transition-all cursor-pointer dark:text-slate-100"
                           >
                             Share
                           </Link>
@@ -1089,7 +1153,7 @@ export default function TeacherDashboard() {
                         <>
                           <Link
                             href={`/dashboard/teacher/assessment/${code}`}
-                            className="flex items-center gap-1 rounded-[10px] border border-[#d1dee8]/80 bg-white px-3 py-1.5 text-xs font-bold text-[#111111] hover:bg-[#f5f5f4] hover:border-[#b9cbd9] shadow-xs active:scale-[0.98] transition-all cursor-pointer"
+                            className="flex items-center gap-1 rounded-[10px] border border-[#d1dee8]/80 bg-white px-3 py-1.5 text-xs font-bold text-[#111111] hover:bg-[#f5f5f4] hover:border-[#b9cbd9] shadow-xs active:scale-[0.98] transition-all cursor-pointer dark:bg-slate-900 dark:text-slate-100"
                           >
                             Results & Leaderboard
                           </Link>
@@ -1123,7 +1187,7 @@ export default function TeacherDashboard() {
                                 onClick={() =>
                                   void handleUnpublishResults(quizId)
                                 }
-                                className="flex items-center gap-1 rounded-[10px] border border-[#d1dee8]/80 bg-white px-3 py-1.5 text-xs font-bold text-[#78716b] hover:bg-[#f5f5f4] hover:border-[#b9cbd9] shadow-xs active:scale-[0.98] transition-all cursor-pointer disabled:opacity-50"
+                                className="flex items-center gap-1 rounded-[10px] border border-[#d1dee8]/80 bg-white px-3 py-1.5 text-xs font-bold text-[#78716b] hover:bg-[#f5f5f4] hover:border-[#b9cbd9] shadow-xs active:scale-[0.98] transition-all cursor-pointer disabled:opacity-50 dark:bg-slate-900 dark:text-slate-400"
                               >
                                 Unpublish Results
                               </button>
@@ -1142,7 +1206,7 @@ export default function TeacherDashboard() {
               <button
                 type="button"
                 onClick={handleLoadMore}
-                className="inline-flex items-center justify-center rounded-[10px] border border-[#d1dee8]/80 bg-white px-5 py-2 text-xs font-bold text-[#111111] hover:bg-[#f5f5f4] hover:border-[#b9cbd9] shadow-xs active:scale-[0.98] transition-all cursor-pointer"
+                className="inline-flex items-center justify-center rounded-[10px] border border-[#d1dee8]/80 bg-white px-5 py-2 text-xs font-bold text-[#111111] hover:bg-[#f5f5f4] hover:border-[#b9cbd9] shadow-xs active:scale-[0.98] transition-all cursor-pointer dark:bg-slate-900 dark:text-slate-100"
               >
                 Show More Assessments
               </button>
@@ -1153,12 +1217,12 @@ export default function TeacherDashboard() {
 
       {quizToEnd && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4 text-left">
-          <div className="w-full max-w-sm rounded-[14px] border border-[#d1dee8]/80 bg-white p-6 shadow-2xl space-y-4 animate-in fade-in zoom-in-95 duration-150">
-            <h3 className="text-base font-extrabold text-[#111111]">
+          <div className="w-full max-w-sm rounded-[14px] border border-[#d1dee8]/80 bg-white p-6 shadow-2xl space-y-4 animate-in fade-in zoom-in-95 duration-150 dark:bg-slate-900">
+            <h3 className="text-base font-extrabold text-[#111111] dark:text-slate-100">
               End Assessment?
             </h3>
 
-            <p className="text-xs text-[#78716b] leading-relaxed">
+            <p className="text-xs text-[#78716b] leading-relaxed dark:text-slate-400">
               Are you sure you want to end &ldquo;
               {quizToEnd.title}
               &rdquo;? Active student attempts will be concluded and the quiz
@@ -1179,7 +1243,7 @@ export default function TeacherDashboard() {
                   setActionError(null);
                 }}
                 disabled={actionLoadingQuizId === quizToEnd.quizId}
-                className="rounded-[10px] border border-[#d1dee8]/80 bg-white px-3.5 py-1.5 text-xs font-bold text-[#78716b] hover:bg-[#f5f5f4] hover:border-[#b9cbd9] shadow-xs transition-all disabled:opacity-50 cursor-pointer"
+                className="rounded-[10px] border border-[#d1dee8]/80 bg-white px-3.5 py-1.5 text-xs font-bold text-[#78716b] hover:bg-[#f5f5f4] hover:border-[#b9cbd9] shadow-xs transition-all disabled:opacity-50 cursor-pointer dark:bg-slate-900 dark:text-slate-400"
               >
                 Cancel
               </button>
@@ -1190,10 +1254,12 @@ export default function TeacherDashboard() {
                 disabled={actionLoadingQuizId === quizToEnd.quizId}
                 className="inline-flex items-center gap-1.5 rounded-[10px] bg-[#8c381c] px-3.5 py-1.5 text-xs font-bold text-white hover:bg-[#6e2b14] shadow-xs active:scale-[0.98] transition-all disabled:opacity-50 cursor-pointer border-0"
               >
-                {actionLoadingQuizId === quizToEnd.quizId && (
-                  <span className="h-3 w-3 animate-spin rounded-full border-2 border-white/30 border-t-white" />
+                {actionLoadingQuizId === quizToEnd.quizId ? (
+                  <span className="sr-only">Ending assessment</span>
+                ) : (
+                  "End Assessment"
                 )}
-                End Assessment
+                {actionLoadingQuizId === quizToEnd.quizId && <SkeletonBlock className="h-3 w-20 rounded bg-white/50" />}
               </button>
             </div>
           </div>

@@ -1,23 +1,23 @@
 "use client";
 
+import LoadingIndicator from "@/components/LoadingIndicator";
+import SkeletonBlock from "@/components/SkeletonBlock";
 // src/app/test/[testCode]/lobby/page.tsx
 
-import { use, useEffect, useState, Suspense } from "react";
+import { use, useEffect, useRef, useState, Suspense } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { motion } from "framer-motion";
 import {
-  ShieldCheck,
-  Clock,
-  FileQuestion,
   ArrowRight,
-  Loader2,
-  Lock,
   AlertCircle,
   ArrowLeft,
-  Check,
+  ShieldCheck,
+  Clock,
+  Camera,
 } from "lucide-react";
 import { Logo } from "@/components/Logo";
+import { ThemeToggle } from "@/components/ThemeToggle";
 import { CameraReferenceCapture } from "@/components/CameraReferenceCapture";
 import { checkAIHealth } from "@/lib/proctoring/aiProctoringClient";
 
@@ -25,6 +25,7 @@ import { ApiClientError, api, getAuthToken } from "@/lib/api/client";
 import { ENDPOINTS } from "@/lib/api/endpoints";
 import type {
   AttemptResponse,
+  AttemptStateResponse,
   QuizAvailabilityResponse,
 } from "@/lib/types";
 
@@ -70,17 +71,34 @@ function LobbyInner({ testCode }: { testCode: string }) {
   const [availability, setAvailability] =
     useState<QuizAvailabilityResponse | null>(null);
   const [referencePhoto, setReferencePhoto] = useState<string | null>(null);
+  const [captureRequested, setCaptureRequested] = useState(false);
+  const [pendingStartAfterCapture, setPendingStartAfterCapture] = useState(false);
+  const referencePhotoRef = useRef<string | null>(null);
+  const handleStartAssessmentRef = useRef<(() => Promise<void>) | null>(null);
+  const freshPhotoForStartRef = useRef(false);
+  const pendingStartAfterCaptureRef = useRef(false);
 
   const [loading, setLoading] = useState(true);
   const [isStarting, setIsStarting] = useState(false);
   const [startError, setStartError] = useState<string | null>(null);
 
+  // Warm the assessment route while the lobby performs its policy checks, so
+  // navigation after Start does not also wait for the route bundle.
+  useEffect(() => {
+    if (cleanCode) {
+      router.prefetch(`/test/${encodeURIComponent(cleanCode)}`);
+    }
+  }, [cleanCode, router]);
+
   useEffect(() => {
     if (!cleanCode) {
+      // No code means there is no availability request to make; show the invalid-code state.
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- route validation reset
       setAvailability({
         quizCode: "",
         available: false,
         status: "NOT_FOUND",
+        aiProctoringEnabled: false,
         startTime: null,
         endTime: null,
       });
@@ -101,20 +119,101 @@ function LobbyInner({ testCode }: { testCode: string }) {
     const loadAvailability = async () => {
       try {
         setLoading(true);
+        setAvailability(null);
         setStartError(null);
 
-        const result = await api.get<QuizAvailabilityResponse>(
+        // Availability and proctoring-policy metadata are independent reads.
+        // Start both together to avoid serial network latency on the way into an exam.
+        const availabilityRequest = api.get<QuizAvailabilityResponse>(
           ENDPOINTS.student.availability(cleanCode),
-          {
-            retry: 2,
-            retryDelayMs: 300,
-            cache: "no-store",
-          },
+          { retry: 2, retryDelayMs: 300, cache: "no-store" },
+        ).then(
+          (value) => ({ ok: true as const, value }),
+          (error: unknown) => ({ ok: false as const, error }),
+        );
+        const packageRequest = api.get<unknown>(
+          ENDPOINTS.student.quizPackageByCode(cleanCode),
+          { retry: 0, cache: "no-store" },
+        ).then(
+          (value) => ({ ok: true as const, value }),
+          (error: unknown) => ({ ok: false as const, error }),
         );
 
+        const [availabilityResult, packageResult] = await Promise.all([
+          availabilityRequest,
+          packageRequest,
+        ]);
         if (cancelled) return;
+        if (!availabilityResult.ok) throw availabilityResult.error;
+        const result = availabilityResult.value;
 
-        setAvailability(result);
+        // Keep a short-lived, same-tab copy of the package just fetched from
+        // the server. The exam screen can paint from it immediately, but still
+        // refreshes the authoritative package and verifies the active attempt.
+        if (packageResult.ok) {
+          try {
+            const packageRecord = packageResult.value as Record<string, unknown> | null;
+            if (packageRecord && Array.isArray(packageRecord.questions)) {
+              sessionStorage.setItem(
+                `dynoquizz_package_prefetch_${cleanCode}`,
+                JSON.stringify({ savedAt: Date.now(), data: packageResult.value }),
+              );
+            }
+          } catch {
+            // Storage is an optional performance optimization, never a blocker.
+          }
+        }
+
+        const availabilityRecord = result as QuizAvailabilityResponse & Record<string, unknown>;
+        const readProctoringFlag = (value: unknown): boolean | undefined => {
+          if (!value || typeof value !== "object") return undefined;
+          const record = value as Record<string, unknown>;
+          const direct =
+            record.aiProctoringEnabled ??
+            record.ai_proctoring_enabled ??
+            record.proctoringEnabled;
+          if (typeof direct === "boolean") return direct;
+
+          const nested = record.settings;
+          if (nested && typeof nested === "object") {
+            const settings = nested as Record<string, unknown>;
+            const candidate =
+              settings.aiProctoringEnabled ??
+              settings.ai_proctoring_enabled ??
+              settings.proctoringEnabled;
+            if (typeof candidate === "boolean") return candidate;
+          }
+          return undefined;
+        };
+
+        // Package metadata is optional on some backend versions; availability
+        // remains the primary status source when the package read is unavailable.
+        const packageFlag = packageResult.ok
+          ? readProctoringFlag(packageResult.value)
+          : undefined;
+
+        const availabilityFlag = readProctoringFlag(availabilityRecord);
+        // Enabling wins if either authoritative student endpoint says true.
+        // Explicit false is retained only when neither endpoint enables AI.
+        const aiProctoringEnabled =
+          availabilityFlag === true || packageFlag === true
+            ? true
+            : availabilityFlag === false || packageFlag === false
+              ? false
+              : undefined;
+
+        setAvailability({
+          ...result,
+          ...(typeof aiProctoringEnabled === "boolean"
+            ? { aiProctoringEnabled }
+            : {}),
+        });
+
+        if (typeof aiProctoringEnabled !== "boolean") {
+          setStartError(
+            "The server did not confirm whether AI proctoring is required for this assessment. Ask your instructor to verify the backend configuration before starting.",
+          );
+        }
       } catch (error) {
         if (cancelled) return;
 
@@ -147,11 +246,29 @@ function LobbyInner({ testCode }: { testCode: string }) {
 
   const status = availability?.status;
   const isLive = status === "LIVE" && availability?.available === true;
+
+  useEffect(() => {
+    if (!pendingStartAfterCapture || !referencePhoto || isStarting) return;
+    if (!freshPhotoForStartRef.current) return;
+    setCaptureRequested(false);
+    setPendingStartAfterCapture(false);
+    pendingStartAfterCaptureRef.current = false;
+    void handleStartAssessmentRef.current?.();
+  }, [pendingStartAfterCapture, referencePhoto, isStarting]);
+  // A missing policy is a configuration error, never an implicit standard-mode assessment.
+  const aiPolicyKnown = typeof availability?.aiProctoringEnabled === "boolean";
   const aiRequired = availability?.aiProctoringEnabled === true;
 
   const handleStartAssessment = async () => {
     if (!isLive) {
       setStartError("This assessment is not currently live.");
+      return;
+    }
+
+    if (!aiPolicyKnown) {
+      setStartError(
+        "The server has not confirmed this assessment's AI proctoring policy. You cannot start until the backend returns aiProctoringEnabled as true or false.",
+      );
       return;
     }
 
@@ -162,11 +279,27 @@ function LobbyInner({ testCode }: { testCode: string }) {
       return;
     }
 
-    const existingPhoto = referencePhoto || (typeof window !== "undefined" ? sessionStorage.getItem("dynoquizz_reference_photo") : null);
-    if (aiRequired && !existingPhoto) {
-      setStartError("Capture your reference photo before starting this AI-proctored assessment.");
+    // Every Start click for an AI-proctored assessment must capture a new
+    // frame. Never trust the previous preview or a sessionStorage reference.
+    if (aiRequired && !freshPhotoForStartRef.current) {
+      sessionStorage.removeItem("dynoquizz_reference_photo");
+      referencePhotoRef.current = null;
+      setReferencePhoto(null);
+      setStartError("Capturing a fresh reference photo. Keep only yourself in frame.");
+      pendingStartAfterCaptureRef.current = true;
+      setPendingStartAfterCapture(true);
+      setCaptureRequested(false);
+      setCaptureRequested(true);
       return;
     }
+
+    const freshReferencePhoto = aiRequired ? referencePhotoRef.current : null;
+    if (aiRequired && !freshReferencePhoto) {
+      freshPhotoForStartRef.current = false;
+      setStartError("A fresh reference photo could not be captured. Please try again.");
+      return;
+    }
+
     sessionStorage.setItem(`dynoquizz_ai_proctoring_${cleanCode}`, String(aiRequired));
 
     setIsStarting(true);
@@ -178,6 +311,7 @@ function LobbyInner({ testCode }: { testCode: string }) {
         if (!aiHealth.isOnline) throw new Error("AI proctoring is currently unavailable. Please retry in a moment or contact your instructor.");
         if (!aiHealth.biometricReady) throw new Error("The biometric verification model is not ready. Please retry shortly.");
       }
+
       // Fullscreen is required before the server creates the attempt.
       // Starting an attempt outside fullscreen would bypass the exam UI
       // protection, so a denied fullscreen request stops the flow here.
@@ -207,12 +341,70 @@ function LobbyInner({ testCode }: { testCode: string }) {
        * The backend derives student identity from the JWT.
        * No registration number or attempt ID is sent in the request.
        */
-      let attempt: AttemptResponse;
+      let attempt: AttemptResponse | null = null;
+      const pendingAttemptKey = `dynoquizz_pending_proctor_attempt_${cleanCode}`;
+      const pendingAttemptRaw = sessionStorage.getItem(pendingAttemptKey);
+
+      // If proctor startup rejected the previous photo, reuse the same active
+      // server attempt after verifying it is still IN_PROGRESS. This avoids
+      // creating a second attempt or relying on the assessment's resume policy.
+      if (pendingAttemptRaw) {
+        let pendingAttempt: AttemptResponse | null = null;
+        try {
+          const candidate = JSON.parse(pendingAttemptRaw) as Partial<AttemptResponse>;
+          if (
+            candidate.attemptId != null &&
+            candidate.quizId != null &&
+            candidate.effectiveDeadline &&
+            candidate.startedAt
+          ) {
+            pendingAttempt = candidate as AttemptResponse;
+          }
+        } catch {
+          pendingAttempt = null;
+        }
+
+        if (pendingAttempt) {
+          try {
+            const currentState = await api.get<AttemptStateResponse>(
+              ENDPOINTS.student.attemptState(pendingAttempt.attemptId),
+              { retry: 1, cache: "no-store" },
+            );
+            if (
+              currentState.status === "IN_PROGRESS" &&
+              Number(currentState.quizId) === Number(pendingAttempt.quizId)
+            ) {
+              attempt = {
+                ...pendingAttempt,
+                effectiveDeadline:
+                  currentState.effectiveDeadline || pendingAttempt.effectiveDeadline,
+              };
+            } else {
+              sessionStorage.removeItem(pendingAttemptKey);
+              throw new Error(
+                currentState.status === "AUTO_SUBMITTED"
+                  ? "The previous attempt was automatically submitted and cannot be restarted."
+                  : "The previous attempt is no longer active. Return to the dashboard to review its status.",
+              );
+            }
+          } catch (error) {
+            if (error instanceof ApiClientError && error.status === 404) {
+              sessionStorage.removeItem(pendingAttemptKey);
+            } else {
+              throw error;
+            }
+          }
+        } else {
+          sessionStorage.removeItem(pendingAttemptKey);
+        }
+      }
 
       try {
-        attempt = await api.post<AttemptResponse>(
-          ENDPOINTS.student.startAttempt(cleanCode),
-        );
+        if (!attempt) {
+          attempt = await api.post<AttemptResponse>(
+            ENDPOINTS.student.startAttempt(cleanCode),
+          );
+        }
       } catch (error) {
         if (error instanceof ApiClientError) {
           const code = String(error.errorCode || "").toUpperCase();
@@ -296,10 +488,28 @@ function LobbyInner({ testCode }: { testCode: string }) {
       localStorage.setItem(`dynoquizz_attemptId_${attempt.quizId}`, attemptId);
       localStorage.setItem(`dynoquizz_attemptId_${cleanCode}`, attemptId);
 
+      if (aiRequired) {
+        sessionStorage.setItem(pendingAttemptKey, JSON.stringify(attempt));
+      } else {
+        sessionStorage.removeItem(pendingAttemptKey);
+      }
+
+      // The arena may only use a reference image accompanied by this
+      // attempt-scoped one-navigation freshness marker. Direct navigation or
+      // a failed validation cannot silently reuse a prior photo.
+      if (aiRequired && freshReferencePhoto) {
+        sessionStorage.setItem("dynoquizz_reference_photo", freshReferencePhoto);
+        sessionStorage.setItem(`dynoquizz_reference_photo_fresh_${attemptId}`, "true");
+      } else {
+        sessionStorage.removeItem("dynoquizz_reference_photo");
+        sessionStorage.removeItem(`dynoquizz_reference_photo_fresh_${attemptId}`);
+      }
+      freshPhotoForStartRef.current = false;
+
       /*
-       * Only enter the exam arena after the backend has created/resolved
-       * the authoritative attempt. The arena then restores attempt state
-       * and fetches the student-safe quiz package.
+       * Only enter the exam arena after a fresh frame has been captured and
+       * the server attempt is present. The arena remains locked until
+       * /proctor/start confirms referenceRegistered=true and returns telemetry.
        */
       router.push(`/test/${encodeURIComponent(cleanCode)}`);
     } catch (error) {
@@ -310,6 +520,13 @@ function LobbyInner({ testCode }: { testCode: string }) {
         return;
       }
 
+      freshPhotoForStartRef.current = false;
+      pendingStartAfterCaptureRef.current = false;
+      setPendingStartAfterCapture(false);
+      setCaptureRequested(false);
+      sessionStorage.removeItem("dynoquizz_reference_photo");
+      referencePhotoRef.current = null;
+      setReferencePhoto(null);
       setStartError(
         getApiErrorMessage(
           error,
@@ -321,14 +538,25 @@ function LobbyInner({ testCode }: { testCode: string }) {
     }
   };
 
+  useEffect(() => {
+    handleStartAssessmentRef.current = handleStartAssessment;
+  });
+
   if (loading) {
     return (
-      <div className="flex min-h-[60vh] items-center justify-center">
-        <div className="flex items-center gap-2 text-xs font-bold text-[#78716b]">
-          <Loader2 className="h-4 w-4 animate-spin text-[#165dfb]" />
-          Checking Assessment Availability...
+      <section className="mx-auto w-full max-w-2xl space-y-5 rounded-[16px] border border-mist-blue/70 bg-paper-white p-5 shadow-sm dark:border-slate-700 dark:bg-slate-900 sm:p-7" aria-busy="true" aria-label="Loading assessment lobby">
+        <div className="flex items-center gap-3">
+          <span className="flex h-11 w-11 items-center justify-center rounded-[12px] bg-[#eef4ff] text-[#165dfb] dark:bg-slate-800 dark:text-blue-300"><ShieldCheck className="h-5 w-5" /></span>
+          <div className="flex-1 space-y-2"><SkeletonBlock className="h-4 w-44 rounded" /><SkeletonBlock className="h-3 w-56 max-w-full rounded" /></div>
         </div>
-      </div>
+        <div className="rounded-[12px] border border-mist-blue/70 p-4 dark:border-slate-700">
+          <div className="flex items-center gap-3"><Clock className="h-4 w-4 shrink-0 text-steel-blue-gray dark:text-slate-400" /><SkeletonBlock className="h-3 w-32 rounded" /></div>
+          <div className="mt-4 space-y-2"><SkeletonBlock className="h-3 w-4/5 rounded" /><SkeletonBlock className="h-3 w-3/5 rounded" /></div>
+        </div>
+        <div className="grid gap-3 sm:grid-cols-2"><div className="flex items-center gap-3 rounded-[10px] bg-frost-surface p-3 dark:bg-slate-800"><ShieldCheck className="h-4 w-4 text-emerald-600 dark:text-emerald-300" /><SkeletonBlock className="h-3 w-3/4 rounded" /></div><div className="flex items-center gap-3 rounded-[10px] bg-frost-surface p-3 dark:bg-slate-800"><Clock className="h-4 w-4 text-steel-blue-gray dark:text-slate-400" /><SkeletonBlock className="h-3 w-2/3 rounded" /></div></div>
+        <SkeletonBlock className="h-11 w-full rounded-[10px]" />
+        <p className="sr-only" role="status">Checking assessment availability</p>
+      </section>
     );
   }
 
@@ -387,7 +615,7 @@ function LobbyInner({ testCode }: { testCode: string }) {
           className="mt-6 inline-flex items-center gap-2 rounded-[10px] bg-[#111111] px-5 py-2.5 text-xs font-bold text-white hover:bg-[#222222] active:scale-[0.98] shadow-sm transition-all"
         >
           <ArrowLeft className="h-3.5 w-3.5" />
-          Return to Join Gateway
+          Back to Join
         </Link>
       </div>
     );
@@ -408,7 +636,7 @@ function LobbyInner({ testCode }: { testCode: string }) {
           <span className="flex h-2 w-2 rounded-full bg-[#165dfb] animate-pulse" />
 
           <span className="text-[10px] font-bold uppercase tracking-wider text-[#78716b]">
-            Assessment Lobby
+            Assessment
           </span>
         </div>
       </div>
@@ -421,63 +649,27 @@ function LobbyInner({ testCode }: { testCode: string }) {
             </span>
 
             <span className="text-xs font-semibold text-[#78716b]">
-              Assessment Status:{" "}
-              <span className="font-bold text-[#111111]">LIVE</span>
+              <span className="font-bold text-[#1d5237]">Available</span>
             </span>
           </div>
 
           <h1 className="text-2xl font-extrabold text-[#111111] tracking-tight">
-            Secure Assessment Lobby
+            Ready to begin?
           </h1>
 
-          <p className="mt-2 text-xs text-[#78716b] leading-relaxed font-medium">
-            Your logged-in student account is validated by the server before
-            the assessment attempt is created or resumed.
-          </p>
-        </div>
+                  </div>
 
-        <div className="grid grid-cols-2 gap-3">
-        </div>
-
-        <motion.div
+         <motion.div
           initial={{ opacity: 0, y: 6 }}
           animate={{ opacity: 1, y: 0 }}
           className="space-y-5"
         >
-          <div className="rounded-[12px] border border-[#d1dee8]/70 bg-[#f5f5f4]/60 p-4 text-xs text-[#78716b] space-y-2 shadow-xs">
-            <div className="flex items-center gap-2 font-bold text-[#111111]">
-              <ShieldCheck className="h-4 w-4 text-[#165dfb]" />
-              Secure Assessment Architecture
+          {!aiPolicyKnown && (
+            <div className="rounded-[10px] border border-[#8c381c]/30 bg-[#fbeee8] p-3 text-xs font-semibold leading-relaxed text-[#8c381c]">
+We couldn’t verify this assessment’s security settings. Please contact your instructor.
             </div>
-
-            <p className="leading-relaxed font-medium">
-              The assessment is live. Starting the secure server session will
-              establish your attempt timing and load the authoritative
-              student-safe quiz package.
-            </p>
-          </div>
-
-          <div className="space-y-2 text-xs text-[#78716b] font-medium">
-            <div className="flex items-center gap-2">
-              <Check className="h-3.5 w-3.5 text-[#165dfb]" />
-              <span>Assessment availability verified by server</span>
-            </div>
-
-            <div className="flex items-center gap-2">
-              <Check className="h-3.5 w-3.5 text-[#165dfb]" />
-              <span>Server creates or resumes the student attempt</span>
-            </div>
-
-            <div className="flex items-center gap-2">
-              <Check className="h-3.5 w-3.5 text-[#165dfb]" />
-              <span>Authoritative deadline is stored before Arena entry</span>
-            </div>
-          </div>
-
-          {aiRequired && <p className="text-sm text-[#78716b]">Allow camera access and capture your reference photo to continue.</p>}
-
-          {aiRequired && <CameraReferenceCapture onCapture={(photo) => { setReferencePhoto(photo); sessionStorage.setItem("dynoquizz_reference_photo", photo); localStorage.removeItem("dynoquizz_reference_photo"); setStartError(null); }} disabled={isStarting} />}
-
+          )}
+ 
           {startError && (
             <div className="rounded-[10px] bg-[#fbeee8] border border-[#8c381c]/30 p-3 text-xs text-[#8c381c] font-semibold flex items-center gap-2 shadow-xs">
               <AlertCircle className="h-4 w-4 shrink-0" />
@@ -485,56 +677,57 @@ function LobbyInner({ testCode }: { testCode: string }) {
             </div>
           )}
 
-          <div className="rounded-[12px] border border-[#d1dee8]/70 bg-[#f5f5f4]/60 p-5 space-y-3 text-left shadow-xs">
-            <div className="flex items-center justify-between border-b border-[#d1dee8]/50 pb-3">
-              <span className="text-xs font-bold text-[#111111] uppercase tracking-wider flex items-center gap-1.5">
-                <Lock className="h-3.5 w-3.5 text-[#165dfb]" />
-                Candidate Ready Room
-              </span>
+          {aiRequired && (
+            <CameraReferenceCapture
+              captureRequested={captureRequested}
+              onCapture={(photo) => {
+                referencePhotoRef.current = photo;
+                setReferencePhoto(photo);
+                // Only a capture requested by the Start button is eligible for
+                // this attempt. Manual previews are never trusted as a baseline.
+                if (pendingStartAfterCaptureRef.current) {
+                  freshPhotoForStartRef.current = true;
+                }
+                sessionStorage.removeItem("dynoquizz_reference_photo");
+                localStorage.removeItem("dynoquizz_reference_photo");
+                setStartError(null);
+              }}
+              onCaptureError={(message) => {
+                freshPhotoForStartRef.current = false;
+                pendingStartAfterCaptureRef.current = false;
+                setPendingStartAfterCapture(false);
+                setCaptureRequested(false);
+                referencePhotoRef.current = null;
+                setReferencePhoto(null);
+                sessionStorage.removeItem("dynoquizz_reference_photo");
+                setStartError(message);
+              }}
+              disabled={isStarting}
+            />
+          )}
 
-              <span className="rounded-full bg-white px-2.5 py-0.5 text-[10px] font-bold text-[#165dfb] border border-[#d1dee8]/80 shadow-xs">
-                LIVE
-              </span>
-            </div>
-
-            <div className="space-y-2 text-xs text-[#78716b]">
-              <p className="font-semibold text-[#111111]">Directives:</p>
-
-              <ul className="list-disc pl-4 space-y-1 font-medium">
-                <li>
-                  The server starts or resumes the attempt for the logged-in
-                  student.
-                </li>
-                <li>
-                  The authoritative assessment deadline comes from the server
-                  response.
-                </li>
-                <li>
-                  The exam package is loaded only after the attempt is ready.
-                </li>
-                <li>
-                  Fullscreen is requested before entering the assessment. Leaving
-                  fullscreen may be recorded as suspicious activity.
-                </li>
-              </ul>
-            </div>
-          </div>
-
-          <div className="space-y-2">
+           <div className="space-y-2">
             <button
               type="button"
               onClick={handleStartAssessment}
-              disabled={isStarting}
+              disabled={isStarting || pendingStartAfterCapture || !aiPolicyKnown}
               className="w-full flex items-center justify-center gap-2 rounded-[10px] bg-[#111111] py-3.5 text-sm font-bold text-white hover:bg-[#222222] active:scale-[0.98] shadow-sm hover:shadow-md transition-all cursor-pointer border-0 disabled:opacity-70"
             >
               {isStarting ? (
                 <>
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                  Initializing Session &amp; Loading Package...
+                  <ShieldCheck className="h-4 w-4" />
+                  <SkeletonBlock className="h-3 w-20 rounded bg-white/50" />
+                  <span className="sr-only" role="status">Starting assessment</span>
+                </>
+              ) : pendingStartAfterCapture ? (
+                <>
+                  <Camera className="h-4 w-4" />
+                  <SkeletonBlock className="h-3 w-24 rounded bg-white/50" />
+                  <span className="sr-only" role="status">Capturing fresh reference photo</span>
                 </>
               ) : (
                 <>
-                  Start / Resume Assessment
+                  Start assessment
                   <ArrowRight className="h-4 w-4" />
                 </>
               )}
@@ -555,11 +748,12 @@ export default function AssessmentLobbyPage({
 
   return (
     <div className="min-h-screen bg-[#f5f5f4] flex flex-col font-sans selection:bg-[#e6e3e2] selection:text-[#165dfb]">
-      <header className="sticky top-0 z-40 w-full border-b border-[#d1dee8]/70 bg-white/95 backdrop-blur-sm px-4 md:px-8 py-3">
+      <header className="sticky top-0 z-40 w-full border-b border-[#d1dee8]/70 bg-white/95 backdrop-blur-sm px-4 md:px-8 py-3 dark:border-slate-700 dark:bg-slate-950/95">
         <div className="mx-auto flex max-w-[1400px] flex-wrap items-center justify-between gap-3">
           <Logo />
 
           <div className="flex items-center gap-2">
+            <ThemeToggle />
             <Link
               href="/dashboard/student"
               className="rounded-[10px] border border-[#d1dee8]/80 bg-[#f5f5f4] px-3.5 py-2 text-xs font-bold text-[#78716b] hover:bg-[#e6e3e2] hover:border-[#b9cbd9] hover:text-[#111111] shadow-xs active:scale-95 transition-all"
@@ -573,10 +767,7 @@ export default function AssessmentLobbyPage({
       <main className="flex-1 flex items-center justify-center p-4 md:p-8">
         <Suspense
           fallback={
-            <div className="flex items-center gap-2 text-xs font-bold text-[#78716b]">
-              <Loader2 className="h-4 w-4 animate-spin text-[#165dfb]" />
-              Loading Assessment Lobby...
-            </div>
+            <div className="w-full max-w-2xl space-y-4 rounded-[16px] border border-mist-blue/70 bg-paper-white p-5 dark:border-slate-700 dark:bg-slate-900"><div className="flex items-center gap-3"><ShieldCheck className="h-5 w-5 text-emerald-600 dark:text-emerald-300" /><SkeletonBlock className="h-4 w-40 rounded" /></div><SkeletonBlock className="h-3 w-4/5 rounded" /><SkeletonBlock className="h-11 w-full rounded-[10px]" /></div>
           }
         >
           <LobbyInner testCode={testCode} />

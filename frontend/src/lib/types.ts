@@ -110,6 +110,8 @@ export interface QuizPackageResponse {
   allowReview: boolean;
   allowResume: boolean;
   autoSubmit: boolean;
+  /** Required by the student API; missing policy must block exam entry. */
+  aiProctoringEnabled: boolean;
   startTime?: string | null;
   endTime?: string | null;
   questions: QuestionResponse[];
@@ -140,6 +142,10 @@ export interface QuizResponse {
   allowReview: boolean;
   allowResume: boolean;
   autoSubmit: boolean;
+  /** Required boolean returned by the backend QuizResponse DTO. */
+  aiProctoringEnabled: boolean;
+  /** Backend-configured shared tab-switch/fullscreen violation threshold. */
+  maxTabSwitch?: number | null;
   startTime?: string | null;
   endTime?: string | null;
   resultVisibility: ResultVisibility;
@@ -230,18 +236,123 @@ export interface AttemptStateResponse {
   totalTimeTaken?: number | null;
 }
 
+export interface DraftAttemptAnswersResponse {
+  attemptId: number;
+  saved: boolean;
+  status: AttemptStatus;
+}
+
+export interface ProctoringAccessVerificationResponse {
+  attemptId: number;
+  studentId: string;
+  studentEmail: string;
+  testCode: string;
+  status: string;
+  valid: boolean;
+  message: string;
+  warningCount: number;
+  maxWarnings: number;
+}
+
+
+/** Browser-policy audit event accepted by /student/attempts/{id}/proctoring/events. */
+export interface BrowserProctoringEventRequest {
+  type: string;
+  occurredAt?: string | null;
+  metadata?: Record<string, unknown> | null;
+  clientEventId?: string | null;
+}
+
+/** AI detector event accepted by /attempts/{id}/events. */
+export interface AiProctoringEventRequest {
+  eventType: string;
+  details?: string | null;
+  severity?: "LOW" | "MEDIUM" | "HIGH" | "CRITICAL" | null;
+  confidence?: number | null;
+  frameTimestamp?: number | null;
+  eventId?: string | null;
+}
+
+export interface ProctoringEventResponse {
+  recorded: boolean;
+  warningCount: number;
+  autoSubmitted: boolean;
+  message: string;
+}
+
+export interface ProctoringSummaryRequest {
+  totalFaceChecks: number;
+  identityMatches: number;
+  identityMismatches: number;
+}
+
+export interface ProctoringEventDetailResponse {
+  id: number;
+  eventType: string;
+  details: string;
+  severity: string;
+  confidence: number;
+  timestamp: string;
+}
+
+export interface TeacherProctoringReportResponse {
+  attemptId: number;
+  studentId: number;
+  studentName: string;
+  studentEmail: string;
+  quizCode: string;
+  quizTitle: string;
+  status: AttemptStatus;
+  warningCount: number;
+  totalViolationsCount: number;
+  riskScore: number;
+  riskLevel: string;
+  totalFaceChecks: number;
+  identityMatches: number;
+  identityMismatches: number;
+  faceAbsenceCount: number;
+  multipleFacesCount: number;
+  multiplePersonsCount: number;
+  lookingAwayCount: number;
+  phoneDetectionsCount: number;
+  voiceDetectionsCount: number;
+  tabSwitchesCount: number;
+  startedAt: string;
+  submittedAt: string | null;
+  terminationReason: string | null;
+  events: ProctoringEventDetailResponse[];
+}
+
+export interface TeacherQuizProctoringOverviewResponse {
+  quizCode: string;
+  quizTitle: string;
+  totalAttempts: number;
+  flaggedAttempts: number;
+  autoSubmittedAttempts: number;
+  averageRiskScore: number;
+  studentReports: TeacherProctoringReportResponse[];
+}
+
+export interface AiProctoringHealthResponse {
+  reachable: boolean;
+  status: string;
+  service: string;
+  biometricAvailable: boolean;
+  models: Record<string, boolean>;
+  message: string;
+}
 
 export interface StudentSubmissionResponse {
   attemptId: number;
   quizId: number;
   quizTitle: string;
   status: AttemptStatus;
-  finalScore?: number | null;
-  totalMarks?: number | null;
-  percentage?: number | null;
-  totalTimeTaken?: number | null;
+  finalScore: number | null;
+  totalMarks: number | null;
+  percentage: number | null;
+  totalTimeTaken: number | null;
   startedAt: string;
-  submittedAt?: string | null;
+  submittedAt: string | null;
   resultsAvailable: boolean;
 }
 
@@ -279,10 +390,15 @@ export interface LeaderboardEntryResponse {
   rank: number;
   studentId: number;
   studentName: string;
+  registrationNumber: string | null;
   score: number;
   totalMarks: number;
   percentage: number;
   totalTimeTaken: number;
+  attemptId: number;
+  status: AttemptStatus;
+  terminationReason: string | null;
+  warningCount: number;
 }
 
 /* -------------------------------------------------------------------------- */
@@ -291,9 +407,10 @@ export interface LeaderboardEntryResponse {
 
 export interface QuizAvailabilityResponse {
   quizCode: string;
-  aiProctoringEnabled?: boolean;
   available: boolean;
   status: QuizAvailabilityStatus;
+  /** Required by the student API; missing policy must block exam entry. */
+  aiProctoringEnabled: boolean;
   startTime?: string | null;
   endTime?: string | null;
 }
