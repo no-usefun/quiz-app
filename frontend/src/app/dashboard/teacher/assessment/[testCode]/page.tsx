@@ -148,16 +148,25 @@ function toProctoringOverview(payload: unknown): ProctoringOverview {
   const root = isApiRecord(payload) ? payload : {};
   const nested = isApiRecord(root.data) ? root.data : root;
   const rawReports = nested.studentReports;
+  const studentReports = Array.isArray(rawReports)
+    ? rawReports.filter(isApiRecord) as ProctoringStudentReport[]
+    : [];
+  // The backend aggregate currently counts only selected risk-scored events.
+  // Count any recorded student event as flagged too, so browser audit evidence
+  // (copy/paste, focus loss, restricted shortcuts) is not hidden by a zero score.
+  const flaggedFromEvents = studentReports.filter((report) =>
+    numericValue(report.warningCount) > 0 ||
+    numericValue(report.riskScore) >= 30 ||
+    (Array.isArray(report.events) && report.events.length > 0)
+  ).length;
   return {
     quizCode: typeof nested.quizCode === "string" ? nested.quizCode : undefined,
     quizTitle: typeof nested.quizTitle === "string" ? nested.quizTitle : undefined,
     totalAttempts: numericValue(nested.totalAttempts),
-    flaggedAttempts: numericValue(nested.flaggedAttempts),
+    flaggedAttempts: Math.max(numericValue(nested.flaggedAttempts), flaggedFromEvents),
     autoSubmittedAttempts: numericValue(nested.autoSubmittedAttempts),
     averageRiskScore: numericValue(nested.averageRiskScore),
-    studentReports: Array.isArray(rawReports)
-      ? rawReports.filter(isApiRecord) as ProctoringStudentReport[]
-      : [],
+    studentReports,
   };
 }
 
@@ -2003,7 +2012,7 @@ export default function TeacherAssessmentPage({
                   <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
                     {[
                       ["Attempt status", humanizeEvent(report.status || student.status || "UNKNOWN")],
-                      ["Warnings", report.warningCount ?? 0],
+                      ["AI warnings", report.warningCount ?? 0],
                       ["Risk score", report.riskScore ?? 0],
                       ["Risk level", humanizeEvent(report.riskLevel || "UNKNOWN")],
                     ].map(([label, value]) => (
@@ -2030,8 +2039,8 @@ export default function TeacherAssessmentPage({
                       <p className="mt-1 text-xs font-semibold text-midnight-navy dark:text-slate-100">{report.terminationReason ? humanizeEvent(report.terminationReason) : "None reported"}</p>
                     </div>
                     <div className="rounded-lg border border-slate-200 p-3">
-                      <p className="text-[9px] font-bold uppercase tracking-wide text-steel-blue-gray dark:text-slate-500 dark:text-slate-400">Total violations</p>
-                      <p className="mt-1 text-xs font-semibold text-midnight-navy dark:text-slate-100">{report.totalViolationsCount ?? events.length}</p>
+                      <p className="text-[9px] font-bold uppercase tracking-wide text-steel-blue-gray dark:text-slate-500 dark:text-slate-400">Recorded events</p>
+                      <p className="mt-1 text-xs font-semibold text-midnight-navy dark:text-slate-100">{Math.max(numericValue(report.totalViolationsCount), events.length)}</p>
                     </div>
                   </div>
                   <div>
