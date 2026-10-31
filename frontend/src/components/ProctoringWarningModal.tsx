@@ -16,7 +16,7 @@ interface ProctoringWarningModalProps {
 export function ProctoringWarningModal({
   isOpen,
   warningCount,
-  maxWarnings = 5,
+  maxWarnings = 3,
   reason,
   autoSubmitted = false,
   faceDetected = false,
