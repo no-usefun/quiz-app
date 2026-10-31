@@ -20,7 +20,6 @@ export function AIProctoringSession({
   onAutoSubmit,
 }: AIProctoringSessionProps) {
   const [referenceImage, setReferenceImage] = useState<string | null>(null);
-  const [studentId, setStudentId] = useState<string | undefined>();
   const [authToken, setAuthToken] = useState<string | undefined>();
   const [aiEnabled, setAiEnabled] = useState(false);
 
@@ -29,17 +28,10 @@ export function AIProctoringSession({
     setReferenceImage(sessionStorage.getItem("dynoquizz_reference_photo"));
     setAiEnabled(sessionStorage.getItem(`dynoquizz_ai_proctoring_${testCode}`) !== "false");
     setAuthToken(getAuthToken() || undefined);
-    try {
-      const user = JSON.parse(localStorage.getItem("dynoquizz_user") || "{}");
-      if (user?.id != null) setStudentId(String(user.id));
-    } catch {
-      setStudentId(undefined);
-    }
   }, [testCode]);
 
   const proctoring = useAIProctoring({
     attemptId,
-    studentId,
     testCode,
     referenceImage,
     authToken,
