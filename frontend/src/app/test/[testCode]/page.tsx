@@ -1122,9 +1122,7 @@ export default function TestArenaPage({
             submissionInFlightRef.current = true;
             setIsSubmitted(true);
             setDeadlineNotice(
-              type === "fullscreen_exit"
-                ? "The assessment was automatically submitted because the configured browser-violation limit was reached."
-                : "The assessment was automatically submitted because the configured tab-switch limit was reached.",
+              "The assessment was automatically submitted because the configured tab-switch/fullscreen violation limit was reached.",
             );
             cleanupAttemptRuntimeState(activeAttemptId, cleanCode, {
               preservePendingSubmitDraft: serverState.status === "AUTO_SUBMITTED",
@@ -2002,13 +2000,11 @@ export default function TestArenaPage({
       cleanupAttemptRuntimeState(attemptId, cleanCode);
 
       if (result.status === "AUTO_SUBMITTED") {
-        const reason = String(result.terminationReason || "").toUpperCase();
-        const notice = /DEADLINE|TIME_LIMIT|TIMEOUT|EXPIRED/.test(reason)
-          ? "The server deadline was reached, so the attempt was automatically submitted."
-          : /PROCTOR|MALPRACTICE|VIOLATION|WARNING_LIMIT/.test(reason)
-            ? "The configured proctoring or browser-violation limit was reached, so the attempt was automatically submitted."
-            : "The server confirmed that this attempt was automatically submitted.";
-        setDeadlineNotice(notice);
+        // SubmitAttemptResponse does not expose terminationReason. Do not infer
+        // whether the deadline or a policy caused the authoritative server state.
+        setDeadlineNotice(
+          "The backend confirmed that this attempt was automatically submitted. The submission response does not include a termination reason.",
+        );
       }
 
       /*
@@ -2046,13 +2042,10 @@ export default function TestArenaPage({
             });
 
             if (state.status === "AUTO_SUBMITTED") {
-              const reason = String(state.terminationReason || "").toUpperCase();
-              const notice = /DEADLINE|TIME_LIMIT|TIMEOUT|EXPIRED/.test(reason)
-                ? "The server deadline was reached and this assessment was automatically submitted."
-                : /PROCTOR|MALPRACTICE|VIOLATION|WARNING_LIMIT/.test(reason)
-                  ? "The configured proctoring or browser-violation limit caused automatic submission."
-                  : "The server has already automatically submitted this assessment attempt.";
-              setDeadlineNotice(notice);
+              // AttemptStateResponse exposes status but no termination reason.
+              setDeadlineNotice(
+                "The server has already automatically submitted this assessment attempt. The attempt-state response does not include a termination reason.",
+              );
             }
 
             void proctoringCleanupRef.current();
