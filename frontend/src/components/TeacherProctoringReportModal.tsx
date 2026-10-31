@@ -236,7 +236,6 @@ export function TeacherProctoringReportModal({
                     <span className="text-3xl font-extrabold text-[#111111]">
                       {report.warningCount}
                     </span>
-                    <span className="text-xs font-semibold text-[#78716b]">/ 3</span>
                   </div>
                   <span className="text-[10px] font-semibold text-[#78716b]">
                     {report.terminationReason === "MALPRACTICE_WARNING_LIMIT"
