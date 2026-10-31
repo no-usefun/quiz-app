@@ -60,7 +60,7 @@ export function AIProctoringHUD({
   voiceActive,
   loudVoice,
   warningCount,
-  maxWarnings = 5,
+  maxWarnings = 3,
   isOnline,
 }: AIProctoringHUDProps) {
   const alerts: string[] = [];
