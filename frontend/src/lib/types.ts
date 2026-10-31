@@ -197,7 +197,6 @@ export interface AttemptResponse {
   currentQuestion?: number | null;
   totalTimeTaken?: number | null;
   effectiveDeadline: string;
-  terminationReason?: string | null;
 }
 
 export interface SubmitAnswerRequest {
@@ -218,7 +217,6 @@ export interface SubmitAttemptResponse {
   totalMarks: number;
   totalTimeTaken: number;
   submittedAt: string;
-  terminationReason?: string | null;
 }
 
 export interface AttemptSavedAnswer {
@@ -236,7 +234,6 @@ export interface AttemptStateResponse {
   currentQuestion?: number | null;
   answers: AttemptSavedAnswer[];
   totalTimeTaken?: number | null;
-  terminationReason?: string | null;
 }
 
 export interface DraftAttemptAnswersResponse {
@@ -247,28 +244,115 @@ export interface DraftAttemptAnswersResponse {
 
 export interface ProctoringAccessVerificationResponse {
   attemptId: number;
-  studentId?: string | null;
-  studentEmail?: string | null;
-  testCode?: string | null;
+  studentId: string;
+  studentEmail: string;
+  testCode: string;
   status: string;
   valid: boolean;
   message: string;
-  warningCount?: number | null;
-  maxWarnings?: number | null;
+  warningCount: number;
+  maxWarnings: number;
 }
 
+
+/** Browser-policy audit event accepted by /student/attempts/{id}/proctoring/events. */
+export interface BrowserProctoringEventRequest {
+  type: string;
+  occurredAt?: string | null;
+  metadata?: Record<string, unknown> | null;
+  clientEventId?: string | null;
+}
+
+/** AI detector event accepted by /attempts/{id}/events. */
+export interface AiProctoringEventRequest {
+  eventType: string;
+  details?: string | null;
+  severity?: "LOW" | "MEDIUM" | "HIGH" | "CRITICAL" | null;
+  confidence?: number | null;
+  frameTimestamp?: number | null;
+  eventId?: string | null;
+}
+
+export interface ProctoringEventResponse {
+  recorded: boolean;
+  warningCount: number;
+  autoSubmitted: boolean;
+  message: string;
+}
+
+export interface ProctoringSummaryRequest {
+  totalFaceChecks: number;
+  identityMatches: number;
+  identityMismatches: number;
+}
+
+export interface ProctoringEventDetailResponse {
+  id: number;
+  eventType: string;
+  details: string;
+  severity: string;
+  confidence: number;
+  timestamp: string;
+}
+
+export interface TeacherProctoringReportResponse {
+  attemptId: number;
+  studentId: number;
+  studentName: string;
+  studentEmail: string;
+  quizCode: string;
+  quizTitle: string;
+  status: AttemptStatus;
+  warningCount: number;
+  totalViolationsCount: number;
+  riskScore: number;
+  riskLevel: string;
+  totalFaceChecks: number;
+  identityMatches: number;
+  identityMismatches: number;
+  faceAbsenceCount: number;
+  multipleFacesCount: number;
+  multiplePersonsCount: number;
+  lookingAwayCount: number;
+  phoneDetectionsCount: number;
+  voiceDetectionsCount: number;
+  tabSwitchesCount: number;
+  startedAt: string;
+  submittedAt: string | null;
+  terminationReason: string | null;
+  events: ProctoringEventDetailResponse[];
+}
+
+export interface TeacherQuizProctoringOverviewResponse {
+  quizCode: string;
+  quizTitle: string;
+  totalAttempts: number;
+  flaggedAttempts: number;
+  autoSubmittedAttempts: number;
+  averageRiskScore: number;
+  studentReports: TeacherProctoringReportResponse[];
+}
+
+export interface AiProctoringHealthResponse {
+  reachable: boolean;
+  status: string;
+  service: string;
+  biometricAvailable: boolean;
+  models: Record<string, boolean>;
+  message: string;
+}
 
 export interface StudentSubmissionResponse {
   attemptId: number;
   quizId: number;
   quizTitle: string;
   status: AttemptStatus;
-  finalScore?: number | null;
-  totalMarks?: number | null;
-  percentage?: number | null;
-  totalTimeTaken?: number | null;
+  finalScore: number | null;
+  totalMarks: number | null;
+  percentage: number | null;
+  totalTimeTaken: number | null;
   startedAt: string;
-  submittedAt?: string | null;
+  submittedAt: string | null;
   resultsAvailable: boolean;
 }
 
@@ -306,10 +390,15 @@ export interface LeaderboardEntryResponse {
   rank: number;
   studentId: number;
   studentName: string;
+  registrationNumber: string | null;
   score: number;
   totalMarks: number;
   percentage: number;
   totalTimeTaken: number;
+  attemptId: number;
+  status: AttemptStatus;
+  terminationReason: string | null;
+  warningCount: number;
 }
 
 /* -------------------------------------------------------------------------- */
