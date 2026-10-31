@@ -9,10 +9,86 @@ export const AI_PROCTORING_BASE_URL = (
   (isDevelopment ? "http://localhost:8000" : "")
 ).replace(/\/+$/, "");
 
+function deriveWebSocketBaseUrl(httpBaseUrl: string): string {
+  if (!httpBaseUrl) return "";
+
+  try {
+    const url = new URL(httpBaseUrl);
+    if (url.protocol === "https:") {
+      url.protocol = "wss:";
+    } else if (url.protocol === "http:") {
+      url.protocol = "ws:";
+    } else {
+      return "";
+    }
+    return url.toString().replace(/\/+$/, "");
+  } catch {
+    return "";
+  }
+}
+
+// Allow a separate WebSocket host when required; otherwise derive ws:// or
+// wss:// from the configured AI HTTP origin so the two settings cannot drift.
 export const AI_PROCTORING_WS_URL = (
   process.env.NEXT_PUBLIC_AI_PROCTORING_WS_URL?.trim() ||
-  (isDevelopment ? "ws://localhost:8000" : "")
+  deriveWebSocketBaseUrl(AI_PROCTORING_BASE_URL)
 ).replace(/\/+$/, "");
+
+function getAIEndpointConfigurationError(): string | null {
+  if (!AI_PROCTORING_BASE_URL) {
+    return "NEXT_PUBLIC_AI_PROCTORING_URL is not configured for this deployment.";
+  }
+
+  let httpUrl: URL;
+  let wsUrl: URL;
+
+  try {
+    httpUrl = new URL(AI_PROCTORING_BASE_URL);
+    if (httpUrl.protocol !== "http:" && httpUrl.protocol !== "https:") {
+      return "NEXT_PUBLIC_AI_PROCTORING_URL must use http:// or https://.";
+    }
+  } catch {
+    return "NEXT_PUBLIC_AI_PROCTORING_URL must be an absolute AI-service URL.";
+  }
+
+  try {
+    wsUrl = new URL(AI_PROCTORING_WS_URL);
+    if (wsUrl.protocol !== "ws:" && wsUrl.protocol !== "wss:") {
+      return "NEXT_PUBLIC_AI_PROCTORING_WS_URL must use ws:// or wss://.";
+    }
+  } catch {
+    return "The AI WebSocket URL could not be derived. Configure NEXT_PUBLIC_AI_PROCTORING_WS_URL explicitly.";
+  }
+
+  const isLoopbackHost =
+    httpUrl.hostname === "localhost" ||
+    httpUrl.hostname === "::1" ||
+    httpUrl.hostname === "[::1]" ||
+    httpUrl.hostname === "127.0.0.1" ||
+    httpUrl.hostname.startsWith("127.");
+
+  if (process.env.NODE_ENV === "production" && isLoopbackHost) {
+    return "The deployed frontend is pointing to localhost for AI proctoring. Configure NEXT_PUBLIC_AI_PROCTORING_URL with the reachable LAN or deployed AI-service address.";
+  }
+
+  if (
+    typeof window !== "undefined" &&
+    window.location.protocol === "https:" &&
+    httpUrl.protocol !== "https:"
+  ) {
+    return "This frontend uses HTTPS, so AI proctoring must use an HTTPS URL. Configure NEXT_PUBLIC_AI_PROCTORING_URL with https://.";
+  }
+
+  if (
+    typeof window !== "undefined" &&
+    window.location.protocol === "https:" &&
+    wsUrl.protocol !== "wss:"
+  ) {
+    return "This frontend uses HTTPS, so AI proctoring must use a secure WebSocket. Configure NEXT_PUBLIC_AI_PROCTORING_WS_URL with wss://.";
+  }
+
+  return null;
+}
 
 export interface AIHealthResponse {
   status: string;
@@ -108,13 +184,14 @@ export async function checkAIHealth(): Promise<{
   backendMessage?: string;
   details?: AIHealthResponse;
 }> {
-  // Never point a deployed browser at the student's own localhost by default.
-  // Production deployments must explicitly configure the AI service URL.
-  if (!AI_PROCTORING_BASE_URL) {
+  // Catch missing, loopback, and mixed-content URLs before making browser
+  // requests. These are deployment configuration errors, not AI model failures.
+  const configurationError = getAIEndpointConfigurationError();
+  if (configurationError) {
     return {
       isOnline: false,
       biometricReady: false,
-      backendMessage: "NEXT_PUBLIC_AI_PROCTORING_URL is not configured.",
+      backendMessage: configurationError,
     };
   }
 
