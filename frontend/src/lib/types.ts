@@ -142,8 +142,8 @@ export interface QuizResponse {
   allowReview: boolean;
   allowResume: boolean;
   autoSubmit: boolean;
-  /** Persisted quiz policy; student endpoints must return this explicitly. */
-  aiProctoringEnabled?: boolean;
+  /** Required boolean returned by the backend QuizResponse DTO. */
+  aiProctoringEnabled: boolean;
   /** Backend-configured shared tab-switch/fullscreen violation threshold. */
   maxTabSwitch?: number | null;
   startTime?: string | null;
