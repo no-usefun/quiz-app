@@ -394,7 +394,7 @@ export function TeacherProctoringReportModal({
                   <div className="space-y-2 max-h-60 overflow-y-auto pr-1">
                     {reportEvents.map((ev, index) => (
                       <div
-                        key={String(ev.eventId ?? ev.clientEventId ?? ev.id ?? `${ev.eventType}-${eventTimestamp(ev)?.getTime() ?? index}`)}
+                        key={String(ev.id ?? `${ev.eventType}-${eventTimestamp(ev)?.getTime() ?? index}`)}
                         className="rounded-[10px] border border-[#d1dee8]/80 bg-[#f5f5f4]/40 p-3 text-xs flex items-start justify-between gap-3 hover:bg-[#f5f5f4] transition-colors"
                       >
                         <div className="space-y-1">
