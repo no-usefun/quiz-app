@@ -557,7 +557,7 @@ export default function TestArenaPage({
   // The backend package is authoritative. Do not use browser storage as the
   // source of truth for a policy that determines whether proctoring is required.
   const [aiProctoringEnabled, setAiProctoringEnabled] = useState<boolean | null>(null);
-  const [maxWarnings, setMaxWarnings] = useState(5);
+  const [maxWarnings, setMaxWarnings] = useState(3);
 
   useEffect(() => {
     if (!activeAttemptId) return;
@@ -577,8 +577,8 @@ export default function TestArenaPage({
         setMaxWarnings(configuredLimit);
       }
     }).catch((error: unknown) => {
-      // The Spring Boot service defaults to five warnings; retain that fallback
-      // if an older deployment does not expose the configured threshold.
+      // Spring Boot defaults to three warnings; use the value returned by
+      // verify-access whenever available so configured deployments stay accurate.
       console.warn("[Proctoring] Could not load configured warning limit:", error);
     });
 
@@ -2999,7 +2999,7 @@ export default function TestArenaPage({
             sessionStorage.removeItem(`dynoquizz_reference_photo_fresh_${activeAttemptId}`);
             sessionStorage.removeItem("dynoquizz_reference_photo");
             const resultAttemptId = String(activeAttemptId ?? "").trim();
-            if (/^\\d+$/.test(resultAttemptId)) {
+            if (/^\d+$/.test(resultAttemptId)) {
               router.replace(`/dashboard/student/result/${resultAttemptId}`);
             } else {
               // Never navigate to the result route with a quiz code. If the
