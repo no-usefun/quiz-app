@@ -269,6 +269,22 @@ export function useAIProctoring({
   }, [cleanup]);
 
   const reportedAiEventsRef = useRef<Map<string, number>>(new Map());
+  const warningCountAttemptIdRef = useRef(attemptId);
+
+  useEffect(() => {
+    if (Number(warningCountAttemptIdRef.current) === Number(attemptId)) return;
+
+    warningCountAttemptIdRef.current = attemptId;
+    warningCountRef.current = 0;
+    setWarningCountState(0);
+    reportedAiEventsRef.current.clear();
+    setActiveWarningModal({
+      isOpen: false,
+      reason: "",
+      count: 0,
+      autoSubmitted: false,
+    });
+  }, [attemptId]);
 
   const markServerAutoSubmitted = useCallback((reason?: string | null) => {
     const currentAttemptId = Number(attemptIdRef.current);
