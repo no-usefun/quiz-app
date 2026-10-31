@@ -238,11 +238,12 @@ export async function checkAIHealth(): Promise<{
 
   const backendAvailable =
     backendHealth.ok && backendHealth.payload?.reachable === true;
-  const backendMessage =
-    backendHealth.payload?.message ||
-    (backendAvailable
-      ? undefined
-      : "The quiz backend cannot confirm that its AI proctoring service is reachable.");
+  const backendMessage = !backendAvailable
+    ? backendHealth.payload?.message ||
+      "The quiz backend cannot confirm that its AI proctoring service is reachable."
+    : !directHealth
+      ? "The quiz backend can reach the AI service, but this browser cannot read its health endpoint. Check the AI URL, browser-to-AI network access, and the AI service PROCTOR_FRONTEND_ORIGINS CORS allow-list for this frontend origin."
+      : backendHealth.payload?.message;
 
   const directIsOnline =
     directHealth?.status === "UP" || directHealth?.status === "DEGRADED";
