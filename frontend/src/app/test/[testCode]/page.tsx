@@ -559,34 +559,6 @@ export default function TestArenaPage({
   const [aiProctoringEnabled, setAiProctoringEnabled] = useState<boolean | null>(null);
   const [maxWarnings, setMaxWarnings] = useState<number | null>(null);
 
-  useEffect(() => {
-    if (!activeAttemptId) return;
-    let cancelled = false;
-
-    void api.get<ProctoringAccessVerificationResponse>(
-      ENDPOINTS.proctoring.verifyAccess(activeAttemptId),
-      { cache: "no-store" },
-    ).then((verification) => {
-      const configuredLimit = Number(verification.maxWarnings);
-      if (
-        !cancelled &&
-        verification.valid &&
-        Number.isSafeInteger(configuredLimit) &&
-        configuredLimit > 0
-      ) {
-        setMaxWarnings(configuredLimit);
-      }
-    }).catch((error: unknown) => {
-      // The warning limit is deployment-configurable. Do not invent a fallback
-      // when the authoritative verify-access response is unavailable.
-      console.warn("[Proctoring] Could not load configured warning limit:", error);
-    });
-
-    return () => {
-      cancelled = true;
-    };
-  }, [activeAttemptId]);
-
   const studentUser =
     typeof window !== "undefined"
       ? (() => {
@@ -780,6 +752,38 @@ export default function TestArenaPage({
     },
     enabled: aiProctoringEnabled === true && !isSubmitted && Boolean(activeAttemptId),
   });
+
+  useEffect(() => {
+    if (!activeAttemptId) return;
+    let cancelled = false;
+
+    void api.get<ProctoringAccessVerificationResponse>(
+      ENDPOINTS.proctoring.verifyAccess(activeAttemptId),
+      { cache: "no-store" },
+    ).then((verification) => {
+      if (cancelled || !verification.valid) return;
+
+      const configuredLimit = Number(verification.maxWarnings);
+      const currentWarnings = Number(verification.warningCount);
+
+      if (Number.isSafeInteger(configuredLimit) && configuredLimit > 0) {
+        setMaxWarnings(configuredLimit);
+      }
+      if (Number.isSafeInteger(currentWarnings) && currentWarnings >= 0) {
+        // A resumed attempt must display its backend-recorded warning count.
+        // The hook keeps this value monotonic as newer telemetry arrives.
+        proctoring.setWarningCount(currentWarnings);
+      }
+    }).catch((error: unknown) => {
+      // The warning limit/count are backend-authoritative. Leave them unknown
+      // rather than inventing values when access verification is unavailable.
+      console.warn("[Proctoring] Could not hydrate configured warning state:", error);
+    });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [activeAttemptId, proctoring.setWarningCount]);
 
   const isAIProctoringReady =
     aiProctoringEnabled === false ||
