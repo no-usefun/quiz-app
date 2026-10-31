@@ -160,6 +160,10 @@ export function TeacherProctoringReportModal({
     return eventType === "SCREENSHOT_ATTEMPT" ||
       (eventType === "KEYBOARD_ATTEMPT" && /screenshot/i.test(event.details || ""));
   }).length;
+  const restrictedShortcutCount = reportEvents.filter((event) =>
+    String(event.eventType || "").toUpperCase() === "KEYBOARD_ATTEMPT" &&
+    !/screenshot/i.test(event.details || "")
+  ).length;
 
   if (!isOpen) return null;
 
@@ -405,7 +409,7 @@ export function TeacherProctoringReportModal({
                     <span className="text-[#78716b] flex items-center gap-1.5 font-medium">
                       <Keyboard className="h-3.5 w-3.5 text-sky-600" /> Restricted shortcuts
                     </span>
-                    <span className="font-bold text-[#111111]">{countEventsByType(reportEvents, "KEYBOARD_ATTEMPT")}</span>
+                    <span className="font-bold text-[#111111]">{restrictedShortcutCount}</span>
                   </div>
 
                   <div className="p-2.5 rounded-[8px] bg-[#f5f5f4] flex items-center justify-between">
