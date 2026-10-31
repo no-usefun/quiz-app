@@ -15,6 +15,13 @@ import {
   EyeOff,
   Maximize2,
   UserCheck,
+  Copy,
+  ClipboardPaste,
+  Scissors,
+  MousePointerClick,
+  Focus,
+  Keyboard,
+  Camera,
 } from "lucide-react";
 import { api, getAuthToken } from "@/lib/api/client";
 import { ENDPOINTS } from "@/lib/api/endpoints";
@@ -83,6 +90,11 @@ function uniqueEvents(events: ProctoringEventDetail[]): ProctoringEventDetail[] 
   });
 }
 
+function countEventsByType(events: ProctoringEventDetail[], ...types: string[]): number {
+  const acceptedTypes = new Set(types.map((type) => type.toUpperCase()));
+  return events.filter((event) => acceptedTypes.has(String(event.eventType || "").toUpperCase())).length;
+}
+
 interface TeacherProctoringReportModalProps {
   isOpen: boolean;
   attemptId: number | null;
@@ -141,6 +153,13 @@ export function TeacherProctoringReportModal({
       isMounted = false;
     };
   }, [isOpen, attemptId]);
+
+  const reportEvents = report ? uniqueEvents(report.events ?? []) : [];
+  const screenshotAttemptCount = reportEvents.filter((event) => {
+    const eventType = String(event.eventType || "").toUpperCase();
+    return eventType === "SCREENSHOT_ATTEMPT" ||
+      (eventType === "KEYBOARD_ATTEMPT" && /screenshot/i.test(event.details || ""));
+  }).length;
 
   if (!isOpen) return null;
 
@@ -270,7 +289,7 @@ export function TeacherProctoringReportModal({
                     Detection Category Breakdown
                   </h3>
                   <span className="text-[10px] font-extrabold text-[#78716b] bg-[#f5f5f4] px-2 py-0.5 rounded-full border border-[#d1dee8]">
-                    {report.totalViolationsCount || report.events.length} Total Infractions
+                    {reportEvents.length} Recorded Events
                   </span>
                 </div>
 
@@ -346,6 +365,55 @@ export function TeacherProctoringReportModal({
                       {report.identityMismatches || 0}
                     </span>
                   </div>
+
+                  <div className="p-2.5 rounded-[8px] bg-[#f5f5f4] flex items-center justify-between">
+                    <span className="text-[#78716b] flex items-center gap-1.5 font-medium">
+                      <Copy className="h-3.5 w-3.5 text-sky-600" /> Copy attempts
+                    </span>
+                    <span className="font-bold text-[#111111]">{countEventsByType(reportEvents, "COPY_ATTEMPT")}</span>
+                  </div>
+
+                  <div className="p-2.5 rounded-[8px] bg-[#f5f5f4] flex items-center justify-between">
+                    <span className="text-[#78716b] flex items-center gap-1.5 font-medium">
+                      <ClipboardPaste className="h-3.5 w-3.5 text-sky-600" /> Paste attempts
+                    </span>
+                    <span className="font-bold text-[#111111]">{countEventsByType(reportEvents, "PASTE_ATTEMPT")}</span>
+                  </div>
+
+                  <div className="p-2.5 rounded-[8px] bg-[#f5f5f4] flex items-center justify-between">
+                    <span className="text-[#78716b] flex items-center gap-1.5 font-medium">
+                      <Scissors className="h-3.5 w-3.5 text-sky-600" /> Cut attempts
+                    </span>
+                    <span className="font-bold text-[#111111]">{countEventsByType(reportEvents, "CUT_ATTEMPT")}</span>
+                  </div>
+
+                  <div className="p-2.5 rounded-[8px] bg-[#f5f5f4] flex items-center justify-between">
+                    <span className="text-[#78716b] flex items-center gap-1.5 font-medium">
+                      <MousePointerClick className="h-3.5 w-3.5 text-sky-600" /> Right clicks
+                    </span>
+                    <span className="font-bold text-[#111111]">{countEventsByType(reportEvents, "RIGHT_CLICK")}</span>
+                  </div>
+
+                  <div className="p-2.5 rounded-[8px] bg-[#f5f5f4] flex items-center justify-between">
+                    <span className="text-[#78716b] flex items-center gap-1.5 font-medium">
+                      <Focus className="h-3.5 w-3.5 text-sky-600" /> Focus losses
+                    </span>
+                    <span className="font-bold text-[#111111]">{countEventsByType(reportEvents, "FOCUS_LOSS")}</span>
+                  </div>
+
+                  <div className="p-2.5 rounded-[8px] bg-[#f5f5f4] flex items-center justify-between">
+                    <span className="text-[#78716b] flex items-center gap-1.5 font-medium">
+                      <Keyboard className="h-3.5 w-3.5 text-sky-600" /> Restricted shortcuts
+                    </span>
+                    <span className="font-bold text-[#111111]">{countEventsByType(reportEvents, "KEYBOARD_ATTEMPT")}</span>
+                  </div>
+
+                  <div className="p-2.5 rounded-[8px] bg-[#f5f5f4] flex items-center justify-between">
+                    <span className="text-[#78716b] flex items-center gap-1.5 font-medium">
+                      <Camera className="h-3.5 w-3.5 text-sky-600" /> Screenshot attempts
+                    </span>
+                    <span className="font-bold text-[#111111]">{screenshotAttemptCount}</span>
+                  </div>
                 </div>
               </div>
 
@@ -353,17 +421,17 @@ export function TeacherProctoringReportModal({
               <div className="space-y-3">
                 <h3 className="text-xs font-bold text-[#111111] uppercase tracking-wider flex items-center gap-1.5">
                   <Clock className="h-3.5 w-3.5 text-[#165dfb]" />
-                  Authoritative Infraction Log ({report.events.length})
+                  Authoritative Event Log ({reportEvents.length})
                 </h3>
 
-                {report.events.length === 0 ? (
+                {reportEvents.length === 0 ? (
                   <div className="rounded-[10px] border border-emerald-200 bg-emerald-50/60 p-4 text-center text-xs text-emerald-800 font-medium flex items-center justify-center gap-2">
                     <ShieldCheck className="h-4 w-4 text-emerald-600" />
                     Clean session: No malpractice infractions recorded during this assessment.
                   </div>
                 ) : (
                   <div className="space-y-2 max-h-60 overflow-y-auto pr-1">
-                    {uniqueEvents(report.events).map((ev, index) => (
+                    {reportEvents.map((ev, index) => (
                       <div
                         key={String(ev.eventId ?? ev.clientEventId ?? ev.id ?? `${ev.eventType}-${eventTimestamp(ev)?.getTime() ?? index}`)}
                         className="rounded-[10px] border border-[#d1dee8]/80 bg-[#f5f5f4]/40 p-3 text-xs flex items-start justify-between gap-3 hover:bg-[#f5f5f4] transition-colors"
