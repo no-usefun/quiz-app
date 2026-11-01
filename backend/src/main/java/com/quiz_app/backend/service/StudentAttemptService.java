@@ -232,7 +232,7 @@ public class StudentAttemptService {
                                                 attempt.getStatus(),
                                                 attempt.getCurrentQuestion(),
                                                 attempt.getTotalTimeTaken(),
-                                                effectiveDeadline);
+                                                effectiveDeadline.atZone(QUIZ_TIMEZONE).toOffsetDateTime());
                         }
 
                         // A completed attempt cannot be started again.
@@ -279,7 +279,7 @@ public class StudentAttemptService {
                                 attempt.getStatus(),
                                 attempt.getCurrentQuestion(),
                                 attempt.getTotalTimeTaken(),
-                                effectiveDeadline);
+                                effectiveDeadline.atZone(QUIZ_TIMEZONE).toOffsetDateTime());
         }
 
         private void validateSelectionCount(
@@ -383,6 +383,7 @@ public class StudentAttemptService {
                                         "The attempt deadline has not been reached yet");
                 }
 
+                attempt.setTerminationReason("DEADLINE");
                 return finalizeAttempt(
                                 attempt,
                                 AttemptStatus.AUTO_SUBMITTED);
@@ -427,9 +428,15 @@ public class StudentAttemptService {
                 }
 
                 if (attempt.getStatus() != AttemptStatus.IN_PROGRESS) {
+                        // A retry after a lost response must return the committed result,
+                        // not turn a successful submission into a generic client failure.
+                        if (attempt.getStatus() == AttemptStatus.SUBMITTED
+                                        || attempt.getStatus() == AttemptStatus.AUTO_SUBMITTED) {
+                                return toSubmitAttemptResponse(attempt);
+                        }
                         throw new ConflictException(
-                                        "ATTEMPT_ALREADY_SUBMITTED",
-                                        "Attempt has already been submitted");
+                                        "ATTEMPT_NOT_ACTIVE",
+                                        "Attempt is not in a submittable state");
                 }
 
                 Quiz quiz = attempt.getQuiz();
@@ -472,6 +479,7 @@ public class StudentAttemptService {
                 AttemptStatus finalStatus = deadlineExceeded
                                 ? AttemptStatus.AUTO_SUBMITTED
                                 : AttemptStatus.SUBMITTED;
+                attempt.setTerminationReason(deadlineExceeded ? "DEADLINE" : "MANUAL_SUBMIT");
 
                 return finalizeAttempt(
                                 attempt,
@@ -590,7 +598,7 @@ public class StudentAttemptService {
                         answer.setAnsweredAt(
                                         selectedOptions.isEmpty()
                                                         ? null
-                                                        : LocalDateTime.now());
+                                                        : LocalDateTime.now(clock.withZone(QUIZ_TIMEZONE)));
 
                         answer = studentAnswerRepository.save(answer);
 
@@ -606,7 +614,7 @@ public class StudentAttemptService {
                                 selectedOption.setAnswer(answer);
                                 selectedOption.setOption(option);
                                 selectedOption.setCreatedAt(
-                                                LocalDateTime.now());
+                                                LocalDateTime.now(clock.withZone(QUIZ_TIMEZONE)));
 
                                 studentSelectedOptionRepository.save(
                                                 selectedOption);
@@ -646,6 +654,11 @@ public class StudentAttemptService {
                 }
 
                 LocalDateTime submittedAt = LocalDateTime.now(clock.withZone(QUIZ_TIMEZONE));
+                if (attempt.getTerminationReason() == null || attempt.getTerminationReason().isBlank()) {
+                        attempt.setTerminationReason(finalStatus == AttemptStatus.SUBMITTED
+                                        ? "MANUAL_SUBMIT"
+                                        : "DEADLINE");
+                }
 
                 /*
                  * Load all questions belonging to this quiz.
@@ -800,6 +813,18 @@ public class StudentAttemptService {
                                 attempt.getSubmittedAt());
         }
 
+        private SubmitAttemptResponse toSubmitAttemptResponse(QuizAttempt attempt) {
+                Quiz quiz = attempt.getQuiz();
+                return new SubmitAttemptResponse(
+                                attempt.getId(),
+                                quiz.getId(),
+                                attempt.getStatus(),
+                                attempt.getFinalScore(),
+                                quiz.getTotalMarks(),
+                                attempt.getTotalTimeTaken(),
+                                attempt.getSubmittedAt());
+        }
+
         private int calculateTimeTaken(
                         QuizAttempt attempt,
                         Quiz quiz,
@@ -861,7 +886,7 @@ public class StudentAttemptService {
                                 attempt.getId(),
                                 attempt.getQuiz().getId(),
                                 attempt.getStatus(),
-                                effectiveDeadline,
+                                effectiveDeadline.atZone(QUIZ_TIMEZONE).toOffsetDateTime(),
                                 attempt.getCurrentQuestion(),
                                 attempt.getTotalTimeTaken(),
                                 answers);
@@ -938,7 +963,7 @@ public class StudentAttemptService {
                 Set<String> allowedTypes = Set.of(
                                 "tab_switch", "fullscreen_exit", "right_click",
                                 "copy_attempt", "cut_attempt", "paste_attempt",
-                                "focus_loss", "keyboard_attempt",
+                                "focus_loss", "keyboard_attempt", "screenshot_attempt",
                                 "refresh_count", "reconnect_count");
                 if (!allowedTypes.contains(eventType)) {
                         throw new BadRequestException(

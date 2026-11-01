@@ -775,19 +775,45 @@ class StudentAttemptServiceTest {
         }
 
         @Test
-        void submitAttempt_shouldRejectAlreadySubmittedAttempt() {
+        void submitAttempt_shouldReturnExistingResultForRetryAfterCommit() {
 
                 attempt.setStatus(AttemptStatus.SUBMITTED);
+                attempt.setFinalScore(BigDecimal.TEN);
+                attempt.setSubmittedAt(LocalDateTime.of(2026, 9, 21, 20, 29));
 
                 when(quizAttemptRepository.findById(1000L))
                                 .thenReturn(Optional.of(attempt));
 
-                assertThrows(
-                                ConflictException.class,
-                                () -> attemptService.submitAttempt(
-                                                1000L,
-                                                new SubmitAttemptRequest(List.of()),
-                                                1L));
+                SubmitAttemptResponse response = attemptService.submitAttempt(
+                                1000L,
+                                new SubmitAttemptRequest(List.of()),
+                                1L);
+
+                assertEquals(1000L, response.attemptId());
+                assertEquals(AttemptStatus.SUBMITTED, response.status());
+                assertEquals(BigDecimal.TEN, response.finalScore());
+                assertEquals(attempt.getSubmittedAt(), response.submittedAt());
+                verifyNoInteractions(questionRepository, studentAnswerRepository,
+                                studentSelectedOptionRepository, optionRepository);
+        }
+
+        @Test
+        void recordProctoringEvent_shouldAcceptScreenshotAttemptAsDistinctEvent() {
+                when(quizAttemptRepository.findByIdForUpdate(1000L)).thenReturn(Optional.of(attempt));
+                when(proctoringEventRepository.findByAttemptIdAndClientEventId(1000L, "screenshot-1"))
+                                .thenReturn(Optional.empty());
+
+                attemptService.recordProctoringEvent(
+                                1000L,
+                                1L,
+                                new ProctoringEventRequest("SCREENSHOT_ATTEMPT", null,
+                                                Map.of("source", "browser"), "screenshot-1"));
+
+                ArgumentCaptor<QuizAttemptProctoringEvent> captor =
+                                ArgumentCaptor.forClass(QuizAttemptProctoringEvent.class);
+                verify(proctoringEventRepository).save(captor.capture());
+                assertEquals("screenshot_attempt", captor.getValue().getEventType());
+                assertEquals("screenshot-1", captor.getValue().getClientEventId());
         }
 
         @Test
