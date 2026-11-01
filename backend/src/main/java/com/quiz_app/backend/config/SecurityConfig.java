@@ -16,8 +16,8 @@ import org.springframework.security.config.annotation.web.configuration.EnableWe
 import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
-import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.oauth2.client.web.HttpSessionOAuth2AuthorizationRequestRepository;
+import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
 import org.springframework.web.cors.CorsConfiguration;
 import org.springframework.web.cors.CorsConfigurationSource;
@@ -51,7 +51,9 @@ public class SecurityConfig {
     }
 
     @Bean
-    public PasswordEncoder passwordEncoder() { return new BCryptPasswordEncoder(); }
+    public PasswordEncoder passwordEncoder() {
+        return new BCryptPasswordEncoder();
+    }
 
     @Bean
     public AuthenticationManager authenticationManager(AuthenticationConfiguration authConfig) throws Exception {
@@ -85,16 +87,20 @@ public class SecurityConfig {
                         .accessDeniedHandler(accessDeniedHandlerJwt))
                 .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .authorizeHttpRequests(auth -> auth
-                        .requestMatchers("/api/v1/auth/login", "/api/v1/auth/signup", "/", "/api/v1/health", "/favicon.ico")
+                        .requestMatchers("/api/v1/auth/login", "/api/v1/auth/signup", "/", "/api/v1/health",
+                                "/favicon.ico")
                         .permitAll()
                         .requestMatchers("/api/v1/auth/verify-email", "/api/v1/auth/resend-verification",
                                 "/api/v1/auth/forgot-password", "/api/v1/auth/reset-password")
-                        .access((authentication, context) -> new org.springframework.security.authorization.AuthorizationDecision(emailFeaturesEnabled))
+                        .access((authentication,
+                                context) -> new org.springframework.security.authorization.AuthorizationDecision(
+                                        emailFeaturesEnabled))
                         .requestMatchers("/v3/api-docs/**", "/swagger-ui/**", "/swagger-ui.html").permitAll()
                         .requestMatchers("/error").permitAll()
                         .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
                         .requestMatchers("/api/v1/student/**").hasRole("STUDENT")
                         .requestMatchers("/api/v1/teacher/**").hasRole("TEACHER")
+                        .requestMatchers("/api/v1/proctoring/ai-health").permitAll()
                         .anyRequest().authenticated());
 
         if (oauth2Enabled) {
@@ -104,8 +110,8 @@ public class SecurityConfig {
                 throw new IllegalStateException("OAuth2 is enabled but its security components are unavailable");
             }
             http.oauth2Login(oauth2 -> oauth2.authorizationEndpoint(endpoint -> endpoint
-                            .authorizationRequestResolver(resolver)
-                            .authorizationRequestRepository(new HttpSessionOAuth2AuthorizationRequestRepository()))
+                    .authorizationRequestResolver(resolver)
+                    .authorizationRequestRepository(new HttpSessionOAuth2AuthorizationRequestRepository()))
                     .successHandler(successHandler));
         }
 
