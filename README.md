@@ -12,13 +12,13 @@ Full-stack online examination platform built with a Next.js/React frontend, Spri
 
 ## Run locally on Windows
 
-Follow [LOCAL_TESTING.md](./LOCAL_TESTING.md). It covers database initialization, local environment configuration, and starting the backend, AI service, and frontend in separate PowerShell windows.
+Follow [LOCAL_TESTING.md](./LOCAL_TESTING.md) for PostgreSQL initialization, environment configuration, and starting the backend, AI service, and frontend in separate PowerShell windows.
 
-## Current validation notes
+## Validation notes
 
-- The frontend integration branch contains the latest frontend implementation based on the current backend base.
-- The CI pipeline runs backend tests, frontend TypeScript/build, frontend ESLint, AI-service tests, and Docker builds as separate checks.
-- Frontend lint has previously reported a large set of existing ESLint violations. The lint check remains visible and failing rather than being silently ignored; TypeScript/build checks run independently so their results are still available.
-- Local execution does not guarantee that OAuth, AI model downloads, camera access, database configuration, or cross-service networking are configured correctly. Test those flows on the machine and network you intend to use.
+- The integrated frontend branch's Frontend CI run passed on October 31, 2026: https://github.com/no-usefun/quiz-app/actions/runs/41210767788
+- An older CI run against the previous frontend on `main` reported extensive ESLint errors. The current CI keeps ESLint as an independent visible check and runs TypeScript/build checks separately, so one result does not hide another.
+- The full application still requires a local smoke test with the required runtimes, PostgreSQL, AI model files, camera permissions, and correctly configured service URLs.
+- A successful build does not prove that OAuth, AI model downloads, database configuration, or cross-service networking work in your environment.
 
 Do not commit real credentials, tokens, or personal exam data.

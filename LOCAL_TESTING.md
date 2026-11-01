@@ -1,6 +1,6 @@
 # Local testing guide (Windows / PowerShell)
 
-This guide starts all three services locally. Use three or four separate PowerShell windows. Use Java 21, Node.js 22, Python 3.11, and PostgreSQL 16 or newer.
+This guide starts all three services locally. Use separate PowerShell windows. Use Java 21, Node.js 22, Python 3.11, and PostgreSQL 16 or newer.
 
 ## 1. Initialize PostgreSQL
 
@@ -133,4 +133,4 @@ cd ai-proctoring
 python -m pytest -q
 ```
 
-Known limitation: the repository's frontend ESLint check has reported many existing violations. Do not treat lint failure alone as proof that the app cannot start; check TypeScript and production build results separately, then fix lint errors before considering the frontend CI clean.
+The integrated frontend branch's recorded Frontend CI passed. The broader CI also keeps lint separate from TypeScript/build so each failure is independently visible. Run these checks on your local branch and resolve any failures before treating the application as ready.
