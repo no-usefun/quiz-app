@@ -777,12 +777,6 @@ export default function StudentResultPage({
             </p>
           </div>
 
-          <div className="rounded-[10px] bg-slate-50 border border-slate-200 p-3.5 text-xs space-y-1.5 font-medium text-slate-500 shadow-xs">
-            <div className="flex justify-between gap-3">
-              <span>Attempt ID:</span>
-
-              <strong className="font-mono text-slate-900">{testCode}</strong>
-            </div>
           </div>
 
           <Link
@@ -829,9 +823,6 @@ export default function StudentResultPage({
 
         <div className="flex items-center gap-2">
           <ThemeToggle />
-          <span className="rounded-full bg-slate-50 border border-slate-200 px-3 py-1 font-mono text-xs font-bold text-slate-900 shadow-xs">
-            Attempt #{result.attemptId}
-          </span>
         </div>
       </nav>
 
