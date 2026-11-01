@@ -41,8 +41,8 @@ public class ProctoringService {
     private static final Logger logger = LoggerFactory.getLogger(ProctoringService.class);
     private static final ZoneId QUIZ_TIMEZONE = ZoneId.of("Asia/Kolkata");
 
-    @org.springframework.beans.factory.annotation.Value("${proctoring.max-warnings:3}")
-    private int maxWarnings = 3;
+    @org.springframework.beans.factory.annotation.Value("${proctoring.max-warnings:5}")
+    private int maxWarnings = 5;
 
     private static final Set<String> ALLOWED_MALPRACTICE_EVENT_TYPES = Set.of(
             "FACE_NOT_DETECTED",
