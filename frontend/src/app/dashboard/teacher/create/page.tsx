@@ -169,7 +169,6 @@ function CreateAssessmentContent() {
   // endTime is derived — always equals startTime + timeLimit (overallTimerSeconds).
   // It is NOT independently editable by the teacher.
   const endTime = computeEndTime(startTime, timeLimit);
-  const [maxTabSwitch, setMaxTabSwitch] = useState(5);
   const [timeBonusEnabled, setTimeBonusEnabled] = useState(false);
   const [randomQuestionOrder, setRandomQuestionOrder] = useState(true);
   const [randomOptionOrder, setRandomOptionOrder] = useState(true);
@@ -271,9 +270,6 @@ function CreateAssessmentContent() {
 
     // endTime is derived from startTime + timeLimit; no need to hydrate it separately.
 
-    if (settings.maxTabSwitch !== undefined && settings.maxTabSwitch !== null) {
-      setMaxTabSwitch(Number(settings.maxTabSwitch));
-    }
     if (settings.timeBonusEnabled !== undefined) {
       setTimeBonusEnabled(Boolean(settings.timeBonusEnabled));
     }
@@ -1207,8 +1203,6 @@ function CreateAssessmentContent() {
     if (!title.trim()) return "Please enter an assessment title.";
     if (!startTime) return "Please select a start time.";
     if (timeLimit <= 0) return "Time limit must be at least 1 minute.";
-    if (!Number.isFinite(maxTabSwitch) || maxTabSwitch < 0)
-      return "Maximum tab switches cannot be negative.";
     if (!endTime)
       return "Could not calculate end time — check start time and time limit.";
     if (parsedQuestions.length === 0)
@@ -1318,7 +1312,6 @@ function CreateAssessmentContent() {
       allowReview: Boolean(allowReview),
       allowResume: Boolean(allowResume),
       autoSubmit: true,
-      maxTabSwitch: Math.max(0, Number(maxTabSwitch) || 0),
       startTime: formatToLocalDateTime(startTime),
       endTime: formatToLocalDateTime(endTime),
       resultVisibility: getResultVisibility(),
@@ -1345,7 +1338,6 @@ function CreateAssessmentContent() {
       allowReview: Boolean(allowReview),
       allowResume: Boolean(allowResume),
       autoSubmit: true,
-      maxTabSwitch: Math.max(0, Number(maxTabSwitch) || 0),
       aiProctoringEnabled,
       startTime: formatToLocalDateTime(startTime),
       endTime: formatToLocalDateTime(endTime),
@@ -1405,7 +1397,6 @@ function CreateAssessmentContent() {
           allowReview: Boolean(allowReview),
           allowResume: Boolean(allowResume),
           autoSubmit: true,
-          maxTabSwitch: Number(maxTabSwitch),
           aiProctoringEnabled,
           startTime: formatToLocalDateTime(startTime) || null,
           endTime: formatToLocalDateTime(endTime) || null,
@@ -1632,7 +1623,6 @@ function CreateAssessmentContent() {
           allowReview: Boolean(allowReview),
           allowResume: Boolean(allowResume),
           autoSubmit: true,
-          maxTabSwitch: Number(maxTabSwitch),
           aiProctoringEnabled,
           startTime: formatToLocalDateTime(startTime) || null,
           endTime: formatToLocalDateTime(endTime) || null,
@@ -2517,27 +2507,6 @@ questionText,optionA,optionB,optionC,optionD,optionE,optionF,correctAnswer,marks
                     ))}
                   </div>
                   <div className="border-t border-[#d1dee8]/30 dark:border-slate-700 px-4 pb-4 pt-3 text-left space-y-4">
-                    <div className="grid gap-3 sm:grid-cols-2">
-                      <div>
-                        <label className="mb-1.5 block text-[11px] font-bold uppercase tracking-wider text-[#57534e] dark:text-slate-300">
-                          Max Tab Switch / Fullscreen Violations
-                        </label>
-                        <input
-                          type="number"
-                          min="0"
-                          step="1"
-                          value={maxTabSwitch}
-                          onChange={(e) =>
-                            setMaxTabSwitch(Math.max(0, Number(e.target.value)))
-                          }
-                          className={inputClass}
-                        />
-                        <p className="mt-1 text-[10px] text-[#78716b] dark:text-slate-400">
-                          Tab switches and fullscreen exits count toward one unified browser-policy limit. Default: 5. The backend enforces the saved limit, whether AI proctoring is on or off.
-                        </p>
-                      </div>
-                    </div>
-
                     <div>
                       <label className="mb-1.5 block text-[11px] font-bold uppercase tracking-wider text-[#57534e] dark:text-slate-300">
                         Accepted Email Domain
