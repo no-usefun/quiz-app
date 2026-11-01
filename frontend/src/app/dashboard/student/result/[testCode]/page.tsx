@@ -777,8 +777,6 @@ export default function StudentResultPage({
             </p>
           </div>
 
-          </div>
-
           <Link
             href="/dashboard/student"
             className="flex w-full items-center justify-center gap-1.5 rounded-[10px] bg-[#111111] py-2.5 text-xs font-bold text-white hover:bg-[#222222] active:scale-[0.98] shadow-sm transition-all border-0"
