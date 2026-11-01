@@ -728,20 +728,40 @@ export default function TestArenaPage({
     referenceImage: referencePhoto,
     authToken: getAuthToken() || undefined,
     onAutoSubmit: async () => {
-      // The proctoring backend has already confirmed submission. Never send a
-      // duplicate client-side submission for the same attempt.
-      submissionInFlightRef.current = true;
-      setIsSubmitted(true);
       setDeadlineNotice(
-        "The proctoring backend confirmed that this assessment was automatically submitted.",
+        "The proctoring backend automatically submitted this assessment. Sending the locally saved answer sheet for recovery.",
       );
-      // Server-triggered auto-submission did not receive the local answer sheet.
-      // Retain the draft for recovery rather than deleting the only remaining copy.
-      cleanupAttemptRuntimeState(activeAttemptId, cleanCode, { preservePendingSubmitDraft: true });
-      // Exit fullscreen regardless of navigation availability. SPA redirects do
-      // not automatically release the browser's fullscreen state.
-      await exitFullscreen();
-      if (activeAttemptId) {
+
+      // Flush the latest in-memory answers to localStorage before the network
+      // request. The backend accepts this recovery only when the auto-submitted
+      // attempt has no selected answers saved server-side and this payload is
+      // the complete question set.
+      persistAttemptDraft(
+        activeAttemptId,
+        answersRef.current,
+        timeTakenRef.current,
+        buildAttemptScoringSnapshot(test),
+      );
+
+      let recoverySubmitted = false;
+      if (activeAttemptId && finishAssessmentRef.current) {
+        try {
+          await finishAssessmentRef.current(
+            answersRef.current,
+            timeTakenRef.current,
+            true,
+          );
+          recoverySubmitted = true;
+        } catch {
+          // Keep the draft if the recovery request cannot be confirmed.
+        }
+      }
+
+      if (!recoverySubmitted && activeAttemptId) {
+        cleanupAttemptRuntimeState(activeAttemptId, cleanCode, {
+          preservePendingSubmitDraft: true,
+        });
+        await exitFullscreen();
         router.replace(`/dashboard/student/result/${activeAttemptId}`);
       }
     },
@@ -1732,7 +1752,7 @@ export default function TestArenaPage({
   ) => {
     const attemptId = activeAttemptId;
 
-    if (proctoring.serverAutoSubmitted) {
+    if (proctoring.serverAutoSubmitted && !allowWhileProctoringBlocked) {
       return;
     }
 
