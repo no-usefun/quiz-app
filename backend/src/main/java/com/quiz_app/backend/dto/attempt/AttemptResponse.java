@@ -1,6 +1,7 @@
 package com.quiz_app.backend.dto.attempt;
 
 import java.time.LocalDateTime;
+import java.time.OffsetDateTime;
 
 import com.quiz_app.backend.entity.AttemptStatus;
 
@@ -13,5 +14,5 @@ public record AttemptResponse(
                 AttemptStatus status,
                 Integer currentQuestion,
                 Integer totalTimeTaken,
-                LocalDateTime effectiveDeadline) {
+                OffsetDateTime effectiveDeadline) {
 }

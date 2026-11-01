@@ -1,12 +1,12 @@
 "use client";
 
 import { useEffect, useRef, useState, useCallback } from "react";
+import { getAuthToken } from "@/lib/api/client";
 import {
   AI_PROCTORING_WS_URL,
   checkAIHealth,
   startProctoringSession,
   stopProctoringSession,
-  submitProctoringSummary,
   analyzeFrameREST,
   TelemetryResponse,
   StartSessionResult,
@@ -14,11 +14,9 @@ import {
 
 interface UseProctoringOptions {
   attemptId: number;
-  studentId?: string;
   testCode: string;
   referenceImage: string | null;
   authToken?: string;
-  springBootUrl?: string;
   onAutoSubmit?: () => void;
   enabled?: boolean;
 }
@@ -53,11 +51,9 @@ function normalizeAIEventType(value: string): string | null {
 
 export function useAIProctoring({
   attemptId,
-  studentId,
   testCode,
   referenceImage,
   authToken,
-  springBootUrl,
   onAutoSubmit,
   enabled = true,
 }: UseProctoringOptions) {
@@ -66,11 +62,11 @@ export function useAIProctoring({
   const audioContextRef = useRef<AudioContext | null>(null);
   const wsRef = useRef<WebSocket | null>(null);
   const frameIntervalRef = useRef<NodeJS.Timeout | null>(null);
+  const lastTelemetryAtRef = useRef(0);
   const sessionIdRef = useRef<string | null>(null);
   const wsTicketRef = useRef<string | null>(null);
   const isCleaningUpRef = useRef(false);
   const cleanupPromiseRef = useRef<Promise<void> | null>(null);
-  const summarySubmittedAttemptsRef = useRef<Set<number>>(new Set());
   const autoSubmitHandledAttemptRef = useRef<number | null>(null);
   const isWsAuthenticatedRef = useRef(false);
   const inFlightRestRef = useRef(false);
@@ -90,25 +86,12 @@ export function useAIProctoring({
     authTokenRef.current = authToken;
   }, [authToken]);
 
-  const studentIdRef = useRef(studentId);
-  useEffect(() => {
-    studentIdRef.current = studentId;
-  }, [studentId]);
-
   const attemptIdRef = useRef(attemptId);
-  useEffect(() => {
-    attemptIdRef.current = attemptId;
-  }, [attemptId]);
 
   const testCodeRef = useRef(testCode);
   useEffect(() => {
     testCodeRef.current = testCode;
   }, [testCode]);
-
-  const springBootUrlRef = useRef(springBootUrl);
-  useEffect(() => {
-    springBootUrlRef.current = springBootUrl;
-  }, [springBootUrl]);
 
   // Telemetry & Hardware State
   const [cameraActive, setCameraActive] = useState(false);
@@ -120,6 +103,36 @@ export function useAIProctoring({
   const [retryCount, setRetryCount] = useState(0);
   const [isOnline, setIsOnline] = useState(false);
   const [telemetryReceived, setTelemetryReceived] = useState(false);
+  // Fail closed: keep the assessment locked until telemetry explicitly releases
+  // the identity hold. A missing/legacy field is not interpreted as "verified".
+  const [identityHold, setIdentityHold] = useState(enabled);
+  const [identityHoldReason, setIdentityHoldReason] = useState<string | null>(
+    enabled ? "INITIALIZING" : null,
+  );
+  const identityHoldRef = useRef(enabled);
+  const [referenceRegistered, setReferenceRegistered] = useState(false);
+  const [serverAutoSubmitted, setServerAutoSubmitted] = useState(false);
+  const serverAutoSubmittedRef = useRef(false);
+  const autoSubmitModalAttemptRef = useRef<number | null>(null);
+
+  const setIdentityHoldSnapshot = useCallback((held: boolean, reason?: string | null) => {
+    identityHoldRef.current = held;
+    setIdentityHold(held);
+    setIdentityHoldReason(held ? (reason?.trim() || "IDENTITY_VERIFICATION_PENDING") : null);
+  }, []);
+
+  useEffect(() => {
+    const previousAttemptId = Number(attemptIdRef.current);
+    attemptIdRef.current = attemptId;
+    if (previousAttemptId !== Number(attemptId)) {
+      autoSubmitHandledAttemptRef.current = null;
+      autoSubmitModalAttemptRef.current = null;
+      serverAutoSubmittedRef.current = false;
+      setServerAutoSubmitted(false);
+      setIdentityHoldSnapshot(enabled, enabled ? "INITIALIZING" : null);
+      setReferenceRegistered(false);
+    }
+  }, [attemptId, enabled, setIdentityHoldSnapshot]);
 
   // Strictly default to unknown/initial values until confirmed by telemetry
   const [faceDetected, setFaceDetected] = useState(false);
@@ -225,38 +238,18 @@ export function useAIProctoring({
 
       if (sid) {
         try {
-          const stopResult = await Promise.race([
+          // The Python service's /proctor/stop handler persists the final
+          // summary to Spring Boot before it closes and scrubs the session.
+          // Avoid posting the same summary a second time from the browser.
+          await Promise.race([
             stopProctoringSession({
               sessionId: sid,
               ticket: ticket || undefined,
               authToken: authTokenRef.current,
-              studentId: studentIdRef.current,
-              attemptId: attemptIdRef.current,
+              attemptId: Number(attemptIdRef.current),
             }),
             new Promise<null>((resolve) => setTimeout(() => resolve(null), 3000)),
           ]);
-
-          const currentAttemptId = Number(attemptIdRef.current);
-          if (
-            stopResult &&
-            Number.isSafeInteger(currentAttemptId) &&
-            currentAttemptId > 0 &&
-            !summarySubmittedAttemptsRef.current.has(currentAttemptId)
-          ) {
-            try {
-              await submitProctoringSummary({
-                attemptId: currentAttemptId,
-                authToken: authTokenRef.current,
-                totalFaceChecks: stopResult.totalVerifications,
-                identityMatches: stopResult.identityMatches,
-                identityMismatches: stopResult.identityMismatches,
-              });
-              summarySubmittedAttemptsRef.current.add(currentAttemptId);
-            } catch (summaryErr) {
-              // Do not block assessment cleanup if the summary endpoint is unavailable.
-              console.warn("Proctoring summary submission failed:", summaryErr);
-            }
-          }
         } catch (err) {
           console.warn("Error stopping proctoring session:", err);
         }
@@ -276,89 +269,149 @@ export function useAIProctoring({
   }, [cleanup]);
 
   const reportedAiEventsRef = useRef<Map<string, number>>(new Map());
+  const warningCountAttemptIdRef = useRef(attemptId);
+
+  useEffect(() => {
+    if (Number(warningCountAttemptIdRef.current) === Number(attemptId)) return;
+
+    warningCountAttemptIdRef.current = attemptId;
+    warningCountRef.current = 0;
+    setWarningCountState(0);
+    reportedAiEventsRef.current.clear();
+    setActiveWarningModal({
+      isOpen: false,
+      reason: "",
+      count: 0,
+      autoSubmitted: false,
+    });
+  }, [attemptId]);
+
+  const markServerAutoSubmitted = useCallback((reason?: string | null) => {
+    const currentAttemptId = Number(attemptIdRef.current);
+    const isFirstForAttempt =
+      autoSubmitHandledAttemptRef.current !== currentAttemptId;
+
+    autoSubmitHandledAttemptRef.current = currentAttemptId;
+    serverAutoSubmittedRef.current = true;
+    setServerAutoSubmitted(true);
+    setIdentityHoldSnapshot(true, reason || "AUTO_SUBMITTED");
+
+    // A server-confirmed terminal attempt must not remain eligible for lobby
+    // retry/reuse, and no reference bytes should remain cached after validation.
+    const currentTestCode = String(testCodeRef.current || "").trim().toUpperCase();
+    sessionStorage.removeItem(`dynoquizz_pending_proctor_attempt_${currentTestCode}`);
+    sessionStorage.removeItem("dynoquizz_reference_photo");
+    sessionStorage.removeItem(`dynoquizz_reference_photo_fresh_${currentAttemptId}`);
+    localStorage.removeItem("dynoquizz_reference_photo");
+
+    if (isFirstForAttempt) {
+      onAutoSubmitRef.current?.();
+      // Stop frame streaming and release camera/audio resources immediately
+      // after the backend confirms the attempt is terminal.
+      void cleanup();
+    }
+  }, [cleanup, setIdentityHoldSnapshot]);
 
   const handleTelemetryUpdate = useCallback((telemetry: TelemetryResponse) => {
+    lastTelemetryAtRef.current = Date.now();
     setTelemetryReceived(true);
-    setFaceDetected(telemetry.faceDetected);
-    setNumFaces(telemetry.numFaces);
+    setFaceDetected(Boolean(telemetry.faceDetected));
+    setNumFaces(Number.isFinite(Number(telemetry.numFaces)) ? Number(telemetry.numFaces) : 0);
     if (telemetry.numPersons !== undefined) {
-      setNumPersons(telemetry.numPersons);
+      setNumPersons(Number.isFinite(Number(telemetry.numPersons)) ? Number(telemetry.numPersons) : 0);
     }
-    setIdentityVerified(telemetry.identityVerified);
-    setSimilarityScore(telemetry.similarityScore);
+    setIdentityVerified(Boolean(telemetry.identityVerified));
+    setSimilarityScore(Number.isFinite(Number(telemetry.similarityScore)) ? Number(telemetry.similarityScore) : 0);
     if (telemetry.gazeDirection) {
       setGazeDirection(telemetry.gazeDirection);
     }
-    if (telemetry.yaw !== undefined) {
-      setYaw(telemetry.yaw);
-    }
-    if (telemetry.pitch !== undefined) {
-      setPitch(telemetry.pitch);
-    }
-    if (telemetry.isLookingAway !== undefined) {
-      setIsLookingAway(telemetry.isLookingAway);
-    }
-    setPhoneDetected(telemetry.phoneDetected);
-    setMicLevel(telemetry.micLevel);
-    setVoiceActive(telemetry.voiceActive);
-    setLoudVoice(telemetry.loudVoice);
+    if (telemetry.yaw !== undefined) setYaw(Number(telemetry.yaw) || 0);
+    if (telemetry.pitch !== undefined) setPitch(Number(telemetry.pitch) || 0);
+    if (telemetry.isLookingAway !== undefined) setIsLookingAway(Boolean(telemetry.isLookingAway));
+    setPhoneDetected(Boolean(telemetry.phoneDetected));
+    setMicLevel(Number.isFinite(Number(telemetry.micLevel)) ? Number(telemetry.micLevel) : 0);
+    setVoiceActive(Boolean(telemetry.voiceActive));
+    setLoudVoice(Boolean(telemetry.loudVoice));
 
-    // V2 sends the backend-authoritative warning count with telemetry. Keep the
-    // UI monotonic so delayed frames cannot make the HUD/modal count go backwards.
+    // Never unlock on a missing/invalid hold field. The V2 service must explicitly
+    // return identityHold=false before a held assessment can resume.
+    if (!serverAutoSubmittedRef.current) {
+      if (typeof telemetry.identityHold === "boolean") {
+        setIdentityHoldSnapshot(
+          telemetry.identityHold,
+          telemetry.identityHold
+            ? telemetry.identityHoldReason || "IDENTITY_VERIFICATION_PENDING"
+            : null,
+        );
+      } else {
+        setIdentityHoldSnapshot(true, "IDENTITY_HOLD_STATUS_UNAVAILABLE");
+      }
+    }
+
+    // Counts and auto-submission are backend-authoritative; the browser never
+    // creates its own warning count or infers submission from a threshold.
     if (typeof telemetry.warningCount === "number" && Number.isFinite(telemetry.warningCount)) {
       setWarningCount(telemetry.warningCount);
     }
 
-    if (!telemetry.malpracticeEvent) {
-      return;
-    }
-
-    const eventType = normalizeAIEventType(telemetry.malpracticeEvent);
-    if (!eventType) {
-      console.warn("[Proctoring] Ignoring unknown AI event type:", telemetry.malpracticeEvent);
-      return;
-    }
-
     const currentAttemptId = Number(attemptIdRef.current);
-    const isValidAttempt = Number.isSafeInteger(currentAttemptId) && currentAttemptId > 0;
-    const isAutoSubmitted = Boolean(telemetry.autoSubmitted);
+    const isAutoSubmitted = telemetry.autoSubmitted === true;
+    const rawEvent = typeof telemetry.malpracticeEvent === "string"
+      ? telemetry.malpracticeEvent.trim()
+      : "";
+    const eventMessage = typeof telemetry.eventMessage === "string"
+      ? telemetry.eventMessage.trim()
+      : "";
+    const eventKey = rawEvent
+      ? (normalizeAIEventType(rawEvent) || rawEvent.toUpperCase().replace(/[\\s-]+/g, "_"))
+      : eventMessage
+        ? `EVENT_MESSAGE:${eventMessage.toUpperCase().replace(/[\\s-]+/g, " ").slice(0, 180)}`
+        : "";
     const authoritativeCount = Math.max(
       warningCountRef.current,
-      typeof telemetry.warningCount === "number" ? telemetry.warningCount : 0,
+      typeof telemetry.warningCount === "number" && Number.isFinite(telemetry.warningCount)
+        ? telemetry.warningCount
+        : 0,
     );
-    const details = (
-      telemetry.eventMessage?.trim() || telemetry.malpracticeEvent
-    ).slice(0, 1000);
+    const eventReason = [rawEvent, eventMessage].filter(Boolean).join(": ").slice(0, 1000);
 
-    // V2's AI service dispatches confirmed events to Spring Boot itself and
-    // returns the authoritative count in telemetry. Do not POST the same event
-    // again from the browser: doing so can double-count a single violation.
-    // Auto-submit is likewise driven by the backend's explicit response flag,
-    // never by a hard-coded client-side warning threshold.
-    if (
-      isAutoSubmitted &&
-      isValidAttempt &&
-      autoSubmitHandledAttemptRef.current !== currentAttemptId
-    ) {
-      autoSubmitHandledAttemptRef.current = currentAttemptId;
-      onAutoSubmitRef.current?.();
+    // Process this flag even when malpracticeEvent is null. The backend's
+    // explicit autoSubmitted response is final and must not trigger a duplicate
+    // browser submission request.
+    if (isAutoSubmitted) {
+      markServerAutoSubmitted(eventReason || "The backend automatically submitted this assessment.");
+      if (autoSubmitModalAttemptRef.current !== currentAttemptId) {
+        autoSubmitModalAttemptRef.current = currentAttemptId;
+        setActiveWarningModal({
+          isOpen: true,
+          reason: eventReason || "The backend automatically submitted this assessment.",
+          count: authoritativeCount,
+          autoSubmitted: true,
+        });
+      }
+      return;
+    }
+
+    if (!rawEvent && !eventMessage) return;
+
+    if (!eventKey) {
+      console.warn("[Proctoring] Empty AI malpractice event and message were ignored.");
+      return;
     }
 
     const now = Date.now();
-    const lastReportedAt = reportedAiEventsRef.current.get(eventType) ?? 0;
+    const lastReportedAt = reportedAiEventsRef.current.get(eventKey) ?? 0;
     const eventCooldownMs = 10000;
-    if (now - lastReportedAt < eventCooldownMs && !isAutoSubmitted) {
-      return;
-    }
-    reportedAiEventsRef.current.set(eventType, now);
+    if (now - lastReportedAt < eventCooldownMs) return;
+    reportedAiEventsRef.current.set(eventKey, now);
 
     setActiveWarningModal({
       isOpen: true,
-      reason: details,
+      reason: eventReason || rawEvent,
       count: authoritativeCount,
-      autoSubmitted: isAutoSubmitted,
+      autoSubmitted: false,
     });
-  }, [setWarningCount]);
+  }, [markServerAutoSubmitted, setIdentityHoldSnapshot, setWarningCount]);
 
   // Capture single frame from in-DOM video without depending on cameraActive state
   const captureFrameBase64 = useCallback((): string | null => {
@@ -380,6 +433,23 @@ export function useAIProctoring({
     }
   }, []);
 
+  // Fail visibly if the camera is active but the AI service never returns
+  // its first telemetry packet. This enables the existing Retry action instead
+  // of leaving the student behind an indefinite verification screen.
+  useEffect(() => {
+    if (!enabled || !cameraActive || telemetryReceived || cameraError) {
+      return;
+    }
+
+    const timeoutId = window.setTimeout(() => {
+      setCameraError(
+        "The AI service did not return verification data in time. Check your connection and retry.",
+      );
+    }, 15000);
+
+    return () => window.clearTimeout(timeoutId);
+  }, [enabled, cameraActive, telemetryReceived, cameraError, retryCount]);
+
   // Auxiliary effect: Ensure stream attaches to video element whenever video element is available
   useEffect(() => {
     if (cameraActive && streamRef.current && videoRef.current && videoRef.current.srcObject !== streamRef.current) {
@@ -397,11 +467,40 @@ export function useAIProctoring({
     cleanupPromiseRef.current = null;
 
     if (!referenceImage) {
+      // A route without a fresh, attempt-scoped reference is not allowed to
+      // reuse any old image from session storage.
+      sessionStorage.removeItem("dynoquizz_reference_photo");
+      sessionStorage.removeItem(`dynoquizz_reference_photo_fresh_${attemptId}`);
       return;
     }
 
+    // Consume the freshness marker as soon as this attempt takes ownership of
+    // the frame. Keep the image only in this mounted component's memory while
+    // /proctor/start validates it; it must not be reused on a later navigation.
+    sessionStorage.removeItem(`dynoquizz_reference_photo_fresh_${attemptId}`);
+    sessionStorage.removeItem("dynoquizz_reference_photo");
+
     const initProctoring = async () => {
       setCameraError(null);
+      setIsOnline(false);
+      setReferenceRegistered(false);
+      setServerAutoSubmitted(false);
+      serverAutoSubmittedRef.current = false;
+      setIdentityHoldSnapshot(enabled, enabled ? "INITIALIZING" : null);
+      // A retry starts a new session; never let telemetry from the previous
+      // session satisfy the readiness gate before fresh telemetry arrives.
+      setTelemetryReceived(false);
+      lastTelemetryAtRef.current = 0;
+      setFaceDetected(false);
+      setNumFaces(0);
+      setNumPersons(0);
+      setIdentityVerified(false);
+      setSimilarityScore(0);
+      setIsLookingAway(false);
+      setPhoneDetected(false);
+      setMicLevel(0);
+      setVoiceActive(false);
+      setLoudVoice(false);
 
       // 1. Health check AI microservice
       const health = await checkAIHealth();
@@ -409,7 +508,7 @@ export function useAIProctoring({
       setIsOnline(health.isOnline);
 
       if (!health.isOnline) {
-        setCameraError("The AI Proctoring microservice is currently offline. Please ensure it is running on port 8000.");
+        setCameraError("The AI Proctoring service is unavailable. Verify the configured service URL and that the service is healthy.");
         return;
       }
       if (!health.biometricReady) {
@@ -463,6 +562,20 @@ export function useAIProctoring({
       }
 
       streamRef.current = stream;
+
+      const videoTrack = stream.getVideoTracks()[0];
+      videoTrack?.addEventListener(
+        "ended",
+        () => {
+          if (isCleaningUpRef.current || !mounted) return;
+          setCameraActive(false);
+          setIdentityHoldSnapshot(true, "CAMERA_UNAVAILABLE");
+          setCameraError(
+            "Camera access was interrupted during the assessment. Restore camera permission, then return to the lobby and restart with a fresh reference photo.",
+          );
+        },
+        { once: true },
+      );
 
       // Attach stream to video
       if (videoRef.current) {
@@ -530,16 +643,25 @@ export function useAIProctoring({
         console.warn("Web Audio API initialization failed:", audioErr);
       }
 
-      // 4. Start AI session with reference biometric photo
+      // 4. Start AI session with reference biometric photo. Reuse the single
+      // application token helper; never start proctoring without authentication.
+      const sessionToken = authTokenRef.current || getAuthToken();
+      if (!sessionToken) {
+        setCameraError("Your login session is missing or expired. Please sign in again before starting this assessment.");
+        await cleanup();
+        if (mounted) {
+          window.location.assign(`/login?role=student&redirect=${encodeURIComponent(`/test/${testCodeRef.current}/lobby`)}`);
+        }
+        return;
+      }
+
       let sessionRes: StartSessionResult;
       try {
         sessionRes = await startProctoringSession({
           attemptId,
-          studentId: studentIdRef.current,
           testCode: testCodeRef.current,
           referenceImage,
-          authToken: authTokenRef.current,
-          springBootUrl: springBootUrlRef.current,
+          authToken: sessionToken,
         });
       } catch (sessionErr: unknown) {
         if (!mounted) return;
@@ -561,12 +683,24 @@ export function useAIProctoring({
           sessionId: sessionRes.sessionId,
           ticket: sessionRes.wsTicket,
           authToken: authTokenRef.current,
-          studentId: studentIdRef.current,
           attemptId: attemptIdRef.current,
         });
         return;
       }
 
+      // startProctoringSession rejects unless the backend explicitly confirms
+      // referenceRegistered=true and biometricReady=true. Only then may the
+      // registered baseline be treated as successful by the UI.
+      if (sessionRes.referenceRegistered !== true || sessionRes.biometricReady !== true) {
+        setCameraError(
+          sessionRes.message ||
+            "The backend did not confirm reference registration. Return to the lobby and capture a new photo.",
+        );
+        await cleanup();
+        return;
+      }
+      setReferenceRegistered(true);
+      lastTelemetryAtRef.current = Date.now();
       sessionIdRef.current = sessionRes.sessionId;
       wsTicketRef.current = sessionRes.wsTicket || null;
 
@@ -581,9 +715,6 @@ export function useAIProctoring({
             JSON.stringify({
               type: "auth",
               ticket: sessionRes.wsTicket,
-              authToken: authTokenRef.current,
-              studentId: studentIdRef.current,
-              attemptId: attemptIdRef.current,
             })
           );
         };
@@ -624,24 +755,52 @@ export function useAIProctoring({
         const audioSamples = latestAudioSamplesRef.current;
         latestAudioSamplesRef.current = []; // drain buffer
 
-        if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN && isWsAuthenticatedRef.current) {
-          wsRef.current.send(
-            JSON.stringify({
-              frame: frameB64,
-              audio: audioSamples,
-              sampleRate: audioSampleRateRef.current,
-              warningCount: warningCountRef.current,
-            })
+        const socketReady =
+          Boolean(
+            wsRef.current &&
+              wsRef.current.readyState === WebSocket.OPEN &&
+              isWsAuthenticatedRef.current,
           );
-        } else if (sessionIdRef.current && !inFlightRestRef.current) {
+        const telemetryIsFresh =
+          lastTelemetryAtRef.current > 0 &&
+          Date.now() - lastTelemetryAtRef.current < 6000;
+
+        if (socketReady && telemetryIsFresh) {
+          try {
+            wsRef.current!.send(
+              JSON.stringify({
+                frame: frameB64,
+                audio: audioSamples,
+                sampleRate: audioSampleRateRef.current,
+                warningCount: warningCountRef.current,
+              }),
+            );
+            return;
+          } catch (socketError) {
+            console.warn("AI WebSocket send failed; switching to REST fallback:", socketError);
+          }
+        }
+
+        // A stalled WebSocket must not leave the assessment unlocked on stale
+        // telemetry. Close it, enter hold immediately, and try the authenticated
+        // REST endpoint with the same frames while it recovers.
+        if (socketReady || wsRef.current) {
+          setIdentityHoldSnapshot(true, "PROCTORING_TELEMETRY_STALE");
+          isWsAuthenticatedRef.current = false;
+          try {
+            wsRef.current?.close();
+          } catch {
+            // The REST fallback below remains available.
+          }
+          wsRef.current = null;
+        }
+
+        if (sessionIdRef.current && !inFlightRestRef.current) {
           inFlightRestRef.current = true;
           try {
             const res = await analyzeFrameREST({
               sessionId: sessionIdRef.current,
               ticket: wsTicketRef.current || undefined,
-              authToken: authTokenRef.current,
-              studentId: studentIdRef.current,
-              attemptId: attemptIdRef.current,
               frame: frameB64,
               audio: audioSamples,
               sampleRate: audioSampleRateRef.current,
@@ -651,7 +810,13 @@ export function useAIProctoring({
               handleTelemetryUpdate(res);
             }
           } catch (restErr) {
-            console.warn("REST frame analysis frame dropped:", restErr);
+            // Fail closed on telemetry transport/inference errors. The loop
+            // continues retrying frames; a later explicit identityHold=false
+            // response is required before interaction can resume.
+            if (!serverAutoSubmittedRef.current) {
+              setIdentityHoldSnapshot(true, "PROCTORING_TELEMETRY_UNAVAILABLE");
+            }
+            console.warn("REST frame analysis frame dropped; identity hold enabled:", restErr);
           } finally {
             inFlightRestRef.current = false;
           }
@@ -678,17 +843,16 @@ export function useAIProctoring({
     testCode,
     referenceImage,
     authToken,
-    springBootUrl,
     cleanup,
     captureFrameBase64,
     handleTelemetryUpdate,
+    setIdentityHoldSnapshot,
   ]);
 
   const showWarningModal = useCallback(
     (reason: string, count: number, autoSubmitted: boolean = false) => {
       setWarningCount(count);
       const strikeCount = Math.max(warningCountRef.current, count);
-      // Never infer submission from a local count; use the server's decision.
       const isAuto = autoSubmitted;
       setActiveWarningModal({
         isOpen: true,
@@ -696,11 +860,11 @@ export function useAIProctoring({
         count: strikeCount,
         autoSubmitted: isAuto,
       });
-      if (isAuto && onAutoSubmitRef.current) {
-        onAutoSubmitRef.current();
+      if (isAuto) {
+        markServerAutoSubmitted(reason);
       }
     },
-    [setWarningCount]
+    [markServerAutoSubmitted, setWarningCount]
   );
 
   const dismissWarningModal = useCallback(() => {
@@ -713,6 +877,11 @@ export function useAIProctoring({
     cameraError: displayedCameraError,
     isOnline,
     telemetryReceived,
+    identityHold,
+    identityHoldReason,
+    identityHoldRef,
+    referenceRegistered,
+    serverAutoSubmitted,
     faceDetected,
     numFaces,
     numPersons,

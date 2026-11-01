@@ -1,8 +1,11 @@
 "use client";
 
+import LoadingIndicator from "@/components/LoadingIndicator";
+import SkeletonBlock from "@/components/SkeletonBlock";
 import { useState, useEffect, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
+import Image from "next/image";
 import { motion, AnimatePresence } from "framer-motion";
 import Papa from "papaparse";
 import {
@@ -22,11 +25,12 @@ import {
 } from "lucide-react";
 import { useSession } from "@/hooks/useSession";
 import { AppleSwitch } from "@/components/AppleSwitch";
+import { ThemeToggle } from "@/components/ThemeToggle";
 import { ENDPOINTS } from "@/lib/api/endpoints";
 
 
 // Local cache fallback replacing the removed quizCache module.
-function getCachedQuizzes(teacherId?: number | string | null): any[] {
+function getCachedQuizzes(teacherId?: number | string | null): LegacyRecord[] {
   if (typeof window === "undefined") return [];
 
   const keys = [
@@ -111,6 +115,11 @@ function computeEndTime(
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
 }
 
+// The backend and legacy local drafts currently expose several incompatible question shapes.
+// Keep this permissive type at the parsing/compatibility boundary; normalize before sending payloads.
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+type LegacyRecord = Record<string, any>;
+
 type EditableOption = {
   optionId: number | null;
   optionText: string;
@@ -124,8 +133,7 @@ function CreateAssessmentContent() {
   const searchParams = useSearchParams();
   const draftId = searchParams?.get("draftId") || null;
   const { user } = useSession();
-  const [mounted, setMounted] = useState(false);
-  const [loadingDraft, setLoadingDraft] = useState(false);
+  const [loadingDraft, setLoadingDraft] = useState(() => Boolean(draftId));
   const [submitting, setSubmitting] = useState(false);
   const [validationError, setValidationError] = useState<string | null>(null);
   const [draggedOption, setDraggedOption] = useState<{ qIdx: number; optIdx: number } | null>(null);
@@ -135,9 +143,6 @@ function CreateAssessmentContent() {
   } | null>(null);
   const [retryingPublish, setRetryingPublish] = useState(false);
 
-  useEffect(() => {
-    setMounted(true);
-  }, []);
 
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
@@ -148,11 +153,7 @@ function CreateAssessmentContent() {
   const [subjectCode, setSubjectCode] = useState("");
   const [allowedRollsText, setAllowedRollsText] = useState("");
   const [timeLimit, setTimeLimit] = useState(30);
-  const setOverallTimerSeconds = (secs: number) => {
-    if (secs > 0) {
-      setTimeLimit(Math.max(1, Math.round(secs / 60)));
-    }
-  };
+  const [aiProctoringEnabled, setAiProctoringEnabled] = useState(true);
 
   const [showAdvanced, setShowAdvanced] = useState(false);
   const [negativeMarking, setNegativeMarking] = useState(false);
@@ -168,17 +169,17 @@ function CreateAssessmentContent() {
   // endTime is derived — always equals startTime + timeLimit (overallTimerSeconds).
   // It is NOT independently editable by the teacher.
   const endTime = computeEndTime(startTime, timeLimit);
-  const [maxTabSwitch, setMaxTabSwitch] = useState(3);
+  const [maxTabSwitch, setMaxTabSwitch] = useState(5);
   const [timeBonusEnabled, setTimeBonusEnabled] = useState(false);
   const [randomQuestionOrder, setRandomQuestionOrder] = useState(true);
   const [randomOptionOrder, setRandomOptionOrder] = useState(true);
   const [allowReview, setAllowReview] = useState(true);
   const [allowResume, setAllowResume] = useState(true);
 
-  const [parsedQuestions, setParsedQuestions] = useState<any[]>([]);
+  const [parsedQuestions, setParsedQuestions] = useState<LegacyRecord[]>([]);
 
   // ── State Hydration helper for editing drafts ─────────────────────────────
-  const hydrateFromQuizData = (data: any, questionsOverride?: any[]) => {
+  const hydrateFromQuizData = (data: LegacyRecord, questionsOverride?: LegacyRecord[]) => {
     if (!data) return;
 
     // Support nested or wrapped responses: data.data, data.quizPackage, etc.
@@ -201,6 +202,18 @@ function CreateAssessmentContent() {
     }
     if (root.subjectCode) {
       setSubjectCode(root.subjectCode);
+    }
+    const rootSettings =
+      root.settings && typeof root.settings === "object" ? root.settings : {};
+    const savedAiProctoring =
+      root.aiProctoringEnabled ??
+      root.ai_proctoring_enabled ??
+      root.proctoringEnabled ??
+      rootSettings.aiProctoringEnabled ??
+      rootSettings.ai_proctoring_enabled ??
+      rootSettings.proctoringEnabled;
+    if (typeof savedAiProctoring === "boolean") {
+      setAiProctoringEnabled(savedAiProctoring);
     }
 
     if (root.overallTimerSeconds || root.settings?.overallTimerSeconds) {
@@ -279,7 +292,7 @@ function CreateAssessmentContent() {
     if (neg || root.acceptedEmailDomain || root.acceptedDomain)
       setShowAdvanced(true);
 
-    const findQuestions = (obj: any): any[] => {
+    const findQuestions = (obj: LegacyRecord): LegacyRecord[] => {
       if (!obj || typeof obj !== "object") return [];
       const candidates = [
         obj.questions,
@@ -305,13 +318,13 @@ function CreateAssessmentContent() {
           : findQuestions(data);
 
     if (rawQuestions.length > 0) {
-      const mappedQuestions = rawQuestions.map((q: any, i: number) => {
+      const mappedQuestions = rawQuestions.map((q: LegacyRecord, i: number) => {
         const rawType = String(q.questionType || "MCQ").toUpperCase();
         const questionType =
           rawType === "MULTIPLE_CHOICE" ? "MCQ" : rawType;
 
         let mappedOptions: EditableOption[] = (q.options || []).map(
-          (opt: any, oi: number): EditableOption => ({
+          (opt: LegacyRecord, oi: number): EditableOption => ({
             optionId: opt.optionId ?? opt.id ?? null,
             optionText: String(opt.optionText || opt.text || ""),
             optionImage: opt.optionImage || "",
@@ -408,21 +421,21 @@ function CreateAssessmentContent() {
     if (!draftId) return;
 
     let isMounted = true;
-    setLoadingDraft(true);
-    setValidationError(null);
 
     const cachedDraftRaw =
       typeof window !== "undefined"
         ? localStorage.getItem(`quiz_draft_${draftId}`)
         : null;
 
-    let cachedDraft: any = null;
+    let cachedDraft: LegacyRecord | null = null;
 
     if (cachedDraftRaw) {
       try {
         cachedDraft = JSON.parse(cachedDraftRaw);
 
         if (cachedDraft && typeof cachedDraft === "object") {
+          // Draft hydration intentionally initializes multiple form fields from persisted external data.
+          // eslint-disable-next-line react-hooks/set-state-in-effect -- state hydration from a cached draft
           hydrateFromQuizData(
             cachedDraft,
             Array.isArray(cachedDraft.questions) ? cachedDraft.questions : [],
@@ -544,7 +557,7 @@ function CreateAssessmentContent() {
             );
           }
 
-          const validated: any[] = rawList.map((q: any, idx: number) => {
+          const validated: LegacyRecord[] = rawList.map((q: LegacyRecord, idx: number) => {
             const qNum = idx + 1;
             const questionText = String(
               q?.questionText ?? q?.text ?? q?.prompt ?? "",
@@ -574,7 +587,7 @@ function CreateAssessmentContent() {
 
             const sourceOptions = Array.isArray(q?.options) ? q.options : [];
 
-            let options = sourceOptions.map((opt: any, optionIndex: number) => ({
+            let options = sourceOptions.map((opt: LegacyRecord, optionIndex: number) => ({
               optionText: String(opt?.optionText ?? opt?.text ?? "").trim(),
               optionImage: String(opt?.optionImage ?? "").trim(),
               optionOrder: optionIndex + 1,
@@ -720,7 +733,7 @@ function CreateAssessmentContent() {
               firstRow.includes("optiona");
 
             const contentRows = hasHeader ? rows.slice(1) : rows;
-            const validatedQuestions: any[] = [];
+            const validatedQuestions: LegacyRecord[] = [];
             const normalizedHeaderIndex = new Map(
               firstRow.map((name, index) => [name, index]),
             );
@@ -764,7 +777,7 @@ function CreateAssessmentContent() {
               }
 
               const optionLetters = ["A", "B", "C", "D", "E", "F"];
-              let rawOptionTexts = hasHeader
+              const rawOptionTexts = hasHeader
                 ? optionLetters.map((letter) =>
                     getField([`option${letter}`, `option${letter.toLowerCase()}`]),
                   )
@@ -970,7 +983,7 @@ function CreateAssessmentContent() {
   const handleUpdateQuestionField = (
     idx: number,
     field: string,
-    value: any,
+    value: unknown,
   ) => {
     setParsedQuestions((prev) =>
       prev.map((q, i) => (i === idx ? { ...q, [field]: value } : q)),
@@ -1040,7 +1053,7 @@ function CreateAssessmentContent() {
         // to exactly one correct answer. Preserve the first currently-correct
         // option; if none exists, make option A correct.
         if (questionType === "MCQ") {
-          const firstCorrectIndex = options.findIndex((opt: any) =>
+          const firstCorrectIndex = options.findIndex((opt: LegacyRecord) =>
             Boolean(opt.isCorrect),
           );
           const correctIndex = firstCorrectIndex >= 0 ? firstCorrectIndex : 0;
@@ -1048,7 +1061,7 @@ function CreateAssessmentContent() {
           return {
             ...q,
             questionType,
-            options: options.map((opt: any, oi: number) => ({
+            options: options.map((opt: LegacyRecord, oi: number) => ({
               ...opt,
               optionOrder: oi + 1,
               isCorrect: oi === correctIndex,
@@ -1059,11 +1072,11 @@ function CreateAssessmentContent() {
         // Switching to MSQ keeps any existing correct answers. If there are
         // none, make option A the initial correct answer so the state remains
         // valid and predictable.
-        const hasCorrect = options.some((opt: any) => Boolean(opt.isCorrect));
+        const hasCorrect = options.some((opt: LegacyRecord) => Boolean(opt.isCorrect));
         return {
           ...q,
           questionType,
-          options: options.map((opt: any, oi: number) => ({
+          options: options.map((opt: LegacyRecord, oi: number) => ({
             ...opt,
             optionOrder: oi + 1,
             isCorrect: hasCorrect ? Boolean(opt.isCorrect) : oi === 0,
@@ -1080,7 +1093,7 @@ function CreateAssessmentContent() {
 
         const type =
           q.questionType === "MULTIPLE_CHOICE" ? "MCQ" : q.questionType;
-        const newOpts = (q.options || []).map((opt: any, oi: number) => ({
+        const newOpts = (q.options || []).map((opt: LegacyRecord, oi: number) => ({
           ...opt,
           // MCQ/TRUE_FALSE: exactly one correct option.
           // MSQ: each option can be toggled independently.
@@ -1127,8 +1140,8 @@ function CreateAssessmentContent() {
         if (i !== qIdx || q.questionType === "TRUE_FALSE") return q;
 
         const options = (q.options || [])
-          .filter((_: any, oi: number) => oi !== optIdx)
-          .map((opt: any, oi: number) => ({
+          .filter((_: LegacyRecord, oi: number) => oi !== optIdx)
+          .map((opt: LegacyRecord, oi: number) => ({
             ...opt,
             optionOrder: oi + 1,
           }));
@@ -1153,7 +1166,7 @@ function CreateAssessmentContent() {
 
         return {
           ...q,
-          options: options.map((opt: any, oi: number) => ({
+          options: options.map((opt: LegacyRecord, oi: number) => ({
             ...opt,
             optionOrder: oi + 1,
           })),
@@ -1168,6 +1181,25 @@ function CreateAssessmentContent() {
         .filter((_, i) => i !== idx)
         .map((q, i) => ({ ...q, displayOrder: i + 1 })),
     );
+  };
+
+  // Publishing must be blocked if the assessment's scheduled end time has passed.
+  // Keep this separate from shared form validation so expired drafts can still be saved.
+  const validatePublishTime = (): string | null => {
+    if (!endTime) {
+      return "Could not calculate the assessment end time. Check the start time and duration.";
+    }
+
+    const endTimestamp = new Date(endTime).getTime();
+    if (!Number.isFinite(endTimestamp)) {
+      return "The assessment end time is invalid. Please correct the schedule before publishing.";
+    }
+
+    if (endTimestamp <= Date.now()) {
+      return "This assessment's end time has already passed. Please set a future end time before publishing.";
+    }
+
+    return null;
   };
 
   // Shared validation — used by both Publish and Save as Draft flows.
@@ -1191,7 +1223,7 @@ function CreateAssessmentContent() {
 
       const type =
         q.questionType === "MULTIPLE_CHOICE" ? "MCQ" : q.questionType;
-      const correctCount = q.options.filter((opt: any) =>
+      const correctCount = q.options.filter((opt: LegacyRecord) =>
         Boolean(opt.isCorrect),
       ).length;
 
@@ -1238,7 +1270,7 @@ function CreateAssessmentContent() {
       .filter(Boolean);
 
   const buildQuestionPayload = (forPost: boolean) =>
-    parsedQuestions.map((q: any, index: number) => ({
+    parsedQuestions.map((q: LegacyRecord, index: number) => ({
       ...(forPost ? {} : { questionId: q.questionId ?? q.id ?? null }),
       questionText: String(q.questionText || "").trim(),
       imageUrl: q.imageUrl || "",
@@ -1252,7 +1284,7 @@ function CreateAssessmentContent() {
       questionTimerSeconds: Number(q.questionTimerSeconds || 60),
       difficulty: q.difficulty || "MEDIUM",
       displayOrder: Number(q.displayOrder || index + 1),
-      options: (q.options || []).map((opt: any, optIndex: number) => ({
+      options: (q.options || []).map((opt: LegacyRecord, optIndex: number) => ({
         optionText: String(opt.optionText || "").trim(),
         optionImage: opt.optionImage || "",
         optionOrder: Number(
@@ -1286,12 +1318,14 @@ function CreateAssessmentContent() {
       allowReview: Boolean(allowReview),
       allowResume: Boolean(allowResume),
       autoSubmit: true,
+      maxTabSwitch: Math.max(0, Number(maxTabSwitch) || 0),
       startTime: formatToLocalDateTime(startTime),
       endTime: formatToLocalDateTime(endTime),
       resultVisibility: getResultVisibility(),
       acceptedEmailDomain:
         acceptedDomain.trim() === "" ? null : acceptedDomain.trim(),
       allowedRegistrationNumbers: allowedRolls,
+      aiProctoringEnabled,
       questions: buildQuestionPayload(true),
     };
   };
@@ -1312,6 +1346,7 @@ function CreateAssessmentContent() {
       allowResume: Boolean(allowResume),
       autoSubmit: true,
       maxTabSwitch: Math.max(0, Number(maxTabSwitch) || 0),
+      aiProctoringEnabled,
       startTime: formatToLocalDateTime(startTime),
       endTime: formatToLocalDateTime(endTime),
       resultVisibility: getResultVisibility(),
@@ -1327,10 +1362,16 @@ function CreateAssessmentContent() {
   // If create fails: show error, do not navigate, do not publish.
   // If create succeeds but publish fails: show inline error with Retry button
   //   that only re-attempts the publish call (no duplicate quiz created).
-  const handleSave = async (e: React.FormEvent) => {
+  const handleSave = async (e: React.SyntheticEvent) => {
     e.preventDefault();
     const formErr = validateForm();
     if (formErr) return setValidationError(formErr);
+
+    const publishTimeError = validatePublishTime();
+    if (publishTimeError) {
+      setPublishRetryData(null);
+      return setValidationError(publishTimeError);
+    }
 
     setSubmitting(true);
     setValidationError(null);
@@ -1365,6 +1406,7 @@ function CreateAssessmentContent() {
           allowResume: Boolean(allowResume),
           autoSubmit: true,
           maxTabSwitch: Number(maxTabSwitch),
+          aiProctoringEnabled,
           startTime: formatToLocalDateTime(startTime) || null,
           endTime: formatToLocalDateTime(endTime) || null,
           publishScoresImmediately: Boolean(publishScoresImmediately),
@@ -1423,7 +1465,7 @@ function CreateAssessmentContent() {
 
         const cachedDraftRaw = localStorage.getItem(`quiz_draft_${draftId}`);
 
-        let cachedDraft: any = {};
+        let cachedDraft: LegacyRecord = {};
 
         try {
           cachedDraft = cachedDraftRaw ? JSON.parse(cachedDraftRaw) : {};
@@ -1436,7 +1478,7 @@ function CreateAssessmentContent() {
           settingsData.testCode ??
           cachedDraft.quizCode ??
           getCachedQuizzes(user?.id).find(
-            (q: any) => String(q.quizId ?? q.id) === String(draftId),
+            (q: LegacyRecord) => String(q.quizId ?? q.id) === String(draftId),
           )?.quizCode ??
           "";
 
@@ -1453,6 +1495,10 @@ function CreateAssessmentContent() {
             settingsData.overallTimerSeconds ?? Math.floor(timeLimit * 60),
           startTime: settingsData.startTime ?? formatToLocalDateTime(startTime),
           endTime: settingsData.endTime ?? formatToLocalDateTime(endTime),
+          aiProctoringEnabled:
+            typeof settingsData.aiProctoringEnabled === "boolean"
+              ? settingsData.aiProctoringEnabled
+              : aiProctoringEnabled,
           acceptedEmailDomain:
             settingsData.acceptedEmailDomain ?? (acceptedDomain.trim() || null),
           questions: parsedQuestions,
@@ -1497,31 +1543,6 @@ function CreateAssessmentContent() {
       if (!rawQuizId) throw new Error("Quiz response missing quizId");
       const numericQuizId = Number(rawQuizId);
 
-      /*
-       * CreateQuizRequest currently does not expose maxTabSwitch, while the
-       * settings endpoint does. Persist that value immediately after creation
-       * so a newly created quiz does not fall back to the backend default.
-       */
-      if (!isEditing) {
-        try {
-          await fetch(ENDPOINTS.teacher.settings(numericQuizId), {
-            method: "PUT",
-            headers: {
-              "Content-Type": "application/json",
-              ...(token ? { Authorization: `Bearer ${token}` } : {}),
-            },
-            body: JSON.stringify({
-              maxTabSwitch: Math.max(0, Number(maxTabSwitch) || 0),
-            }),
-          });
-        } catch (error) {
-          console.warn(
-            "[Quizly] Could not persist maxTabSwitch after quiz creation.",
-            error,
-          );
-        }
-      }
-
       // Persist full state bundle (metadata + questions) for instant edit hydration
       saveFullDraftBundle(numericQuizId, quizCode);
       if (draftId && String(draftId) !== String(numericQuizId)) {
@@ -1551,7 +1572,7 @@ function CreateAssessmentContent() {
 
         // Redirect to /dashboard/teacher/share/<quizCode> only AFTER publish succeeds
         router.push(`/dashboard/teacher/share/${quizCode}`);
-      } catch (pubErr: any) {
+      } catch (pubErr: unknown) {
         console.error(
           "Failed to publish quiz immediately after creation:",
           pubErr,
@@ -1561,12 +1582,12 @@ function CreateAssessmentContent() {
           quizCode: String(quizCode),
         });
         setValidationError(
-          `Quiz was created but could not be published. Retry${pubErr.message ? ` (${pubErr.message})` : ""}`,
+          `Quiz was created but could not be published. Retry${pubErr instanceof Error && pubErr.message ? ` (${pubErr.message})` : ""}`,
         );
       }
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error("Failed to create quiz:", err);
-      setValidationError(`Failed to create assessment: ${err.message}`);
+      setValidationError(`Failed to create assessment: ${err instanceof Error ? err.message : String(err)}`);
     } finally {
       setSubmitting(false);
     }
@@ -1612,6 +1633,7 @@ function CreateAssessmentContent() {
           allowResume: Boolean(allowResume),
           autoSubmit: true,
           maxTabSwitch: Number(maxTabSwitch),
+          aiProctoringEnabled,
           startTime: formatToLocalDateTime(startTime) || null,
           endTime: formatToLocalDateTime(endTime) || null,
           publishScoresImmediately: Boolean(publishScoresImmediately),
@@ -1673,7 +1695,7 @@ function CreateAssessmentContent() {
 
         const cachedDraftRaw = localStorage.getItem(`quiz_draft_${draftId}`);
 
-        let cachedDraft: any = {};
+        let cachedDraft: LegacyRecord = {};
 
         try {
           cachedDraft = cachedDraftRaw ? JSON.parse(cachedDraftRaw) : {};
@@ -1699,6 +1721,10 @@ function CreateAssessmentContent() {
             settingsData.overallTimerSeconds ?? Math.floor(timeLimit * 60),
           startTime: settingsData.startTime ?? formatToLocalDateTime(startTime),
           endTime: settingsData.endTime ?? formatToLocalDateTime(endTime),
+          aiProctoringEnabled:
+            typeof settingsData.aiProctoringEnabled === "boolean"
+              ? settingsData.aiProctoringEnabled
+              : aiProctoringEnabled,
           acceptedEmailDomain:
             settingsData.acceptedEmailDomain ?? (acceptedDomain.trim() || null),
           questions: parsedQuestions, // Ensures we keep the frontend's answer key intact
@@ -1741,39 +1767,6 @@ function CreateAssessmentContent() {
         returnedQuizCode = createData.quizCode ?? createData.testCode ?? "";
       }
 
-      /*
-       * CreateQuizRequest does not expose maxTabSwitch. New drafts therefore
-       * start with the backend default (3) unless this setting is persisted
-       * through the settings endpoint before the edit page reloads from the
-       * authoritative teacher-detail response.
-       *
-       * Existing drafts already send maxTabSwitch through buildUpdatePayload.
-       */
-      if (!isEditing && returnedQuizId) {
-        const maxTabSwitchRes = await fetch(
-          ENDPOINTS.teacher.settings(returnedQuizId),
-          {
-            method: "PUT",
-            headers: {
-              "Content-Type": "application/json",
-              ...(token ? { Authorization: `Bearer ${token}` } : {}),
-            },
-            body: JSON.stringify({
-              maxTabSwitch: Math.max(0, Number(maxTabSwitch) || 0),
-            }),
-          },
-        );
-
-        if (!maxTabSwitchRes.ok) {
-          const errorData = await maxTabSwitchRes.json().catch(() => ({}));
-          throw new Error(
-            errorData?.message ||
-              errorData?.error ||
-              `Draft was created, but the max tab-switch limit could not be saved (HTTP ${maxTabSwitchRes.status}).`,
-          );
-        }
-      }
-
       // Persist full state bundle (metadata + questions with isCorrect)
       if (returnedQuizId) {
         saveFullDraftBundle(returnedQuizId, returnedQuizCode);
@@ -1785,9 +1778,11 @@ function CreateAssessmentContent() {
 
       // Draft created or updated — redirect to dashboard where it will show a Draft badge
       router.push("/dashboard/teacher");
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error("Failed to save draft:", err);
-      setValidationError(`Failed to save draft: ${err.message}`);
+      const message =
+        err instanceof Error ? err.message : "An unexpected error occurred";
+      setValidationError(`Failed to save draft: ${message}`);
     } finally {
       setSavingDraft(false);
     }
@@ -1795,6 +1790,14 @@ function CreateAssessmentContent() {
 
   const handleRetryPublish = async () => {
     if (!publishRetryData) return;
+
+    const publishTimeError = validatePublishTime();
+    if (publishTimeError) {
+      setPublishRetryData(null);
+      setValidationError(publishTimeError);
+      return;
+    }
+
     setRetryingPublish(true);
     const token =
       typeof window !== "undefined"
@@ -1820,9 +1823,10 @@ function CreateAssessmentContent() {
       }
 
       router.push(`/dashboard/teacher/share/${publishRetryData.quizCode}`);
-    } catch (err: any) {
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : "";
       setValidationError(
-        `Quiz was created but could not be published. Retry${err.message ? ` (${err.message})` : ""}`,
+        `Quiz was created but could not be published. Retry${message ? ` (${message})` : ""}`,
       );
     } finally {
       setRetryingPublish(false);
@@ -1830,46 +1834,70 @@ function CreateAssessmentContent() {
   };
 
   const inputClass =
-    "w-full rounded-[10px] border border-[#d1dee8]/80 bg-[#fbfbfa] px-3.5 py-2.5 text-xs text-[#111111] outline-none transition-all placeholder:text-[#a8a29d] hover:border-[#b9cbd9] focus:border-[#165dfb] focus:bg-white focus:ring-4 focus:ring-[#165dfb]/10 font-medium shadow-xs";
+    "w-full rounded-[10px] border border-[#d1dee8]/80 dark:border-slate-700 bg-[#fbfbfa] dark:bg-slate-800 dark:bg-slate-800 px-3.5 py-2.5 text-xs text-[#111111] dark:text-slate-100 outline-none transition-all placeholder:text-[#a8a29d] dark:text-slate-500 hover:border-[#b9cbd9] focus:border-[#165dfb] focus:bg-white dark:bg-slate-900 focus:ring-4 focus:ring-[#165dfb]/10 font-medium shadow-xs dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100 dark:placeholder:text-slate-400 dark:focus:bg-slate-800";
 
   const labelClass =
-    "mb-1.5 block text-[10px] font-bold uppercase tracking-wider text-[#78716b]";
+    "mb-1.5 block text-[10px] font-bold uppercase tracking-wider text-[#78716b] dark:text-slate-300";
 
   if (loadingDraft) {
     return (
-      <div className="min-h-screen bg-[#f5f5f4] font-sans text-[#111111] p-4 md:p-6 lg:p-8 flex items-center justify-center text-left">
-        <div className="flex items-center gap-3 rounded-[14px] border border-[#d1dee8]/70 bg-white p-6 shadow-sm">
-          <span className="h-4 w-4 animate-spin rounded-full border-2 border-[#165dfb]/30 border-t-[#165dfb]" />
-          <span className="text-xs font-bold text-[#78716b]">
-            Loading draft assessment...
-          </span>
+      <div className="teacher-assessment-builder min-h-screen bg-[#f5f5f4] dark:bg-slate-950 font-sans text-[#111111] dark:text-slate-100 p-4 md:p-6 lg:p-8 text-left" aria-busy="true">
+        <div className="mx-auto max-w-4xl space-y-6">
+          <header className="flex flex-wrap items-center justify-between gap-3 border-b border-[#d1dee8]/60 dark:border-slate-700 px-1 py-4">
+            <div className="flex items-center gap-3">
+              <span className="flex h-9 w-9 items-center justify-center rounded-[10px] border border-[#d1dee8]/80 bg-white text-[#78716b] dark:border-slate-700 dark:bg-slate-900 dark:text-slate-300"><ArrowLeft className="h-4 w-4" /></span>
+              <div className="space-y-2"><p className="text-[10px] font-bold uppercase tracking-widest text-[#78716b] dark:text-slate-400">Assessment Builder</p><SkeletonBlock className="h-5 w-48 rounded" /></div>
+            </div>
+            <div className="flex items-center gap-2"><SkeletonBlock className="h-8 w-24 rounded-full" /><SkeletonBlock className="h-10 w-36 rounded-[10px]" /></div>
+          </header>
+          <section className="space-y-5 rounded-[14px] border border-[#d1dee8]/70 bg-white p-5 shadow-sm dark:border-slate-700 dark:bg-slate-900 sm:p-7">
+            <div className="space-y-2"><p className={labelClass}>Assessment title</p><SkeletonBlock className="h-10 w-full rounded-[10px]" /></div>
+            <div className="space-y-2"><p className={labelClass}>Description</p><SkeletonBlock className="h-20 w-full rounded-[10px]" /></div>
+            <div className="grid gap-4 sm:grid-cols-3">
+              {[1, 2, 3].map((field) => <div key={field} className="space-y-2"><p className={labelClass}>{field === 1 ? "Subject name" : field === 2 ? "Subject code" : "Time limit"}</p><div className="flex h-10 items-center gap-2 rounded-[10px] border border-[#d1dee8]/70 px-3 dark:border-slate-700">{field === 3 ? <Clock className="h-4 w-4 text-slate-400" /> : null}<SkeletonBlock className="h-3.5 w-3/4 rounded" /></div></div>)}
+            </div>
+            <div className="grid gap-4 sm:grid-cols-2">
+              {[1, 2].map((field) => <div key={field} className="space-y-2"><p className={labelClass}>{field === 1 ? "Start time" : "End time"}</p><div className="flex h-10 items-center gap-2 rounded-[10px] border border-[#d1dee8]/70 px-3 dark:border-slate-700"><Clock className="h-4 w-4 text-slate-400" /><SkeletonBlock className="h-3.5 w-2/3 rounded" /></div></div>)}
+            </div>
+          </section>
+          <section className="flex items-center gap-3 rounded-[14px] border border-[#d1dee8]/70 bg-white p-5 dark:border-slate-700 dark:bg-slate-900">
+            <span className="flex h-10 w-10 items-center justify-center rounded-[10px] bg-[#eef4ff] text-[#165dfb] dark:bg-slate-800 dark:text-blue-300"><Lock className="h-5 w-5" /></span>
+            <div className="flex-1 space-y-2"><SkeletonBlock className="h-3.5 w-28 rounded" /><SkeletonBlock className="h-3 w-3/4 max-w-full rounded" /></div>
+            <SkeletonBlock className="h-6 w-11 rounded-full" />
+          </section>
+          <section className="space-y-4 rounded-[14px] border border-[#d1dee8]/70 bg-white p-5 dark:border-slate-700 dark:bg-slate-900">
+            <div className="flex items-center gap-3"><FileQuestion className="h-5 w-5 text-[#165dfb] dark:text-blue-300" /><SkeletonBlock className="h-4 w-28 rounded" /><SkeletonBlock className="ml-auto h-6 w-8 rounded-full" /></div>
+            {[1, 2].map((question) => <div key={question} className="space-y-3 rounded-[10px] border border-[#d1dee8]/70 p-4 dark:border-slate-700"><SkeletonBlock className="h-3.5 w-2/3 rounded" /><div className="grid gap-3 sm:grid-cols-2"><SkeletonBlock className="h-10 w-full rounded-lg" /><SkeletonBlock className="h-10 w-full rounded-lg" /></div></div>)}
+          </section>
+          <p className="sr-only" role="status">Loading draft assessment</p>
         </div>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-[#f5f5f4] font-sans text-[#111111] p-4 md:p-6 lg:p-8 text-left">
+    <div className="teacher-assessment-builder min-h-screen bg-[#f5f5f4] dark:bg-slate-950 font-sans text-[#111111] dark:text-slate-100 p-4 md:p-6 lg:p-8 text-left">
       <div className="mx-auto max-w-4xl space-y-6">
-        <header className="sticky top-0 z-20 -mx-4 flex flex-wrap items-center justify-between gap-3 border-b border-[#d1dee8]/60 bg-[#f5f5f4]/85 px-4 py-4 backdrop-blur-md md:-mx-6 md:px-6">
+        <header className="sticky top-0 z-20 -mx-4 flex flex-wrap items-center justify-between gap-3 border-b border-[#d1dee8]/60 dark:border-slate-700 bg-[#f5f5f4] dark:bg-slate-950/85 px-4 py-4 backdrop-blur-md md:-mx-6 md:px-6 dark:bg-slate-950/90">
           <div className="flex items-center gap-3">
             <Link
               href="/dashboard/teacher"
-              className="group flex h-9 w-9 shrink-0 items-center justify-center rounded-[10px] border border-[#d1dee8]/80 bg-white text-[#78716b] shadow-xs transition-all hover:border-[#b9cbd9] hover:bg-white hover:text-[#111111] active:scale-95"
+              className="group flex h-9 w-9 shrink-0 items-center justify-center rounded-[10px] border border-[#d1dee8]/80 dark:border-slate-700 bg-white dark:bg-slate-900 text-[#78716b] dark:text-slate-400 shadow-xs transition-all hover:border-[#b9cbd9] hover:bg-white hover:text-[#111111] dark:text-slate-100 active:scale-95"
             >
               <ArrowLeft className="h-4 w-4 transition-transform group-hover:-translate-x-0.5" />
             </Link>
             <div>
-              <span className="text-[10px] font-bold uppercase tracking-widest text-[#78716b]">
+              <span className="text-[10px] font-bold uppercase tracking-widest text-[#78716b] dark:text-slate-400">
                 {draftId ? "EDIT DRAFT ASSESSMENT" : "ASSESSMENT BUILDER"}
               </span>
-              <h1 className="text-xl font-extrabold text-[#111111] -tracking-wide mt-0.5">
+              <h1 className="text-xl font-extrabold text-[#111111] dark:text-slate-100 -tracking-wide mt-0.5">
                 {draftId ? "Edit your draft" : "Create your assessment"}
               </h1>
             </div>
           </div>
           <div className="flex flex-wrap items-center justify-end gap-2 sm:gap-3">
-            <span className="hidden rounded-full border border-[#d1dee8]/80 bg-white px-3 py-1 text-[10px] font-bold text-[#78716b] shadow-xs sm:inline-flex">
+            <ThemeToggle />
+            <span className="hidden rounded-full border border-[#d1dee8]/80 dark:border-slate-700 bg-white dark:bg-slate-900 px-3 py-1 text-[10px] font-bold text-[#78716b] dark:text-slate-400 shadow-xs sm:inline-flex">
               {parsedQuestions.length}{" "}
               {parsedQuestions.length === 1 ? "question" : "questions"}
             </span>
@@ -1878,10 +1906,12 @@ function CreateAssessmentContent() {
               disabled={submitting}
               className="inline-flex items-center gap-2 rounded-[10px] bg-[#165dfb] px-4 py-2.5 text-xs font-bold text-white shadow-sm shadow-[#165dfb]/25 transition-all hover:bg-[#0f4fd8] hover:shadow-md active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-40"
             >
-              {submitting && (
-                <span className="h-3 w-3 animate-spin rounded-full border-2 border-white/30 border-t-white" />
-              )}
-              {submitting ? "Publishing..." : "Publish Assessment"}
+              {submitting ? (
+                <>
+                  <SkeletonBlock className="h-3 w-20 rounded bg-white/50" />
+                  <span className="sr-only" role="status">Publishing assessment</span>
+                </>
+              ) : "Publish Assessment"}
             </button>
           </div>
         </header>
@@ -1902,18 +1932,20 @@ function CreateAssessmentContent() {
                 disabled={retryingPublish}
                 className="inline-flex items-center gap-1.5 rounded-[10px] bg-[#8c381c] px-3 py-1.5 text-xs font-bold text-white hover:bg-[#6e2b14] active:scale-[0.98] disabled:opacity-50 transition-all cursor-pointer border-0 shrink-0 shadow-xs"
               >
-                {retryingPublish && (
-                  <span className="h-3 w-3 animate-spin rounded-full border-2 border-white/30 border-t-white" />
-                )}
-                Retry
+                {retryingPublish ? (
+                  <>
+                    <SkeletonBlock className="h-3 w-12 rounded bg-white/50" />
+                    <span className="sr-only" role="status">Retrying publish</span>
+                  </>
+                ) : "Retry"}
               </button>
             )}
           </div>
         )}
 
         <form onSubmit={(e) => handleSave(e)} className="space-y-6">
-          <div className="rounded-[14px] border border-[#d1dee8]/70 bg-white p-6 space-y-5 shadow-sm">
-            <h3 className="flex items-center gap-2 border-b border-[#d1dee8]/50 pb-3 text-xs font-bold uppercase tracking-wider text-[#111111]">
+          <div className="rounded-[14px] border border-[#d1dee8]/70 dark:border-slate-700 bg-white dark:bg-slate-900 p-6 space-y-5 shadow-sm">
+            <h3 className="flex items-center gap-2 border-b border-[#d1dee8]/50 dark:border-slate-700 pb-3 text-xs font-bold uppercase tracking-wider text-[#111111] dark:text-slate-100">
               <span className="h-3.5 w-1 rounded-full bg-[#165dfb]" />
               Assessment Details
             </h3>
@@ -1930,7 +1962,7 @@ function CreateAssessmentContent() {
                 />
               </div>
               <div className="text-left">
-                <label className={labelClass}>Description <span className="font-medium normal-case text-[#78716b]">(Optional)</span></label>
+                <label className={labelClass}>Description <span className="font-medium normal-case text-[#78716b] dark:text-slate-400">(Optional)</span></label>
                 <textarea
                   value={description}
                   onChange={(e) => setDescription(e.target.value)}
@@ -1962,17 +1994,19 @@ function CreateAssessmentContent() {
                 </div>
                 <div className="text-left">
                   <label className={labelClass}>Time Limit (minutes)</label>
-                  <div className="flex items-center gap-2 rounded-[10px] border border-[#d1dee8]/80 bg-[#fbfbfa] px-3 py-2.5 transition-all hover:border-[#b9cbd9] focus-within:border-[#165dfb] focus-within:bg-white focus-within:ring-4 focus-within:ring-[#165dfb]/10 shadow-xs">
-                    <Clock className="h-4 w-4 shrink-0 text-[#78716b]" />
+                  <div className="assessment-time-limit-field flex min-w-0 items-center gap-2 rounded-[10px] border border-[#d1dee8]/80 bg-white px-3 py-2.5 transition-colors hover:border-[#b9cbd9] focus-within:border-[#165dfb] focus-within:ring-4 focus-within:ring-[#165dfb]/10 shadow-xs dark:border-slate-700 dark:bg-slate-900">
+                    <Clock className="h-4 w-4 shrink-0 text-[#78716b] dark:text-slate-400" />
                     <input
                       type="number"
                       value={timeLimit}
                       onChange={(e) => setTimeLimit(Number(e.target.value))}
                       min="1"
-                      className="bg-transparent outline-none w-full text-xs font-bold text-[#111111]"
+                      aria-label="Time limit in minutes"
+                      inputMode="numeric"
+                      className="min-w-0 flex-1 appearance-none bg-transparent outline-none text-xs font-bold text-[#111111] dark:text-slate-100"
                       required
                     />
-                    <span className="text-[10px] font-bold uppercase text-[#a8a29d]">
+                    <span className="shrink-0 whitespace-nowrap text-[10px] font-bold uppercase leading-none text-[#a8a29d] dark:text-slate-400">
                       min
                     </span>
                   </div>
@@ -1992,7 +2026,7 @@ function CreateAssessmentContent() {
                 <div className="text-left">
                   <label className={labelClass}>
                     End Time{" "}
-                    <span className="normal-case font-medium text-[#a8a29d]">
+                    <span className="normal-case font-medium text-[#a8a29d] dark:text-slate-500">
                       (auto-calculated)
                     </span>
                   </label>
@@ -2016,31 +2050,36 @@ function CreateAssessmentContent() {
                   placeholder="Comma separated, e.g. 21BCE1001, 21BCE1002"
                   className={`${inputClass} resize-y leading-relaxed`}
                 />
-                <p className="mt-1 text-[11px] text-[#78716b]">
+                <p className="mt-1 text-[11px] text-[#78716b] dark:text-slate-400">
                   Leave blank to allow any student to join.
                 </p>
               </div>
             </div>
           </div>
 
+          <section className="rounded-[14px] border border-[#d1dee8]/70 dark:border-slate-700 bg-white dark:bg-slate-900 p-5 shadow-sm" aria-labelledby="ai-proctoring-setting-title">
+            <div className="flex items-center justify-between gap-4"><div className="min-w-0 space-y-1"><h3 id="ai-proctoring-setting-title" className="text-sm font-bold text-[#111111] dark:text-slate-100">AI Proctoring</h3><p className="text-xs leading-relaxed text-[#78716b] dark:text-slate-400">{aiProctoringEnabled ? "Camera, reference photo, and AI identity checks are required for this assessment." : "Camera and AI identity checks are off. Tab switching and copy, cut, and paste restrictions remain active."}</p></div><AppleSwitch checked={aiProctoringEnabled} onChange={setAiProctoringEnabled} ariaLabel="Enable AI proctoring" /></div>
+            <div className="mt-3 flex items-center gap-2 text-[11px] font-semibold"><span className={`h-2 w-2 rounded-full ${aiProctoringEnabled ? "bg-emerald-500" : "bg-amber-500"}`} /><span className="text-[#57534e] dark:text-slate-300">{aiProctoringEnabled ? "AI proctoring enabled" : "Standard assessment mode"}</span></div>
+          </section>
+
           <div className="space-y-4">
-            <div className="flex items-center justify-between border-b border-[#d1dee8]/50 pb-2.5">
-              <h3 className="flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-[#111111]">
+            <div className="flex items-center justify-between border-b border-[#d1dee8]/50 dark:border-slate-700 pb-2.5">
+              <h3 className="flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-[#111111] dark:text-slate-100">
                 <span className="h-3.5 w-1 rounded-full bg-[#165dfb]" />
                 Questions
-                <span className="rounded-full bg-[#eef4ff] px-2.5 py-0.5 text-[10px] font-bold text-[#165dfb]">
+                <span className="rounded-full bg-[#eef4ff] dark:bg-blue-950/50 px-2.5 py-0.5 text-[10px] font-bold text-[#165dfb]">
                   {parsedQuestions.length}
                 </span>
               </h3>
             </div>
 
             {parsedQuestions.length === 0 ? (
-              <div className="rounded-[14px] border border-dashed border-[#d1dee8] bg-white px-6 py-10 text-center shadow-xs">
+              <div className="rounded-[14px] border border-dashed border-[#d1dee8] dark:border-slate-700 bg-white dark:bg-slate-900 px-6 py-10 text-center shadow-xs">
                 <FileQuestion className="mx-auto mb-3 h-8 w-8 text-[#c9c5c2]" />
-                <p className="text-xs font-bold text-[#57534e]">
+                <p className="text-xs font-bold text-[#57534e] dark:text-slate-300">
                   No questions yet
                 </p>
-                <p className="mt-1 text-xs text-[#a8a29d]">
+                <p className="mt-1 text-xs text-[#a8a29d] dark:text-slate-500">
                   Import a CSV or JSON file, or add a question card below.
                 </p>
               </div>
@@ -2049,17 +2088,17 @@ function CreateAssessmentContent() {
                 {parsedQuestions.map((q, idx) => (
                   <div
                     key={idx}
-                    className="group relative overflow-hidden rounded-[14px] border border-[#d1dee8]/70 bg-white shadow-sm transition-all hover:border-[#b9cbd9] hover:shadow-md"
+                    className="group relative overflow-hidden rounded-[14px] border border-[#d1dee8]/70 dark:border-slate-700 bg-white dark:bg-slate-900 shadow-sm transition-all hover:border-[#b9cbd9] hover:shadow-md"
                   >
-                    <div className="flex items-center justify-between gap-3 border-b border-[#d1dee8]/50 bg-[#fbfbfa] px-5 py-3">
-                      <span className="inline-flex items-center gap-2 text-xs font-bold text-[#57534e]">
-                        <span className="flex h-6 w-6 items-center justify-center rounded-[8px] bg-[#eef4ff] font-mono text-[10px] font-bold text-[#165dfb]">
+                    <div className="flex items-center justify-between gap-3 border-b border-[#d1dee8]/50 dark:border-slate-700 bg-[#fbfbfa] dark:bg-slate-800 px-5 py-3">
+                      <span className="inline-flex items-center gap-2 text-xs font-bold text-[#57534e] dark:text-slate-300">
+                        <span className="flex h-6 w-6 items-center justify-center rounded-[8px] bg-[#eef4ff] dark:bg-blue-950/50 font-mono text-[10px] font-bold text-[#165dfb]">
                           {String(idx + 1).padStart(2, "0")}
                         </span>
                         Question
                       </span>
                       <div className="flex items-center gap-2">
-                        <label className="text-[10px] font-bold uppercase tracking-wider text-[#78716b]">
+                        <label className="text-[10px] font-bold uppercase tracking-wider text-[#78716b] dark:text-slate-400">
                           Marks
                         </label>
                         <input
@@ -2074,14 +2113,14 @@ function CreateAssessmentContent() {
                               Number(e.target.value),
                             )
                           }
-                          className="w-16 rounded-[8px] border border-[#d1dee8]/80 bg-white px-2 py-1 text-center text-xs font-bold text-[#111111] outline-none transition-all focus:border-[#165dfb] focus:ring-4 focus:ring-[#165dfb]/10 shadow-xs"
+                          className="w-16 rounded-[8px] border border-[#d1dee8]/80 dark:border-slate-700 bg-white dark:bg-slate-900 px-2 py-1 text-center text-xs font-bold text-[#111111] dark:text-slate-100 outline-none transition-all focus:border-[#165dfb] focus:ring-4 focus:ring-[#165dfb]/10 shadow-xs"
                           aria-label={"Marks for question " + (idx + 1)}
                         />
                         <button
                           type="button"
                           onClick={() => handleDeleteQuestion(idx)}
                           aria-label={`Delete question ${idx + 1}`}
-                          className="flex h-7 w-7 items-center justify-center rounded-[8px] text-[#a8a29d] transition-all hover:bg-[#fbeee8] hover:text-[#8c381c] active:scale-95"
+                          className="flex h-7 w-7 items-center justify-center rounded-[8px] text-[#a8a29d] dark:text-slate-500 transition-all hover:bg-[#fbeee8] hover:text-[#8c381c] active:scale-95"
                         >
                           <Trash2 className="h-4 w-4" />
                         </button>
@@ -2101,7 +2140,7 @@ function CreateAssessmentContent() {
                             )
                           }
                           placeholder="Type your question (optional if an image is provided)"
-                          className="w-full rounded-[10px] border border-[#d1dee8]/80 bg-[#fbfbfa] px-3.5 py-2.5 text-sm font-semibold text-[#111111] outline-none transition-all placeholder:font-medium placeholder:text-[#a8a29d] hover:border-[#b9cbd9] focus:border-[#165dfb] focus:bg-white focus:ring-4 focus:ring-[#165dfb]/10 shadow-xs"
+                          className="w-full rounded-[10px] border border-[#d1dee8]/80 dark:border-slate-700 bg-[#fbfbfa] dark:bg-slate-800 px-3.5 py-2.5 text-sm font-semibold text-[#111111] dark:text-slate-100 outline-none transition-all placeholder:font-medium placeholder:text-[#a8a29d] dark:text-slate-500 hover:border-[#b9cbd9] focus:border-[#165dfb] focus:bg-white dark:bg-slate-900 focus:ring-4 focus:ring-[#165dfb]/10 shadow-xs"
                         />
                         <select
                           value={
@@ -2112,7 +2151,7 @@ function CreateAssessmentContent() {
                           onChange={(e) =>
                             handleSetQuestionType(idx, e.target.value)
                           }
-                          className="rounded-[10px] border border-[#d1dee8]/80 bg-white px-3 py-2.5 text-xs font-bold text-[#111111] outline-none focus:border-[#165dfb] focus:ring-4 focus:ring-[#165dfb]/10"
+                          className="rounded-[10px] border border-[#d1dee8]/80 dark:border-slate-700 bg-white dark:bg-slate-900 px-3 py-2.5 text-xs font-bold text-[#111111] dark:text-slate-100 outline-none focus:border-[#165dfb] focus:ring-4 focus:ring-[#165dfb]/10"
                           aria-label={`Question ${idx + 1} type`}
                         >
                           <option value="MCQ">MCQ — Single correct</option>
@@ -2123,7 +2162,7 @@ function CreateAssessmentContent() {
 
                       {negativeMarking && (
                         <div>
-                          <label className="mb-1.5 block text-[10px] font-bold uppercase tracking-wider text-[#78716b]">
+                          <label className="mb-1.5 block text-[10px] font-bold uppercase tracking-wider text-[#78716b] dark:text-slate-400">
                             Negative Marks
                           </label>
                           <input
@@ -2144,9 +2183,9 @@ function CreateAssessmentContent() {
                       )}
 
                       <div className="grid gap-2">
-                        <label className="text-[10px] font-bold uppercase tracking-wider text-[#78716b]">
+                        <label className="text-[10px] font-bold uppercase tracking-wider text-[#78716b] dark:text-slate-400">
                           Question Image URL{" "}
-                          <span className="normal-case font-medium text-[#a8a29d]">
+                          <span className="normal-case font-medium text-[#a8a29d] dark:text-slate-500">
                             (optional)
                           </span>
                         </label>
@@ -2161,13 +2200,16 @@ function CreateAssessmentContent() {
                             )
                           }
                           placeholder="https://example.com/question-image.png"
-                          className="w-full rounded-[10px] border border-[#d1dee8]/80 bg-white px-3.5 py-2.5 text-xs text-[#111111] outline-none transition-all placeholder:text-[#a8a29d] hover:border-[#b9cbd9] focus:border-[#165dfb] focus:ring-4 focus:ring-[#165dfb]/10"
+                          className="w-full rounded-[10px] border border-[#d1dee8]/80 dark:border-slate-700 bg-white dark:bg-slate-900 px-3.5 py-2.5 text-xs text-[#111111] dark:text-slate-100 outline-none transition-all placeholder:text-[#a8a29d] dark:text-slate-500 hover:border-[#b9cbd9] focus:border-[#165dfb] focus:ring-4 focus:ring-[#165dfb]/10"
                         />
                         {q.imageUrl && (
-                          <img
+                          <Image
                             src={q.imageUrl}
                             alt={`Question ${idx + 1}`}
-                            className="max-h-48 max-w-full rounded-[10px] border border-[#d1dee8]/70 object-contain bg-[#fbfbfa] p-1"
+                            width={640}
+                            height={360}
+                            unoptimized
+                            className="max-h-48 max-w-full rounded-[10px] border border-[#d1dee8]/70 dark:border-slate-700 object-contain bg-[#fbfbfa] dark:bg-slate-800 p-1"
                             onError={(e) => {
                               e.currentTarget.style.display = "none";
                             }}
@@ -2177,12 +2219,12 @@ function CreateAssessmentContent() {
 
                       <div className="flex items-center justify-between">
                         <div>
-                          <p className="text-[10px] font-bold uppercase tracking-wider text-[#78716b]">
+                          <p className="text-[10px] font-bold uppercase tracking-wider text-[#78716b] dark:text-slate-400">
                             {q.questionType === "MSQ"
                               ? "Select all correct answers"
                               : "Select correct answer"}
                           </p>
-                          <p className="mt-0.5 text-[10px] text-[#a8a29d]">
+                          <p className="mt-0.5 text-[10px] text-[#a8a29d] dark:text-slate-500">
                             {q.questionType === "MSQ"
                               ? "Multiple options can be correct."
                               : q.questionType === "TRUE_FALSE"
@@ -2194,7 +2236,7 @@ function CreateAssessmentContent() {
                           <button
                             type="button"
                             onClick={() => handleAddOption(idx)}
-                            className="inline-flex items-center gap-1.5 rounded-[9px] border border-[#d1dee8]/80 bg-white px-3 py-1.5 text-[10px] font-bold text-[#165dfb] shadow-xs hover:border-[#165dfb] hover:bg-[#eef4ff]"
+                            className="inline-flex items-center gap-1.5 rounded-[9px] border border-[#d1dee8]/80 dark:border-slate-700 bg-white dark:bg-slate-900 px-3 py-1.5 text-[10px] font-bold text-[#165dfb] shadow-xs hover:border-[#165dfb] hover:bg-[#eef4ff] dark:hover:bg-blue-900/50 dark:bg-blue-950/50"
                           >
                             <PlusCircle className="h-3.5 w-3.5" /> Add Option
                           </button>
@@ -2202,7 +2244,7 @@ function CreateAssessmentContent() {
                       </div>
 
                       <div className="grid gap-2.5 sm:grid-cols-2">
-                        {q.options.map((opt: any, oi: number) => (
+                        {q.options.map((opt: LegacyRecord, oi: number) => (
                           <div
                             key={opt.optionId ?? `${idx}-${oi}`}
                             draggable={q.questionType !== "TRUE_FALSE"}
@@ -2234,8 +2276,8 @@ function CreateAssessmentContent() {
                             onDragEnd={() => setDraggedOption(null)}
                             className={`group flex items-center gap-2.5 rounded-[10px] border px-3 py-2.5 text-xs transition-all ${
                               opt.isCorrect
-                                ? "border-[#165dfb] bg-[#eef4ff] shadow-[0_0_0_3px_rgba(22,93,251,0.08)]"
-                                : "border-[#d1dee8]/80 bg-white hover:border-[#b9cbd9] hover:bg-[#fbfbfa] shadow-xs"
+                                ? "border-[#165dfb] bg-[#eef4ff] dark:bg-blue-950/50 shadow-[0_0_0_3px_rgba(22,93,251,0.08)]"
+                                : "border-[#d1dee8]/80 dark:border-slate-700 bg-white dark:bg-slate-900 hover:border-[#b9cbd9] hover:bg-[#fbfbfa] dark:hover:bg-slate-800 dark:bg-slate-800 dark:bg-slate-800 shadow-xs"
                             } ${
                               draggedOption?.qIdx === idx && draggedOption?.optIdx === oi
                                 ? "opacity-50"
@@ -2257,7 +2299,7 @@ function CreateAssessmentContent() {
                               className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-[11px] font-bold transition-all ${
                                 opt.isCorrect
                                   ? "bg-[#165dfb] text-white shadow-xs shadow-[#165dfb]/30"
-                                  : "bg-[#f0eeed] text-[#78716b] hover:bg-[#e2dfdd] hover:text-[#111111]"
+                                  : "bg-[#f0eeed] text-[#78716b] dark:text-slate-400 hover:bg-[#e2dfdd] hover:text-[#111111] dark:text-slate-100"
                               }`}
                             >
                               {opt.isCorrect ? (
@@ -2277,10 +2319,10 @@ function CreateAssessmentContent() {
                               onChange={(e) =>
                                 handleUpdateOption(idx, oi, e.target.value)
                               }
-                              className={`w-full bg-transparent outline-none placeholder:text-[#a8a29d] ${
+                              className={`w-full bg-transparent outline-none placeholder:text-[#a8a29d] dark:text-slate-500 ${
                                 opt.isCorrect
                                   ? "font-semibold text-[#0f3fa8]"
-                                  : "text-[#111111]"
+                                  : "text-[#111111] dark:text-slate-100"
                               } ${q.questionType === "TRUE_FALSE" ? "cursor-not-allowed opacity-80" : ""}`}
                             />
                             {opt.isCorrect && (
@@ -2294,7 +2336,7 @@ function CreateAssessmentContent() {
                                   type="button"
                                   onClick={() => handleDeleteOption(idx, oi)}
                                   aria-label={`Delete option ${String.fromCharCode(65 + oi)}`}
-                                  className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-[#a8a29d] hover:bg-[#fbeee8] hover:text-[#8c381c]"
+                                  className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-[#a8a29d] dark:text-slate-500 hover:bg-[#fbeee8] hover:text-[#8c381c]"
                                 >
                                   <Trash2 className="h-3.5 w-3.5" />
                                 </button>
@@ -2308,7 +2350,7 @@ function CreateAssessmentContent() {
               </div>
             )}
 
-            <div className="rounded-[14px] border border-dashed border-[#bcd9c9] bg-[#eef8f3]/60 p-6 text-center transition-all hover:border-[#165dfb] hover:bg-[#ecf5ff]/70 shadow-xs">
+            <div className="assessment-file-upload-zone rounded-[14px] border border-dashed border-[#bcd9c9] bg-[#eef8f3]/60 dark:bg-emerald-950/30 p-6 text-center transition-all hover:border-[#165dfb] hover:bg-[#ecf5ff]/70 shadow-xs">
               <input
                 type="file"
                 id="csv-upload"
@@ -2318,53 +2360,53 @@ function CreateAssessmentContent() {
               />
 
               <label htmlFor="csv-upload" className="cursor-pointer block">
-                <span className="mx-auto mb-3 flex h-11 w-11 items-center justify-center rounded-[12px] bg-white shadow-xs ring-1 ring-[#165dfb]/10">
+                <span className="mx-auto mb-3 flex h-11 w-11 items-center justify-center rounded-[12px] bg-white dark:bg-slate-900 shadow-xs ring-1 ring-[#165dfb]/10">
                   <FileType className="h-5 w-5 text-[#165dfb]" />
                 </span>
 
-                <h4 className="text-xs font-bold text-[#111111]">
+                <h4 className="text-xs font-bold text-[#111111] dark:text-slate-100">
                   Import via CSV or JSON
                 </h4>
 
-                <p className="mt-1 text-[11px] text-[#78716b]">
+                <p className="mt-1 text-[11px] text-[#78716b] dark:text-slate-400">
                   Import multiple questions at once using the format below.
                 </p>
 
-                <div className="mt-3 inline-flex items-center gap-1.5 rounded-[10px] border border-[#d1dee8]/80 bg-white px-4 py-2 text-xs font-bold shadow-xs transition-all hover:border-[#165dfb] hover:text-[#165dfb] active:scale-95">
+                <div className="mt-3 inline-flex items-center gap-1.5 rounded-[10px] border border-[#d1dee8]/80 dark:border-slate-700 bg-white dark:bg-slate-900 px-4 py-2 text-xs font-bold shadow-xs transition-all hover:border-[#165dfb] hover:text-[#165dfb] active:scale-95">
                   <Upload className="h-3.5 w-3.5" /> Select File
                 </div>
               </label>
 
-              <details className="mx-auto mt-4 max-w-3xl rounded-[12px] border border-[#d1dee8]/70 bg-white text-left shadow-xs">
-                <summary className="cursor-pointer list-none px-4 py-3 text-xs font-bold text-[#111111]">
+              <details className="mx-auto mt-4 max-w-3xl rounded-[12px] border border-[#d1dee8]/70 dark:border-slate-700 bg-white dark:bg-slate-900 text-left shadow-xs">
+                <summary className="cursor-pointer list-none px-4 py-3 text-xs font-bold text-[#111111] dark:text-slate-100">
                   <span className="inline-flex items-center gap-2">
                     <FileType className="h-3.5 w-3.5 text-[#165dfb]" />
                     CSV Format Guide
                   </span>
                 </summary>
 
-                <div className="border-t border-[#d1dee8]/50 p-4 space-y-3">
-                  <p className="text-[10px] leading-relaxed text-[#78716b]">
+                <div className="border-t border-[#d1dee8]/50 dark:border-slate-700 p-4 space-y-3">
+                  <p className="text-[10px] leading-relaxed text-[#78716b] dark:text-slate-400">
                     Use one question per row and keep the header row. The importer maps columns by header name, so older 12-column templates still work. Leave unused options and image URLs blank.
                   </p>
 
-                  <div className="overflow-x-auto rounded-[10px] border border-[#d1dee8]/70 bg-[#fbfbfa]">
-                    <pre className="min-w-[980px] p-3 text-[9px] leading-relaxed text-[#111111] font-mono whitespace-pre-wrap">
+                  <div className="overflow-x-auto rounded-[10px] border border-[#d1dee8]/70 dark:border-slate-700 bg-[#fbfbfa] dark:bg-slate-800">
+                    <pre className="min-w-[980px] p-3 text-[9px] leading-relaxed text-[#111111] dark:text-slate-100 font-mono whitespace-pre-wrap">
 questionText,optionA,optionB,optionC,optionD,optionE,optionF,correctAnswer,marks,questionType,negativeMarks,questionTimerSeconds,difficulty,explanation,imageUrl,optionAImageUrl,optionBImageUrl,optionCImageUrl,optionDImageUrl,optionEImageUrl,optionFImageUrl
-"What is the time complexity of binary search?","O(n)","O(log n)","O(n^2)","O(1)","","","B","1","MCQ","0.25","60","EASY","Binary search halves the search space.","","","","","","",""
-"Which HTTP status indicates success?","200","301","404","500","204","","A|E","2","MSQ","0.5","90","MEDIUM","Both 200 and 204 indicate success.","","","","","","",""
-"Which number is prime?","4","6","7","8","9","","C","1","MCQ","0","60","EASY","Seven is prime.","","","","","","",""
-"Java is a programming language.","True","False","","","","","A","1","TRUE_FALSE","0","45","EASY","","","","","","","",""
+&quot;What is the time complexity of binary search?&quot;,&quot;O(n)&quot;,&quot;O(log n)&quot;,&quot;O(n^2)&quot;,&quot;O(1)&quot;,&quot;&quot;,&quot;&quot;,&quot;B&quot;,&quot;1&quot;,&quot;MCQ&quot;,&quot;0.25&quot;,&quot;60&quot;,&quot;EASY&quot;,&quot;Binary search halves the search space.&quot;,&quot;&quot;,&quot;&quot;,&quot;&quot;,&quot;&quot;,&quot;&quot;,&quot;&quot;,&quot;&quot;
+&quot;Which HTTP status indicates success?&quot;,&quot;200&quot;,&quot;301&quot;,&quot;404&quot;,&quot;500&quot;,&quot;204&quot;,&quot;&quot;,&quot;A|E&quot;,&quot;2&quot;,&quot;MSQ&quot;,&quot;0.5&quot;,&quot;90&quot;,&quot;MEDIUM&quot;,&quot;Both 200 and 204 indicate success.&quot;,&quot;&quot;,&quot;&quot;,&quot;&quot;,&quot;&quot;,&quot;&quot;,&quot;&quot;,&quot;&quot;
+&quot;Which number is prime?&quot;,&quot;4&quot;,&quot;6&quot;,&quot;7&quot;,&quot;8&quot;,&quot;9&quot;,&quot;&quot;,&quot;C&quot;,&quot;1&quot;,&quot;MCQ&quot;,&quot;0&quot;,&quot;60&quot;,&quot;EASY&quot;,&quot;Seven is prime.&quot;,&quot;&quot;,&quot;&quot;,&quot;&quot;,&quot;&quot;,&quot;&quot;,&quot;&quot;,&quot;&quot;
+&quot;Java is a programming language.&quot;,&quot;True&quot;,&quot;False&quot;,&quot;&quot;,&quot;&quot;,&quot;&quot;,&quot;&quot;,&quot;A&quot;,&quot;1&quot;,&quot;TRUE_FALSE&quot;,&quot;0&quot;,&quot;45&quot;,&quot;EASY&quot;,&quot;&quot;,&quot;&quot;,&quot;&quot;,&quot;&quot;,&quot;&quot;,&quot;&quot;,&quot;&quot;,&quot;&quot;
                     </pre>
                   </div>
 
-                  <div className="grid gap-2 text-[10px] text-[#57534e] sm:grid-cols-2">
+                  <div className="grid gap-2 text-[10px] text-[#57534e] dark:text-slate-300 sm:grid-cols-2">
                     <p>
-                      <span className="font-bold text-[#111111]">correctAnswer:</span>{" "}
+                      <span className="font-bold text-[#111111] dark:text-slate-100">correctAnswer:</span>{" "}
                       A-F for MCQ, A|C for MSQ (use | or ; between answers), or A/B (also TRUE/FALSE) for TRUE_FALSE.
                     </p>
                     <p>
-                      <span className="font-bold text-[#111111]">questionType:</span>{" "}
+                      <span className="font-bold text-[#111111] dark:text-slate-100">questionType:</span>{" "}
                       MCQ (one correct option), MSQ (multiple correct options), or TRUE_FALSE.
                     </p>
                   </div>
@@ -2372,7 +2414,7 @@ questionText,optionA,optionB,optionC,optionD,optionE,optionF,correctAnswer,marks
                   <button
                     type="button"
                     onClick={downloadCsvTemplate}
-                    className="inline-flex items-center gap-1.5 rounded-[10px] border border-[#d1dee8]/80 bg-white px-3.5 py-2 text-[10px] font-bold text-[#111111] shadow-xs transition-all hover:border-[#165dfb] hover:text-[#165dfb] active:scale-[0.98]"
+                    className="inline-flex items-center gap-1.5 rounded-[10px] border border-[#d1dee8]/80 dark:border-slate-700 bg-white dark:bg-slate-900 px-3.5 py-2 text-[10px] font-bold text-[#111111] dark:text-slate-100 shadow-xs transition-all hover:border-[#165dfb] hover:text-[#165dfb] active:scale-[0.98]"
                   >
                     <Download className="h-3.5 w-3.5" />
                     Download Sample CSV
@@ -2384,18 +2426,18 @@ questionText,optionA,optionB,optionC,optionD,optionE,optionF,correctAnswer,marks
             <button
               type="button"
               onClick={handleAddNewQuestion}
-              className="flex w-full items-center justify-center gap-1.5 rounded-[14px] border border-dashed border-[#d1dee8] bg-white py-3.5 text-xs font-bold text-[#165dfb] shadow-xs transition-all hover:border-[#165dfb] hover:bg-[#eef4ff] active:scale-[0.99]"
+              className="flex w-full items-center justify-center gap-1.5 rounded-[14px] border border-dashed border-[#d1dee8] dark:border-slate-700 bg-white dark:bg-slate-900 py-3.5 text-xs font-bold text-[#165dfb] shadow-xs transition-all hover:border-[#165dfb] hover:bg-[#eef4ff] dark:hover:bg-blue-900/50 dark:bg-blue-950/50 active:scale-[0.99]"
             >
               <PlusCircle className="h-4 w-4" /> Add Custom Question Card
             </button>
           </div>
 
-          <div className="overflow-hidden rounded-[14px] border border-[#d1dee8]/70 bg-[#f1efff]/40 shadow-sm">
+          <div className="overflow-hidden rounded-[14px] border border-[#d1dee8]/70 dark:border-slate-700 bg-[#f1efff]/40 dark:bg-violet-950/30 shadow-sm">
             <button
               type="button"
               onClick={() => setShowAdvanced(!showAdvanced)}
               aria-expanded={showAdvanced}
-              className="flex w-full items-center justify-between bg-[#f1efff]/70 p-4 text-xs font-bold uppercase tracking-wider text-[#4c3d73] transition-colors hover:bg-[#eae6ff]"
+              className="flex w-full items-center justify-between bg-[#f1efff]/70 dark:bg-violet-950/50 p-4 text-xs font-bold uppercase tracking-wider text-[#4c3d73] dark:text-violet-200 transition-colors hover:bg-[#eae6ff] dark:hover:bg-violet-900/60 dark:bg-violet-900/60"
             >
               <span className="flex items-center gap-2">
                 <Lock className="h-4 w-4" /> Advanced Settings
@@ -2410,7 +2452,7 @@ questionText,optionA,optionB,optionC,optionD,optionE,optionF,correctAnswer,marks
                   initial={{ height: 0 }}
                   animate={{ height: "auto" }}
                   exit={{ height: 0 }}
-                  className="overflow-hidden border-t border-[#d1dee8]/30"
+                  className="overflow-hidden border-t border-[#d1dee8]/30 dark:border-slate-700"
                 >
                   <div className="p-4 grid gap-3 sm:grid-cols-2">
                     {[
@@ -2457,13 +2499,13 @@ questionText,optionA,optionB,optionC,optionD,optionE,optionF,correctAnswer,marks
                     ].map((item) => (
                       <div
                         key={item.label}
-                        className={`flex items-center justify-between gap-3 rounded-[10px] border bg-white p-3.5 shadow-xs transition-all ${
+                        className={`flex items-center justify-between gap-3 rounded-[10px] border bg-white dark:bg-slate-900 p-3.5 shadow-xs transition-all ${
                           item.val
                             ? "border-[#165dfb]/40 shadow-[0_0_0_3px_rgba(22,93,251,0.06)]"
-                            : "border-[#d1dee8]/80 hover:border-[#b9cbd9]"
+                            : "border-[#d1dee8]/80 dark:border-slate-700 hover:border-[#b9cbd9]"
                         }`}
                       >
-                        <span className="block text-xs font-bold text-[#111111]">
+                        <span className="block text-xs font-bold text-[#111111] dark:text-slate-100">
                           {item.label}
                         </span>
                         <AppleSwitch
@@ -2474,10 +2516,10 @@ questionText,optionA,optionB,optionC,optionD,optionE,optionF,correctAnswer,marks
                       </div>
                     ))}
                   </div>
-                  <div className="border-t border-[#d1dee8]/30 px-4 pb-4 pt-3 text-left space-y-4">
+                  <div className="border-t border-[#d1dee8]/30 dark:border-slate-700 px-4 pb-4 pt-3 text-left space-y-4">
                     <div className="grid gap-3 sm:grid-cols-2">
                       <div>
-                        <label className="mb-1.5 block text-[11px] font-bold uppercase tracking-wider text-[#57534e]">
+                        <label className="mb-1.5 block text-[11px] font-bold uppercase tracking-wider text-[#57534e] dark:text-slate-300">
                           Max Tab Switch / Fullscreen Violations
                         </label>
                         <input
@@ -2490,14 +2532,14 @@ questionText,optionA,optionB,optionC,optionD,optionE,optionF,correctAnswer,marks
                           }
                           className={inputClass}
                         />
-                        <p className="mt-1 text-[10px] text-[#78716b]">
-                          Tab switches and fullscreen exits count as one unified violation. Default: 3. The backend enforces the limit.
+                        <p className="mt-1 text-[10px] text-[#78716b] dark:text-slate-400">
+                          Tab switches and fullscreen exits count toward one unified browser-policy limit. Default: 5. The backend enforces the saved limit, whether AI proctoring is on or off.
                         </p>
                       </div>
                     </div>
 
                     <div>
-                      <label className="mb-1.5 block text-[11px] font-bold uppercase tracking-wider text-[#57534e]">
+                      <label className="mb-1.5 block text-[11px] font-bold uppercase tracking-wider text-[#57534e] dark:text-slate-300">
                         Accepted Email Domain
                       </label>
                     <input
@@ -2505,9 +2547,9 @@ questionText,optionA,optionB,optionC,optionD,optionE,optionF,correctAnswer,marks
                       value={acceptedDomain}
                       onChange={(e) => setAcceptedDomain(e.target.value)}
                       placeholder="e.g., @vitap.ac.in"
-                      className="w-full rounded-[10px] border border-[#d1dee8]/80 bg-[#fbfbfa] px-3.5 py-2.5 text-xs font-bold text-[#111111] outline-none transition-all placeholder:font-medium placeholder:text-[#a8a29d] hover:border-[#b9cbd9] focus:border-[#165dfb] focus:bg-white focus:ring-4 focus:ring-[#165dfb]/10 shadow-xs"
+                      className="w-full rounded-[10px] border border-[#d1dee8]/80 dark:border-slate-700 bg-[#fbfbfa] dark:bg-slate-800 px-3.5 py-2.5 text-xs font-bold text-[#111111] dark:text-slate-100 outline-none transition-all placeholder:font-medium placeholder:text-[#a8a29d] dark:text-slate-500 hover:border-[#b9cbd9] focus:border-[#165dfb] focus:bg-white dark:bg-slate-900 focus:ring-4 focus:ring-[#165dfb]/10 shadow-xs"
                     />
-                    <p className="mt-1 text-[11px] text-[#78716b]">
+                    <p className="mt-1 text-[11px] text-[#78716b] dark:text-slate-400">
                       Only students with a matching email domain can join. Leave
                       blank to allow any domain.
                     </p>
@@ -2525,27 +2567,26 @@ questionText,optionA,optionB,optionC,optionD,optionE,optionF,correctAnswer,marks
             type="button"
             onClick={handleSaveDraft}
             disabled={savingDraft || submitting}
-            className="inline-flex items-center gap-2 rounded-[10px] border border-[#d1dee8]/80 bg-white px-5 py-2.5 text-xs font-bold text-[#111111] shadow-sm hover:bg-[#f5f5f4] hover:border-[#b9cbd9] active:scale-[0.98] transition-all disabled:cursor-not-allowed disabled:opacity-40"
+            className="inline-flex items-center gap-2 rounded-[10px] border border-[#d1dee8]/80 dark:border-slate-700 bg-white dark:bg-slate-900 px-5 py-2.5 text-xs font-bold text-[#111111] dark:text-slate-100 shadow-sm hover:bg-[#f5f5f4] dark:bg-slate-950 hover:border-[#b9cbd9] active:scale-[0.98] transition-all disabled:cursor-not-allowed disabled:opacity-40"
           >
-            {savingDraft && (
-              <span className="h-3 w-3 animate-spin rounded-full border-2 border-[#78716b]/30 border-t-[#78716b]" />
-            )}
             {savingDraft
-              ? "Saving..."
+              ? <LoadingIndicator label="Saving assessment draft" size="sm" />
               : draftId
                 ? "Save Changes"
                 : "Save as Draft"}
           </button>
           <button
             type="button"
-            onClick={(e) => handleSave(e as any)}
+            onClick={handleSave}
             disabled={submitting || savingDraft}
             className="inline-flex items-center gap-2 rounded-[10px] bg-[#165dfb] px-5 py-2.5 text-xs font-bold text-white shadow-sm shadow-[#165dfb]/25 transition-all hover:bg-[#0f4fd8] hover:shadow-md active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-40"
           >
-            {submitting && (
-              <span className="h-3 w-3 animate-spin rounded-full border-2 border-white/30 border-t-white" />
-            )}
-            {submitting ? "Publishing..." : "Publish Assessment"}
+            {submitting ? (
+              <>
+                <SkeletonBlock className="h-3 w-20 rounded bg-white/50" />
+                <span className="sr-only" role="status">Publishing assessment</span>
+              </>
+            ) : "Publish Assessment"}
           </button>
         </div>
       </div>
@@ -2557,12 +2598,20 @@ export default function CreateAssessmentPage() {
   return (
     <Suspense
       fallback={
-        <div className="min-h-screen bg-[#f5f5f4] font-sans text-[#111111] p-4 md:p-6 lg:p-8 flex items-center justify-center text-left">
-          <div className="flex items-center gap-3 rounded-[14px] border border-[#d1dee8]/70 bg-white p-6 shadow-sm">
-            <span className="h-4 w-4 animate-spin rounded-full border-2 border-[#165dfb]/30 border-t-[#165dfb]" />
-            <span className="text-xs font-bold text-[#78716b]">
-              Loading assessment builder...
-            </span>
+        <div className="teacher-assessment-builder min-h-screen bg-[#f5f5f4] p-4 font-sans text-[#111111] dark:bg-slate-950 dark:text-slate-100 md:p-6 lg:p-8" aria-busy="true">
+          <div className="mx-auto max-w-4xl space-y-6">
+            <header className="flex flex-wrap items-center justify-between gap-3 border-b border-[#d1dee8]/60 px-1 py-4 dark:border-slate-700">
+              <div className="flex items-center gap-3"><span className="flex h-9 w-9 items-center justify-center rounded-[10px] border border-[#d1dee8]/80 bg-white dark:border-slate-700 dark:bg-slate-900"><ArrowLeft className="h-4 w-4 text-[#78716b] dark:text-slate-300" /></span><div className="space-y-2"><p className="text-[10px] font-bold uppercase tracking-widest text-[#78716b] dark:text-slate-400">Assessment Builder</p><SkeletonBlock className="h-5 w-48 rounded" /></div></div>
+              <div className="flex items-center gap-2"><SkeletonBlock className="h-8 w-24 rounded-full" /><SkeletonBlock className="h-10 w-36 rounded-[10px]" /></div>
+            </header>
+            <section className="space-y-5 rounded-[14px] border border-[#d1dee8]/70 bg-white p-5 shadow-sm dark:border-slate-700 dark:bg-slate-900 sm:p-7">
+              <div className="space-y-2"><SkeletonBlock className="h-3 w-28 rounded" /><SkeletonBlock className="h-10 w-full rounded-[10px]" /></div>
+              <div className="space-y-2"><SkeletonBlock className="h-3 w-24 rounded" /><SkeletonBlock className="h-20 w-full rounded-[10px]" /></div>
+              <div className="grid gap-4 sm:grid-cols-3">{[1,2,3].map((item) => <div key={item} className="space-y-2"><SkeletonBlock className="h-3 w-24 rounded" /><div className="flex h-10 items-center gap-2 rounded-[10px] border border-[#d1dee8]/70 px-3 dark:border-slate-700">{item === 3 ? <Clock className="h-4 w-4 text-slate-400" /> : null}<SkeletonBlock className="h-3 w-3/4 rounded" /></div></div>)}</div>
+            </section>
+            <section className="flex items-center gap-3 rounded-[14px] border border-[#d1dee8]/70 bg-white p-5 dark:border-slate-700 dark:bg-slate-900"><Lock className="h-5 w-5 text-[#165dfb] dark:text-blue-300" /><div className="flex-1 space-y-2"><SkeletonBlock className="h-3 w-28 rounded" /><SkeletonBlock className="h-3 w-3/4 rounded" /></div><SkeletonBlock className="h-6 w-11 rounded-full" /></section>
+            <section className="space-y-4 rounded-[14px] border border-[#d1dee8]/70 bg-white p-5 dark:border-slate-700 dark:bg-slate-900"><div className="flex items-center gap-3"><FileQuestion className="h-5 w-5 text-[#165dfb] dark:text-blue-300" /><SkeletonBlock className="h-4 w-28 rounded" /></div><SkeletonBlock className="h-16 w-full rounded-[10px]" /><SkeletonBlock className="h-16 w-full rounded-[10px]" /></section>
+            <p className="sr-only" role="status">Preparing assessment builder</p>
           </div>
         </div>
       }

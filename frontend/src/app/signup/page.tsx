@@ -1,5 +1,7 @@
 "use client";
 
+import LoadingIndicator from "@/components/LoadingIndicator";
+import SkeletonBlock from "@/components/SkeletonBlock";
 import { useState, useEffect, Suspense } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
@@ -12,7 +14,35 @@ import {
   ArrowRight,
 } from "lucide-react";
 import { ENDPOINTS } from "@/lib/api/endpoints";
-import { PublicNavbar } from "@/components/PublicNavbar";
+
+async function readSignupResponse(response: Response): Promise<Record<string, unknown>> {
+  const contentType = response.headers.get("content-type") || "";
+  const text = await response.text();
+
+  if (contentType.toLowerCase().includes("text/html") || /^\\s*<(?:!doctype\\s+html|html|head|body)\\b/i.test(text)) {
+    throw new Error(
+      `The API returned an HTML page instead of JSON (HTTP ${response.status}). Check NEXT_PUBLIC_API_URL and the backend signup/login endpoints. Request: ${response.url}`,
+    );
+  }
+
+  if (!text.trim()) return {};
+  try {
+    const data: unknown = JSON.parse(text);
+    return data && typeof data === "object" ? data as Record<string, unknown> : {};
+  } catch {
+    if (!response.ok) {
+      throw new Error(`The API returned an unreadable response (HTTP ${response.status}). Request: ${response.url}`);
+    }
+    throw new Error("The API returned an invalid JSON response.");
+  }
+}
+
+
+function getResponseMessage(data: Record<string, unknown>, fallback: string): string {
+  const message = typeof data.message === "string" ? data.message.trim() : "";
+  const error = typeof data.error === "string" ? data.error.trim() : "";
+  return message || error || fallback;
+}import { PublicNavbar } from "@/components/PublicNavbar";
 import { isLanExamMode } from "@/lib/examMode";
 
 function GoogleIcon() {
@@ -203,7 +233,7 @@ function SignupContent() {
         }),
       });
 
-      const data = await res.json().catch(() => ({}));
+      const data = await readSignupResponse(res);
 
       if (res.ok) {
         const verificationRequired = data?.verificationRequired === true;
@@ -212,8 +242,10 @@ function SignupContent() {
 
         if (verificationRequired) {
           setSuccess(
-            data?.message ||
+            getResponseMessage(
+              data,
               "Account created. Please verify your email before signing in.",
+            ),
           );
 
           if (typeof window !== "undefined") {
@@ -234,7 +266,7 @@ function SignupContent() {
           return;
         }
 
-        setSuccess("Account created. Signing you in...");
+        setSuccess("Account created successfully.");
 
         const loginRes = await fetch(ENDPOINTS.auth.login, {
           method: "POST",
@@ -249,13 +281,14 @@ function SignupContent() {
           cache: "no-store",
         });
 
-        const loginData = await loginRes.json().catch(() => ({}));
+        const loginData = await readSignupResponse(loginRes);
 
         if (!loginRes.ok) {
           throw new Error(
-            loginData?.message ||
-              loginData?.error ||
+            getResponseMessage(
+              loginData,
               "Account was created, but automatic sign-in failed. Please try logging in.",
+            ),
           );
         }
 
@@ -277,13 +310,14 @@ function SignupContent() {
           cache: "no-store",
         });
 
-        const meData = await meRes.json().catch(() => ({}));
+        const meData = await readSignupResponse(meRes);
 
         if (!meRes.ok) {
           throw new Error(
-            meData?.message ||
-              meData?.error ||
+            getResponseMessage(
+              meData,
               "Account was created, but the authenticated session could not be verified.",
+            ),
           );
         }
 
@@ -330,7 +364,7 @@ function SignupContent() {
             "; samesite=lax";
         }
 
-        setSuccess("Account created. Redirecting to your dashboard...");
+        setSuccess("Account created successfully.");
 
         const redirectTarget = searchParams?.get("redirect");
         const destination =
@@ -339,20 +373,23 @@ function SignupContent() {
             ? "/dashboard/teacher"
             : "/dashboard/student");
 
-        router.replace(destination);
+        window.setTimeout(() => router.replace(destination), 900);
       } else {
         setSuccess("");
         setError(
-          data.message ||
-            data.error ||
+          getResponseMessage(
+            data,
             "Signup failed. Please check your details and try again.",
+          ),
         );
       }
     } catch (err) {
       console.error("Signup connection error:", err);
       setSuccess("");
       setError(
-        "Cannot connect to the authentication server. Please ensure the backend is running.",
+        err instanceof Error
+          ? err.message
+          : "Cannot connect to the authentication server. Please ensure the backend is running.",
       );
     } finally {
       setLoading(false);
@@ -360,40 +397,33 @@ function SignupContent() {
   };
 
   const fieldClass =
-    "w-full rounded-lg border border-neutral-200 bg-neutral-50/70 px-3.5 py-2.5 text-sm text-neutral-900 outline-none transition-all placeholder:text-neutral-400 hover:border-neutral-300 focus:bg-white focus:border-neutral-900 focus:ring-4 focus:ring-neutral-900/10";
+    "w-full rounded-lg border border-neutral-200 bg-neutral-50 px-3.5 py-2.5 text-sm text-neutral-900 outline-none transition-all placeholder:text-neutral-400 hover:border-neutral-300 focus:border-[#165dfb] focus:bg-white focus:ring-2 focus:ring-[#165dfb]/20 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100 dark:placeholder:text-slate-500 dark:hover:border-slate-600 dark:focus:border-blue-400 dark:focus:bg-slate-950 dark:focus:ring-blue-400/20";
 
   const requirementClass = (valid: boolean) =>
-    `flex items-center gap-2 text-[11px] transition-colors ${
-      valid ? "text-green-600" : "text-neutral-400"
+    `flex items-center gap-2 text-[11px] font-medium transition-colors duration-200 ${
+      valid
+        ? "text-green-700 dark:text-green-400"
+        : "text-red-600 dark:text-red-400"
     }`;
 
   if (!activeRole) {
     return (
       <>
       <PublicNavbar redirectTarget={searchParams?.get("redirect") || undefined} />
-      <main className="relative min-h-[calc(100vh-4rem)] w-full grid grid-cols-1 md:grid-cols-2 font-sans">
+      <main className="public-signup-role-selection relative min-h-[calc(100vh-4rem)] w-full grid grid-cols-1 md:grid-cols-2 font-sans transition-colors">
 
-        <section className="group relative flex flex-col items-center justify-center p-8 sm:p-16 bg-[#F9FAFB] text-center transition-colors duration-300 hover:bg-white">
-          <div
-            aria-hidden
-            className="pointer-events-none absolute inset-0 opacity-0 transition-opacity duration-500 group-hover:opacity-100"
-            style={{
-              backgroundImage:
-                "radial-gradient(circle at 50% 45%, rgba(17,24,39,0.06), transparent 60%)",
-            }}
-          />
-
+        <section className="signup-role-student-panel group relative flex flex-col items-center justify-center p-8 sm:p-16 bg-[#F9FAFB] text-center transition-colors duration-300 hover:bg-white">
           <div className="relative w-full max-w-xs space-y-6">
-            <span className="mx-auto flex h-12 w-12 items-center justify-center rounded-xl bg-[#111827]/5 text-[#111827] ring-1 ring-[#111827]/10 transition-transform duration-300 group-hover:-translate-y-0.5">
+            <span className="signup-role-icon mx-auto flex h-12 w-12 items-center justify-center rounded-xl bg-[#111827]/5 text-[#111827] ring-1 ring-[#111827]/10 transition-transform duration-300 group-hover:-translate-y-0.5">
               <GraduationCap className="h-6 w-6" />
             </span>
 
             <div className="space-y-2">
-              <h1 className="text-3xl sm:text-4xl font-bold tracking-tight text-[#111827]">
+              <h1 className="signup-role-title text-3xl sm:text-4xl font-bold tracking-tight text-[#111827]">
                 Student
               </h1>
 
-              <p className="text-sm leading-relaxed text-[#6B7280]">
+              <p className="signup-role-description text-sm leading-relaxed text-[#6B7280]">
                 Take quizzes with an access code
               </p>
             </div>
@@ -404,35 +434,26 @@ function SignupContent() {
                 setError("");
                 router.push("/signup?role=student" + (searchParams.get("redirect") ? "&redirect=" + encodeURIComponent(searchParams.get("redirect") || "") : ""));
               }}
-              className="group/btn inline-flex w-full items-center justify-center gap-2 rounded-lg bg-[#111827] text-white py-3 px-5 text-sm font-medium shadow-sm ring-offset-2 transition-all hover:bg-black hover:shadow-md active:scale-[0.99] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#111827] cursor-pointer border-0"
+              className="signup-role-cta group/btn inline-flex w-full items-center justify-center gap-2 rounded-lg bg-[#111827] text-white py-3 px-5 text-sm font-medium shadow-sm transition-all hover:bg-black hover:shadow-md active:scale-[0.99] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#165dfb] cursor-pointer border-0"
             >
               Continue as Student
-              <ArrowRight className="h-4 w-4 transition-transform duration-200 group-hover/btn:translate-x-0.5" />
+              <ArrowRight className="h-4 w-4" />
             </button>
           </div>
         </section>
 
-        <section className="group relative flex flex-col items-center justify-center p-8 sm:p-16 bg-[#0F172A] text-center border-t md:border-t-0 md:border-l border-neutral-800 transition-colors duration-300 hover:bg-[#0B1220]">
-          <div
-            aria-hidden
-            className="pointer-events-none absolute inset-0 opacity-0 transition-opacity duration-500 group-hover:opacity-100"
-            style={{
-              backgroundImage:
-                "radial-gradient(circle at 50% 45%, rgba(255,255,255,0.07), transparent 60%)",
-            }}
-          />
-
+        <section className="signup-role-instructor-panel group relative flex flex-col items-center justify-center p-8 sm:p-16 bg-[#0F172A] text-center border-t md:border-t-0 md:border-l border-neutral-800 transition-colors duration-300 hover:bg-[#0B1220]">
           <div className="relative w-full max-w-xs space-y-6">
-            <span className="mx-auto flex h-12 w-12 items-center justify-center rounded-xl bg-white/10 text-white ring-1 ring-white/15 transition-transform duration-300 group-hover:-translate-y-0.5">
+            <span className="signup-role-icon mx-auto flex h-12 w-12 items-center justify-center rounded-xl bg-white/10 text-white ring-1 ring-white/15 transition-transform duration-300 group-hover:-translate-y-0.5">
               <Presentation className="h-6 w-6" />
             </span>
 
             <div className="space-y-2">
-              <h1 className="text-3xl sm:text-4xl font-bold tracking-tight text-white">
+              <h1 className="signup-role-title text-3xl sm:text-4xl font-bold tracking-tight text-white">
                 Instructor
               </h1>
 
-              <p className="text-sm leading-relaxed text-[#94A3B8]">
+              <p className="signup-role-description text-sm leading-relaxed text-[#94A3B8]">
                 Create and manage quizzes
               </p>
             </div>
@@ -443,10 +464,10 @@ function SignupContent() {
                 setError("");
                 router.push("/signup?role=teacher" + (searchParams.get("redirect") ? "&redirect=" + encodeURIComponent(searchParams.get("redirect") || "") : ""));
               }}
-              className="group/btn inline-flex w-full items-center justify-center gap-2 rounded-lg bg-white text-[#0F172A] py-3 px-5 text-sm font-medium shadow-sm ring-offset-2 ring-offset-[#0F172A] transition-all hover:bg-neutral-100 hover:shadow-md active:scale-[0.99] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white cursor-pointer border-0"
+              className="signup-role-cta group/btn inline-flex w-full items-center justify-center gap-2 rounded-lg bg-white text-[#0F172A] py-3 px-5 text-sm font-medium shadow-sm transition-all duration-200 hover:bg-neutral-100 hover:shadow-md active:scale-[0.99] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#165dfb] cursor-pointer border-0"
             >
               Continue as Instructor
-              <ArrowRight className="h-4 w-4 transition-transform duration-200 group-hover/btn:translate-x-0.5" />
+              <ArrowRight className="h-4 w-4" />
             </button>
           </div>
         </section>
@@ -458,17 +479,9 @@ function SignupContent() {
   return (
     <>
     <PublicNavbar redirectTarget={searchParams?.get("redirect") || undefined} />
-    <main className="relative min-h-[calc(100vh-4rem)] flex flex-col items-center justify-center p-6 sm:p-12 bg-neutral-50 text-[#111827] font-sans">
-      <div
-        aria-hidden
-        className="pointer-events-none absolute inset-0"
-        style={{
-          backgroundImage:
-            "radial-gradient(circle at 50% 0%, rgba(17,24,39,0.05), transparent 55%)",
-        }}
-      />
-
-      <div className="relative w-full max-w-md bg-white rounded-2xl shadow-[0_18px_50px_-20px_rgba(15,23,42,0.18)] ring-1 ring-neutral-900/5 border border-neutral-100 p-8 space-y-6">
+    <main className="public-auth min-h-[calc(100vh-4rem)] bg-neutral-50 px-4 py-8 font-sans text-[#111827] transition-colors dark:bg-slate-950 dark:text-slate-100 sm:px-8">
+      <div className="mx-auto flex min-h-[calc(100vh-8rem)] max-w-md items-center">
+      <div className="w-full space-y-6 rounded-2xl border border-neutral-200 bg-white p-7 shadow-sm transition-colors dark:border-slate-700 dark:bg-slate-900 dark:shadow-none sm:p-8">
         <div>
           <div className="mb-5">
             <button
@@ -498,13 +511,13 @@ function SignupContent() {
             )}
           </span>
 
-          <h1 className="text-2xl font-bold tracking-tight text-neutral-900">
+          <h1 className="text-2xl font-bold tracking-tight text-neutral-900 dark:text-slate-100">
             {activeRole === "teacher"
               ? "Sign up as Instructor"
               : "Sign up as Student"}
           </h1>
 
-          <p className="text-sm text-neutral-500 mt-1.5 leading-relaxed">
+          <p className="mt-1.5 text-sm leading-relaxed text-neutral-500 dark:text-slate-400">
             {lanExamMode
               ? "Create an account on the local exam server using email and password."
               : activeRole === "teacher"
@@ -516,7 +529,7 @@ function SignupContent() {
         {error && (
           <div
             role="alert"
-            className="flex gap-2.5 rounded-lg bg-red-50 p-3.5 text-sm text-red-700 font-medium border border-red-200/70"
+            className="flex gap-2.5 rounded-lg border border-red-200 bg-red-50 p-3.5 text-sm font-medium text-red-700 dark:border-rose-900 dark:bg-rose-950/70 dark:text-rose-200"
           >
             <span
               aria-hidden
@@ -530,7 +543,7 @@ function SignupContent() {
         {success && (
           <div
             role="status"
-            className="rounded-lg bg-green-50 p-3.5 text-sm text-green-700 font-medium border border-green-200/70"
+            className="fixed right-4 top-4 z-[100] max-w-sm rounded-xl border border-emerald-200 bg-white px-4 py-3 text-sm font-medium text-emerald-800 shadow-lg dark:border-emerald-900 dark:bg-slate-900 dark:text-emerald-300"
           >
             {success}
           </div>
@@ -540,35 +553,109 @@ function SignupContent() {
           <>
             <button
               type="button"
-              onClick={() => {
+              onClick={async () => {
                 const backendRole = activeRole === "teacher" ? "TEACHER" : "STUDENT";
-                setGoogleLoading(true);
                 setError("");
+
+                const configuredApiBase = process.env.NEXT_PUBLIC_API_URL?.trim();
+                let googleAuthUrl: URL;
+                try {
+                  if (!configuredApiBase) {
+                    throw new Error(
+                      "Google sign-in is not configured: NEXT_PUBLIC_API_URL must point to the Spring Boot backend.",
+                    );
+                  }
+
+                  const backendBaseUrl = new URL(configuredApiBase);
+                  if (
+                    backendBaseUrl.protocol !== "http:" &&
+                    backendBaseUrl.protocol !== "https:"
+                  ) {
+                    throw new Error(
+                      "Google sign-in requires the backend URL to use HTTP or HTTPS.",
+                    );
+                  }
+
+                  // Start OAuth on the backend origin, not through the Next.js
+                  // /backend API proxy, so Spring Security can recover the same
+                  // session that stored the OAuth authorization request.
+                  const backendPath = backendBaseUrl.pathname.endsWith("/")
+                    ? backendBaseUrl.pathname.slice(0, -1)
+                    : backendBaseUrl.pathname;
+                  if (backendPath && backendPath !== "/") {
+                    throw new Error(
+                      "NEXT_PUBLIC_API_URL must be the backend origin only, without an API path or /backend proxy prefix.",
+                    );
+                  }
+
+                  if (backendBaseUrl.origin === window.location.origin) {
+                    throw new Error(
+                      "Google sign-in is pointing at the frontend instead of the backend. Set NEXT_PUBLIC_API_URL to your Spring Boot server URL, then restart Next.js.",
+                    );
+                  }
+
+                  googleAuthUrl = new URL(
+                    "/oauth2/authorization/google",
+                    backendBaseUrl,
+                  );
+                  googleAuthUrl.searchParams.set("role", backendRole);
+                } catch (configurationError) {
+                  setGoogleLoading(false);
+                  setError(
+                    configurationError instanceof Error
+                      ? configurationError.message
+                      : "Google sign-in is not configured correctly. Check NEXT_PUBLIC_API_URL.",
+                  );
+                  return;
+                }
+
+                setGoogleLoading(true);
+                try {
+                  const preflightResponse = await fetch(
+                    `/api/oauth/google/start?role=${encodeURIComponent(backendRole)}`,
+                    {
+                      cache: "no-store",
+                      headers: { Accept: "application/json" },
+                    },
+                  );
+                  const preflight = (await preflightResponse.json()) as {
+                    ok?: boolean;
+                    message?: string;
+                  };
+                  if (!preflightResponse.ok || preflight.ok !== true) {
+                    setGoogleLoading(false);
+                    setError(
+                      preflight.message ||
+                        "Google sign-in could not be started. Check the backend OAuth configuration.",
+                    );
+                    return;
+                  }
+                } catch {
+                  setGoogleLoading(false);
+                  setError(
+                    "Could not verify Google sign-in with the backend. Check the connection and NEXT_PUBLIC_API_URL, then try again.",
+                  );
+                  return;
+                }
+
                 sessionStorage.setItem("dynoquizz_google_role", backendRole);
 
                 const redirect = searchParams.get("redirect") || "";
                 if (redirect) {
                   sessionStorage.setItem("dynoquizz_post_login_redirect", redirect);
+                } else {
+                  sessionStorage.removeItem("dynoquizz_post_login_redirect");
                 }
 
-                window.location.href =
-                  ENDPOINTS.auth.googleLogin +
-                  "?role=" +
-                  encodeURIComponent(backendRole);
+                window.location.assign(googleAuthUrl.toString());
               }}
               disabled={loading || googleLoading}
               aria-busy={googleLoading}
               className="flex w-full items-center justify-center gap-2.5 rounded-lg border border-neutral-200 bg-white px-4 py-3 text-sm font-semibold text-neutral-900 transition-all hover:border-neutral-300 hover:bg-neutral-50 active:scale-[0.99] disabled:cursor-not-allowed disabled:opacity-60"
             >
               <GoogleIcon />
-              {googleLoading ? "Connecting to Google..." : "Continue with Google"}
+              {googleLoading ? <LoadingIndicator label="Connecting to Google" size="sm" /> : "Continue with Google"}
             </button>
-            <p className="text-center text-xs leading-relaxed text-neutral-500">
-              Google verifies your sign-in. Students will complete their
-              registration number and academic details in Quizly before using
-              exam features.
-            </p>
-
             <div className="my-5 flex items-center gap-3">
               <div className="h-px flex-1 bg-neutral-100" />
               <span className="text-[10px] font-bold uppercase tracking-wider text-neutral-400">
@@ -582,7 +669,7 @@ function SignupContent() {
         <form onSubmit={handleSignupSubmit} className="space-y-4">
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1.5">
-              <label className="text-xs font-semibold text-neutral-700 block">
+              <label className="text-xs font-semibold text-neutral-700 dark:text-slate-300 block">
                 First name
               </label>
 
@@ -750,39 +837,41 @@ function SignupContent() {
 
             <div
               id="password-requirements"
+              aria-live="polite"
+              aria-atomic="false"
               className="grid grid-cols-1 gap-1 pt-1"
             >
               <p className={requirementClass(passwordRequirements.minLength)}>
                 <span className="w-3 text-center">
-                  {passwordRequirements.minLength ? "✓" : "○"}
+                  {passwordRequirements.minLength ? "✓" : "×"}
                 </span>
                 At least 8 characters
               </p>
 
               <p className={requirementClass(passwordRequirements.uppercase)}>
                 <span className="w-3 text-center">
-                  {passwordRequirements.uppercase ? "✓" : "○"}
+                  {passwordRequirements.uppercase ? "✓" : "×"}
                 </span>
                 At least 1 uppercase letter
               </p>
 
               <p className={requirementClass(passwordRequirements.lowercase)}>
                 <span className="w-3 text-center">
-                  {passwordRequirements.lowercase ? "✓" : "○"}
+                  {passwordRequirements.lowercase ? "✓" : "×"}
                 </span>
                 At least 1 lowercase letter
               </p>
 
               <p className={requirementClass(passwordRequirements.number)}>
                 <span className="w-3 text-center">
-                  {passwordRequirements.number ? "✓" : "○"}
+                  {passwordRequirements.number ? "✓" : "×"}
                 </span>
                 At least 1 number
               </p>
 
               <p className={requirementClass(passwordRequirements.special)}>
                 <span className="w-3 text-center">
-                  {passwordRequirements.special ? "✓" : "○"}
+                  {passwordRequirements.special ? "✓" : "×"}
                 </span>
                 At least 1 special character
               </p>
@@ -845,15 +934,10 @@ function SignupContent() {
             disabled={
               loading || !isPasswordValid || !passwordsMatch || !!success
             }
-            className="w-full rounded-lg bg-linear-to-b from-neutral-800 to-neutral-900 py-3 px-4 text-sm font-semibold text-white shadow-sm transition-all hover:from-neutral-900 hover:to-black hover:shadow-md active:scale-[0.99] disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-neutral-900 focus-visible:ring-offset-2 cursor-pointer border-0 mt-5"
+            className="mt-5 w-full cursor-pointer rounded-lg border-0 bg-[#165dfb] px-4 py-3 text-sm font-semibold text-white shadow-sm transition-all hover:bg-[#104bd0] active:scale-[0.99] disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#165dfb] focus-visible:ring-offset-2 dark:focus-visible:ring-offset-slate-900"
           >
             {loading ? (
-              <span className="inline-flex items-center justify-center gap-2">
-                <span className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-white/30 border-t-white" />
-                Creating account...
-              </span>
-            ) : success ? (
-              "Account Created"
+              <LoadingIndicator label="Creating account" size="sm" />
             ) : (
               "Create Account"
             )}
@@ -861,18 +945,19 @@ function SignupContent() {
         </form>
 
         <div className="pt-1">
-          <div className="h-px w-full bg-neutral-100" />
+          <div className="h-px w-full bg-neutral-100 dark:bg-slate-700" />
 
-          <p className="text-center text-sm text-neutral-500 pt-4">
+          <p className="pt-4 text-center text-sm text-neutral-500 dark:text-slate-400">
             Already have an account?{" "}
             <Link
               href={"/login?role=" + activeRole + (searchParams.get("redirect") ? "&redirect=" + encodeURIComponent(searchParams.get("redirect") || "") : "")}
-              className="font-semibold text-neutral-900 underline-offset-4 hover:underline"
+              className="font-semibold text-neutral-900 underline-offset-4 hover:underline dark:text-slate-100"
             >
               Log in
             </Link>
           </p>
         </div>
+      </div>
       </div>
     </main>
     </>
@@ -883,10 +968,25 @@ export default function SignupPage() {
   return (
     <Suspense
       fallback={
-        <div className="flex min-h-screen items-center justify-center gap-2 bg-neutral-50 text-sm text-neutral-400 font-medium">
-          <span className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-neutral-200 border-t-neutral-400" />
-          Loading...
-        </div>
+        <>
+          <PublicNavbar />
+          <main className="public-auth min-h-[calc(100vh-4rem)] bg-neutral-50 px-4 py-8 font-sans dark:bg-slate-950 sm:px-8" aria-busy="true">
+            <div className="mx-auto flex min-h-[calc(100vh-8rem)] max-w-md items-center">
+              <section className="w-full space-y-6 rounded-2xl border border-neutral-200 bg-white p-7 shadow-sm dark:border-slate-700 dark:bg-slate-900 sm:p-8">
+                <div className="flex items-center gap-3">
+                  <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-[#eef4ff] text-[#165dfb] dark:bg-slate-800 dark:text-blue-300"><GraduationCap className="h-5 w-5" /></span>
+                  <div className="flex-1 space-y-2"><SkeletonBlock className="h-5 w-44 rounded" /><SkeletonBlock className="h-3 w-56 max-w-full rounded" /></div>
+                </div>
+                <div className="grid grid-cols-2 gap-3">
+                  {[1, 2].map((field) => <div key={field} className="space-y-2"><SkeletonBlock className="h-3 w-16 rounded" /><SkeletonBlock className="h-11 w-full rounded-lg" /></div>)}
+                </div>
+                {[1, 2, 3].map((field) => <div key={field} className="space-y-2"><SkeletonBlock className="h-3 w-24 rounded" /><SkeletonBlock className="h-11 w-full rounded-lg" /></div>)}
+                <SkeletonBlock className="h-11 w-full rounded-lg" />
+                <p className="sr-only" role="status">Preparing signup form</p>
+              </section>
+            </div>
+          </main>
+        </>
       }
     >
       <SignupContent />

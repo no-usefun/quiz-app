@@ -13,6 +13,7 @@ import {
   CheckCircle2,
 } from "lucide-react";
 
+import SkeletonBlock from "@/components/SkeletonBlock";
 import { TopNav } from "@/components/TopNav";
 import { useSession } from "@/hooks/useSession";
 import { ApiClientError, api } from "@/lib/api/client";
@@ -22,6 +23,7 @@ import type { StudentSubmissionResponse } from "@/lib/types";
 type Submission = StudentSubmissionResponse;
 
 const INITIAL_RESULTS_COUNT = 5;
+const STUDENT_SUBMISSION_CACHE_TTL_MS = 5 * 60 * 1000;
 
 function formatDate(value: string | null | undefined): string {
   if (!value) {
@@ -115,10 +117,26 @@ export default function StudentDashboard() {
         try {
           const rawCache = localStorage.getItem(cacheKey);
           if (rawCache) {
-            const parsed = JSON.parse(rawCache) as { submissions?: StudentSubmissionResponse[] };
-            if (Array.isArray(parsed.submissions)) {
-              setResults(parsed.submissions.map(normalizeSubmission).filter((item): item is Submission => item !== null));
+            const parsed = JSON.parse(rawCache) as {
+              submissions?: StudentSubmissionResponse[];
+              savedAt?: number;
+            };
+            const savedAt = Number(parsed.savedAt);
+            const cacheAge = Date.now() - savedAt;
+            const cacheIsFresh =
+              Number.isFinite(savedAt) &&
+              cacheAge >= 0 &&
+              cacheAge <= STUDENT_SUBMISSION_CACHE_TTL_MS;
+
+            if (Array.isArray(parsed.submissions) && cacheIsFresh) {
+              setResults(
+                parsed.submissions
+                  .map(normalizeSubmission)
+                  .filter((item): item is Submission => item !== null),
+              );
               hasUsableCache = true;
+            } else {
+              localStorage.removeItem(cacheKey);
             }
           }
         } catch (cacheError) {
@@ -130,7 +148,7 @@ export default function StudentDashboard() {
       setFetchError(null);
 
       try {
-        const data = await api.get<StudentSubmissionResponse[]>(ENDPOINTS.student.submissions);
+        const data = await api.get<StudentSubmissionResponse[]>(ENDPOINTS.student.submissions, { cacheTtlMs: 5000 });
         if (cancelled) return;
         const backendList = Array.isArray(data) ? data : [];
         const normalizedResults = backendList.map(normalizeSubmission).filter((item): item is Submission => item !== null);
@@ -183,23 +201,22 @@ export default function StudentDashboard() {
   const hasMoreResults = results.length > INITIAL_RESULTS_COUNT;
 
   return (
-    <div className="min-h-screen bg-[#f5f5f4] font-sans text-[#111111] flex flex-col">
+    <div className="min-h-screen bg-[#f8fafc] font-sans text-slate-900 dark:text-slate-100 flex flex-col transition-colors dark:bg-slate-950">
       <TopNav role="student" />
 
       <main className="flex-1 p-4 md:p-8 space-y-6 text-left max-w-7xl mx-auto w-full">
-        <motion.section initial={reduceMotion ? false : { opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.32, ease: "easeOut" }} className="border-b border-[#d1dee8]/60 pb-5 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+        <motion.section initial={reduceMotion ? false : { opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.32, ease: "easeOut" }} className="border-b border-[#d1dee8]/60 pb-5 dark:border-slate-700 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
           <div>
-            <span className="text-[10px] font-bold uppercase tracking-widest text-[#78716b]">
-              Student Assessment Portal
+            <span className="text-[10px] font-bold uppercase tracking-widest text-slate-500 dark:text-slate-400">
+              Student Dashboard
             </span>
 
-            <h1 className="mt-1 text-2xl font-extrabold tracking-tight text-[#111111] -tracking-wide">
+            <h1 className="mt-1 text-2xl font-extrabold tracking-tight text-slate-900 dark:text-slate-100 -tracking-wide">
               Welcome back, {displayName}
             </h1>
 
-            <p className="mt-1 max-w-xl text-xs leading-relaxed text-[#78716b] font-medium">
-              Join active exam sessions with your access credentials and view
-              your submitted scorecards.
+            <p className="mt-1 max-w-xl text-xs leading-relaxed text-slate-500 dark:text-slate-400 font-medium">
+              Join an assessment with the access code from your instructor, then return here to review submitted attempts and released results.
             </p>
           </div>
 
@@ -212,7 +229,7 @@ export default function StudentDashboard() {
           </Link>
         </motion.section>
 
-        <motion.section initial={reduceMotion ? false : { opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.32, delay: 0.06, ease: "easeOut" }} className="relative overflow-hidden rounded-[14px] border border-[#d1dee8]/70 bg-white p-6 md:p-8 shadow-sm">
+        <motion.section initial={reduceMotion ? false : { opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.32, delay: 0.06, ease: "easeOut" }} className="relative overflow-hidden rounded-[14px] border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 p-6 md:p-8 shadow-sm">
           <div
             aria-hidden
             className="pointer-events-none absolute inset-y-0 right-0 w-1/2"
@@ -224,7 +241,7 @@ export default function StudentDashboard() {
 
           <div className="relative flex items-start justify-between gap-4">
             <div className="space-y-2">
-              <span className="inline-flex items-center gap-1.5 rounded-full bg-[#eef4ff] px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider text-[#165dfb] shadow-xs">
+              <span className="inline-flex items-center gap-1.5 rounded-full bg-[#eef4ff] px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider text-[#165dfb] shadow-xs dark:bg-blue-950 dark:text-blue-300">
                 <span className="relative flex h-1.5 w-1.5">
                   <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-[#165dfb] opacity-60" />
                   <span className="relative inline-flex h-full w-full rounded-full bg-[#165dfb]" />
@@ -232,14 +249,12 @@ export default function StudentDashboard() {
                 Active Exam Access
               </span>
 
-              <h2 className="text-lg font-extrabold text-[#111111] -tracking-wide">
+              <h2 className="text-lg font-extrabold text-slate-900 dark:text-slate-100 -tracking-wide">
                 Join a Proctored Assessment
               </h2>
 
-              <p className="max-w-md text-xs text-[#78716b] leading-relaxed font-medium">
-                Enter your Session Access Code along with your registered
-                Student Roll / Registration Number to verify your environment
-                and begin.
+              <p className="max-w-md text-xs text-slate-500 dark:text-slate-400 leading-relaxed font-medium">
+                Enter the assessment access code and your registered roll or registration number to join.
               </p>
 
               <Link
@@ -259,94 +274,109 @@ export default function StudentDashboard() {
         </motion.section>
 
         <motion.section initial={reduceMotion ? false : { opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.32, delay: 0.12, ease: "easeOut" }} className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-          <div className="group rounded-[14px] border border-[#d1dee8]/70 bg-white p-5 flex items-center gap-3.5 shadow-sm transition-all hover:border-[#b9cbd9] hover:shadow-md hover:-translate-y-[1px] duration-200">
+          <div className="group rounded-[14px] border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 p-5 flex items-center gap-3.5 shadow-sm transition-all hover:border-slate-300 hover:shadow-md hover:-translate-y-[1px] duration-200">
             <div className="rounded-[10px] p-2.5 bg-[#eef4ff] text-[#165dfb] ring-1 ring-[#165dfb]/10 shadow-xs">
               <ClipboardList className="h-4 w-4 text-[#165dfb]" />
             </div>
 
             <div>
-              <p className="text-2xl font-extrabold leading-none text-[#111111] tabular-nums">
+              <p className="text-2xl font-extrabold leading-none text-slate-900 dark:text-slate-100 tabular-nums">
                 {loading ? (
-                  <span className="inline-block h-6 w-10 animate-pulse rounded bg-[#e7e5e4] align-middle" />
+                  <SkeletonBlock className="h-6 w-10 rounded align-middle" />
                 ) : (
                   results.length
                 )}
               </p>
 
-              <p className="mt-1.5 text-[9px] text-[#78716b] font-bold uppercase tracking-wider">
-                Tests Submitted
+              <p className="mt-1.5 text-[9px] text-slate-500 dark:text-slate-400 font-bold uppercase tracking-wider">
+                Assessments Submitted
               </p>
             </div>
           </div>
 
-          <div className="group rounded-[14px] border border-[#d1dee8]/70 bg-white p-5 flex items-center gap-3.5 shadow-sm transition-all hover:border-[#b9cbd9] hover:shadow-md hover:-translate-y-[1px] duration-200">
+          <div className="group rounded-[14px] border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 p-5 flex items-center gap-3.5 shadow-sm transition-all hover:border-slate-300 hover:shadow-md hover:-translate-y-[1px] duration-200">
             <div className="rounded-[10px] p-2.5 bg-[#e2ede8] text-[#1d5237] ring-1 ring-[#1d5237]/10 shadow-xs">
               <CheckCircle2 className="h-4 w-4 text-[#1d5237]" />
             </div>
 
             <div>
-              <p className="text-2xl font-extrabold leading-none text-[#111111] tabular-nums">
+              <p className="text-2xl font-extrabold leading-none text-slate-900 dark:text-slate-100 tabular-nums">
                 {loading ? (
-                  <span className="inline-block h-6 w-10 animate-pulse rounded bg-[#e7e5e4] align-middle" />
+                  <SkeletonBlock className="h-6 w-10 rounded align-middle" />
                 ) : (
                   releasedCount
                 )}
               </p>
 
-              <p className="mt-1.5 text-[9px] text-[#78716b] font-bold uppercase tracking-wider">
-                Released Grades
+              <p className="mt-1.5 text-[9px] text-slate-500 dark:text-slate-400 font-bold uppercase tracking-wider">
+                Results Available
               </p>
             </div>
           </div>
         </motion.section>
 
         <motion.section initial={reduceMotion ? false : { opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.32, delay: 0.18, ease: "easeOut" }} className="space-y-3">
-          <h2 className="flex items-center gap-2 text-xs font-bold text-[#111111] uppercase tracking-wider">
+          <h2 className="flex items-center gap-2 text-xs font-bold text-slate-900 dark:text-slate-100 uppercase tracking-wider">
             <span className="h-3.5 w-1 rounded-full bg-[#165dfb]" />
             Recent Assessments
-            <span className="rounded-full bg-[#eef4ff] px-2.5 py-0.5 text-[10px] font-bold text-[#165dfb]">
-              {results.length}
+            <span className="inline-flex min-h-5 items-center justify-center rounded-full bg-[#eef4ff] px-2.5 py-0.5 text-[10px] font-bold text-[#165dfb] dark:bg-slate-800 dark:text-blue-300">
+              {loading ? <SkeletonBlock className="h-2.5 w-4 rounded" /> : results.length}
             </span>
           </h2>
 
-          <div className="rounded-[14px] bg-white border border-[#d1dee8]/70 overflow-hidden shadow-sm">
+          <div className="rounded-[14px] bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 overflow-hidden shadow-sm">
             <ul className="divide-y divide-[#d1dee8]/50">
               {loading ? (
-                <li className="flex items-center justify-center gap-2 p-8 text-center text-xs font-medium text-[#78716b]">
-                  <span className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-[#d1dee8] border-t-[#165dfb]" />
-                  Loading submissions...
-                </li>
+                <>
+                  <li className="sr-only" role="status">Loading assessment history</li>
+                  {[1, 2, 3].map((row) => (
+                    <li key={row} className="flex items-center gap-4 px-5 py-4" aria-hidden="true">
+                      <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-[10px] bg-[#eef4ff] text-[#165dfb] ring-1 ring-[#165dfb]/10 dark:bg-slate-800 dark:text-blue-300">
+                        {row === 1 ? <ClipboardList className="h-5 w-5" /> : row === 2 ? <CalendarDays className="h-5 w-5" /> : <Clock className="h-5 w-5" />}
+                      </div>
+                      <div className="min-w-0 flex-1 space-y-2">
+                        <SkeletonBlock className={`h-3.5 max-w-full rounded ${row === 2 ? "w-2/5" : "w-3/5"}`} />
+                        <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
+                          <span className="inline-flex items-center gap-1.5"><CalendarDays className="h-3 w-3 text-slate-400" /><SkeletonBlock className="h-2.5 w-14 rounded" /></span>
+                          <span className="inline-flex items-center gap-1.5"><Clock className="h-3 w-3 text-slate-400" /><SkeletonBlock className="h-2.5 w-10 rounded" /></span>
+                        </div>
+                      </div>
+                      <div className="flex shrink-0 items-center gap-2">
+                        <SkeletonBlock className="h-6 w-12 rounded-full" />
+                        <ChevronRight className="h-4 w-4 text-slate-300 dark:text-slate-600" />
+                      </div>
+                    </li>
+                  ))}
+                </>
               ) : fetchError ? (
                 <li className="flex flex-col items-center justify-center gap-3 p-12 text-center">
-                  <div className="flex h-12 w-12 items-center justify-center rounded-[12px] bg-[#f5f5f4] text-[#a8a29d] ring-1 ring-[#d1dee8]/80 shadow-xs">
+                  <div className="flex h-12 w-12 items-center justify-center rounded-[12px] bg-slate-50 text-[#a8a29d] ring-1 ring-[#d1dee8]/80 shadow-xs">
                     <ClipboardList className="h-6 w-6" />
                   </div>
 
                   <div>
-                    <p className="text-sm font-bold text-[#111111]">
+                    <p className="text-sm font-bold text-slate-900 dark:text-slate-100">
                       Unable to load results history
                     </p>
 
-                    <p className="mt-1 text-xs text-[#78716b] font-medium max-w-xs mx-auto leading-relaxed">
+                    <p className="mt-1 text-xs text-slate-500 dark:text-slate-400 font-medium max-w-xs mx-auto leading-relaxed">
                       {fetchError}
                     </p>
                   </div>
                 </li>
               ) : results.length === 0 ? (
                 <li className="flex flex-col items-center justify-center gap-3 p-12 text-center">
-                  <div className="flex h-12 w-12 items-center justify-center rounded-[12px] bg-[#f5f5f4] text-[#a8a29d] ring-1 ring-[#d1dee8]/80 shadow-xs">
+                  <div className="flex h-12 w-12 items-center justify-center rounded-[12px] bg-slate-50 text-[#a8a29d] ring-1 ring-[#d1dee8]/80 shadow-xs">
                     <ClipboardList className="h-6 w-6" />
                   </div>
 
                   <div>
-                    <p className="text-sm font-bold text-[#111111]">
-                      No assessments taken yet
+                    <p className="text-sm font-bold text-slate-900 dark:text-slate-100">
+                      No assessments attempted yet
                     </p>
 
-                    <p className="mt-1 text-xs text-[#78716b] font-medium max-w-xs mx-auto leading-relaxed">
-                      Your recent submitted assessments will appear here. Join
-                      your first assessment using the session code provided by
-                      your instructor.
+                    <p className="mt-1 text-xs text-slate-500 dark:text-slate-400 font-medium max-w-xs mx-auto leading-relaxed">
+                      Your submitted assessments will appear here. To get started, join an assessment using the access code provided by your instructor.
                     </p>
                   </div>
 
@@ -378,17 +408,17 @@ export default function StudentDashboard() {
                           ease: "easeOut",
                         }}
                       >
-                        <div className="group relative flex items-center justify-between gap-4 px-5 py-4 transition-colors hover:bg-[#f8fafc] before:absolute before:inset-y-0 before:left-0 before:w-1 before:rounded-r before:bg-[#165dfb] before:opacity-0 before:transition-opacity hover:before:opacity-100">
+                        <div className="group relative flex items-center justify-between gap-4 px-5 py-4 transition-colors hover:bg-[#f8fafc] dark:hover:bg-slate-800 before:absolute before:inset-y-0 before:left-0 before:w-1 before:rounded-r before:bg-[#165dfb] before:opacity-0 before:transition-opacity hover:before:opacity-100">
                           <Link
                             href={resultHref}
                             aria-label={`View result for ${result.quizTitle}`}
                             className="relative z-10 flex min-w-0 flex-1 flex-col gap-1 rounded-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#165dfb]"
                           >
-                            <span className="truncate text-xs font-bold text-[#111111] transition-colors group-hover:text-[#165dfb]">
+                            <span className="truncate text-xs font-bold text-slate-900 dark:text-slate-100 transition-colors group-hover:text-[#165dfb]">
                               {result.quizTitle}
                             </span>
 
-                            <span className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[10px] font-medium text-[#78716b]">
+                            <span className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[10px] font-medium text-slate-500 dark:text-slate-400">
                               <span className="flex items-center gap-1">
                                 <CalendarDays className="h-3 w-3 text-[#a8a29d]" />
                                 {dateLabel}
@@ -419,7 +449,7 @@ export default function StudentDashboard() {
 
                             <ChevronRight
                               aria-hidden="true"
-                              className="h-4 w-4 text-[#78716b] transition-transform group-hover:translate-x-0.5 group-hover:text-[#165dfb]"
+                              className="h-4 w-4 text-slate-500 dark:text-slate-400 transition-transform group-hover:translate-x-0.5 group-hover:text-[#165dfb]"
                             />
                           </Link>
                         </div>
@@ -432,7 +462,7 @@ export default function StudentDashboard() {
                       <div className="flex items-center justify-between gap-4 px-5 py-4 cursor-not-allowed bg-[#fbfbfa]">
                         <div className="flex min-w-0 flex-col gap-1">
                           <div className="flex items-center gap-1.5">
-                            <span className="truncate text-xs font-bold text-[#78716b]">
+                            <span className="truncate text-xs font-bold text-slate-500 dark:text-slate-400">
                               {result.quizTitle}
                             </span>
 
@@ -474,7 +504,7 @@ export default function StudentDashboard() {
                 type="button"
                 onClick={() => setShowAllResults((current) => !current)}
                 aria-expanded={showAllResults}
-                className="inline-flex items-center justify-center gap-2 rounded-[10px] border border-[#d1dee8]/80 bg-white px-5 py-2.5 text-xs font-bold text-[#111111] transition-all hover:border-[#165dfb]/40 hover:bg-[#f8fafc] active:scale-[0.98]"
+                className="inline-flex items-center justify-center gap-2 rounded-[10px] border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 px-5 py-2.5 text-xs font-bold text-slate-900 dark:text-slate-100 transition-all hover:border-[#165dfb]/40 hover:bg-[#f8fafc] active:scale-[0.98]"
               >
                 {showAllResults ? "Show Recent Results" : "View All Results"}
                 <ChevronRight

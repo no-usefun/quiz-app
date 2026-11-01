@@ -1,5 +1,6 @@
 "use client";
 
+import SkeletonBlock from "@/components/SkeletonBlock";
 import { use, useEffect, useState } from "react";
 import Link from "next/link";
 import {
@@ -11,6 +12,7 @@ import {
   BookOpen,
   BarChart3,
   AlertCircle,
+  Lock,
 } from "lucide-react";
 import { TopNav } from "@/components/TopNav";
 import { ENDPOINTS } from "@/lib/api/endpoints";
@@ -28,20 +30,36 @@ type QuizData = {
   examState?: string;
 };
 
-function normalizeQuiz(raw: any): QuizData | null {
-  if (!raw || typeof raw !== "object") return null;
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function normalizeQuiz(raw: unknown): QuizData | null {
+  if (!isRecord(raw)) return null;
 
   return {
     ...raw,
-    quizId: raw.quizId ?? raw.id,
-    quizCode: raw.quizCode ?? raw.testCode ?? "",
-    title: raw.title ?? raw.quizName ?? raw.quizTitle ?? "Assessment Session",
-    subject: raw.subject ?? raw.subjectName ?? "",
+    quizId:
+      typeof (raw.quizId ?? raw.id) === "string" ||
+      typeof (raw.quizId ?? raw.id) === "number"
+        ? (raw.quizId ?? raw.id) as string | number
+        : undefined,
+    quizCode: String(raw.quizCode ?? raw.testCode ?? ""),
+    title: String(raw.title ?? raw.quizName ?? raw.quizTitle ?? "Assessment Session"),
+    subject: String(raw.subject ?? raw.subjectName ?? ""),
     totalStudents: Number(raw.totalStudents ?? 0),
-    totalQuestions:
-      raw.totalQuestions ??
-      (Array.isArray(raw.questions) ? raw.questions.length : 0),
+    totalQuestions: (() => {
+      const value = raw.totalQuestions;
+      if (typeof value === "number" && Number.isFinite(value)) return value;
+      if (typeof value === "string" && value.trim() !== "") {
+        const parsed = Number(value);
+        if (Number.isFinite(parsed)) return parsed;
+      }
+      return Array.isArray(raw.questions) ? raw.questions.length : 0;
+    })(),
     overallTimerSeconds: Number(raw.overallTimerSeconds ?? 0),
+    status: typeof raw.status === "string" ? raw.status : undefined,
+    examState: typeof raw.examState === "string" ? raw.examState : undefined,
   };
 }
 
@@ -101,13 +119,14 @@ export default function ShareAssessmentPage({
 
         const rosterData = await rosterRes.json();
 
-        const list: any[] = Array.isArray(rosterData)
+        const rawList: unknown[] = Array.isArray(rosterData)
           ? rosterData
-          : Array.isArray(rosterData?.content)
+          : isRecord(rosterData) && Array.isArray(rosterData.content)
             ? rosterData.content
-            : Array.isArray(rosterData?.data)
+            : isRecord(rosterData) && Array.isArray(rosterData.data)
               ? rosterData.data
               : [];
+        const list = rawList.filter(isRecord);
 
         let matched = list.find(
           (q) =>
@@ -152,13 +171,13 @@ export default function ShareAssessmentPage({
 
         setResolvedCode(code);
         setQuizData(normalized);
-      } catch (e: any) {
+      } catch (e: unknown) {
         if (cancelled) return;
 
         console.error("Failed to load quiz for sharing:", e);
         setQuizData(null);
         setError(
-          e?.message ||
+          (e instanceof Error ? e.message : null) ||
             "We couldn't retrieve the assessment details from the server.",
         );
       } finally {
@@ -228,10 +247,26 @@ export default function ShareAssessmentPage({
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-[#f5f5f4] flex flex-col font-sans">
+      <div className="min-h-screen bg-[#f5f5f4] font-sans text-[#111111] dark:bg-slate-950 dark:text-slate-100">
         <TopNav role="teacher" />
-        <main className="flex-1 flex items-center justify-center text-xs font-bold text-[#78716b]">
-          Synchronizing assessment details from server...
+        <main className="mx-auto w-full max-w-4xl space-y-6 p-4 md:p-8" aria-busy="true" aria-label="Loading assessment sharing details">
+          <header className="flex items-center justify-between border-b border-[#d1dee8]/50 pb-4 dark:border-slate-700">
+            <div className="flex items-center gap-3"><Link href="/dashboard/teacher" className="flex h-9 w-9 items-center justify-center rounded-[10px] border border-[#d1dee8]/80 bg-white text-[#78716b] dark:border-slate-700 dark:bg-slate-900 dark:text-slate-300"><ArrowLeft className="h-4 w-4" /></Link><div><span className="text-[10px] font-bold uppercase tracking-widest text-[#78716b] dark:text-slate-400">Assessment Distribution</span><h1 className="mt-1 text-xl font-extrabold">Share Assessment</h1></div></div>
+            <SkeletonBlock className="h-9 w-28 rounded-[10px]" />
+          </header>
+          <section className="space-y-6 rounded-[14px] border border-[#d1dee8]/70 bg-white p-6 shadow-sm dark:border-slate-700 dark:bg-slate-900 md:p-8">
+            <div className="flex flex-col justify-between gap-4 border-b border-[#d1dee8]/30 pb-6 sm:flex-row sm:items-center dark:border-slate-700">
+              <div className="min-w-0 flex-1 space-y-3"><SkeletonBlock className="h-5 w-28 rounded-full" /><SkeletonBlock className="h-7 w-2/3 max-w-full rounded" /><div className="flex flex-wrap gap-4"><span className="flex items-center gap-2"><BookOpen className="h-3.5 w-3.5 text-slate-400" /><SkeletonBlock className="h-3 w-24 rounded" /></span><span className="flex items-center gap-2"><Users className="h-3.5 w-3.5 text-slate-400" /><SkeletonBlock className="h-3 w-24 rounded" /></span><span className="flex items-center gap-2"><Clock className="h-3.5 w-3.5 text-slate-400" /><SkeletonBlock className="h-3 w-20 rounded" /></span></div></div>
+              <span className="inline-flex items-center gap-2 rounded-[10px] bg-[#eef4ff] px-4 py-2.5 text-[#165dfb] dark:bg-slate-800 dark:text-blue-300"><BarChart3 className="h-4 w-4" /><SkeletonBlock className="h-3 w-20 rounded" /></span>
+            </div>
+            <div className="grid gap-6 sm:grid-cols-2">
+              {[
+                { icon: <Lock className="h-5 w-5" />, label: "Session Access Code" },
+                { icon: <Copy className="h-5 w-5" />, label: "Assessment Link" },
+              ].map((item) => <div key={item.label} className="space-y-4 rounded-[12px] border border-[#d1dee8]/70 bg-[#f5f5f4]/50 p-5 dark:border-slate-700 dark:bg-slate-800/50"><div className="flex items-center gap-2 text-[#165dfb] dark:text-blue-300">{item.icon}<span className="text-[10px] font-bold uppercase tracking-wider text-[#78716b] dark:text-slate-400">{item.label}</span></div><SkeletonBlock className="h-12 w-full rounded-[10px]" /><SkeletonBlock className="h-9 w-32 rounded-[10px]" /></div>)}
+            </div>
+          </section>
+          <p className="sr-only" role="status">Loading assessment distribution details</p>
         </main>
       </div>
     );

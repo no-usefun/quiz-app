@@ -1,17 +1,24 @@
 "use client";
 
-import { use, useEffect, useMemo, useState } from "react";
+import { use, useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import {
   ArrowLeft,
   AlertTriangle,
   Clock,
+  ChevronDown,
   Lock,
   Trophy,
   RefreshCw,
+  Search,
+  TrendingUp,
+  Users,
+  Award,
 } from "lucide-react";
 
+import SkeletonBlock from "@/components/SkeletonBlock";
 import { TopNav } from "@/components/TopNav";
+import { useSession } from "@/hooks/useSession";
 import { ApiClientError, api } from "@/lib/api/client";
 import { ENDPOINTS } from "@/lib/api/endpoints";
 import type { LeaderboardEntryResponse } from "@/lib/types";
@@ -39,10 +46,14 @@ export default function StudentLeaderboardPage({
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [leaderboardLocked, setLeaderboardLocked] = useState(false);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [sortBy, setSortBy] = useState<"self" | "rank-asc" | "rank-desc" | "score-desc" | "score-asc" | "time-asc" | "time-desc" | "name-asc" | "name-desc">("self");
 
   const numericQuizId = Number(quizId);
+  const { user } = useSession();
+  const currentStudentId = Number(user?.id ?? user?.userId);
 
-  const load = async (background = false) => {
+  const load = useCallback(async (background = false) => {
     if (!Number.isInteger(numericQuizId) || numericQuizId <= 0) {
       setLeaderboardLocked(false);
       setError("The leaderboard URL contains an invalid quiz ID.");
@@ -101,43 +112,169 @@ export default function StudentLeaderboardPage({
       setLoading(false);
       setRefreshing(false);
     }
-  };
+  }, [numericQuizId]);
 
   useEffect(() => {
+    // This starts an asynchronous API request; its state updates occur as the
+    // request resolves, rather than synchronously deriving state from props.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     void load();
-  }, [quizId]);
+  }, [load]);
 
-  const podium = useMemo(() => entries.slice(0, 3), [entries]);
+  const scoreStats = useMemo(() => {
+    if (entries.length === 0) {
+      return { average: 0, highest: 0, median: 0, completed: 0, distribution: [] as { label: string; min: number; max: number; count: number; color: string }[] };
+    }
+
+    const percentages = entries.map((entry) => Math.min(100, Math.max(0, Number(entry.percentage) || 0)));
+    const average = percentages.reduce((sum, value) => sum + value, 0) / percentages.length;
+    const distribution = [
+      { label: "0–20%", min: 0, max: 20, color: "bg-[#fca5a5]" },
+      { label: "21–40%", min: 20, max: 40, color: "bg-[#fdba74]" },
+      { label: "41–60%", min: 40, max: 60, color: "bg-[#fcd34d]" },
+      { label: "61–80%", min: 60, max: 80, color: "bg-[#86b7ff]" },
+      { label: "81–100%", min: 80, max: 100, color: "bg-[#6ee7b7]" },
+    ].map((band, index) => ({
+      label: band.label,
+      min: band.min,
+      max: band.max,
+      color: band.color,
+      count: percentages.filter((value) =>
+        index === 0
+          ? value >= band.min && value <= band.max
+          : value > band.min && value <= band.max,
+      ).length,
+    }));
+
+    const sortedPercentages = [...percentages].sort((a, b) => a - b);
+    const middle = Math.floor(sortedPercentages.length / 2);
+    const median = sortedPercentages.length % 2 === 0
+      ? (sortedPercentages[middle - 1] + sortedPercentages[middle]) / 2
+      : sortedPercentages[middle];
+
+    return {
+      average,
+      highest: Math.max(...percentages),
+      median,
+      completed: entries.length,
+      distribution,
+    };
+  }, [entries]);
+
+  const currentEntry = useMemo(() => {
+    if (!Number.isFinite(currentStudentId)) return undefined;
+    return entries.find((entry) => Number(entry.studentId) === currentStudentId);
+  }, [entries, currentStudentId]);
+
+  const podium = useMemo(() => {
+    const topRanked = entries.slice(0, 3);
+    if (!currentEntry) return topRanked;
+    return [
+      currentEntry,
+      ...topRanked.filter((entry) => Number(entry.studentId) !== currentStudentId),
+    ].slice(0, 4);
+  }, [entries, currentEntry, currentStudentId]);
+
+  const comparison = useMemo(() => {
+    if (!currentEntry || entries.length === 0) return null;
+    const difference = Number(currentEntry.percentage ?? 0) - scoreStats.average;
+    const status = Math.abs(difference) <= 3
+      ? "Around the cohort average"
+      : difference > 0
+        ? "Above the cohort average"
+        : "Below the cohort average";
+    const message = Math.abs(difference) <= 3
+      ? "Your score is close to the cohort average."
+      : `${Math.abs(difference).toFixed(1)} percentage points ${difference > 0 ? "above" : "below"} the cohort average.`;
+    return { difference, status, message };
+  }, [currentEntry, entries.length, scoreStats.average]);
+
+  const filteredEntries = useMemo(() => {
+    const query = searchQuery.trim().toLowerCase();
+    if (!query) return entries;
+    return entries.filter((entry) =>
+      (entry.studentName || "Student").toLowerCase().includes(query) ||
+      String(entry.rank).includes(query) ||
+      String(entry.percentage).includes(query),
+    );
+  }, [entries, searchQuery]);
+
+  const displayEntries = useMemo(() => {
+    const list = [...filteredEntries];
+    const compareText = (a: string, b: string) => a.localeCompare(b, undefined, { sensitivity: "base" });
+    switch (sortBy) {
+      case "rank-asc": return list.sort((a, b) => a.rank - b.rank);
+      case "rank-desc": return list.sort((a, b) => b.rank - a.rank);
+      case "score-desc": return list.sort((a, b) => Number(b.percentage) - Number(a.percentage) || a.rank - b.rank);
+      case "score-asc": return list.sort((a, b) => Number(a.percentage) - Number(b.percentage) || a.rank - b.rank);
+      case "time-asc": return list.sort((a, b) => a.totalTimeTaken - b.totalTimeTaken || a.rank - b.rank);
+      case "time-desc": return list.sort((a, b) => b.totalTimeTaken - a.totalTimeTaken || a.rank - b.rank);
+      case "name-asc": return list.sort((a, b) => compareText(a.studentName || "Student", b.studentName || "Student"));
+      case "name-desc": return list.sort((a, b) => compareText(b.studentName || "Student", a.studentName || "Student"));
+      case "self":
+      default:
+        return list.sort((a, b) => {
+          const aIsSelf = Number(a.studentId) === currentStudentId;
+          const bIsSelf = Number(b.studentId) === currentStudentId;
+          if (aIsSelf !== bIsSelf) return aIsSelf ? -1 : 1;
+          return a.rank - b.rank;
+        });
+    }
+  }, [filteredEntries, sortBy, currentStudentId]);
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-[#f5f5f4]">
+      <div className="student-leaderboard-page min-h-screen bg-slate-50 dark:bg-slate-950">
         <TopNav role="student" />
-        <main className="flex min-h-[70vh] items-center justify-center p-6 text-sm font-medium text-[#78716b]">
-          Loading leaderboard...
+        <main className="mx-auto min-h-[70vh] max-w-6xl space-y-5 p-3 sm:p-4 md:p-8" aria-busy="true" aria-label="Loading leaderboard">
+          <SkeletonBlock className="h-6 w-56 rounded" />
+          <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+            {[1, 2, 3].map((rank) => (
+              <section key={rank} className="rounded-2xl border border-slate-200 bg-white p-5 dark:border-slate-800 dark:bg-slate-900">
+                <div className="flex items-center justify-between">
+                  <span className="flex h-9 w-9 items-center justify-center rounded-full bg-slate-100 text-xs font-extrabold text-slate-500 dark:bg-slate-800 dark:text-slate-300">#{rank}</span>
+                  <Trophy aria-hidden="true" className="h-4 w-4 text-amber-500/70 dark:text-amber-300/70" />
+                </div>
+                <SkeletonBlock className="mt-5 h-4 w-2/3 rounded" />
+                <SkeletonBlock className="mt-3 h-3 w-1/3 rounded" />
+                <SkeletonBlock className="mt-6 h-7 w-20 rounded-full" />
+              </section>
+            ))}
+          </div>
+          <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white p-4 dark:border-slate-800 dark:bg-slate-900">
+            <SkeletonBlock className="mb-4 h-5 w-36 rounded" />
+            {[1, 2, 3, 4, 5].map((row) => (
+              <div key={row} className="flex items-center gap-4 border-t border-slate-100 py-4 dark:border-slate-800">
+                <SkeletonBlock className="h-4 w-8 rounded" />
+                <div className="flex-1 space-y-2"><SkeletonBlock className="h-3.5 w-3/4 rounded" /><SkeletonBlock className="h-2.5 w-1/2 rounded" /></div>
+                <div className="flex items-center gap-2"><Clock aria-hidden="true" className="h-3.5 w-3.5 text-slate-400" /><SkeletonBlock className="h-4 w-12 rounded" /></div>
+              </div>
+            ))}
+          </section>
+          <p className="sr-only">Loading leaderboard…</p>
         </main>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-[#f5f5f4] font-sans text-[#111111]">
+    <div className="student-leaderboard-page min-h-screen bg-slate-50 font-sans text-slate-900 dark:bg-slate-950 dark:text-slate-100">
       <TopNav role="student" />
 
       <main className="mx-auto max-w-6xl space-y-5 p-4 md:p-8">
-        <div className="flex items-center justify-between gap-3 border-b border-[#d1dee8]/60 pb-4">
-          <div>
+        <div className="flex min-w-0 items-start justify-between gap-3 border-b border-slate-200 pb-4">
+          <div className="min-w-0 flex-1">
             <Link
               href="/dashboard/student"
-              className="mb-2 inline-flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wider text-[#78716b] hover:text-[#165dfb]"
+              className="mb-2 inline-flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wider text-slate-500 hover:text-[#165dfb]"
             >
               <ArrowLeft className="h-3.5 w-3.5" />
               Student Dashboard
             </Link>
-            <h1 className="text-2xl font-extrabold tracking-tight">
+            <h1 className="text-xl font-extrabold tracking-tight sm:text-2xl">
               Assessment Leaderboard
             </h1>
-            <p className="mt-1 text-xs font-medium text-[#78716b]">
+            <p className="mt-1 text-xs font-medium leading-relaxed text-slate-500 dark:text-slate-400">
               Rankings published by the instructor for quiz #{quizId}.
             </p>
           </div>
@@ -146,20 +283,21 @@ export default function StudentLeaderboardPage({
             type="button"
             onClick={() => void load(true)}
             disabled={refreshing}
-            className="inline-flex items-center gap-1.5 rounded-[10px] border border-[#d1dee8]/80 bg-white px-3.5 py-2 text-xs font-bold text-[#111111] shadow-xs transition-all hover:border-[#165dfb] hover:text-[#165dfb] disabled:cursor-not-allowed disabled:opacity-50"
+            aria-label={refreshing ? "Refreshing leaderboard" : "Refresh leaderboard"}
+            className="inline-flex shrink-0 items-center justify-center gap-1.5 whitespace-nowrap rounded-[10px] border border-slate-200 bg-white px-3 py-2 text-xs font-bold leading-none text-slate-900 shadow-xs transition-all hover:border-[#165dfb] hover:text-[#165dfb] disabled:cursor-not-allowed disabled:opacity-50 sm:px-3.5"
           >
-            <RefreshCw className={"h-3.5 w-3.5 " + (refreshing ? "animate-spin" : "")} />
-            Refresh
+            <RefreshCw className="h-3.5 w-3.5 shrink-0" />
+            {refreshing ? <><SkeletonBlock className="h-3 w-12 rounded" /><span className="sr-only">Refreshing leaderboard</span></> : <span className="whitespace-nowrap">Refresh</span>}
           </button>
         </div>
 
         {error && leaderboardLocked ? (
-          <div className="flex items-start gap-3 rounded-[12px] border border-[#d1dee8]/80 bg-white p-4 text-xs font-semibold text-[#78716b] shadow-xs">
-            <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-[#f5f5f4] border border-[#d1dee8]/70 text-[#78716b]">
+          <div className="flex items-start gap-3 rounded-[12px] border border-slate-200 bg-white p-4 text-xs font-semibold text-slate-500 shadow-xs">
+            <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-slate-50 border border-slate-200 text-slate-500">
               <Lock className="h-4 w-4" />
             </div>
             <div className="space-y-1">
-              <p className="font-bold text-[#111111]">Leaderboard Locked</p>
+              <p className="font-bold text-slate-900">Leaderboard Locked</p>
               <p className="font-medium leading-relaxed">{error}</p>
             </div>
           </div>
@@ -170,13 +308,92 @@ export default function StudentLeaderboardPage({
           </div>
         ) : null}
 
+        {currentEntry && comparison && (
+          <section className="rounded-[14px] border border-[#165dfb]/25 bg-[#eef4ff] p-5 shadow-sm dark:border-blue-400/40 dark:bg-blue-950/30">
+            <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+              <div className="min-w-0">
+                <p className="text-[10px] font-bold uppercase tracking-wider text-[#165dfb] dark:text-blue-300">Your performance</p>
+                <h2 className="mt-1 text-lg font-extrabold text-slate-900 dark:text-slate-100">
+                  {comparison.status}
+                </h2>
+                <p className="mt-1 text-xs leading-relaxed text-slate-600 dark:text-slate-300">
+                  Ranked #{currentEntry.rank} of {entries.length} students. {comparison.message}
+                </p>
+              </div>
+              <div className="grid grid-cols-2 gap-3 sm:min-w-56">
+                <div className="rounded-[10px] border border-blue-200/70 bg-white/80 p-3 dark:border-blue-900 dark:bg-slate-900/80">
+                  <p className="text-[10px] font-semibold text-slate-500 dark:text-slate-400">Your score</p>
+                  <p className="mt-1 text-xl font-extrabold text-slate-900 dark:text-slate-100">{formatScore(currentEntry.percentage)}%</p>
+                </div>
+                <div className="rounded-[10px] border border-blue-200/70 bg-white/80 p-3 dark:border-blue-900 dark:bg-slate-900/80">
+                  <p className="text-[10px] font-semibold text-slate-500 dark:text-slate-400">Cohort average</p>
+                  <p className="mt-1 text-xl font-extrabold text-slate-900 dark:text-slate-100">{scoreStats.average.toFixed(1)}%</p>
+                </div>
+              </div>
+            </div>
+          </section>
+        )}
+
+        {entries.length > 0 && (
+          <>
+            <section className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+              {[
+                { label: "Participants", value: scoreStats.completed.toLocaleString(), hint: "Ranked students", icon: Users, tone: "text-[#165dfb]", surface: "bg-[#e8f0ff]" },
+                { label: "Average score", value: `${scoreStats.average.toFixed(1)}%`, hint: "Across participants", icon: TrendingUp, tone: "text-[#1d5237]", surface: "bg-[#e2ede8]" },
+                { label: "Highest score", value: `${scoreStats.highest.toFixed(1)}%`, hint: "Top performance", icon: Award, tone: "text-[#92400e]", surface: "bg-[#fff0d8]" },
+                { label: "Median score", value: `${scoreStats.median.toFixed(1)}%`, hint: "Middle participant score", icon: Trophy, tone: "text-[#6b21a8]", surface: "bg-[#f3e8ff]" },
+              ].map((stat) => (
+                <div key={stat.label} className="rounded-[14px] border border-slate-200 bg-white p-3 shadow-sm transition-colors dark:border-slate-700 dark:bg-slate-900 sm:p-4">
+                  <div className="flex items-start justify-between gap-2">
+                    <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">{stat.label}</span>
+                    <span className={`flex h-8 w-8 items-center justify-center rounded-[10px] ${stat.surface} ${stat.tone}`}>
+                      <stat.icon className="h-4 w-4" />
+                    </span>
+                  </div>
+                  <p className="mt-3 text-xl font-extrabold tracking-tight text-slate-900 dark:text-slate-100 sm:text-2xl">{stat.value}</p>
+                  <p className="mt-1 text-[10px] font-medium text-slate-500 dark:text-slate-400">{stat.hint}</p>
+                </div>
+              ))}
+            </section>
+
+            <section className="rounded-[14px] border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-700 dark:bg-slate-900">
+              <div className="mb-5 flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">
+                <div>
+                  <h2 className="text-sm font-extrabold text-slate-900">Score distribution</h2>
+                  <p className="mt-1 text-xs text-slate-500">How published participant scores are spread across percentage bands.</p>
+                </div>
+                <span className="text-[10px] font-semibold text-slate-500">Based on {scoreStats.completed} ranked students</span>
+              </div>
+              <div className="grid grid-cols-5 items-end gap-2 sm:gap-4">
+                {scoreStats.distribution.map((band, bandIndex) => {
+                  const studentScore = Number(currentEntry?.percentage);
+                  const isStudentBand = Boolean(currentEntry) && (bandIndex === 0
+                    ? studentScore >= band.min && studentScore <= band.max
+                    : studentScore > band.min && studentScore <= band.max);
+                  const maxCount = Math.max(1, ...scoreStats.distribution.map((item) => item.count));
+                  const height = band.count === 0 ? 4 : Math.max(12, (band.count / maxCount) * 112);
+                  return (
+                    <div key={band.label} className="flex min-w-0 flex-col items-center gap-2">
+                      <span className={`text-xs font-bold tabular-nums ${isStudentBand ? "text-[#165dfb] dark:text-blue-300" : "text-[#44403c] dark:text-slate-200"}`}>{band.count}{isStudentBand ? " · You" : ""}</span>
+                      <div className="flex h-28 w-full items-end justify-center rounded-t-[8px] bg-slate-50 dark:bg-slate-800/80">
+                        <div className={`w-full max-w-16 rounded-t-[7px] ${isStudentBand ? "bg-[#165dfb] dark:bg-blue-400" : `${band.color} dark:bg-slate-600`} transition-[height] duration-500 ease-out`} style={{ height: `${height}px` }} />
+                      </div>
+                      <span className={`text-center text-[9px] font-bold sm:text-[10px] ${isStudentBand ? "text-[#165dfb] dark:text-blue-300" : "text-slate-500 dark:text-slate-400"}`}>{band.label}{isStudentBand ? " · You" : ""}</span>
+                    </div>
+                  );
+                })}
+              </div>
+            </section>
+          </>
+        )}
+
         {entries.length === 0 ? (
-          <div className="rounded-[14px] border border-[#d1dee8]/70 bg-white p-10 text-center shadow-sm">
+          <div className="rounded-[14px] border border-slate-200 bg-white p-10 text-center shadow-sm">
             {leaderboardLocked ? (
               <>
                 <Lock className="mx-auto h-9 w-9 text-[#a8a29d]" />
                 <h2 className="mt-3 text-sm font-bold">Rankings Not Released</h2>
-                <p className="mt-1 text-xs font-medium text-[#78716b]">
+                <p className="mt-1 text-xs font-medium text-slate-500">
                   Your instructor has not released the leaderboard for this assessment yet.
                 </p>
               </>
@@ -184,7 +401,7 @@ export default function StudentLeaderboardPage({
               <>
                 <Trophy className="mx-auto h-9 w-9 text-[#a8a29d]" />
                 <h2 className="mt-3 text-sm font-bold">No rankings yet</h2>
-                <p className="mt-1 text-xs font-medium text-[#78716b]">
+                <p className="mt-1 text-xs font-medium text-slate-500">
                   The leaderboard is published, but there are no rankings to display yet.
                 </p>
               </>
@@ -192,29 +409,30 @@ export default function StudentLeaderboardPage({
           </div>
         ) : (
           <>
-            <section className="grid gap-3 md:grid-cols-3">
+            <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
               {podium.map((entry) => (
                 <div
                   key={entry.studentId}
-                  className="rounded-[14px] border border-[#d1dee8]/70 bg-white p-5 shadow-sm"
+                  className={`rounded-[14px] border p-5 shadow-sm ${Number(entry.studentId) === currentStudentId ? "border-[#165dfb] bg-[#eef4ff]/80 ring-1 ring-[#165dfb]/30 dark:border-blue-400 dark:bg-blue-950/40" : "border-slate-200 bg-white dark:border-slate-700 dark:bg-slate-900"}`}
                 >
                   <div className="flex items-center justify-between gap-3">
                     <span className="inline-flex h-8 w-8 items-center justify-center rounded-full bg-[#eef4ff] text-xs font-extrabold text-[#165dfb]">
                       #{entry.rank}
                     </span>
-                    <Trophy className="h-4 w-4 text-[#73561a]" />
+                    {Number(entry.studentId) === currentStudentId && <span className="rounded-full bg-[#165dfb] px-2 py-1 text-[9px] font-extrabold tracking-wide text-white">YOU</span>}
+                    <Trophy className="h-4 w-4 text-[#73561a] dark:text-amber-300" />
                   </div>
                   <p className="mt-4 truncate text-sm font-extrabold">
-                    {entry.studentName || "Student"}
+                    {Number(entry.studentId) === currentStudentId ? "YOU" : entry.studentName || "Student"}
                   </p>
-                  <p className="mt-1 text-xs font-medium text-[#78716b]">
+                  <p className="mt-1 text-xs font-medium text-slate-500">
                     {formatScore(entry.score)} / {formatScore(entry.totalMarks)}
                   </p>
                   <div className="mt-4 flex items-center justify-between">
                     <span className="rounded-full bg-[#e2ede8] px-2.5 py-1 text-[10px] font-bold text-[#1d5237]">
                       {formatScore(entry.percentage)}%
                     </span>
-                    <span className="flex items-center gap-1 text-[10px] font-bold text-[#78716b]">
+                    <span className="flex items-center gap-1 text-[10px] font-bold text-slate-500">
                       <Clock className="h-3 w-3" />
                       {formatTime(entry.totalTimeTaken)}
                     </span>
@@ -223,8 +441,38 @@ export default function StudentLeaderboardPage({
               ))}
             </section>
 
-            <section className="overflow-hidden rounded-[14px] border border-[#d1dee8]/70 bg-white shadow-sm">
-              <div className="grid grid-cols-[4rem_1fr_8rem_8rem] gap-3 border-b border-[#d1dee8]/40 bg-[#fbfbfa] px-5 py-3 text-[10px] font-bold uppercase tracking-wider text-[#78716b]">
+            <section className="overflow-hidden rounded-[14px] border border-slate-200 bg-white shadow-sm">
+              <div className="flex flex-col gap-3 border-b border-[#d1dee8]/50 p-4 sm:flex-row sm:items-center sm:justify-between">
+                <div>
+                  <h2 className="text-sm font-extrabold text-slate-900 dark:text-slate-100">Full rankings</h2>
+                  <p className="mt-1 text-[10px] text-slate-500 dark:text-slate-400">{displayEntries.length} of {entries.length} students</p>
+                </div>
+                <div className="flex w-full flex-col gap-2 sm:max-w-xl sm:flex-row">
+                  <label className="relative block min-w-0 sm:w-52">
+                    <span className="sr-only">Sort leaderboard</span>
+                    <select value={sortBy} onChange={(event) => setSortBy(event.target.value as typeof sortBy)} aria-label="Sort leaderboard" className="h-10 w-full appearance-none rounded-[10px] border border-[#d1dee8] bg-white py-2 pl-3 pr-9 text-xs font-semibold text-slate-700 outline-none transition focus:border-[#165dfb] focus:ring-2 focus:ring-[#165dfb]/10 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100 cursor-pointer">
+                      <option value="self">Your result first (default)</option>
+                      <option value="rank-asc">Rank: ascending</option>
+                      <option value="rank-desc">Rank: descending</option>
+                      <option value="score-desc">Score: high to low</option>
+                      <option value="score-asc">Score: low to high</option>
+                      <option value="time-asc">Time: fastest first</option>
+                      <option value="time-desc">Time: slowest first</option>
+                      <option value="name-asc">Name: A–Z</option>
+                      <option value="name-desc">Name: Z–A</option>
+                    </select>
+                    <ChevronDown aria-hidden="true" className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-500 dark:text-slate-300" />
+                  </label>
+                  <label className="relative block min-w-0 flex-1">
+                    <span className="sr-only">Search students</span>
+                    <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[#a8a29e]" />
+                    <input value={searchQuery} onChange={(event) => setSearchQuery(event.target.value)} placeholder="Search student or rank..." aria-label="Search leaderboard" className="h-10 w-full rounded-[10px] border border-[#d1dee8] bg-[#fbfbfa] pl-9 pr-3 text-xs text-slate-900 outline-none transition placeholder:text-slate-400 focus:border-[#165dfb] focus:ring-2 focus:ring-[#165dfb]/10 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100" />
+                  </label>
+                </div>
+              </div>
+              <div className="overflow-x-auto">
+              <div className="min-w-[620px]">
+              <div className="grid grid-cols-[4rem_1fr_8rem_8rem] gap-3 border-b border-[#d1dee8]/40 bg-[#fbfbfa] px-5 py-3 text-[10px] font-bold uppercase tracking-wider text-slate-500 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300">
                 <span>Rank</span>
                 <span>Student</span>
                 <span className="text-center">Score</span>
@@ -232,30 +480,46 @@ export default function StudentLeaderboardPage({
               </div>
 
               <ul className="divide-y divide-[#d1dee8]/40">
-                {entries.map((entry) => (
+                {displayEntries.map((entry) => (
                   <li
                     key={entry.studentId}
-                    className="grid grid-cols-[4rem_1fr_8rem_8rem] items-center gap-3 px-5 py-3.5 transition-colors hover:bg-[#f8fafc]"
+                    className={`grid grid-cols-[4rem_1fr_8rem_8rem] items-center gap-3 px-5 py-3.5 transition-colors ${Number(entry.studentId) === currentStudentId ? "bg-gradient-to-r from-blue-50 to-indigo-50 ring-2 ring-inset ring-[#165dfb]/60 dark:from-blue-950/70 dark:to-indigo-950/50 dark:ring-blue-400/70" : "hover:bg-[#f8fafc] dark:hover:bg-slate-800/80"}`}
                   >
-                    <span className="font-mono text-xs font-bold text-[#78716b]">
+                    <span className="font-mono text-xs font-bold text-slate-500">
                       #{entry.rank}
                     </span>
-                    <div className="min-w-0">
-                      <p className="truncate text-xs font-bold">{entry.studentName}</p>
-                      <p className="mt-0.5 text-[10px] font-medium text-[#a8a29d]">
-                        {formatScore(entry.percentage)}%
-                      </p>
+                    <div className="flex min-w-0 items-center gap-3">
+                      <span
+                        aria-hidden="true"
+                        className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-full border text-[10px] font-extrabold uppercase tracking-wide transition-colors ${Number(entry.studentId) === currentStudentId ? "border-blue-300 bg-blue-600 text-white ring-2 ring-blue-300/50 dark:border-blue-400 dark:bg-blue-500" : "border-slate-200 bg-slate-100 text-slate-600 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200"}`}
+                      >
+                        {(entry.studentName || "Student").trim().split(/\s+/).slice(0, 2).map((part) => part[0] || "").join("").toUpperCase()}
+                      </span>
+                      <div className="min-w-0">
+                        <p className={`flex flex-wrap items-center gap-2 truncate text-xs font-bold ${Number(entry.studentId) === currentStudentId ? "text-[#165dfb] dark:text-blue-300" : "text-slate-900 dark:text-slate-100"}`}>
+                          {Number(entry.studentId) === currentStudentId ? "You" : entry.studentName || "Student"}
+                          {Number(entry.studentId) === currentStudentId && <span className="inline-flex rounded-full border border-blue-200 bg-blue-50 px-2 py-0.5 text-[8px] font-extrabold tracking-widest text-blue-700 dark:border-blue-800 dark:bg-blue-950 dark:text-blue-200">YOU</span>}
+                        </p>
+                        <p className="mt-0.5 text-[10px] font-medium text-slate-500 dark:text-slate-400">
+                          {formatScore(entry.percentage)}% · Score percentage
+                        </p>
+                      </div>
                     </div>
                     <span className="text-center text-xs font-bold">
                       {formatScore(entry.score)} / {formatScore(entry.totalMarks)}
                     </span>
-                    <span className="flex items-center justify-center gap-1 text-[10px] font-mono font-semibold text-[#78716b]">
+                    <span className="flex items-center justify-center gap-1 text-[10px] font-mono font-semibold text-slate-500">
                       <Clock className="h-3 w-3" />
                       {formatTime(entry.totalTimeTaken)}
                     </span>
                   </li>
                 ))}
               </ul>
+              {filteredEntries.length === 0 && (
+                <p className="px-5 py-10 text-center text-xs font-medium text-slate-500">No students match “{searchQuery}”.</p>
+              )}
+              </div>
+              </div>
             </section>
           </>
         )}

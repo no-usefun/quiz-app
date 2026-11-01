@@ -3,11 +3,8 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useSession } from "@/hooks/useSession";
-import {
-  LogOut,
-  LayoutDashboard,
-  PlusCircle,
-} from "lucide-react";
+import { LayoutDashboard, PlusCircle } from "lucide-react";
+import { ThemeToggle } from "@/components/ThemeToggle";
 import { AppWordmark } from "@/components/Logo";
 import { ProfileDropdown } from "@/components/ProfileDropdown";
 
@@ -16,7 +13,7 @@ interface TopNavbarProps {
 }
 
 export function TopNavbar({ role: propRole }: TopNavbarProps = {}) {
-  const { user, logout } = useSession();
+  const { user } = useSession();
   const pathname = usePathname();
 
   const currentRole = String(propRole || user?.role || "").toUpperCase();
@@ -31,7 +28,7 @@ export function TopNavbar({ role: propRole }: TopNavbarProps = {}) {
   const displayRole = currentRole || "STUDENT";
 
   return (
-    <header className="sticky top-0 z-50 w-full border-b border-[#d1dee8]/70 bg-white/90 shadow-xs backdrop-blur-md">
+    <header className="sticky top-0 z-50 w-full border-b border-[#d1dee8]/70 bg-white/90 shadow-xs backdrop-blur-md dark:border-slate-700/80 dark:bg-slate-950/90">
       {" "}
       <div className="mx-auto flex h-16 max-w-7xl items-center justify-between px-4 sm:px-6 lg:px-8">
         {" "}
@@ -87,27 +84,19 @@ export function TopNavbar({ role: propRole }: TopNavbarProps = {}) {
 
         </nav>
         <div className="flex items-center gap-2 sm:gap-4">
-          <div className="flex items-center gap-2 border-l border-[#d1dee8]/70 pl-2 sm:gap-3 sm:pl-3">
+          <ThemeToggle />
+          <div className="flex items-center gap-2 border-l border-[#d1dee8]/70 pl-2 sm:gap-3 sm:pl-3 dark:border-slate-700">
             <ProfileDropdown dashboardHref={isTeacher ? "/dashboard/teacher" : "/dashboard/student"} />
 
             <div className="hidden text-left sm:block">
-              <p className="text-xs font-bold text-[#111111]">{displayName}</p>
+              <p className="text-xs font-bold text-[#111111] dark:text-slate-100">{displayName}</p>
 
-              <p className="text-[10px] font-bold uppercase tracking-wider text-[#165dfb]">
+              <p className="text-[10px] font-bold uppercase tracking-wider text-[#165dfb] dark:text-blue-300">
                 {displayRole}
               </p>
             </div>
           </div>
 
-          <button
-            type="button"
-            onClick={() => logout()}
-            title="Sign out"
-            className="flex min-h-10 cursor-pointer items-center gap-1.5 rounded-[10px] border border-[#8c381c]/25 bg-white px-2.5 py-2 text-xs font-bold text-[#8c381c] shadow-xs transition-all duration-150 hover:bg-[#fbeee8] hover:shadow-sm active:scale-[0.98] sm:px-3"
-          >
-            <LogOut className="h-3.5 w-3.5" />
-            <span className="hidden sm:inline">Sign Out</span>
-          </button>
         </div>
       </div>
     </header>

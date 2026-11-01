@@ -1,9 +1,10 @@
 "use client";
 
 import { Suspense, useEffect, useState } from "react";
+import SkeletonBlock from "@/components/SkeletonBlock";
 import { useRouter, useSearchParams } from "next/navigation";
-import { ArrowLeft, CheckCircle2, Loader2, ShieldAlert } from "lucide-react";
-import { ApiClientError, api } from "@/lib/api/client";
+import { ArrowLeft, CheckCircle2, ShieldAlert, ShieldCheck } from "lucide-react";
+import { ApiClientError, api, clearApiCache } from "@/lib/api/client";
 import { ENDPOINTS } from "@/lib/api/endpoints";
 
 type BackendRole = "TEACHER" | "STUDENT";
@@ -113,6 +114,7 @@ function persistOAuthSession(token: string, user: OAuthUser, expiresIn: unknown)
     throw new Error("Google authentication returned an invalid account role.");
   }
 
+  clearApiCache();
   localStorage.setItem("dynoquizz_token", cleanToken);
   localStorage.removeItem("token");
   localStorage.setItem("dynoquizz_user", JSON.stringify(user));
@@ -245,9 +247,10 @@ function OAuthCallbackContent() {
           ["expiresIn", "expires_in"],
         );
 
-        // New backend contract: exchange a short-lived, single-use code for
-        // the existing AuthResponse. Direct-token callbacks remain temporarily
-        // supported for compatibility with older deployed backend versions.
+        // The checked Spring Boot success handler currently redirects with
+        // a JWT in the URL fragment. Keep the code-exchange fallback only for
+        // deployments whose backend explicitly implements googleExchange;
+        // the main/feature-backend controller currently exposes no such route.
         if (!sessionToken && code) {
           const exchange = await api.post<{
             token?: string;
@@ -364,11 +367,11 @@ function OAuthCallbackContent() {
   }, [router, searchParams]);
 
   return (
-    <main className="flex min-h-screen items-center justify-center bg-[#f5f5f4] px-4 font-sans text-[#111111]">
-      <section className="w-full max-w-md rounded-[16px] border border-[#d1dee8]/70 bg-white p-7 text-center shadow-sm">
+    <main className="flex min-h-screen items-center justify-center bg-[#f5f5f4] px-4 font-sans text-[#111111] transition-colors dark:bg-slate-950 dark:text-slate-100">
+      <section className="w-full max-w-md rounded-[16px] border border-[#d1dee8]/70 bg-white p-7 text-center shadow-sm dark:border-slate-800 dark:bg-slate-900 dark:shadow-none">
         {status === "processing" && (
           <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-[#e6e3e2] text-[#165dfb]">
-            <Loader2 className="h-6 w-6 animate-spin" />
+            <ShieldCheck className="h-6 w-6" />
           </div>
         )}
 
@@ -384,15 +387,19 @@ function OAuthCallbackContent() {
           </div>
         )}
 
-        <h1 className="mt-4 text-xl font-extrabold">
-          {status === "processing"
-            ? "Signing you in"
-            : status === "success"
-              ? "Signed in"
-              : "Google sign-in failed"}
-        </h1>
-
-        <p className="mt-2 text-sm leading-relaxed text-[#78716b]">{message}</p>
+        {status === "processing" ? (
+          <div className="mt-4 space-y-3" aria-hidden="true">
+            <SkeletonBlock className="mx-auto h-5 w-36 rounded" />
+            <SkeletonBlock className="mx-auto h-3 w-4/5 rounded" />
+            <SkeletonBlock className="mx-auto h-3 w-3/5 rounded" />
+          </div>
+        ) : (
+          <>
+            <h1 className="mt-4 text-xl font-extrabold">{status === "success" ? "Signed in" : "Google sign-in failed"}</h1>
+            <p className="mt-2 text-sm leading-relaxed text-[#78716b] dark:text-slate-300">{message}</p>
+          </>
+        )}
+        {status === "processing" && <p className="sr-only" role="status">Signing you in</p>}
 
         {status === "error" && (
           <div className="mt-5 flex flex-col gap-2">

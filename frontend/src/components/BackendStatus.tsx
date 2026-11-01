@@ -19,8 +19,6 @@ export default function BackendStatus() {
     const startedAt = performance.now();
 
     try {
-      setStatus("checking");
-
       const data = await api.get<HealthResponse>(ENDPOINTS.system.health, {
         skipAuth: true,
         retry: 1,
@@ -44,6 +42,8 @@ export default function BackendStatus() {
   }, []);
 
   useEffect(() => {
+    // Start the health poll; the async request updates status when it resolves.
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- async health-check lifecycle
     checkHealth();
 
     const interval = window.setInterval(checkHealth, isLanExamMode() ? 10_000 : 60_000);
