@@ -463,7 +463,7 @@ export default function StudentResultPage({
             ? readOptionTextSnapshot(attemptId, normalized.quizId)
             : {};
 
-        let displayResult = normalized;
+        const displayResult = normalized;
         let displayDetails = detailList;
         let didRecoverAnswers = false;
         let didRecoverScore = false;
