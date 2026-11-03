@@ -428,6 +428,34 @@ public class StudentAttemptService {
                 }
 
                 if (attempt.getStatus() != AttemptStatus.IN_PROGRESS) {
+                        // The browser intentionally keeps answers locally during an
+                        // assessment. If a server-side deadline/proctoring auto-submit
+                        // wins the race, allow one complete answer-sheet recovery only
+                        // when the finalized server sheet contains no selected answers.
+                        // Never replace an existing non-empty server answer sheet.
+                        if (attempt.getStatus() == AttemptStatus.AUTO_SUBMITTED
+                                        && request.answers() != null
+                                        && !request.answers().isEmpty()
+                                        && canRecoverEmptyAutoSubmittedSheet(attempt)) {
+                                List<Question> quizQuestions = questionRepository
+                                                .findByQuizIdOrderByDisplayOrder(attempt.getQuiz().getId());
+                                Set<Long> expectedQuestionIds = quizQuestions.stream()
+                                                .map(Question::getId)
+                                                .collect(Collectors.toSet());
+                                Set<Long> receivedQuestionIds = request.answers().stream()
+                                                .map(SubmitAnswerRequest::questionId)
+                                                .filter(java.util.Objects::nonNull)
+                                                .collect(Collectors.toSet());
+                                if (receivedQuestionIds.size() == request.answers().size()
+                                                && receivedQuestionIds.equals(expectedQuestionIds)) {
+                                        saveSubmittedAnswers(attempt, request.answers());
+                                        // Reuse the existing authoritative scoring path while
+                                        // preserving AUTO_SUBMITTED and the original reason.
+                                        attempt.setStatus(AttemptStatus.IN_PROGRESS);
+                                        return finalizeAttempt(attempt, AttemptStatus.AUTO_SUBMITTED);
+                                }
+                        }
+
                         // A retry after a lost response must return the committed result,
                         // not turn a successful submission into a generic client failure.
                         if (attempt.getStatus() == AttemptStatus.SUBMITTED
@@ -484,6 +512,20 @@ public class StudentAttemptService {
                 return finalizeAttempt(
                                 attempt,
                                 finalStatus);
+        }
+
+        private boolean canRecoverEmptyAutoSubmittedSheet(QuizAttempt attempt) {
+                if (attempt == null || attempt.getId() == null) {
+                        return false;
+                }
+
+                List<StudentAnswer> savedAnswers = studentAnswerRepository.findByAttemptId(attempt.getId());
+                for (StudentAnswer answer : savedAnswers) {
+                        if (!studentSelectedOptionRepository.findByAnswerId(answer.getId()).isEmpty()) {
+                                return false;
+                        }
+                }
+                return true;
         }
 
         private void saveSubmittedAnswers(

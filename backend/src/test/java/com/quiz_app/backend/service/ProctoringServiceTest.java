@@ -128,8 +128,8 @@ class ProctoringServiceTest {
     }
 
     @Test
-    void testRecordProctoringEvent_AutoSubmitsOnThirdWarning() {
-        testAttempt.setWarningsCount(2);
+    void testRecordProctoringEvent_AutoSubmitsOnFifthWarning() {
+        testAttempt.setWarningsCount(4);
         lenient().when(quizAttemptRepository.findById(100L)).thenReturn(Optional.of(testAttempt));
         lenient().when(quizAttemptRepository.findByIdForUpdate(100L)).thenReturn(Optional.of(testAttempt));
         when(quizAttemptRepository.save(any(QuizAttempt.class))).thenReturn(testAttempt);
@@ -139,7 +139,7 @@ class ProctoringServiceTest {
 
         assertNotNull(response);
         assertTrue(response.recorded());
-        assertEquals(3, response.warningCount());
+        assertEquals(5, response.warningCount());
         assertTrue(response.autoSubmitted());
         verify(studentAttemptService).autoSubmitForProctoring(100L, 10L, "MALPRACTICE_WARNING_LIMIT");
     }
@@ -387,7 +387,7 @@ class ProctoringServiceTest {
         assertEquals("IN_PROGRESS", response.status());
         assertTrue(response.valid());
         assertEquals(0, response.warningCount());
-        assertEquals(3, response.maxWarnings());
+        assertEquals(5, response.maxWarnings());
     }
 
     @Test

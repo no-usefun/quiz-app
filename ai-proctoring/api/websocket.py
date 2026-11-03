@@ -120,6 +120,7 @@ async def proctoring_websocket_endpoint(websocket: WebSocket, session_id: str):
             gaze_res = {"gaze_direction": "CENTER", "yaw": 0.0, "pitch": 0.0, "is_looking_away": False}
             identity_match = False  # Strict: Never default to True
             similarity_score = 0.0  # Strict: Never default to 1.0
+            identity_check_valid = False
             phone_detected = False
 
             # Frame processing
@@ -144,6 +145,7 @@ async def proctoring_websocket_endpoint(websocket: WebSocket, session_id: str):
                         live_emb = face_recognizer.extract_embedding(img, raw_faces[0])
                         if live_emb is not None:
                             identity_match, similarity_score = face_recognizer.match(session.reference_embedding, live_emb)
+                            identity_check_valid = True
                             session_manager.record_verification(session.session_id, identity_match)
                         else:
                             identity_match = False
@@ -185,6 +187,18 @@ async def proctoring_websocket_endpoint(websocket: WebSocket, session_id: str):
                 "numPersons": persons_count,
                 "identityVerified": identity_match,
                 "similarityScore": similarity_score,
+                # Keep WebSocket telemetry aligned with the REST response so the frontend
+                # receives an explicit identity-hold decision on every frame.
+                "identityHold": (
+                    faces_count != 1
+                    or (identity_check_valid and not identity_match)
+                ),
+                "identityHoldReason": (
+                    "NO_FACE" if faces_count == 0
+                    else "MULTIPLE_FACES" if faces_count > 1
+                    else "IDENTITY_MISMATCH" if identity_check_valid and not identity_match
+                    else None
+                ),
                 "gazeDirection": gaze_res["gaze_direction"],
                 "yaw": gaze_res["yaw"],
                 "pitch": gaze_res["pitch"],

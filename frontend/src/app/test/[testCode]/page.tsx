@@ -31,11 +31,9 @@ import { ApiClientError, api, clearApiCache, getAuthToken } from "@/lib/api/clie
 import { ENDPOINTS } from "@/lib/api/endpoints";
 import type {
   AttemptStateResponse,
-  DraftAttemptAnswersResponse,
   ProctoringAccessVerificationResponse,
   QuizPackageResponse,
   QuestionResponse,
-  SubmitAnswerRequest,
   SubmitAttemptResponse,
 } from "@/lib/types";
 
@@ -539,9 +537,6 @@ export default function TestArenaPage({
   const currentQuestionRef = useRef<QuestionResponse | null>(null);
   const expiryHandledRef = useRef(false);
   const submissionInFlightRef = useRef(false);
-  const serverAnswerCheckpointQueueRef = useRef<Promise<void>>(Promise.resolve());
-  const lastServerAnswerCheckpointSignatureRef = useRef<string | null>(null);
-  const serverAnswerCheckpointTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Accept a reference image only when the lobby marked it fresh for this
   // exact server attempt after a Start click. A stale sessionStorage image
@@ -733,20 +728,40 @@ export default function TestArenaPage({
     referenceImage: referencePhoto,
     authToken: getAuthToken() || undefined,
     onAutoSubmit: async () => {
-      // The proctoring backend has already confirmed submission. Never send a
-      // duplicate client-side submission for the same attempt.
-      submissionInFlightRef.current = true;
-      setIsSubmitted(true);
       setDeadlineNotice(
-        "The proctoring backend confirmed that this assessment was automatically submitted.",
+        "The proctoring backend automatically submitted this assessment. Sending the locally saved answer sheet for recovery.",
       );
-      // Server-triggered auto-submission did not receive the local answer sheet.
-      // Retain the draft for recovery rather than deleting the only remaining copy.
-      cleanupAttemptRuntimeState(activeAttemptId, cleanCode, { preservePendingSubmitDraft: true });
-      // Exit fullscreen regardless of navigation availability. SPA redirects do
-      // not automatically release the browser's fullscreen state.
-      await exitFullscreen();
-      if (activeAttemptId) {
+
+      // Flush the latest in-memory answers to localStorage before the network
+      // request. The backend accepts this recovery only when the auto-submitted
+      // attempt has no selected answers saved server-side and this payload is
+      // the complete question set.
+      persistAttemptDraft(
+        activeAttemptId,
+        answersRef.current,
+        timeTakenRef.current,
+        buildAttemptScoringSnapshot(test),
+      );
+
+      let recoverySubmitted = false;
+      if (activeAttemptId && finishAssessmentRef.current) {
+        try {
+          await finishAssessmentRef.current(
+            answersRef.current,
+            timeTakenRef.current,
+            true,
+          );
+          recoverySubmitted = true;
+        } catch {
+          // Keep the draft if the recovery request cannot be confirmed.
+        }
+      }
+
+      if (!recoverySubmitted && activeAttemptId) {
+        cleanupAttemptRuntimeState(activeAttemptId, cleanCode, {
+          preservePendingSubmitDraft: true,
+        });
+        await exitFullscreen();
         router.replace(`/dashboard/student/result/${activeAttemptId}`);
       }
     },
@@ -900,171 +915,6 @@ export default function TestArenaPage({
 
   const lastBackendWarningCountRef = useRef(0);
 
-  const buildServerAnswerCheckpoint = useCallback(
-    (
-      nextAnswers: ActiveAnswerState,
-      nextTimeTaken: Record<number, number>,
-    ): SubmitAnswerRequest[] => {
-      return questions.map((question) => {
-        const questionId = Number(question.questionId);
-        return {
-          questionId,
-          selectedOptionIds: (nextAnswers[questionId] ?? [])
-            .map(Number)
-            .filter((optionId) => Number.isSafeInteger(optionId) && optionId > 0),
-          responseTimeSeconds: Math.max(
-            0,
-            Math.floor(Number(nextTimeTaken[questionId] ?? 0) || 0),
-          ),
-        };
-      });
-    },
-    [questions],
-  );
-
-  const sendServerAnswerCheckpoint = useCallback(
-    async (
-      nextAnswers: ActiveAnswerState = answersRef.current,
-      nextTimeTaken: Record<number, number> = timeTakenRef.current,
-      allowWhileSubmitting = false,
-    ): Promise<boolean> => {
-      if (
-        !activeAttemptId ||
-        !test ||
-        isLoadingTest ||
-        isSubmitted ||
-        (submissionInFlightRef.current && !allowWhileSubmitting)
-      ) {
-        return false;
-      }
-
-      const payloadAnswers = buildServerAnswerCheckpoint(nextAnswers, nextTimeTaken);
-      // Never checkpoint a partial question set: the server persists this entire
-      // sheet, including empty selections that represent unanswered questions.
-      if (
-        payloadAnswers.length === 0 ||
-        payloadAnswers.length !== test.questions.length ||
-        payloadAnswers.some((answer) =>
-          !Number.isSafeInteger(answer.questionId) || answer.questionId <= 0
-        )
-      ) {
-        return false;
-      }
-
-      const signature = JSON.stringify(payloadAnswers);
-      const queuedRequest = serverAnswerCheckpointQueueRef.current.then(async () => {
-        if (signature === lastServerAnswerCheckpointSignatureRef.current) {
-          return true;
-        }
-        if (
-          !activeAttemptId ||
-          !test ||
-          isSubmitted ||
-          (submissionInFlightRef.current && !allowWhileSubmitting)
-        ) {
-          return false;
-        }
-
-        try {
-          await api.put<DraftAttemptAnswersResponse>(
-            ENDPOINTS.student.draftAnswers(activeAttemptId),
-            { answers: payloadAnswers },
-            { signal: AbortSignal.timeout(4000) },
-          );
-          lastServerAnswerCheckpointSignatureRef.current = signature;
-          return true;
-        } catch (checkpointError) {
-          // Keep the local retry draft. The periodic checkpoint or final submit
-          // can retry if this transient request fails.
-          console.warn("[Assessment Draft] Server answer checkpoint failed:", checkpointError);
-          return false;
-        }
-      });
-
-      serverAnswerCheckpointQueueRef.current = queuedRequest.then(
-        () => undefined,
-        () => undefined,
-      );
-      return queuedRequest;
-    },
-    [
-      activeAttemptId,
-      buildServerAnswerCheckpoint,
-      isLoadingTest,
-      isSubmitted,
-      test,
-    ],
-  );
-
-  const flushServerAnswerCheckpoint = useCallback(
-    async (
-      nextAnswers: ActiveAnswerState = answersRef.current,
-      nextTimeTaken: Record<number, number> = timeTakenRef.current,
-      allowWhileSubmitting = false,
-    ) => {
-      if (serverAnswerCheckpointTimerRef.current) {
-        clearTimeout(serverAnswerCheckpointTimerRef.current);
-        serverAnswerCheckpointTimerRef.current = null;
-      }
-      return sendServerAnswerCheckpoint(
-        nextAnswers,
-        nextTimeTaken,
-        allowWhileSubmitting,
-      );
-    },
-    [sendServerAnswerCheckpoint],
-  );
-
-  const scheduleServerAnswerCheckpoint = useCallback(
-    (
-      nextAnswers: ActiveAnswerState,
-      nextTimeTaken: Record<number, number>,
-    ) => {
-      if (!activeAttemptId || isSubmitted || submissionInFlightRef.current) return;
-      if (serverAnswerCheckpointTimerRef.current) {
-        clearTimeout(serverAnswerCheckpointTimerRef.current);
-      }
-      serverAnswerCheckpointTimerRef.current = setTimeout(() => {
-        serverAnswerCheckpointTimerRef.current = null;
-        void sendServerAnswerCheckpoint(nextAnswers, nextTimeTaken);
-      }, 400);
-    },
-    [activeAttemptId, isSubmitted, sendServerAnswerCheckpoint],
-  );
-
-  useEffect(() => {
-    lastServerAnswerCheckpointSignatureRef.current = null;
-  }, [activeAttemptId]);
-
-  useEffect(() => {
-    if (!activeAttemptId || !test || isLoadingTest || isSubmitted) return;
-
-    const checkpointInterval = window.setInterval(() => {
-      void flushServerAnswerCheckpoint(
-        answersRef.current,
-        timeTakenRef.current,
-      );
-    }, 8000);
-    const checkpointOnPageHide = () => {
-      void flushServerAnswerCheckpoint(
-        answersRef.current,
-        timeTakenRef.current,
-      );
-    };
-    window.addEventListener("pagehide", checkpointOnPageHide);
-
-    return () => {
-      window.clearInterval(checkpointInterval);
-      window.removeEventListener("pagehide", checkpointOnPageHide);
-    };
-  }, [
-    activeAttemptId,
-    flushServerAnswerCheckpoint,
-    isLoadingTest,
-    isSubmitted,
-    test,
-  ]);
-
   useEffect(() => {
     if (typeof window === "undefined" || isSubmitted || !activeAttemptId) {
       return;
@@ -1098,10 +948,6 @@ export default function TestArenaPage({
         if (type === "tab_switch" || type === "fullscreen_exit") {
           // Save the latest complete answer sheet before this event can reach the
           // configured violation threshold and make the attempt inactive.
-          await flushServerAnswerCheckpoint(
-            answersRef.current,
-            timeTakenRef.current,
-          );
           // Browser-policy events use the quiz-specific attempt endpoint regardless
           // of the AI camera/identity/audio setting. The backend owns the shared,
           // teacher-configured tab-switch/fullscreen threshold.
@@ -1381,7 +1227,7 @@ export default function TestArenaPage({
       window.removeEventListener("online", handleOnline);
       window.removeEventListener("offline", handleOffline);
     };
-  }, [activeAttemptId, flushServerAnswerCheckpoint, isSubmitted, recordBrowserEvent]);
+  }, [activeAttemptId, isSubmitted, recordBrowserEvent]);
 
   useEffect(() => {
     if (isSubmitted) {
@@ -1785,7 +1631,6 @@ export default function TestArenaPage({
       nextTimeTaken,
       buildAttemptScoringSnapshot(test),
     );
-    scheduleServerAnswerCheckpoint(nextAnswers, nextTimeTaken);
   };
 
   const setCurrentAnswers = (next: ActiveAnswerState) => {
@@ -1907,7 +1752,7 @@ export default function TestArenaPage({
   ) => {
     const attemptId = activeAttemptId;
 
-    if (proctoring.serverAutoSubmitted) {
+    if (proctoring.serverAutoSubmitted && !allowWhileProctoringBlocked) {
       return;
     }
 
@@ -1949,11 +1794,6 @@ export default function TestArenaPage({
     // wait for a separate draft PUT here: it can be slow enough to cross the
     // server deadline (the reported draft request took 4.2 seconds), causing a
     // student-initiated submit to arrive late and be classified as automatic.
-    if (serverAnswerCheckpointTimerRef.current) {
-      clearTimeout(serverAnswerCheckpointTimerRef.current);
-      serverAnswerCheckpointTimerRef.current = null;
-    }
-
     persistAttemptDraft(
       activeAttemptId,
       latestAnswers,
@@ -2107,7 +1947,7 @@ export default function TestArenaPage({
     proctoring.serverAutoSubmitted,
     questions,
     test,
-    flushServerAnswerCheckpoint,
+    
   ]);
 
   // Keep the latest submission callback available to asynchronous AI warning handlers.
