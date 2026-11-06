@@ -9,3 +9,4 @@ venv/
 models/
 yolov8n.pt
 *.log
+.env
