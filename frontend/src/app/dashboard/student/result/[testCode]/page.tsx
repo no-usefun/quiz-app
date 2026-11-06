@@ -463,50 +463,25 @@ export default function StudentResultPage({
             ? readOptionTextSnapshot(attemptId, normalized.quizId)
             : {};
 
-        let displayResult = normalized;
+        const displayResult = normalized;
         let displayDetails = detailList;
         let didRecoverAnswers = false;
         let didRecoverScore = false;
 
         if (shouldRecoverAnswers && pendingDraft) {
-          let scoringCanBeReconstructed = Boolean(
-            pendingDraft.scoring &&
-              detailList.length > 0 &&
-              detailList.every((detail) => (detail.correctOptionIds ?? []).length > 0),
-          );
-          let recoveredScore = 0;
-
+          // Local storage can recover what the browser displayed, but it is not
+          // an authoritative submission record. Never recompute correctness,
+          // per-question marks, or the overall score from client-side data:
+          // doing so can disagree with the persisted attempt and leaderboard.
           displayDetails = detailList.map((detail) => {
             const questionId = Number(detail.questionId);
             const hasLocalAnswer = Object.prototype.hasOwnProperty.call(
               pendingDraft.answers,
               questionId,
             );
-            const selectedOptionIds = hasLocalAnswer
-              ? pendingDraft.answers[questionId]
-              : (detail.selectedOptionIds ?? []).map(Number);
-            const correctOptionIds = (detail.correctOptionIds ?? []).map(Number);
-            const correct = sameOptionSet(selectedOptionIds, correctOptionIds);
-            const scoringQuestion = pendingDraft.scoring?.questions?.[questionId];
+            if (!hasLocalAnswer) return detail;
 
-            let marksAwarded = formatNumber(detail.marksAwarded);
-            if (pendingDraft.scoring && scoringQuestion) {
-              if (correct) {
-                marksAwarded = formatNumber(detail.questionMarks, scoringQuestion.marks);
-              } else if (
-                selectedOptionIds.length > 0 &&
-                pendingDraft.scoring.negativeMarking &&
-                Number(scoringQuestion.negativeMarks ?? 0) > 0
-              ) {
-                marksAwarded = -Number(scoringQuestion.negativeMarks);
-              } else {
-                marksAwarded = 0;
-              }
-              recoveredScore += marksAwarded;
-            } else {
-              scoringCanBeReconstructed = false;
-            }
-
+            const selectedOptionIds = pendingDraft.answers[questionId];
             const recoveredTexts = selectedOptionIds
               .map((optionId) => nextOptionTextByQuestion[questionId]?.[optionId])
               .filter((text): text is string => Boolean(text));
@@ -519,31 +494,24 @@ export default function StudentResultPage({
                   ? recoveredTexts
                   : selectedOptionIds.length === 0
                     ? []
-                    : undefined,
-              answerStatus: (selectedOptionIds.length > 0 ? "ANSWERED" : "UNANSWERED") as ResultDetail["answerStatus"],
-              correct,
-              marksAwarded,
+                    : detail.selectedOptionTexts,
             };
           });
 
-          didRecoverAnswers = displayDetails.some((detail) => detail.selectedOptionIds.length > 0);
-
-          if (
-            didRecoverAnswers &&
-            scoringCanBeReconstructed &&
-            displayDetails.length > 0 &&
-            displayDetails.every((detail) =>
-              Boolean(pendingDraft.scoring?.questions?.[Number(detail.questionId)]),
-            )
-          ) {
-            const totalMarks = formatNumber(normalized.totalMarks);
-            displayResult = {
-              ...normalized,
-              finalScore: recoveredScore,
-              percentage: totalMarks > 0 ? (recoveredScore / totalMarks) * 100 : 0,
-            };
-            didRecoverScore = true;
-          }
+          didRecoverAnswers = displayDetails.some((detail, index) => {
+            const questionId = Number(detail.questionId);
+            return Object.prototype.hasOwnProperty.call(
+              pendingDraft.answers,
+              questionId,
+            ) && (
+              pendingDraft.answers[questionId].length > 0 ||
+              detailList[index]?.selectedOptionIds?.length > 0
+            );
+          });
+          // The score remains exactly what the backend stored and what the
+          // leaderboard uses. A local draft is not enough to amend a finalized
+          // attempt or certify a reconstructed score.
+          didRecoverScore = false;
         }
 
         if (!cancelled) {
@@ -841,10 +809,7 @@ export default function StudentResultPage({
 
           {recoveredFromLocalDraft && (
             <p className="mt-3 rounded-[10px] border border-amber-200 bg-amber-50 px-3 py-2.5 text-[11px] leading-relaxed text-amber-900 dark:border-amber-900 dark:bg-amber-950/40 dark:text-amber-200">
-              The saved answer sheet was recovered from this device after automatic submission.
-              {recoveredScoreAvailable
-                ? " The displayed score is reconstructed from the recovered selections, published answer key, and saved scoring rules. The server-side leaderboard may still show the score it originally stored."
-                : " The answer selections are restored, but this page could not safely reconstruct the score from the available scoring data; the displayed score remains the server-reported score."}
+              Answer selections were recovered from this device after automatic submission. The score, correctness, and marks shown are the server-recorded values used by the leaderboard; locally recovered selections do not change a finalized attempt.
             </p>
           )}
 
