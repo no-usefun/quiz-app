@@ -1,3 +1,4 @@
+import asyncio
 import base64
 import cv2
 import numpy as np
@@ -232,7 +233,7 @@ async def start_proctoring_session(
             detail="INVALID_IMAGE: Could not decode base64 reference image."
         )
 
-    faces_data, raw_faces = face_detector.detect_faces(img)
+    faces_data, raw_faces = await asyncio.to_thread(face_detector.detect_faces, img)
     if not faces_data or len(faces_data) == 0:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
@@ -249,7 +250,7 @@ async def start_proctoring_session(
     # actually ran successfully. The non-strict detector intentionally degrades to zero
     # detections for live frames, but that fallback is unsafe for exam initialization.
     try:
-        reference_person_count, _ = person_detector.detect_persons(img, strict=True)
+        reference_person_count, _ = await asyncio.to_thread(person_detector.detect_persons, img, strict=True)
     except (RuntimeError, ValueError) as exc:
         logger.error("Reference-photo person validation failed: %s", exc)
         raise HTTPException(
@@ -266,7 +267,7 @@ async def start_proctoring_session(
     # Extract 128-d biometric embedding
     ref_embedding = None
     if raw_faces is not None and len(raw_faces) > 0:
-        ref_embedding = face_recognizer.extract_embedding(img, raw_faces[0])
+        ref_embedding = await asyncio.to_thread(face_recognizer.extract_embedding, img, raw_faces[0])
 
     if ref_embedding is None:
         raise HTTPException(
@@ -361,24 +362,24 @@ async def analyze_frame(
         img = decode_base64_image(req.frame)
         if img is not None:
             # Face Detection
-            faces_data, raw_faces = face_detector.detect_faces(img)
+            faces_data, raw_faces = await asyncio.to_thread(face_detector.detect_faces, img)
             faces_count = len(faces_data)
 
             # Person Detection (YOLO)
-            persons_count, _ = person_detector.detect_persons(img)
+            persons_count, _ = await asyncio.to_thread(person_detector.detect_persons, img)
 
             # Gaze / Head Pose Estimation
             if faces_count > 0 and len(faces_data) > 0:
-                gaze_res = gaze_detector.estimate_gaze(faces_data[0].get("landmarks", []), img.shape)
+                gaze_res = await asyncio.to_thread(gaze_detector.estimate_gaze, faces_data[0].get("landmarks", []), img.shape)
 
             # Phone detection
-            phone_detected, _ = phone_detector.detect_phone(img)
+            phone_detected, _ = await asyncio.to_thread(phone_detector.detect_phone, img)
 
             # Biometric Identity matching (Strict real embedding comparison only)
             if faces_count == 1 and session.reference_embedding is not None and raw_faces is not None:
-                live_emb = face_recognizer.extract_embedding(img, raw_faces[0])
+                live_emb = await asyncio.to_thread(face_recognizer.extract_embedding, img, raw_faces[0])
                 if live_emb is not None:
-                    identity_match, similarity_score = face_recognizer.match(session.reference_embedding, live_emb)
+                    identity_match, similarity_score = await asyncio.to_thread(face_recognizer.match, session.reference_embedding, live_emb)
                     identity_check_valid = True
                     session_manager.record_verification(session.session_id, identity_match)
                 else:
@@ -392,7 +393,7 @@ async def analyze_frame(
     # 2. Audio Processing
     audio_res = {"mic_level": 0.0, "is_speech": False, "is_loud": False}
     if req.audio:
-        audio_res = audio_detector.analyze_pcm_samples(req.audio, sample_rate=req.sampleRate)
+        audio_res = await asyncio.to_thread(audio_detector.analyze_pcm_samples, req.audio, sample_rate=req.sampleRate)
 
     # 3. Malpractice Evaluation & Authoritative Spring Boot Dispatch
     eval_res = await malpractice_detector.evaluate_frame(
