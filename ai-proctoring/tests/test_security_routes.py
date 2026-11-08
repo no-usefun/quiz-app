@@ -39,7 +39,7 @@ def test_start_session_valid():
 
     with patch.object(malpractice_detector, "verify_backend_attempt_access", new=AsyncMock(return_value=mock_validation)), \
          patch("api.routes.face_detector.detect_faces", return_value=([{"landmarks": []}], [np.array([50, 50, 100, 100])])), \
-         patch("api.routes.person_detector.detect_persons", return_value=(1, [])), \\
+         patch("api.routes.person_detector.detect_persons", return_value=(1, [])), \
          patch("api.routes.face_recognizer.extract_embedding", return_value=np.ones((1, 128), dtype=np.float32)):
 
         resp = client.post("/proctor/start", json={
@@ -590,7 +590,7 @@ def test_reference_image_discarded_immediately_on_start():
 
     with patch.object(malpractice_detector, "verify_backend_attempt_access", new=AsyncMock(return_value=mock_validation)), \
          patch("api.routes.face_detector.detect_faces", return_value=([{"landmarks": []}], [np.array([50, 50, 100, 100])])), \
-         patch("api.routes.person_detector.detect_persons", return_value=(1, [])), \\
+         patch("api.routes.person_detector.detect_persons", return_value=(1, [])), \
          patch("api.routes.face_recognizer.extract_embedding", return_value=np.ones((1, 128), dtype=np.float32)):
 
         resp = client.post("/proctor/start", json={
