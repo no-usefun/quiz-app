@@ -356,8 +356,14 @@ export default function LiveLeaderboard({
     };
   }, [testCode, refreshKey]);
 
-  // Live-attempt telemetry is deferred by the backend contract.
-  // This route shows the latest persisted leaderboard snapshot only.
+  // Refresh the authoritative attempt/report snapshot periodically so
+  // status changes and teacher re-permission appear without a manual reload.
+  useEffect(() => {
+    const intervalId = window.setInterval(() => {
+      setRefreshKey((value) => value + 1);
+    }, 15000);
+    return () => window.clearInterval(intervalId);
+  }, []);
 
   const sorted = useMemo(
     () =>
@@ -477,7 +483,7 @@ export default function LiveLeaderboard({
         <div className="flex items-center gap-2">
           <ThemeToggle />
           <span className="hidden sm:flex items-center gap-1.5 rounded-full bg-pastel-yellow px-3 py-1 text-xs font-bold text-pastel-yellow-text shadow-xs">
-            PERSISTED SNAPSHOT
+            AUTO-REFRESH · 15 SEC
           </span>
           <button
             type="button"
@@ -518,7 +524,7 @@ export default function LiveLeaderboard({
               <Clock className="h-3.5 w-3.5 text-signal-green" />
               Mode:
               <strong className="text-midnight-navy font-bold">
-                Persisted results
+                15-second refresh
               </strong>
             </span>
           </div>
