@@ -95,6 +95,8 @@ export const ENDPOINTS = {
       `${API_BASE}/api/v1/teacher/proctoring/quizzes/${encodeURIComponent(quizCode)}/report`,
     teacherAttemptReport: (attemptId: number | string) =>
       `${API_BASE}/api/v1/teacher/proctoring/attempts/${attemptId}`,
+    teacherRepermitAttempt: (attemptId: number | string) =>
+      `${API_BASE}/api/v1/teacher/proctoring/attempts/${attemptId}/repermit`,
   },
 
   teacher: {
