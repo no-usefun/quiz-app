@@ -258,6 +258,12 @@ async def start_proctoring_session(
             detail="PERSON_VALIDATION_UNAVAILABLE: Could not reliably validate the reference photo. Please retry when the proctoring service is ready."
         ) from exc
 
+    if reference_person_count == 0:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="NO_PERSON_DETECTED: No complete person was detected in the reference photo. Move into the camera frame, improve lighting, and capture again."
+        )
+
     if reference_person_count > 1:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
