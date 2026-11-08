@@ -641,15 +641,15 @@ export default function LiveLeaderboard({
                   </div>
 
                   <div className="flex items-center justify-center">
-                    <span className="inline-flex items-center justify-center rounded-full px-2.5 py-0.5 text-xs font-bold min-w-[3rem] bg-pastel-mint text-pastel-mint-text shadow-xs">
-                      {student.score}%
+                    <span className={`inline-flex items-center justify-center rounded-full px-2.5 py-0.5 text-xs font-bold min-w-[3rem] ${student.status === "IN_PROGRESS" ? "bg-slate-100 text-slate-500" : "bg-pastel-mint text-pastel-mint-text shadow-xs"}`}>
+                      {student.status === "IN_PROGRESS" ? "—" : `${student.score}%`}
                     </span>
                   </div>
 
                   <div className="flex items-center justify-center">
                     <span className="flex items-center gap-1 rounded-full bg-pastel-lavender px-2.5 py-0.5 text-[10px] font-bold text-pastel-lavender-text shadow-xs">
                       <Clock className="h-3 w-3 text-pastel-lavender-text" />
-                      {student.timeTaken}
+                      {student.status === "IN_PROGRESS" ? "—" : student.timeTaken}
                     </span>
                   </div>
 
