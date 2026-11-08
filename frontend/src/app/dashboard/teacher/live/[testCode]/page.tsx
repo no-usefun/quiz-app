@@ -1,7 +1,7 @@
 "use client";
 
 import SkeletonBlock from "@/components/SkeletonBlock";
-import { use, useEffect, useMemo, useState, useSyncExternalStore } from "react";
+import { use, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import Link from "next/link";
 import { motion } from "framer-motion";
 import {
@@ -158,6 +158,7 @@ export default function LiveLeaderboard({
   const [actionError, setActionError] = useState<string | null>(null);
   const [lastSync, setLastSync] = useState("--:--:--");
   const [refreshKey, setRefreshKey] = useState(0);
+  const refreshInFlightRef = useRef(false);
   const mounted = useSyncExternalStore(
     subscribeToHydration,
     getClientHydrationSnapshot,
@@ -327,8 +328,9 @@ export default function LiveLeaderboard({
     };
 
     const initialize = async () => {
+      if (refreshInFlightRef.current) return;
+      refreshInFlightRef.current = true;
       try {
-        setLoading(true);
         setError(null);
 
         const resolvedQuiz = await fetchQuiz();
@@ -343,6 +345,7 @@ export default function LiveLeaderboard({
             "We couldn't retrieve the assessment leaderboard from the server.",
         );
       } finally {
+        refreshInFlightRef.current = false;
         if (!cancelled) {
           setLoading(false);
         }
@@ -580,8 +583,8 @@ export default function LiveLeaderboard({
           ))}
         </div>
 
-        <div className="rounded-[14px] bg-paper-white border border-[#d1dee8]/70 overflow-hidden shadow-sm text-left">
-          <div className="grid grid-cols-[2rem_minmax(0,1fr)_7rem_6rem_7rem_13rem] items-center gap-3 bg-paper-white px-4 sm:px-6 py-2.5 text-[10px] font-bold uppercase tracking-wider text-steel-blue-gray border-b border-[#d1dee8]/40">
+        <div className="rounded-[14px] bg-paper-white border border-[#d1dee8]/70 overflow-x-auto shadow-sm text-left">
+          <div className="grid grid-cols-[2rem_minmax(0,1fr)_7rem_6rem_7rem_13rem] min-w-[760px] items-center gap-3 bg-paper-white px-4 sm:px-6 py-2.5 text-[10px] font-bold uppercase tracking-wider text-steel-blue-gray border-b border-[#d1dee8]/40">
             <span>#</span>
             <span>Student / Status</span>
             <span className="text-center">Progress</span>
@@ -600,7 +603,7 @@ export default function LiveLeaderboard({
                 <motion.li
                   key={student.id || idx}
                   layout
-                  className="grid grid-cols-[2rem_minmax(0,1fr)_7rem_6rem_7rem_13rem] items-center gap-3 px-4 sm:px-6 py-3 transition-colors hover:bg-frost-surface/30"
+                  className="grid grid-cols-[2rem_minmax(0,1fr)_7rem_6rem_7rem_13rem] min-w-[760px] items-center gap-3 px-4 sm:px-6 py-3 transition-colors hover:bg-frost-surface/30"
                 >
                   <span className="text-xs font-bold font-mono text-steel-blue-gray">
                     {idx + 1}
