@@ -279,17 +279,10 @@ function LobbyInner({ testCode }: { testCode: string }) {
       return;
     }
 
-    // Every Start click for an AI-proctored assessment must capture a new
-    // frame. Never trust the previous preview or a sessionStorage reference.
-    if (aiRequired && !freshPhotoForStartRef.current) {
-      sessionStorage.removeItem("dynoquizz_reference_photo");
-      referencePhotoRef.current = null;
-      setReferencePhoto(null);
-      setStartError("Capturing a fresh reference photo. Keep only yourself in frame.");
-      pendingStartAfterCaptureRef.current = true;
-      setPendingStartAfterCapture(true);
-      setCaptureRequested(false);
-      setCaptureRequested(true);
+    // Use the exact photo the student captured and reviewed in this lobby.
+    // Do not silently discard it or trigger a second camera capture on Start.
+    if (aiRequired && (!freshPhotoForStartRef.current || !referencePhotoRef.current)) {
+      setStartError("Capture your reference photo first. Keep only yourself in frame, then select Take Photo.");
       return;
     }
 
@@ -520,13 +513,11 @@ function LobbyInner({ testCode }: { testCode: string }) {
         return;
       }
 
-      freshPhotoForStartRef.current = false;
+      // Keep the reviewed reference photo when attempt creation or a transient
+      // service check fails. The student should not have to capture it again.
       pendingStartAfterCaptureRef.current = false;
       setPendingStartAfterCapture(false);
       setCaptureRequested(false);
-      sessionStorage.removeItem("dynoquizz_reference_photo");
-      referencePhotoRef.current = null;
-      setReferencePhoto(null);
       setStartError(
         getApiErrorMessage(
           error,
@@ -683,11 +674,11 @@ We couldn’t verify this assessment’s security settings. Please contact your 
               onCapture={(photo) => {
                 referencePhotoRef.current = photo;
                 setReferencePhoto(photo);
-                // Only a capture requested by the Start button is eligible for
-                // this attempt. Manual previews are never trusted as a baseline.
-                if (pendingStartAfterCaptureRef.current) {
-                  freshPhotoForStartRef.current = true;
-                }
+                // The student explicitly captured and reviewed this image.
+                // It is the single reference image used to initialize the attempt.
+                freshPhotoForStartRef.current = true;
+                pendingStartAfterCaptureRef.current = false;
+                setPendingStartAfterCapture(false);
                 sessionStorage.removeItem("dynoquizz_reference_photo");
                 localStorage.removeItem("dynoquizz_reference_photo");
                 setStartError(null);
