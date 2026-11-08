@@ -4,6 +4,7 @@ import secrets
 import hashlib
 import numpy as np
 import logging
+import threading
 from dataclasses import dataclass, field
 from typing import Optional, Dict
 
@@ -45,6 +46,7 @@ class ProctoringSession:
 class SessionManager:
     def __init__(self):
         self.sessions: Dict[str, ProctoringSession] = {}
+        self._sessions_lock = threading.RLock()
 
     def create_session(
         self,
@@ -76,7 +78,8 @@ class SessionManager:
             summary_dispatched=False,
             warning_count=max(0, initial_warning_count)
         )
-        self.sessions[session_id] = session
+        with self._sessions_lock:
+            self.sessions[session_id] = session
         logger.info("Created proctoring session %s for attempt %d (student %s) with initial warnings %d", session_id, attempt_id, student_id, session.warning_count)
         return session
 
@@ -121,7 +124,8 @@ class SessionManager:
         return True, "AUTHORIZED"
 
     def get_session(self, session_id: str) -> Optional[ProctoringSession]:
-        return self.sessions.get(session_id)
+        with self._sessions_lock:
+            return self.sessions.get(session_id)
 
     def record_verification(self, session_id: str, is_match: bool):
         session = self.get_session(session_id)
@@ -149,10 +153,11 @@ class SessionManager:
 
     def cleanup_old_sessions(self, max_age_seconds: int = 14400):
         now = time.time()
-        to_delete = [
-            sid for sid, sess in self.sessions.items()
-            if (now - sess.last_seen_at) > max_age_seconds
-        ]
-        for sid in to_delete:
-            del self.sessions[sid]
+        with self._sessions_lock:
+            to_delete = [
+                sid for sid, sess in self.sessions.items()
+                if (now - sess.last_seen_at) > max_age_seconds
+            ]
+            for sid in to_delete:
+                del self.sessions[sid]
 
