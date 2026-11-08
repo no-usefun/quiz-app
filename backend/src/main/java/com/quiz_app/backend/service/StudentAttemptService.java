@@ -207,9 +207,15 @@ public class StudentAttemptService {
 
                         QuizAttempt attempt = existingAttempt.get();
 
-                        // Resume is explicitly controlled by the quiz setting.
+                        // Resume is explicitly controlled by the quiz setting,
+                        // except when the teacher has explicitly re-permitted this
+                        // auto-submitted attempt. That authorization is persisted as
+                        // an audit event and remains valid for this reopened attempt.
                         if (attempt.getStatus() == AttemptStatus.IN_PROGRESS) {
-                                if (!quiz.isAllowResume()) {
+                                boolean teacherRepermitted = proctoringEventRepository
+                                                .findByAttemptIdAndEventType(attempt.getId(), "TEACHER_REPERMITTED")
+                                                .isPresent();
+                                if (!quiz.isAllowResume() && !teacherRepermitted) {
                                         throw new ConflictException(
                                                         "ATTEMPT_RESUME_NOT_ALLOWED",
                                                         "This assessment does not allow an unfinished attempt to be resumed.");
@@ -309,6 +315,88 @@ public class StudentAttemptService {
          * Finalizes an active attempt after a server-side proctoring policy violation.
          * Unlike deadline-based autoSubmitAttempt, this path does not require the timer to expire.
          */
+        /**
+         * Reopens an auto-submitted attempt after an explicit decision by the
+         * owning teacher. Existing answers are removed, while the original
+         * proctoring evidence and termination reason remain in the audit log.
+         */
+        @Transactional
+        public AttemptResponse rePermitAttempt(Long attemptId, Long teacherId) {
+                if (attemptId == null || teacherId == null) {
+                        throw new BadRequestException("ATTEMPT_AND_TEACHER_REQUIRED",
+                                        "Attempt and authenticated teacher are required");
+                }
+
+                QuizAttempt attempt = quizAttemptRepository.findByIdForUpdate(attemptId)
+                                .orElseThrow(() -> new ResourceNotFoundException("Quiz attempt not found"));
+                Quiz quiz = attempt.getQuiz();
+                if (quiz == null || quiz.getTeacher() == null
+                                || !quiz.getTeacher().getId().equals(teacherId)) {
+                        throw new AccessDeniedApplicationException("UNAUTHORIZED_TEACHER",
+                                        "Only the teacher who owns this assessment can re-permit this student");
+                }
+                if (attempt.getStatus() != AttemptStatus.AUTO_SUBMITTED) {
+                        throw new ConflictException("ATTEMPT_NOT_AUTO_SUBMITTED",
+                                        "Only an auto-submitted attempt can be re-permitted");
+                }
+
+                LocalDateTime now = LocalDateTime.now(clock.withZone(QUIZ_TIMEZONE));
+                if (quiz.getStatus() != QuizStatus.PUBLISHED
+                                || (quiz.getEndTime() != null && !now.isBefore(quiz.getEndTime()))) {
+                        throw new ConflictException("ASSESSMENT_NOT_AVAILABLE",
+                                        "This assessment is no longer open for another attempt");
+                }
+
+                String previousReason = attempt.getTerminationReason() == null
+                                ? "UNKNOWN"
+                                : attempt.getTerminationReason();
+
+                // Clear answer rows and their selected options in FK-safe order.
+                List<StudentAnswer> previousAnswers = studentAnswerRepository.findByAttemptId(attemptId);
+                for (StudentAnswer answer : previousAnswers) {
+                        studentSelectedOptionRepository.deleteByAnswerId(answer.getId());
+                }
+                studentAnswerRepository.deleteAll(previousAnswers);
+                studentAnswerRepository.flush();
+
+                attempt.setStartedAt(now);
+                attempt.setSubmittedAt(null);
+                attempt.setStatus(AttemptStatus.IN_PROGRESS);
+                attempt.setCurrentQuestion(1);
+                attempt.setTotalTimeTaken(0);
+                attempt.setWarningsCount(0);
+                attempt.setRefreshCount(0);
+                attempt.setReconnectCount(0);
+                attempt.setFinalScore(BigDecimal.ZERO);
+                attempt.setTerminationReason(null);
+                quizAttemptRepository.save(attempt);
+
+                QuizAttemptProctoringEvent audit = new QuizAttemptProctoringEvent();
+                audit.setAttempt(attempt);
+                audit.setEventType("TEACHER_REPERMITTED");
+                audit.setOccurredAt(now);
+                audit.setMetadataJson("{\"details\":\"Teacher re-permitted this attempt. Previous auto-submission reason: "
+                                + previousReason + "\",\"severity\":\"INFO\",\"confidence\":1.0,\"teacherId\":"
+                                + teacherId + "}");
+                proctoringEventRepository.save(audit);
+
+                LocalDateTime effectiveDeadline = now.plusSeconds(quiz.getOverallTimerSeconds());
+                if (quiz.getEndTime() != null && quiz.getEndTime().isBefore(effectiveDeadline)) {
+                        effectiveDeadline = quiz.getEndTime();
+                }
+
+                return new AttemptResponse(
+                                attempt.getId(),
+                                quiz.getId(),
+                                attempt.getStudent().getId(),
+                                attempt.getStartedAt(),
+                                null,
+                                attempt.getStatus(),
+                                attempt.getCurrentQuestion(),
+                                attempt.getTotalTimeTaken(),
+                                effectiveDeadline.atZone(QUIZ_TIMEZONE).toOffsetDateTime());
+        }
+
         @Transactional
         public SubmitAttemptResponse autoSubmitForProctoring(
                         Long attemptId, Long studentId, String terminationReason) {
