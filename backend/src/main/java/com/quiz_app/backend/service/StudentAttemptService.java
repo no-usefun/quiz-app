@@ -213,8 +213,7 @@ public class StudentAttemptService {
                         // an audit event and remains valid for this reopened attempt.
                         if (attempt.getStatus() == AttemptStatus.IN_PROGRESS) {
                                 boolean teacherRepermitted = proctoringEventRepository
-                                                .findByAttemptIdAndEventType(attempt.getId(), "TEACHER_REPERMITTED")
-                                                .isPresent();
+                                                .existsByAttemptIdAndEventType(attempt.getId(), "TEACHER_REPERMITTED");
                                 if (!quiz.isAllowResume() && !teacherRepermitted) {
                                         throw new ConflictException(
                                                         "ATTEMPT_RESUME_NOT_ALLOWED",
@@ -342,6 +341,7 @@ public class StudentAttemptService {
 
                 LocalDateTime now = LocalDateTime.now(clock.withZone(QUIZ_TIMEZONE));
                 if (quiz.getStatus() != QuizStatus.PUBLISHED
+                                || (quiz.getStartTime() != null && now.isBefore(quiz.getStartTime()))
                                 || (quiz.getEndTime() != null && !now.isBefore(quiz.getEndTime()))) {
                         throw new ConflictException("ASSESSMENT_NOT_AVAILABLE",
                                         "This assessment is no longer open for another attempt");
