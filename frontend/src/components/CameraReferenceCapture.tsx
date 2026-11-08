@@ -197,6 +197,9 @@ export function CameraReferenceCapture({
 
   const handleRetake = () => {
     setCapturedPhoto(null);
+    // Tell the lobby to invalidate the previous image before a replacement
+    // capture begins, otherwise Start could submit the stale photo.
+    onCaptureErrorRef.current?.("Reference photo cleared. Capture a new photo before starting.");
     void startCamera();
   };
 
