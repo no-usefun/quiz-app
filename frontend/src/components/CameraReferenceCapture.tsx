@@ -243,7 +243,7 @@ export function CameraReferenceCapture({
             <div className="absolute inset-0 bg-emerald-950/20 flex flex-col items-center justify-center gap-1.5 text-white">
               <CheckCircle2 className="h-8 w-8 text-emerald-400 drop-shadow-md" />
               <span className="text-xs font-bold text-white drop-shadow">
-                Reference Photo Captured
+                Photo Captured — validation pending
               </span>
             </div>
           </div>
@@ -296,7 +296,7 @@ export function CameraReferenceCapture({
 
       <div className="flex items-center justify-between pt-1">
         <p className="text-[11px] text-[#78716b] font-medium leading-tight">
-          This reference photo is used by the biometric engine to continuously verify your identity during the assessment.
+          Your photo is checked for exactly one visible person and one face when you start. If validation fails, the assessment stays locked and an error is shown.
         </p>
 
         {capturedPhoto ? (
