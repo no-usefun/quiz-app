@@ -39,10 +39,16 @@ class PhoneDetector:
             return False, []
 
         try:
+            # Phones are often small in webcam frames and dark cases can lower
+            # the COCO confidence score. Use a larger inference size and TTA so
+            # the detector has more detail and scale/flip variants to work with.
             results = self.model.predict(
                 source=image,
                 conf=PHONE_CONFIDENCE_THRESHOLD,
                 classes=[67], # COCO class 67: cell phone
+                imgsz=960,
+                augment=True,
+                max_det=30,
                 verbose=False
             )
             detections = []
