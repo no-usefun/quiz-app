@@ -2,6 +2,7 @@ import os
 import cv2
 import numpy as np
 import logging
+import threading
 from config import PERSON_CONFIDENCE_THRESHOLD, YOLO_MODEL_PATH
 
 logger = logging.getLogger("ai-proctoring.person_detector")
@@ -9,6 +10,7 @@ logger = logging.getLogger("ai-proctoring.person_detector")
 class PersonDetector:
     def __init__(self, model_name: str = "yolov8n.pt"):
         self.model = None
+        self._inference_lock = threading.Lock()
         self._init_model(model_name)
 
     def _init_model(self, model_name: str):
@@ -22,6 +24,12 @@ class PersonDetector:
             self.model = None
 
     def detect_persons(self, image: np.ndarray, *, strict: bool = False) -> tuple[int, list[dict]]:
+        # Ultralytics model instances are shared across student sessions and are not
+        # assumed to be safe for concurrent predict() calls.
+        with self._inference_lock:
+            return self._detect_persons_locked(image, strict=strict)
+
+    def _detect_persons_locked(self, image: np.ndarray, *, strict: bool = False) -> tuple[int, list[dict]]:
         """
         Detects human persons in frame.
         Returns:

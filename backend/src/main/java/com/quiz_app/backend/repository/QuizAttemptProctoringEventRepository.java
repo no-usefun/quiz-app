@@ -20,5 +20,7 @@ public interface QuizAttemptProctoringEventRepository extends JpaRepository<Quiz
 
     java.util.Optional<QuizAttemptProctoringEvent> findByAttemptIdAndEventType(Long attemptId, String eventType);
 
+    boolean existsByAttemptIdAndEventType(Long attemptId, String eventType);
+
     java.util.Optional<QuizAttemptProctoringEvent> findByAttemptIdAndClientEventId(Long attemptId, String clientEventId);
 }

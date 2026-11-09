@@ -36,6 +36,9 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      - name: Frontend unit and integration tests
+        run: npm test
+
       - name: TypeScript check
         run: npx tsc --noEmit
 
