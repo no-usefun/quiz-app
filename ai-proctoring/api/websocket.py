@@ -145,7 +145,7 @@ async def proctoring_websocket_endpoint(websocket: WebSocket, session_id: str):
                     if faces_count == 1 and session.reference_embedding is not None and raw_faces is not None:
                         live_emb = await asyncio.to_thread(face_recognizer.extract_embedding, img, raw_faces[0])
                         if live_emb is not None:
-                            identity_match, similarity_score = await asyncio.to_thread(face_recognizer.match, session.reference_embedding, live_emb)
+                            identity_match, similarity_score = face_recognizer.match(session.reference_embedding, live_emb)
                             identity_check_valid = True
                             session_manager.record_verification(session.session_id, identity_match)
                         else:
