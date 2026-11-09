@@ -1,4 +1,4 @@
-name: CI - Test Before Merge
+name: CI - Three Service Validation
 
 on:
   pull_request:
@@ -16,9 +16,9 @@ concurrency:
 
 jobs:
   backend-tests:
-    name: Backend Tests
+    name: Backend - Tests
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 25
     services:
       postgres:
         image: postgres:16
@@ -63,10 +63,10 @@ jobs:
       - name: Run backend tests
         run: bash ./mvnw --batch-mode --no-transfer-progress clean verify
 
-  frontend-typecheck-build:
-    name: Frontend TypeScript and Production Build
+  frontend-checks:
+    name: Frontend - Typecheck, Lint and Build
     runs-on: ubuntu-latest
-    timeout-minutes: 25
+    timeout-minutes: 30
     defaults:
       run:
         working-directory: frontend
@@ -85,34 +85,15 @@ jobs:
         run: npm test
       - name: TypeScript check
         run: npx tsc --noEmit
+      - name: ESLint
+        run: npm run lint
       - name: Production build
         run: npm run build
 
-  frontend-lint:
-    name: Frontend ESLint
-    runs-on: ubuntu-latest
-    timeout-minutes: 20
-    defaults:
-      run:
-        working-directory: frontend
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v5
-      - name: Set up Node.js
-        uses: actions/setup-node@v5
-        with:
-          node-version: "22"
-          cache: npm
-          cache-dependency-path: frontend/package-lock.json
-      - name: Install dependencies
-        run: npm ci
-      - name: Lint frontend
-        run: npm run lint
-
   ai-proctoring-tests:
-    name: AI Proctoring Tests
+    name: AI Proctoring - Tests
     runs-on: ubuntu-latest
-    timeout-minutes: 25
+    timeout-minutes: 30
     defaults:
       run:
         working-directory: ai-proctoring
@@ -126,19 +107,62 @@ jobs:
           cache: pip
           cache-dependency-path: ai-proctoring/requirements.txt
       - name: Install AI service dependencies
-        run: python -m pip install --upgrade pip && pip install -r requirements.txt
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
       - name: Run AI service tests
         run: python -m pytest -q
 
-  docker-build:
-    name: Docker Image Build
+  backend-docker:
+    name: Backend - Docker Image
     runs-on: ubuntu-latest
-    timeout-minutes: 20
-    needs: [backend-tests, ai-proctoring-tests]
+    timeout-minutes: 25
+    needs: backend-tests
     steps:
       - name: Checkout repository
         uses: actions/checkout@v5
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
       - name: Build backend image
-        run: docker build -t quiz-backend:ci ./backend
+        uses: docker/build-push-action@v6
+        with:
+          context: ./backend
+          file: ./backend/Dockerfile
+          push: false
+          tags: quiz-backend:ci
+
+  frontend-docker:
+    name: Frontend - Docker Image
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    needs: frontend-checks
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v5
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+      - name: Build frontend image
+        uses: docker/build-push-action@v6
+        with:
+          context: ./frontend
+          file: ./frontend/Dockerfile
+          push: false
+          tags: quiz-frontend:ci
+
+  ai-proctoring-docker:
+    name: AI Proctoring - Docker Image
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    needs: ai-proctoring-tests
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v5
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
       - name: Build AI proctoring image
-        run: docker build -t quiz-ai-proctoring:ci ./ai-proctoring
+        uses: docker/build-push-action@v6
+        with:
+          context: ./ai-proctoring
+          file: ./ai-proctoring/Dockerfile
+          push: false
+          tags: quiz-ai-proctoring:ci
