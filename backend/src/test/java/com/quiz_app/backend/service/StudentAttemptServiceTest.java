@@ -240,6 +240,54 @@ class StudentAttemptServiceTest {
         }
 
         @Test
+        void rePermitAttempt_shouldClearAnswersResetAttemptAndRetainAuditEvidence() {
+                teacher = new User();
+                setUserId(teacher, 2L);
+                quiz.setTeacher(teacher);
+                attempt.setStatus(AttemptStatus.AUTO_SUBMITTED);
+                attempt.setTerminationReason("MALPRACTICE_WARNING_LIMIT");
+                attempt.setSubmittedAt(startedAt.plusMinutes(5));
+                attempt.setWarningsCount(5);
+
+                StudentAnswer savedAnswer = new StudentAnswer();
+                setStudentAnswerId(savedAnswer, 700L);
+                savedAnswer.setAttempt(attempt);
+                when(quizAttemptRepository.findByIdForUpdate(1000L)).thenReturn(Optional.of(attempt));
+                when(studentAnswerRepository.findByAttemptId(1000L)).thenReturn(List.of(savedAnswer));
+
+                AttemptResponse response = attemptService.rePermitAttempt(1000L, 2L);
+
+                assertEquals(AttemptStatus.IN_PROGRESS, response.status());
+                assertNull(response.submittedAt());
+                assertEquals(1, response.currentQuestion());
+                assertEquals(0, attempt.getWarningsCount());
+                assertNull(attempt.getTerminationReason());
+                verify(studentSelectedOptionRepository).deleteByAnswerId(700L);
+                verify(studentAnswerRepository).deleteAll(List.of(savedAnswer));
+                verify(studentAnswerRepository).flush();
+                ArgumentCaptor<QuizAttemptProctoringEvent> auditCaptor =
+                                ArgumentCaptor.forClass(QuizAttemptProctoringEvent.class);
+                verify(proctoringEventRepository).save(auditCaptor.capture());
+                assertEquals("TEACHER_REPERMITTED", auditCaptor.getValue().getEventType());
+                assertTrue(auditCaptor.getValue().getMetadataJson().contains("MALPRACTICE_WARNING_LIMIT"));
+        }
+
+        @Test
+        void rePermitAttempt_shouldRejectAttemptOwnedByAnotherTeacher() {
+                teacher = new User();
+                setUserId(teacher, 2L);
+                User anotherTeacher = new User();
+                setUserId(anotherTeacher, 3L);
+                quiz.setTeacher(anotherTeacher);
+                attempt.setStatus(AttemptStatus.AUTO_SUBMITTED);
+                when(quizAttemptRepository.findByIdForUpdate(1000L)).thenReturn(Optional.of(attempt));
+
+                assertThrows(AccessDeniedApplicationException.class,
+                                () -> attemptService.rePermitAttempt(1000L, 2L));
+                verifyNoInteractions(studentAnswerRepository, studentSelectedOptionRepository);
+        }
+
+        @Test
         void saveDraftAnswers_shouldPersistSnapshotWithoutFinalizingAttempt() {
                 when(quizAttemptRepository.findByIdForUpdate(1000L)).thenReturn(Optional.of(attempt));
                 when(questionRepository.findByQuizIdOrderByDisplayOrder(10L))

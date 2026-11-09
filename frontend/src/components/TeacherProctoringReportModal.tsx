@@ -218,9 +218,9 @@ export function TeacherProctoringReportModal({
                     </span>
                   </div>
                   <span className="text-[10px] font-semibold text-[#78716b]">
-                    {report.terminationReason === "MALPRACTICE_WARNING_LIMIT"
-                      ? "Terminated: malpractice warning limit"
-                      : "Review recorded warnings and detections"}
+                    {report.terminationReason
+                      ? `Auto-submission reason: ${report.terminationReason.replaceAll("_", " ").toLowerCase()}`
+                      : "Review recorded warnings and detections; see the event log for prior re-permission history"}
                   </span>
                 </div>
 

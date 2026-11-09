@@ -2,6 +2,7 @@ import os
 import cv2
 import numpy as np
 import logging
+import threading
 from config import SFACE_MODEL_PATH, BIOMETRIC_COSINE_SIMILARITY_THRESHOLD, ensure_models_exist
 
 logger = logging.getLogger("ai-proctoring.face_recognition")
@@ -11,6 +12,7 @@ class BiometricFaceRecognizer:
         ensure_models_exist()
         self.model_path = model_path
         self.recognizer = None
+        self._inference_lock = threading.Lock()
         self._init_recognizer()
 
     def _init_recognizer(self):
@@ -31,6 +33,11 @@ class BiometricFaceRecognizer:
             self.recognizer = None
 
     def extract_embedding(self, image: np.ndarray, raw_face: np.ndarray) -> np.ndarray:
+        # OpenCV FaceRecognizerSF wraps mutable native inference state.
+        with self._inference_lock:
+            return self._extract_embedding_locked(image, raw_face)
+
+    def _extract_embedding_locked(self, image: np.ndarray, raw_face: np.ndarray) -> np.ndarray:
         """
         Aligns the face using YuNet landmarks and extracts a 128-d L2 normalized biometric embedding.
         """
@@ -46,6 +53,10 @@ class BiometricFaceRecognizer:
             return None
 
     def match(self, ref_embedding: np.ndarray, query_embedding: np.ndarray) -> tuple[bool, float]:
+        with self._inference_lock:
+            return self._match_locked(ref_embedding, query_embedding)
+
+    def _match_locked(self, ref_embedding: np.ndarray, query_embedding: np.ndarray) -> tuple[bool, float]:
         """
         Computes cosine similarity between two 128-d biometric embeddings.
         Returns:

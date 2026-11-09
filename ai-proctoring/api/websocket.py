@@ -1,3 +1,4 @@
+import asyncio
 import json
 import logging
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect
@@ -127,22 +128,22 @@ async def proctoring_websocket_endpoint(websocket: WebSocket, session_id: str):
             if frame_b64:
                 img = decode_base64_image(frame_b64)
                 if img is not None:
-                    faces_data, raw_faces = face_detector.detect_faces(img)
+                    faces_data, raw_faces = await asyncio.to_thread(face_detector.detect_faces, img)
                     faces_count = len(faces_data)
 
                     # Person detection (YOLO)
-                    persons_count, _ = person_detector.detect_persons(img)
+                    persons_count, _ = await asyncio.to_thread(person_detector.detect_persons, img)
 
                     # Gaze / Head Pose estimation
                     if faces_count > 0 and len(faces_data) > 0:
-                        gaze_res = gaze_detector.estimate_gaze(faces_data[0].get("landmarks", []), img.shape)
+                        gaze_res = await asyncio.to_thread(gaze_detector.estimate_gaze, faces_data[0].get("landmarks", []), img.shape)
 
                     # Phone detection
-                    phone_detected, _ = phone_detector.detect_phone(img)
+                    phone_detected, _ = await asyncio.to_thread(phone_detector.detect_phone, img)
 
                     # Biometric Identity matching
                     if faces_count == 1 and session.reference_embedding is not None and raw_faces is not None:
-                        live_emb = face_recognizer.extract_embedding(img, raw_faces[0])
+                        live_emb = await asyncio.to_thread(face_recognizer.extract_embedding, img, raw_faces[0])
                         if live_emb is not None:
                             identity_match, similarity_score = face_recognizer.match(session.reference_embedding, live_emb)
                             identity_check_valid = True
@@ -157,7 +158,7 @@ async def proctoring_websocket_endpoint(websocket: WebSocket, session_id: str):
             # Audio processing
             audio_res = {"mic_level": 0.0, "is_speech": False, "is_loud": False}
             if audio_samples:
-                audio_res = audio_detector.analyze_pcm_samples(audio_samples, sample_rate=msg.get("sampleRate"))
+                audio_res = await asyncio.to_thread(audio_detector.analyze_pcm_samples, audio_samples, sample_rate=msg.get("sampleRate"))
 
             # Malpractice Evaluation & Authoritative Spring Boot Dispatch
             eval_res = await malpractice_detector.evaluate_frame(

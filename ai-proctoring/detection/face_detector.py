@@ -2,6 +2,7 @@ import os
 import cv2
 import numpy as np
 import logging
+import threading
 from config import YUNET_MODEL_PATH, FACE_CONFIDENCE_THRESHOLD, FACE_NMS_THRESHOLD, ensure_models_exist
 
 logger = logging.getLogger("ai-proctoring.face_detector")
@@ -11,6 +12,7 @@ class FaceDetector:
         ensure_models_exist()
         self.model_path = model_path
         self.detector = None
+        self._inference_lock = threading.Lock()
         self._init_detector()
 
     def _init_detector(self):
@@ -35,6 +37,12 @@ class FaceDetector:
             self.detector = None
 
     def detect_faces(self, image: np.ndarray):
+        # YuNet's setInputSize mutates shared detector state. Serialize the complete
+        # setInputSize/detect pair while callers run inference outside the event loop.
+        with self._inference_lock:
+            return self._detect_faces_locked(image)
+
+    def _detect_faces_locked(self, image: np.ndarray):
         """
         Detects faces in BGR image using YuNet.
         Returns:

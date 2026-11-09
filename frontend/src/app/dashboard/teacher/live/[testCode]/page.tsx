@@ -1,7 +1,7 @@
 "use client";
 
 import SkeletonBlock from "@/components/SkeletonBlock";
-import { use, useEffect, useMemo, useState, useSyncExternalStore } from "react";
+import { use, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import Link from "next/link";
 import { motion } from "framer-motion";
 import {
@@ -13,10 +13,13 @@ import {
   AlertTriangle,
   TrendingUp,
   RefreshCw,
+  Eye,
+  RotateCcw,
 } from "lucide-react";
 import { Logo } from "@/components/Logo";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { ENDPOINTS } from "@/lib/api/endpoints";
+import { TeacherProctoringReportModal } from "@/components/TeacherProctoringReportModal";
 
 const subscribeToHydration = () => () => {};
 const getClientHydrationSnapshot = () => true;
@@ -43,6 +46,10 @@ type LeaderboardEntry = {
   totalMarks?: number | string;
   percentage?: number | string;
   totalTimeTaken?: number | null;
+  attemptId?: number;
+  status?: string;
+  terminationReason?: string | null;
+  warningCount?: number;
 };
 
 type StudentRow = {
@@ -53,6 +60,10 @@ type StudentRow = {
   total: number;
   score: number;
   timeTaken: string;
+  attemptId: number;
+  status: "IN_PROGRESS" | "SUBMITTED" | "AUTO_SUBMITTED";
+  terminationReason: string | null;
+  warningCount: number;
 };
 
 function nowTime(): string {
@@ -126,6 +137,10 @@ function mapLeaderboardEntry(
     total,
     score: percentage,
     timeTaken: formatTimeTaken(entry.totalTimeTaken),
+    attemptId: Number(entry.attemptId ?? 0),
+    status: entry.status === "AUTO_SUBMITTED" || entry.status === "SUBMITTED" ? entry.status : "IN_PROGRESS",
+    terminationReason: entry.terminationReason ?? null,
+    warningCount: Number(entry.warningCount ?? 0),
   };
 }
 
@@ -138,8 +153,12 @@ export default function LiveLeaderboard({
 
   const [quiz, setQuiz] = useState<QuizSummary | null>(null);
   const [students, setStudents] = useState<StudentRow[]>([]);
+  const [selectedAttemptId, setSelectedAttemptId] = useState<number | null>(null);
+  const [repermitLoadingId, setRepermitLoadingId] = useState<number | null>(null);
+  const [actionError, setActionError] = useState<string | null>(null);
   const [lastSync, setLastSync] = useState("--:--:--");
   const [refreshKey, setRefreshKey] = useState(0);
+  const refreshInFlightRef = useRef(false);
   const mounted = useSyncExternalStore(
     subscribeToHydration,
     getClientHydrationSnapshot,
@@ -267,20 +286,51 @@ export default function LiveLeaderboard({
           ? data.content
           : [];
 
+      // The proctoring overview includes every attempt (including active and
+      // auto-submitted attempts); the leaderboard supplies scores for closed ones.
+      const reportRes = await fetch(ENDPOINTS.proctoring.teacherQuizReport(String(testCode)), {
+        method: "GET",
+        headers,
+        cache: "no-store",
+      });
+      if (!reportRes.ok) {
+        const body = await reportRes.json().catch(() => ({}));
+        throw new Error(body?.message || body?.error || `Unable to load proctoring reports (${reportRes.status}).`);
+      }
+      const reportPayload = await reportRes.json();
+      const reportRoot = isRecord(reportPayload) && isRecord(reportPayload.data) ? reportPayload.data : reportPayload;
+      const reports: Record<string, unknown>[] = isRecord(reportRoot) && Array.isArray(reportRoot.studentReports)
+        ? reportRoot.studentReports.filter(isRecord)
+        : [];
+      const scoreByAttempt = new Map(entries.map((entry) => [Number(entry.attemptId), entry]));
+
       if (cancelled) return;
 
-      setStudents(
-        entries.map((entry, index) =>
-          mapLeaderboardEntry(entry, totalQuestions, index),
-        ),
-      );
+      setStudents(reports.map((report, index) => {
+        const attemptId = Number(report.attemptId ?? 0);
+        const scoreEntry = scoreByAttempt.get(attemptId);
+        const name = String(report.studentName ?? scoreEntry?.studentName ?? "Candidate").trim();
+        const mapped = mapLeaderboardEntry({
+          ...scoreEntry,
+          studentId: report.studentId as number | string | undefined,
+          studentName: name,
+          attemptId,
+          status: String(report.status ?? "IN_PROGRESS"),
+          terminationReason: typeof report.terminationReason === "string" ? report.terminationReason : null,
+          warningCount: Number(report.warningCount ?? 0),
+          percentage: scoreEntry?.percentage ?? 0,
+          totalTimeTaken: scoreEntry?.totalTimeTaken ?? 0,
+        }, totalQuestions, index);
+        return { ...mapped, id: attemptId || mapped.id };
+      }));
       setLastSync(nowTime());
       setError(null);
     };
 
     const initialize = async () => {
+      if (refreshInFlightRef.current) return;
+      refreshInFlightRef.current = true;
       try {
-        setLoading(true);
         setError(null);
 
         const resolvedQuiz = await fetchQuiz();
@@ -295,6 +345,7 @@ export default function LiveLeaderboard({
             "We couldn't retrieve the assessment leaderboard from the server.",
         );
       } finally {
+        refreshInFlightRef.current = false;
         if (!cancelled) {
           setLoading(false);
         }
@@ -308,8 +359,14 @@ export default function LiveLeaderboard({
     };
   }, [testCode, refreshKey]);
 
-  // Live-attempt telemetry is deferred by the backend contract.
-  // This route shows the latest persisted leaderboard snapshot only.
+  // Refresh the authoritative attempt/report snapshot periodically so
+  // status changes and teacher re-permission appear without a manual reload.
+  useEffect(() => {
+    const intervalId = window.setInterval(() => {
+      setRefreshKey((value) => value + 1);
+    }, 15000);
+    return () => window.clearInterval(intervalId);
+  }, []);
 
   const sorted = useMemo(
     () =>
@@ -320,14 +377,43 @@ export default function LiveLeaderboard({
     [students],
   );
 
-  const submittedCount = students.length;
+  const submittedCount = students.filter((student) => student.status !== "IN_PROGRESS").length;
+  const scoredStudents = students.filter((student) => student.status !== "IN_PROGRESS");
   const avgScore =
-    students.length > 0
-      ? Math.round(
-          students.reduce((acc, student) => acc + student.score, 0) /
-            students.length,
-        )
+    scoredStudents.length > 0
+      ? Math.round(scoredStudents.reduce((acc, student) => acc + student.score, 0) / scoredStudents.length)
       : 0;
+
+  const handleRepermit = async (student: StudentRow) => {
+    if (student.status !== "AUTO_SUBMITTED" || !student.attemptId) return;
+    const reason = student.terminationReason || "Unknown reason";
+    if (!window.confirm(`Re-permit ${student.name} to attempt this assessment again? Their previous answers will be cleared, but the proctoring audit will be retained. Previous termination: ${reason}`)) return;
+
+    const token = localStorage.getItem("dynoquizz_token");
+    if (!token) {
+      setActionError("Your teacher session has expired. Please sign in again.");
+      return;
+    }
+
+    setRepermitLoadingId(student.attemptId);
+    setActionError(null);
+    try {
+      const response = await fetch(ENDPOINTS.proctoring.teacherRepermitAttempt(student.attemptId), {
+        method: "PUT",
+        headers: { Accept: "application/json", Authorization: `Bearer ${token}` },
+        cache: "no-store",
+      });
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        throw new Error(payload?.message || payload?.detail || payload?.error || `Re-permission failed (${response.status}).`);
+      }
+      setRefreshKey((value) => value + 1);
+    } catch (err) {
+      setActionError(err instanceof Error ? err.message : "Could not re-permit this student.");
+    } finally {
+      setRepermitLoadingId(null);
+    }
+  };
 
   const examDurationMins = Math.floor((quiz?.overallTimerSeconds ?? 0) / 60);
 
@@ -400,7 +486,7 @@ export default function LiveLeaderboard({
         <div className="flex items-center gap-2">
           <ThemeToggle />
           <span className="hidden sm:flex items-center gap-1.5 rounded-full bg-pastel-yellow px-3 py-1 text-xs font-bold text-pastel-yellow-text shadow-xs">
-            PERSISTED SNAPSHOT
+            AUTO-REFRESH · 15 SEC
           </span>
           <button
             type="button"
@@ -441,15 +527,15 @@ export default function LiveLeaderboard({
               <Clock className="h-3.5 w-3.5 text-signal-green" />
               Mode:
               <strong className="text-midnight-navy font-bold">
-                Persisted results
+                15-second refresh
               </strong>
             </span>
           </div>
         </div>
 
-        {error && (
+        {(error || actionError) && (
           <div className="rounded-[12px] border border-pastel-pink/40 bg-pastel-pink/10 px-4 py-3 text-xs font-medium text-pastel-pink-text">
-            {error}
+            {actionError || error}
           </div>
         )}
 
@@ -462,7 +548,7 @@ export default function LiveLeaderboard({
             },
             {
               icon: <ShieldCheck className="h-4 w-4 text-pastel-mint-text" />,
-              label: "Submitted",
+              label: "Completed",
               value: submittedCount,
             },
             {
@@ -497,26 +583,27 @@ export default function LiveLeaderboard({
           ))}
         </div>
 
-        <div className="rounded-[14px] bg-paper-white border border-[#d1dee8]/70 overflow-hidden shadow-sm text-left">
-          <div className="grid grid-cols-[2rem_1fr_8rem_7rem_8rem] items-center gap-4 bg-paper-white px-6 py-2.5 text-xs font-bold uppercase tracking-wider text-steel-blue-gray border-b border-[#d1dee8]/40">
+        <div className="rounded-[14px] bg-paper-white border border-[#d1dee8]/70 overflow-x-auto shadow-sm text-left">
+          <div className="grid grid-cols-[2rem_minmax(0,1fr)_7rem_6rem_7rem_13rem] min-w-[760px] items-center gap-3 bg-paper-white px-4 sm:px-6 py-2.5 text-[10px] font-bold uppercase tracking-wider text-steel-blue-gray border-b border-[#d1dee8]/40">
             <span>#</span>
-            <span>Student</span>
+            <span>Student / Status</span>
             <span className="text-center">Progress</span>
             <span className="text-center">Score</span>
-            <span className="text-center">Time Taken</span>
+            <span className="text-center">Time</span>
+            <span className="text-center">Teacher Actions</span>
           </div>
 
           <ul className="divide-y divide-[#d1dee8]/30 bg-paper-white">
             {sorted.length === 0 ? (
               <li className="p-8 text-center text-xs text-steel-blue-gray">
-                No submitted attempts are available yet.
+                No student attempts have been recorded yet.
               </li>
             ) : (
               sorted.map((student, idx) => (
                 <motion.li
                   key={student.id || idx}
                   layout
-                  className="grid grid-cols-[2rem_1fr_8rem_7rem_8rem] items-center gap-4 px-6 py-2.5 transition-colors hover:bg-frost-surface/30"
+                  className="grid grid-cols-[2rem_minmax(0,1fr)_7rem_6rem_7rem_13rem] min-w-[760px] items-center gap-3 px-4 sm:px-6 py-3 transition-colors hover:bg-frost-surface/30"
                 >
                   <span className="text-xs font-bold font-mono text-steel-blue-gray">
                     {idx + 1}
@@ -526,9 +613,15 @@ export default function LiveLeaderboard({
                     <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-frost-surface border border-mist-blue/30 text-midnight-navy font-bold text-[10px] shadow-xs">
                       {student.avatar}
                     </div>
-                    <span className="truncate text-xs font-bold text-midnight-navy">
-                      {student.name}
-                    </span>
+                    <div className="min-w-0">
+                      <span className="block truncate text-xs font-bold text-midnight-navy">{student.name}</span>
+                      <span className={`mt-1 inline-flex rounded-full px-2 py-0.5 text-[9px] font-bold ${student.status === "AUTO_SUBMITTED" ? "bg-rose-100 text-rose-700" : student.status === "IN_PROGRESS" ? "bg-amber-100 text-amber-700" : "bg-emerald-100 text-emerald-700"}`}>
+                        {student.status === "AUTO_SUBMITTED" ? "Auto-submitted" : student.status === "IN_PROGRESS" ? "In progress" : "Submitted"}
+                      </span>
+                      {student.status === "AUTO_SUBMITTED" && student.terminationReason && (
+                        <p className="mt-1 truncate text-[10px] text-rose-700" title={student.terminationReason}>Reason: {student.terminationReason.replaceAll("_", " ")}</p>
+                      )}
+                    </div>
                   </div>
 
                   <div className="flex flex-col items-center gap-0.5">
@@ -557,22 +650,40 @@ export default function LiveLeaderboard({
                   </div>
 
                   <div className="flex items-center justify-center">
-                    <span className="inline-flex items-center justify-center rounded-full px-2.5 py-0.5 text-xs font-bold min-w-[3rem] bg-pastel-mint text-pastel-mint-text shadow-xs">
-                      {student.score}%
+                    <span className={`inline-flex items-center justify-center rounded-full px-2.5 py-0.5 text-xs font-bold min-w-[3rem] ${student.status === "IN_PROGRESS" ? "bg-slate-100 text-slate-500" : "bg-pastel-mint text-pastel-mint-text shadow-xs"}`}>
+                      {student.status === "IN_PROGRESS" ? "—" : `${student.score}%`}
                     </span>
                   </div>
 
                   <div className="flex items-center justify-center">
                     <span className="flex items-center gap-1 rounded-full bg-pastel-lavender px-2.5 py-0.5 text-[10px] font-bold text-pastel-lavender-text shadow-xs">
                       <Clock className="h-3 w-3 text-pastel-lavender-text" />
-                      {student.timeTaken}
+                      {student.status === "IN_PROGRESS" ? "—" : student.timeTaken}
                     </span>
+                  </div>
+
+                  <div className="flex flex-wrap items-center justify-center gap-1.5">
+                    {student.attemptId > 0 && (
+                      <button type="button" onClick={() => setSelectedAttemptId(student.attemptId)} className="inline-flex items-center gap-1 rounded-[8px] border border-mist-blue px-2 py-1.5 text-[10px] font-bold text-midnight-navy hover:bg-frost-surface">
+                        <Eye className="h-3 w-3" /> Report
+                      </button>
+                    )}
+                    {student.status === "AUTO_SUBMITTED" && (
+                      <button type="button" onClick={() => void handleRepermit(student)} disabled={repermitLoadingId === student.attemptId} className="inline-flex items-center gap-1 rounded-[8px] bg-midnight-navy px-2 py-1.5 text-[10px] font-bold text-white hover:opacity-90 disabled:opacity-50">
+                        <RotateCcw className="h-3 w-3" /> {repermitLoadingId === student.attemptId ? "Permitting…" : "Re-permit"}
+                      </button>
+                    )}
                   </div>
                 </motion.li>
               ))
             )}
           </ul>
         </div>
+        <TeacherProctoringReportModal
+          isOpen={selectedAttemptId !== null}
+          attemptId={selectedAttemptId}
+          onClose={() => setSelectedAttemptId(null)}
+        />
       </main>
     </div>
   );
