@@ -95,7 +95,6 @@ public class SecurityConfig {
                         .access((authentication,
                                 context) -> new org.springframework.security.authorization.AuthorizationDecision(
                                         emailFeaturesEnabled))
-                        .requestMatchers("/v3/api-docs/**", "/swagger-ui/**", "/swagger-ui.html").permitAll()
                         .requestMatchers("/error").permitAll()
                         .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
                         .requestMatchers("/api/v1/student/**").hasRole("STUDENT")
